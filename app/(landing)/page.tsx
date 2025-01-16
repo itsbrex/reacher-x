@@ -1,4 +1,4 @@
-import { Button } from '@/shared/ui/button';
+import { Button } from "@/shared/ui/button";
 
 export default function Home() {
   return (
@@ -17,7 +17,7 @@ export default function Home() {
         >
           <mask
             id="mask0_2849_8180"
-            style={{ maskType: 'alpha' }}
+            style={{ maskType: "alpha" }}
             maskUnits="userSpaceOnUse"
             x="0"
             y="0"
