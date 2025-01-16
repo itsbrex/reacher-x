@@ -1,5 +1,5 @@
 export default function Home() {
   return (
-    <h1>Don't be lazy!</h1>
-  )
+    <h1>Don&apos;t be lazy!</h1>
+  );
 }
