@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Mono } from "next/font/google";
+import { Header } from "@/features/landing/ui/components/Header"
 import "../globals.css";
 
 const dmSans = DM_Sans({
@@ -29,6 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} ${dmMono.variable} antialiased`}>
+        <Header />
         {children}
       </body>
     </html>
