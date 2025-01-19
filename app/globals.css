@@ -6,6 +6,12 @@ body {
   font-family: var(--font-dm-sans), sans-serif;
 }
 
+.font-mono {
+  font-family: var(--font-dm-mono), monospace;
+  line-height: 142.9%; /* You can also use '1.429' for line-height */
+  letter-spacing: -0.04em; /* -4% as 'em' */
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

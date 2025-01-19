@@ -13,8 +13,10 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerFooter,
   DrawerTitle,
 } from "@/shared/ui/components/Drawer";
+import { LightModeIcon, DarkModeIcon } from "@/shared/ui/components/icons";
 
 /* ----------------------------------------------------------------------------
  * Mode Toggle
@@ -24,17 +26,15 @@ import {
  */
 function ModeToggle() {
   const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
 
   const handleToggle = React.useCallback(() => {
     setTheme(theme === "dark" ? "light" : "dark");
   }, [theme, setTheme]);
 
   return (
-    <Button variant="outline" size="icon" onClick={handleToggle}>
-      {/* Sun icon (light mode) */}
-      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      {/* Moon icon (dark mode) */}
-      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+    <Button variant="ghost" size="icon" onClick={handleToggle}>
+      {isDark ? <LightModeIcon /> : <DarkModeIcon />}
     </Button>
   );
 }
@@ -47,12 +47,12 @@ function ModeToggle() {
  */
 const headerVariants = cva(
   // Base classes
-  "flex items-center justify-between",
+  "flex items-center justify-between ease-[cubic-bezier(0.25, 1, 0.5, 1)] duration-300",
   {
     variants: {
       // Example variant: size
       size: {
-        default: "px-4 py-2 md:px-[112px] md:py-[24px]",
+        default: "px-4 py-2 md:px-28 md:py-6",
         // Could add e.g. sm, lg, etc.
       },
     },
@@ -64,9 +64,9 @@ const headerVariants = cva(
 
 // Optional cva for sub-elements if you want them standardized as well:
 const navVariants = cva("hidden items-center gap-4 md:flex");
-const brandLinkVariants = cva("text-xl font-bold");
+const brandLinkVariants = cva("text-base font-medium font-mono");
 const rightSideVariants = cva("flex items-center gap-4");
-const drawerMenuVariants = cva("flex flex-col gap-4 p-4");
+const drawerMenuVariants = cva("flex flex-col items-start pb-4");
 
 /* ----------------------------------------------------------------------------
  * Header Props
@@ -138,7 +138,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerContent>
             <DrawerHeader className="flex items-center justify-between p-4">
-              <DrawerTitle>Menu</DrawerTitle>
+              <DrawerTitle>Menu.</DrawerTitle>
               <Button variant="ghost" onClick={() => setIsDrawerOpen(false)}>
                 Close
               </Button>
@@ -156,6 +156,14 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                 Contact
               </Button>
             </div>
+
+            <DrawerFooter>
+              <small>Follow on</small>
+              <div className="flex items-center gap-4">
+                <Button variant={"ghost"} size={"icon"}></Button>
+                <Button variant={"ghost"} size={"icon"}></Button>
+              </div>
+            </DrawerFooter>
           </DrawerContent>
         </Drawer>
       </Comp>
