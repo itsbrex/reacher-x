@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Sun, Moon } from "lucide-react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/components/Button";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 import {
   Drawer,
   DrawerContent,
@@ -16,7 +16,14 @@ import {
   DrawerFooter,
   DrawerTitle,
 } from "@/shared/ui/components/Drawer";
-import { LightModeIcon, DarkModeIcon } from "@/shared/ui/components/icons";
+import {
+  LightModeIcon,
+  DarkModeIcon,
+  XIcon,
+  DiscordIcon,
+  RedditIcon,
+  ThreadsIcon,
+} from "@/shared/ui/components/icons";
 
 /* ----------------------------------------------------------------------------
  * Mode Toggle
@@ -24,17 +31,35 @@ import { LightModeIcon, DarkModeIcon } from "@/shared/ui/components/icons";
  * A simple single-click dark/light toggle. If you prefer multiple options
  * (light, dark, system), you can replace this with a shadcn/ui dropdown.
  */
-function ModeToggle() {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
+function ThemeToggle() {
+  const { theme, setTheme, systemTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  // Handle hydration mismatch by mounting after first render
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleToggle = React.useCallback(() => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  }, [theme, setTheme]);
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  }, [resolvedTheme, setTheme]);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon">
+        <Skeleton className="h-5 w-5" />
+      </Button>
+    );
+  }
 
   return (
     <Button variant="ghost" size="icon" onClick={handleToggle}>
-      {isDark ? <LightModeIcon /> : <DarkModeIcon />}
+      {resolvedTheme === "dark" ? (
+        <LightModeIcon className="fill-current" />
+      ) : (
+        <DarkModeIcon className="fill-current" />
+      )}
     </Button>
   );
 }
@@ -65,8 +90,8 @@ const headerVariants = cva(
 // Optional cva for sub-elements if you want them standardized as well:
 const navVariants = cva("hidden items-center gap-4 md:flex");
 const brandLinkVariants = cva("text-base font-medium font-mono");
-const rightSideVariants = cva("flex items-center gap-4");
-const drawerMenuVariants = cva("flex flex-col items-start pb-4");
+const rightSideVariants = cva("flex items-center gap-0 md:gap-4");
+const drawerMenuVariants = cva("flex flex-col items-start");
 
 /* ----------------------------------------------------------------------------
  * Header Props
@@ -122,7 +147,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           </nav>
 
           {/* Single theme toggle button (always visible) */}
-          <ModeToggle />
+          <ThemeToggle />
 
           {/* "Menu" button (mobile only) */}
           <Button
@@ -158,10 +183,38 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
             </div>
 
             <DrawerFooter>
-              <small>Follow on</small>
-              <div className="flex items-center gap-4">
-                <Button variant={"ghost"} size={"icon"}></Button>
-                <Button variant={"ghost"} size={"icon"}></Button>
+              <small className="text-sm font-medium text-neutral-500">
+                Follow on
+              </small>
+              <div className="flex items-center">
+                <Button
+                  variant={"ghost"}
+                  size={"icon"}
+                  className="[&_svg]:size-8"
+                >
+                  <XIcon className="fill-current" />
+                </Button>
+                <Button
+                  variant={"ghost"}
+                  size={"icon"}
+                  className="[&_svg]:size-8"
+                >
+                  <DiscordIcon className="fill-current" />
+                </Button>
+                <Button
+                  variant={"ghost"}
+                  size={"icon"}
+                  className="[&_svg]:size-8"
+                >
+                  <ThreadsIcon className="fill-current" />
+                </Button>
+                <Button
+                  variant={"ghost"}
+                  size={"icon"}
+                  className="[&_svg]:size-8"
+                >
+                  <RedditIcon className="fill-current" />
+                </Button>
               </div>
             </DrawerFooter>
           </DrawerContent>

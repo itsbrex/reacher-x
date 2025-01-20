@@ -20,6 +20,7 @@ body {
 
 @layer base {
   :root {
+    --main: 0 0% 100%;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -47,6 +48,7 @@ body {
     --radius: 0.5rem;
   }
   .dark {
+    --main: 0 0% 0%;
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -79,6 +81,6 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-main text-foreground;
   }
 }
