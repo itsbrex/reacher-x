@@ -47,14 +47,27 @@ function ThemeToggle() {
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Theme toggle button loading"
+      >
         <Skeleton className="h-5 w-5" />
       </Button>
     );
   }
 
   return (
-    <Button variant="ghost" size="icon" onClick={handleToggle}>
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleToggle}
+      aria-label={
+        resolvedTheme === "dark"
+          ? "Switch to light mode"
+          : "Switch to dark mode"
+      }
+    >
       {resolvedTheme === "dark" ? (
         <LightModeIcon className="fill-current" />
       ) : (
@@ -88,9 +101,9 @@ const headerVariants = cva(
 );
 
 // Optional cva for sub-elements if you want them standardized as well:
-const navVariants = cva("hidden items-center gap-4 md:flex");
+const desktopNavMenuVariants = cva("hidden items-center gap-4 md:flex");
 const brandLinkVariants = cva("text-base font-medium font-mono");
-const rightSideVariants = cva("flex items-center gap-0 md:gap-4");
+const navVariants = cva("flex items-center gap-0 md:gap-4");
 const drawerMenuVariants = cva("flex flex-col items-start");
 
 /* ----------------------------------------------------------------------------
@@ -121,7 +134,6 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
         ref={ref}
         {...props}
       >
-        {/* Brand link / title */}
         <Link
           href="/"
           aria-label="ReacherX Home"
@@ -130,48 +142,15 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           🆁 ReacherX
         </Link>
 
-        {/* Right side: nav links (desktop) + theme toggle + mobile menu button */}
-        <div className={cn(rightSideVariants())}>
-          {/* Desktop nav (3 link buttons), hidden on mobile */}
-          <nav className={cn(navVariants())}>
-            <Button variant="link">Vision</Button>
-            <Button variant="link">Threads</Button>
-            <Button
-              variant="link"
-              onClick={() => {
-                window.location.href = "mailto:support@reacherx.com";
-              }}
-            >
-              Contact
-            </Button>
-          </nav>
-
-          {/* Single theme toggle button (always visible) */}
-          <ThemeToggle />
-
-          {/* "Menu" button (mobile only) */}
-          <Button
-            variant="ghost"
-            className="md:hidden"
-            onClick={() => setIsDrawerOpen(true)}
-          >
-            Menu
-          </Button>
-        </div>
-
-        {/* Drawer for mobile menu */}
-        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-          <DrawerContent>
-            <DrawerHeader className="flex items-center justify-between p-4">
-              <DrawerTitle>Menu.</DrawerTitle>
-              <Button variant="ghost" onClick={() => setIsDrawerOpen(false)}>
-                Close
-              </Button>
-            </DrawerHeader>
-
-            <div className={cn(drawerMenuVariants())}>
+        <nav className={cn(navVariants())}>
+          <menu className={cn(desktopNavMenuVariants())}>
+            <li>
               <Button variant="link">Vision</Button>
+            </li>
+            <li>
               <Button variant="link">Threads</Button>
+            </li>
+            <li>
               <Button
                 variant="link"
                 onClick={() => {
@@ -180,43 +159,91 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
               >
                 Contact
               </Button>
-            </div>
+            </li>
+          </menu>
 
-            <DrawerFooter>
-              <small className="text-sm font-medium text-neutral-500">
-                Follow on
-              </small>
-              <div className="flex items-center">
-                <Button
-                  variant={"ghost"}
-                  size={"icon"}
-                  className="[&_svg]:size-8"
-                >
-                  <XIcon className="fill-current" />
-                </Button>
-                <Button
-                  variant={"ghost"}
-                  size={"icon"}
-                  className="[&_svg]:size-8"
-                >
-                  <DiscordIcon className="fill-current" />
-                </Button>
-                <Button
-                  variant={"ghost"}
-                  size={"icon"}
-                  className="[&_svg]:size-8"
-                >
-                  <ThreadsIcon className="fill-current" />
-                </Button>
-                <Button
-                  variant={"ghost"}
-                  size={"icon"}
-                  className="[&_svg]:size-8"
-                >
-                  <RedditIcon className="fill-current" />
-                </Button>
-              </div>
-            </DrawerFooter>
+          <ThemeToggle />
+
+          <Button
+            variant="ghost"
+            className="md:hidden"
+            onClick={() => setIsDrawerOpen(true)}
+          >
+            Menu
+          </Button>
+        </nav>
+
+        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+          <DrawerContent>
+            <aside aria-label="Mobile Navigation Menu">
+              <header>
+                <DrawerHeader className="flex items-center justify-between p-4">
+                  <DrawerTitle>Menu.</DrawerTitle>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsDrawerOpen(false)}
+                  >
+                    Close
+                  </Button>
+                </DrawerHeader>
+              </header>
+
+              <menu className={cn(drawerMenuVariants())}>
+                <li>
+                  <Button variant="link">Vision</Button>
+                </li>
+                <li>
+                  <Button variant="link">Threads</Button>
+                </li>
+                <li>
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      window.location.href = "mailto:support@reacherx.com";
+                    }}
+                  >
+                    Contact
+                  </Button>
+                </li>
+              </menu>
+              <footer>
+                <DrawerFooter>
+                  <small className="text-sm font-medium text-neutral-500">
+                    Follow on
+                  </small>
+                  <div className="flex items-center">
+                    <Button
+                      variant={"ghost"}
+                      size={"icon"}
+                      className="[&_svg]:size-8"
+                    >
+                      <XIcon className="fill-current" />
+                    </Button>
+                    <Button
+                      variant={"ghost"}
+                      size={"icon"}
+                      className="[&_svg]:size-8"
+                    >
+                      <DiscordIcon className="fill-current" />
+                    </Button>
+                    <Button
+                      variant={"ghost"}
+                      size={"icon"}
+                      className="[&_svg]:size-8"
+                    >
+                      <ThreadsIcon className="fill-current" />
+                    </Button>
+                    <Button
+                      variant={"ghost"}
+                      size={"icon"}
+                      className="[&_svg]:size-8"
+                    >
+                      <RedditIcon className="fill-current" />
+                    </Button>
+                  </div>
+                </DrawerFooter>
+              </footer>
+            </aside>
           </DrawerContent>
         </Drawer>
       </Comp>
