@@ -32,7 +32,7 @@ import {
  * (light, dark, system), you can replace this with a shadcn/ui dropdown.
  */
 function ThemeToggle() {
-  const { theme, setTheme, systemTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   // Handle hydration mismatch by mounting after first render
@@ -142,8 +142,11 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           🆁 ReacherX
         </Link>
 
-        <nav className={cn(navVariants())}>
-          <menu className={cn(desktopNavMenuVariants())}>
+        <nav className={cn(navVariants())} aria-label="Main navigation">
+          <menu
+            className={cn(desktopNavMenuVariants())}
+            aria-label="Desktop navigation menu"
+          >
             <li>
               <Button variant="link">Vision</Button>
             </li>
@@ -168,6 +171,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
             variant="ghost"
             className="md:hidden"
             onClick={() => setIsDrawerOpen(true)}
+            aria-label="Open mobile navigation menu"
           >
             Menu
           </Button>
@@ -182,13 +186,17 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   <Button
                     variant="ghost"
                     onClick={() => setIsDrawerOpen(false)}
+                    aria-label="Close mobile navigation menu"
                   >
                     Close
                   </Button>
                 </DrawerHeader>
               </header>
 
-              <menu className={cn(drawerMenuVariants())}>
+              <menu
+                className={cn(drawerMenuVariants())}
+                aria-label="Mobile menu items"
+              >
                 <li>
                   <Button variant="link">Vision</Button>
                 </li>
@@ -213,6 +221,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   </small>
                   <div className="flex items-center">
                     <Button
+                      aria-label="ReacherX on X"
                       variant={"ghost"}
                       size={"icon"}
                       className="[&_svg]:size-8"
@@ -220,6 +229,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                       <XIcon className="fill-current" />
                     </Button>
                     <Button
+                      aria-label="ReacherX on Discord"
                       variant={"ghost"}
                       size={"icon"}
                       className="[&_svg]:size-8"
@@ -227,6 +237,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                       <DiscordIcon className="fill-current" />
                     </Button>
                     <Button
+                      aria-label="ReacherX on Threads"
                       variant={"ghost"}
                       size={"icon"}
                       className="[&_svg]:size-8"
@@ -234,6 +245,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                       <ThreadsIcon className="fill-current" />
                     </Button>
                     <Button
+                      aria-label="ReacherX on Reddit"
                       variant={"ghost"}
                       size={"icon"}
                       className="[&_svg]:size-8"

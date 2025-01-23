@@ -34,8 +34,9 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
     return (
       <Comp
         ref={ref}
+        role="contentinfo"
         className={cn(
-          "flex flex-col gap-6 border-t border-border px-4 pb-12 pt-6 md:gap-12 md:px-28 md:py-12",
+          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-6 border-t border-border px-4 pb-12 pt-6 duration-300 md:gap-12 md:px-28 md:py-12",
           className
         )}
         {...props}
@@ -58,7 +59,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
           </address>
         </section>
 
-        <section className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-6 duration-300 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-col gap-4">
             <small className="text-sm font-medium text-neutral-500">
               Links
@@ -77,12 +78,13 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
             </menu>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-4 duration-300">
             <small className="text-sm font-medium text-neutral-500">
               Follow on
             </small>
             <div className="flex">
               <Button
+                aria-label="ReacherX on X"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -90,6 +92,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
                 <XIcon className="fill-current" />
               </Button>
               <Button
+                aria-label="ReacherX on Discord"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -97,6 +100,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
                 <DiscordIcon className="fill-current" />
               </Button>
               <Button
+                aria-label="ReacherX on Threads"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -104,6 +108,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
                 <ThreadsIcon className="fill-current" />
               </Button>
               <Button
+                aria-label="ReacherX on Instagram"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -111,6 +116,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
                 <InstagramIcon className="fill-current" />
               </Button>
               <Button
+                aria-label="ReacherX on YouTube"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -118,6 +124,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
                 <YoutubeIcon className="fill-current" />
               </Button>
               <Button
+                aria-label="ReacherX on Reddit"
                 variant="ghost"
                 size="icon"
                 className="[&_svg]:size-8 md:[&_svg]:size-6"
@@ -137,7 +144,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
           Go to top
         </Button>
 
-        <section className="flex flex-col-reverse gap-2 md:flex-row md:items-center md:justify-between">
+        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col-reverse gap-2 duration-300 md:flex-row md:items-center md:justify-between">
           <small className="text-sm text-neutral-500">
             Copyright © 2024 ReacherX. All rights reserved.
           </small>
