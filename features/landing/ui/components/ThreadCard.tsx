@@ -55,10 +55,12 @@ export interface ThreadCardProps
   leftSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
 
+  avatarUrl?: string;
   displayName?: string;
   username?: string;
   pro?: boolean;
   dateTime?: string;
+  replyingTo?: string | undefined | null;
   /** The raw body if you want to store it, but you won't parse it here. */
   body?: string;
   /** The already-parsed HTML from server */
@@ -79,10 +81,12 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       detailHref,
       leftSlot,
       rightSlot,
+      avatarUrl,
       displayName,
       username,
       pro,
       dateTime,
+      replyingTo,
       body,
       parsedBody,
       repliesCount,
@@ -144,6 +148,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size === "lg" && "md:text-lg"
     );
 
+    const replyingToClass = cn(
+      "text-sm",
+      size === "sm" && "md:text-sm",
+      size === "md" && "md:text-sm",
+      size === "lg" && "md:text-base"
+    );
+
     // Body text
     const bodyClass = cn(
       "text-base",
@@ -161,11 +172,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
         <Link href={detailHref} className={cn(containerClasses, "group")}>
           {/* Left side: Avatar + vertical separator */}
           <div className="flex flex-col items-center gap-2">
-            <Avatar className={avatarClass}>
-              <AvatarImage src="https://avatars.githubusercontent.com/u/85483006?v=4" />
-              <AvatarFallback>UI</AvatarFallback>
-            </Avatar>
-            <Separator orientation="vertical" />
+            <Link href={`https://x.com/${username}`}>
+              <Avatar className={avatarClass}>
+                <AvatarImage src={avatarUrl} />
+                <AvatarFallback>UI</AvatarFallback>
+              </Avatar>
+            </Link>
+            <Separator orientation="vertical" className="w-[2px]" />
           </div>
 
           {/* Main content */}
@@ -179,7 +192,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                         href={`https://x.com/${username}`}
                         className={cn(
                           displayNameClass,
-                          "truncate font-medium hover:underline"
+                          "whitespace-nowrap font-medium hover:underline"
                         )}
                       >
                         {displayName}
@@ -217,17 +230,35 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 </div>
 
                 <Button size="icon" variant="ghost" className="h-6 w-6">
-                  <MoreHorizIcon className="fill-current" />
+                  <MoreHorizIcon className="fill-neutral-500" />
                 </Button>
               </header>
 
+              {replyingTo && (
+                <p
+                  className={cn(
+                    replyingToClass,
+                    "whitespace-pre-line font-medium text-neutral-500"
+                  )}
+                >
+                  Replying to{" "}
+                  <Link
+                    href={`https://x.com/${replyingTo}`}
+                    className="font-mono text-foreground hover:underline"
+                  >
+                    @{replyingTo}
+                  </Link>
+                </p>
+              )}
+
               {/* Body / parsed HTML */}
               {parsedBody ? (
-                <div
+                <p
+                  lang="auto"
                   className={cn(
                     bodyClass,
                     // This applies text-neutral-500 + font-mono to all <a> inside
-                    "[&_a]:font-mono [&_a]:text-neutral-500"
+                    "word-break hyphens-auto whitespace-pre-line [&_a]:font-mono [&_a]:text-neutral-500"
                   )}
                   dangerouslySetInnerHTML={{
                     __html: parsedBody,
@@ -238,7 +269,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   <p
                     className={cn(
                       bodyClass,
-                      "[&_a]:font-mono [&_a]:text-neutral-500"
+                      "word-break hyphens-auto whitespace-pre-line [&_a]:font-mono [&_a]:text-neutral-500"
                     )}
                   >
                     {body}

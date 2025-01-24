@@ -12,6 +12,10 @@ body {
   letter-spacing: -0.04em; /* -4% as 'em' */
 }
 
+.word-break {
+  word-break: break-word;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
