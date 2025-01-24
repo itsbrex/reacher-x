@@ -6,20 +6,16 @@ const mockThreads = [
   {
     id: "1",
     detailHref: "/threads/1",
-    displayName: "John Smith",
-    username: "johnsmith",
-    dateTime: "2025-01-22T13:00:00Z",
+    displayName: "ReacherX founder",
+    username: "ReacherXfounder",
+    dateTime: "· 1:27PM · Oct 4 2022",
     body: "Hello world! Check out #NextJS and @twitter for more info: https://nextjs.org",
     repliesCount: "2",
-  },
-  {
-    id: "2",
-    detailHref: "/threads/2",
-    displayName: "Jane Doe",
-    username: "janedoe",
-    dateTime: "2025-01-23T14:30:00Z",
-    body: "Another test tweet with #hashtags, mentions like @someone, and a link https://example.com or reacerx.com",
     likesCount: "5",
+    bookmarksCount: "3",
+    impressionsCount: "10",
+    repostsCount: "2",
+    pro: true,
   },
 ];
 
@@ -31,7 +27,8 @@ export default function Home() {
     const escaped = twitter.htmlEscape(thread.body || "");
     const parsedBody = twitter.autoLink(escaped, {
       hashtagUrlBase: "https://twitter.com/hashtag/",
-      mentionUrlBase: "https://twitter.com/",
+      // Replace mentionUrlBase with usernameUrlBase
+      usernameUrlBase: "https://twitter.com/",
       usernameIncludeSymbol: true,
       targetBlank: true,
     });
@@ -47,7 +44,7 @@ export default function Home() {
   return (
     <main className="flex h-screen flex-wrap items-center justify-center gap-2">
       {threadsWithParsedHtml.map((thread) => (
-        <ThreadCard key={thread.id} {...thread} />
+        <ThreadCard key={thread.id} {...thread} size="lg" />
       ))}
     </main>
   );
