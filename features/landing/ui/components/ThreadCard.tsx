@@ -79,7 +79,7 @@ function formatLargeNumber(value: number): string {
    ---------------------------------------------------------------------------*/
 
 const threadCardVariants = cva(
-  "flex gap-4 w-full rounded-sm px-4 py-3 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
+  "flex gap-4 w-full rounded-sm px-4 pt-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
   {
     variants: {
       bordered: {
@@ -163,6 +163,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size === "lg" && "md:h-10 md:w-10"
     );
 
+    const rightColumnClass = cn(
+      "pb-4",
+      size === "sm" && "md:pb-4",
+      size === "md" && "md:pb-6",
+      size === "lg" && "md:pb-12"
+    );
+
     const displayNameClass = cn(
       "text-base",
       size === "sm" && "md:text-base",
@@ -222,9 +229,14 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       <article ref={ref} {...props}>
         <Link href={detailHref} className={cn(containerClasses, "group")}>
           {/* Left side: Avatar + vertical separator */}
-          <div className="flex flex-col items-center gap-2">
+          <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
             <Link href={`https://x.com/${username}`}>
-              <Avatar className={avatarClass}>
+              <Avatar
+                className={cn(
+                  avatarClass,
+                  "ease-[cubic-bezier(0.25, 1, 0.5, 1)] duration-300"
+                )}
+              >
                 <AvatarImage src={avatarUrl} />
                 <AvatarFallback>UI</AvatarFallback>
               </Avatar>
@@ -232,9 +244,8 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
             {thread && <Separator orientation="vertical" className="w-[2px]" />}
           </div>
 
-          {/* Main content */}
-          <main className="flex">
-            <section className="flex flex-col gap-4">
+          <main>
+            <section className={cn(rightColumnClass, "flex flex-col gap-4")}>
               <header className="mt-1 flex items-center justify-between gap-4">
                 <div className="grid grid-cols-[auto,auto] items-center gap-1">
                   <address className="grid grid-cols-[auto,auto,auto] items-center gap-1 not-italic">
@@ -243,7 +254,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                         href={`https://x.com/${username}`}
                         className={cn(
                           displayNameClass,
-                          "whitespace-nowrap font-medium hover:underline"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-nowrap font-medium duration-300 hover:underline"
                         )}
                       >
                         {displayName}
@@ -251,7 +262,10 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     )}
                     {pro && (
                       <NewReleasesIcon
-                        className={cn(newReleasesIconClass, "fill-current")}
+                        className={cn(
+                          newReleasesIconClass,
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] fill-current duration-300"
+                        )}
                       />
                     )}
                     {username && (
@@ -259,7 +273,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                         href={`https://x.com/${username}`}
                         className={cn(
                           usernameClass,
-                          "truncate font-mono font-medium text-muted-foreground hover:underline"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-muted-foreground duration-300 hover:underline"
                         )}
                       >
                         @{username}
@@ -271,7 +285,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     <time
                       className={cn(
                         timeClass,
-                        "truncate text-muted-foreground"
+                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
                       )}
                       dateTime={dateTime}
                     >
@@ -289,7 +303,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 <p
                   className={cn(
                     replyingToClass,
-                    "whitespace-pre-line font-medium text-neutral-500"
+                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-pre-line font-medium text-neutral-500 duration-300"
                   )}
                 >
                   Replying to{" "}
@@ -308,8 +322,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   lang="auto"
                   className={cn(
                     bodyClass,
-                    // Applies text-neutral-500 + font-mono to any <a> inside
-                    "word-break hyphens-auto whitespace-pre-line [&_a]:font-mono [&_a]:text-neutral-500"
+                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500"
                   )}
                   dangerouslySetInnerHTML={{
                     __html: parsedBody,
@@ -320,7 +333,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   <p
                     className={cn(
                       bodyClass,
-                      "word-break hyphens-auto whitespace-pre-line [&_a]:font-mono [&_a]:text-neutral-500"
+                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500"
                     )}
                   >
                     {body}
@@ -330,7 +343,6 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
 
               {leftSlot && <div className="shrink-0">{leftSlot}</div>}
 
-              {/* Footer stats */}
               <footer className="flex items-center justify-between gap-6 text-xs text-muted-foreground">
                 {repliesCount !== undefined && (
                   <a
