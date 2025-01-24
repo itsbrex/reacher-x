@@ -3,6 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
+
+// date-fns imports
+import { format, formatDistanceToNow, differenceInDays } from "date-fns";
+
 import { cn } from "@/lib/utils";
 import {
   Avatar,
@@ -10,6 +14,7 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { Separator } from "@/shared/ui/components/Separator";
+
 import {
   BookmarkIcon,
   FavoriteIcon,
@@ -21,13 +26,59 @@ import {
 } from "@/shared/ui/components/icons";
 import { Button } from "@/shared/ui/components/Button";
 
+/* ----------------------------------------------------------------------------
+   Helper Functions
+   ---------------------------------------------------------------------------*/
+
 /**
- * Define just the container variants with cva.
- * We'll control element sizes outside of cva so we can fully customize
- * the Avatar, text, icons, etc. for sm/md/lg + responsive.
+ * Converts a date string into the desired "production-grade" format:
+ * - If the date is older than 7 days, use a format like "· Oct 4, 2022".
+ * - Otherwise, use a relative format like "2 days ago", "3 hours ago", etc.
  */
+function formatRelativeTime(dateString?: string): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return ""; // Fallback if invalid date
+
+  const now = new Date();
+  const dayDiff = differenceInDays(now, date);
+
+  // If older than 7 days => "· Oct 4, 2022"
+  if (dayDiff >= 7) {
+    return `· ${format(date, "MMM d, yyyy")}`;
+  }
+
+  // Otherwise => relative time: "3 days ago", "2 hours ago", etc.
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
+/**
+ * Abbreviates large values to "1.2K", "3.4M", etc.
+ * - If < 1,000 => returns the original number
+ * - If >= 1,000 => abbreviates with K, M, B, T
+ */
+function formatLargeNumber(value: number): string {
+  if (value < 1000) return String(value);
+
+  const suffixes = ["", "K", "M", "B", "T"];
+  let suffixIndex = 0;
+  let num = value;
+
+  while (num >= 1000 && suffixIndex < suffixes.length - 1) {
+    num /= 1000;
+    suffixIndex++;
+  }
+
+  // Remove trailing .0 if any
+  const formatted = num.toFixed(1).replace(/\.0$/, "");
+  return `${formatted}${suffixes[suffixIndex]}`;
+}
+
+/* ----------------------------------------------------------------------------
+   ThreadCard component
+   ---------------------------------------------------------------------------*/
+
 const threadCardVariants = cva(
-  // Base container classes
   "flex gap-4 w-full rounded-sm px-4 py-3 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
   {
     variants: {
@@ -45,10 +96,6 @@ const threadCardVariants = cva(
 export interface ThreadCardProps
   extends Omit<React.HTMLAttributes<HTMLElement>, "children">,
     VariantProps<typeof threadCardVariants> {
-  /**
-   * Controls the size of avatar, text, etc.
-   * Note: On small screen devices, everything automatically defaults to "sm".
-   */
   size?: "sm" | "md" | "lg";
 
   detailHref: string;
@@ -56,21 +103,26 @@ export interface ThreadCardProps
   rightSlot?: React.ReactNode;
 
   avatarUrl?: string;
+  thread?: boolean;
   displayName?: string;
   username?: string;
   pro?: boolean;
-  dateTime?: string;
-  replyingTo?: string | undefined | null;
-  /** The raw body if you want to store it, but you won't parse it here. */
-  body?: string;
-  /** The already-parsed HTML from server */
-  parsedBody: string;
 
-  repliesCount?: string;
-  repostsCount?: string;
-  likesCount?: string;
-  bookmarksCount?: string;
-  impressionsCount?: string;
+  /**
+   * dateTime should be a valid ISO date string (or any parseable date).
+   * We'll parse it and format accordingly.
+   */
+  dateTime?: string;
+
+  replyingTo?: string | null;
+  body?: string;
+  parsedBody?: string;
+
+  repliesCount?: string | number;
+  repostsCount?: string | number;
+  likesCount?: string | number;
+  bookmarksCount?: string | number;
+  impressionsCount?: string | number;
 
   tweetUrl?: string;
 }
@@ -82,6 +134,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       leftSlot,
       rightSlot,
       avatarUrl,
+      thread,
       displayName,
       username,
       pro,
@@ -102,31 +155,21 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
     },
     ref
   ) => {
-    /**
-     * Sizing logic for each element.
-     * Base classes = mobile/sm. Then add md: overrides
-     * for bigger screens and different size props.
-     */
-
-    // Avatar
+    // Sizing logic for each element.
     const avatarClass = cn(
-      // Base: small devices => sm
-      "h-8 w-8",
-      // On screens >= md breakpoint, switch based on the size prop
+      "h-8 w-8", // base = sm on mobile
       size === "sm" && "md:h-8 md:w-8",
       size === "md" && "md:h-9 md:w-9",
       size === "lg" && "md:h-10 md:w-10"
     );
 
-    // Display name (e.g. "John Doe")
     const displayNameClass = cn(
-      "text-base", // base for mobile => sm
+      "text-base",
       size === "sm" && "md:text-base",
       size === "md" && "md:text-lg",
-      size === "lg" && "md:text-xl" // e.g. 20px on bigger screens
+      size === "lg" && "md:text-xl"
     );
 
-    // Pro icon (NewReleasesIcon)
     const newReleasesIconClass = cn(
       "w-3 h-3",
       size === "sm" && "md:w-3 md:h-3",
@@ -134,13 +177,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size === "lg" && "md:w-4 md:h-4"
     );
 
-    // Username and time
     const usernameClass = cn(
       "text-sm",
       size === "sm" && "md:text-sm",
       size === "md" && "md:text-base",
       size === "lg" && "md:text-lg"
     );
+
     const timeClass = cn(
       "text-sm",
       size === "sm" && "md:text-sm",
@@ -155,7 +198,6 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size === "lg" && "md:text-base"
     );
 
-    // Body text
     const bodyClass = cn(
       "text-base",
       size === "sm" && "md:text-base",
@@ -163,9 +205,18 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size === "lg" && "md:text-2xl"
     );
 
-    // Container classes from cva
     const containerClasses = cn(threadCardVariants({ bordered }), className);
     const tweetLink = tweetUrl || "https://twitter.com";
+
+    // Format the date/time:
+    const displayTime = formatRelativeTime(dateTime);
+
+    // Parse counts for large number format (safe parse, fallback to 0)
+    const replies = formatLargeNumber(Number(repliesCount ?? 0));
+    const reposts = formatLargeNumber(Number(repostsCount ?? 0));
+    const likes = formatLargeNumber(Number(likesCount ?? 0));
+    const bookmarks = formatLargeNumber(Number(bookmarksCount ?? 0));
+    const impressions = formatLargeNumber(Number(impressionsCount ?? 0));
 
     return (
       <article ref={ref} {...props}>
@@ -178,7 +229,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 <AvatarFallback>UI</AvatarFallback>
               </Avatar>
             </Link>
-            <Separator orientation="vertical" className="w-[2px]" />
+            {thread && <Separator orientation="vertical" className="w-[2px]" />}
           </div>
 
           {/* Main content */}
@@ -224,7 +275,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                       )}
                       dateTime={dateTime}
                     >
-                      {dateTime}
+                      {displayTime}
                     </time>
                   )}
                 </div>
@@ -257,7 +308,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   lang="auto"
                   className={cn(
                     bodyClass,
-                    // This applies text-neutral-500 + font-mono to all <a> inside
+                    // Applies text-neutral-500 + font-mono to any <a> inside
                     "word-break hyphens-auto whitespace-pre-line [&_a]:font-mono [&_a]:text-neutral-500"
                   )}
                   dangerouslySetInnerHTML={{
@@ -281,7 +332,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
 
               {/* Footer stats */}
               <footer className="flex items-center justify-between gap-6 text-xs text-muted-foreground">
-                {repliesCount && (
+                {repliesCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
@@ -290,10 +341,10 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     onClick={(e) => e.stopPropagation()}
                   >
                     <QuickPhrasesIcon className="fill-current" />
-                    {repliesCount}
+                    {replies}
                   </a>
                 )}
-                {repostsCount && (
+                {repostsCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
@@ -302,10 +353,10 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     onClick={(e) => e.stopPropagation()}
                   >
                     <RepeatIcon className="fill-current" />
-                    {repostsCount}
+                    {reposts}
                   </a>
                 )}
-                {likesCount && (
+                {likesCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
@@ -314,10 +365,10 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     onClick={(e) => e.stopPropagation()}
                   >
                     <FavoriteIcon className="fill-current" />
-                    {likesCount}
+                    {likes}
                   </a>
                 )}
-                {bookmarksCount && (
+                {bookmarksCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
@@ -326,10 +377,10 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     onClick={(e) => e.stopPropagation()}
                   >
                     <BookmarkIcon className="fill-current" />
-                    {bookmarksCount}
+                    {bookmarks}
                   </a>
                 )}
-                {impressionsCount && (
+                {impressionsCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
@@ -338,7 +389,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     onClick={(e) => e.stopPropagation()}
                   >
                     <InsertChartIcon className="fill-current" />
-                    {impressionsCount}
+                    {impressions}
                   </a>
                 )}
               </footer>
