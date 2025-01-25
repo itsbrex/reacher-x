@@ -2,19 +2,19 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useToast } from "@/shared/ui/hooks/useToast";
 import { cva, type VariantProps } from "class-variance-authority";
-
-// date-fns imports
-import { format, formatDistanceToNow, differenceInDays } from "date-fns";
-
-import { cn } from "@/lib/utils";
+import {
+  formatRelativeTime,
+  formatLargeNumber,
+} from "@/shared/lib/utils/format";
+import { cn } from "@/shared/lib/utils/utils";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { Separator } from "@/shared/ui/components/Separator";
-
 import {
   BookmarkIcon,
   FavoriteIcon,
@@ -23,56 +23,19 @@ import {
   QuickPhrasesIcon,
   RepeatIcon,
   NewReleasesIcon,
+  LinkIcon,
+  ExitToAppIcon,
+  AccountCircleIcon,
 } from "@/shared/ui/components/icons";
 import { Button } from "@/shared/ui/components/Button";
-
-/* ----------------------------------------------------------------------------
-   Helper Functions
-   ---------------------------------------------------------------------------*/
-
-/**
- * Converts a date string into the desired "production-grade" format:
- * - If the date is older than 7 days, use a format like "· Oct 4, 2022".
- * - Otherwise, use a relative format like "2 days ago", "3 hours ago", etc.
- */
-function formatRelativeTime(dateString?: string): string {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return ""; // Fallback if invalid date
-
-  const now = new Date();
-  const dayDiff = differenceInDays(now, date);
-
-  // If older than 7 days => "· Oct 4, 2022"
-  if (dayDiff >= 7) {
-    return `· ${format(date, "MMM d, yyyy")}`;
-  }
-
-  // Otherwise => relative time: "3 days ago", "2 hours ago", etc.
-  return formatDistanceToNow(date, { addSuffix: true });
-}
-
-/**
- * Abbreviates large values to "1.2K", "3.4M", etc.
- * - If < 1,000 => returns the original number
- * - If >= 1,000 => abbreviates with K, M, B, T
- */
-function formatLargeNumber(value: number): string {
-  if (value < 1000) return String(value);
-
-  const suffixes = ["", "K", "M", "B", "T"];
-  let suffixIndex = 0;
-  let num = value;
-
-  while (num >= 1000 && suffixIndex < suffixes.length - 1) {
-    num /= 1000;
-    suffixIndex++;
-  }
-
-  // Remove trailing .0 if any
-  const formatted = num.toFixed(1).replace(/\.0$/, "");
-  return `${formatted}${suffixes[suffixIndex]}`;
-}
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/shared/ui/components/DropdownMenu";
 
 /* ----------------------------------------------------------------------------
    ThreadCard component
@@ -213,22 +176,47 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
     );
 
     const containerClasses = cn(threadCardVariants({ bordered }), className);
+    const { toast } = useToast();
     const tweetLink = tweetUrl || "https://twitter.com";
 
-    // Format the date/time:
     const displayTime = formatRelativeTime(dateTime);
 
-    // Parse counts for large number format (safe parse, fallback to 0)
     const replies = formatLargeNumber(Number(repliesCount ?? 0));
     const reposts = formatLargeNumber(Number(repostsCount ?? 0));
     const likes = formatLargeNumber(Number(likesCount ?? 0));
     const bookmarks = formatLargeNumber(Number(bookmarksCount ?? 0));
     const impressions = formatLargeNumber(Number(impressionsCount ?? 0));
 
+    const handleCopyLink = (event: React.MouseEvent) => {
+      event.stopPropagation();
+      navigator.clipboard.writeText(tweetLink).then(
+        () => {
+          // Show success toast
+          toast({
+            title: "☑︎ Copied!",
+            description: "Link copied to clipboard.",
+          });
+        },
+        (error) => {
+          console.error("Failed to copy to clipboard:", error);
+          // Show error toast
+          toast({
+            variant: "destructive",
+            title: "☒ Error!",
+            description: "Unable to copy link. Please try again.",
+          });
+        }
+      );
+    };
+
+    const handleViewOnX = (event: React.MouseEvent) => {
+      event.stopPropagation();
+      window.open(tweetLink, "_blank");
+    };
+
     return (
       <article ref={ref} {...props}>
         <Link href={detailHref} className={cn(containerClasses, "group")}>
-          {/* Left side: Avatar + vertical separator */}
           <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
             <Link href={`https://x.com/${username}`}>
               <Avatar
@@ -273,7 +261,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                         href={`https://x.com/${username}`}
                         className={cn(
                           usernameClass,
-                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-muted-foreground duration-300 hover:underline"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-neutral-500 duration-300 hover:underline"
                         )}
                       >
                         @{username}
@@ -285,7 +273,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     <time
                       className={cn(
                         timeClass,
-                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
+                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-neutral-500 duration-300"
                       )}
                       dateTime={dateTime}
                     >
@@ -294,9 +282,35 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   )}
                 </div>
 
-                <Button size="icon" variant="ghost" className="h-6 w-6">
-                  <MoreHorizIcon className="fill-neutral-500" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={(e) => e.stopPropagation()} // <--- ADDED
+                    >
+                      <MoreHorizIcon className="fill-neutral-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>↳ Menu</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleViewOnX}>
+                      <ExitToAppIcon className="fill-current" />
+                      Open on 𝕏
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleCopyLink}>
+                      <LinkIcon className="fill-current" />
+                      Copy link
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleViewOnX}>
+                      <AccountCircleIcon className="fill-current" />
+                      View profile
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </header>
 
               {replyingTo && (
@@ -316,13 +330,12 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 </p>
               )}
 
-              {/* Body / parsed HTML */}
               {parsedBody ? (
                 <p
                   lang="auto"
                   className={cn(
                     bodyClass,
-                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500"
+                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500 dark:[&_a]:text-neutral-400"
                   )}
                   dangerouslySetInnerHTML={{
                     __html: parsedBody,
@@ -333,7 +346,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   <p
                     className={cn(
                       bodyClass,
-                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500"
+                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500 dark:[&_a]:text-neutral-400"
                     )}
                   >
                     {body}
@@ -343,13 +356,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
 
               {leftSlot && <div className="shrink-0">{leftSlot}</div>}
 
-              <footer className="flex items-center justify-between gap-6 text-xs text-muted-foreground">
+              <footer className="flex items-center justify-between gap-6 text-xs">
                 {repliesCount !== undefined && (
                   <a
                     href={tweetLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono hover:underline"
+                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <QuickPhrasesIcon className="fill-current" />
@@ -361,7 +374,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     href={tweetLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono hover:underline"
+                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <RepeatIcon className="fill-current" />
@@ -373,7 +386,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     href={tweetLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono hover:underline"
+                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <FavoriteIcon className="fill-current" />
@@ -385,7 +398,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     href={tweetLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono hover:underline"
+                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <BookmarkIcon className="fill-current" />
@@ -397,7 +410,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                     href={tweetLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono hover:underline"
+                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <InsertChartIcon className="fill-current" />

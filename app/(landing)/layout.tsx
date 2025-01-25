@@ -3,6 +3,7 @@ import { DM_Sans, DM_Mono } from "next/font/google";
 import { Header } from "@/features/landing/ui/components/Header";
 import { Footer } from "@/features/landing/ui/components/Footer";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
+import { Toaster } from "@/shared/ui/components/Toaster";
 import "../globals.css";
 
 const dmSans = DM_Sans({
@@ -39,7 +40,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Header />
-          {children}
+          <main>{children}</main>
+          <Toaster />
           <Footer />
         </ThemeProvider>
       </body>

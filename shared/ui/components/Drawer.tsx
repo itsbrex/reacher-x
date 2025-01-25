@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { Drawer as DrawerPrimitive } from "vaul";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils/utils";
 
 const Drawer = ({
   shouldScaleBackground = true,
@@ -50,7 +50,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "bg-main fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-2xl",
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-2xl bg-main",
         className
       )}
       {...props}

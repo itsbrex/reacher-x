@@ -73,7 +73,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-wrap items-center justify-center gap-2">
-      <section>
+      <section className="max-w-4xl">
         {threadsWithParsedHtml.map((thread) => (
           <ThreadCard key={thread.id} {...thread} size="lg" />
         ))}
