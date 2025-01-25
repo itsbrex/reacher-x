@@ -1,5 +1,5 @@
 import twitter from "twitter-text";
-import { ThreadCard } from "@/features/landing/ui/components/ThreadCard";
+import { PostCard } from "@/features/landing/ui/components/PostCard";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -72,12 +72,10 @@ export default function Home() {
   });
 
   return (
-    <main className="flex flex-wrap items-center justify-center gap-2">
-      <section className="max-w-4xl">
-        {threadsWithParsedHtml.map((thread) => (
-          <ThreadCard key={thread.id} {...thread} size="lg" />
-        ))}
-      </section>
-    </main>
+    <section className="max-w-4xl md:mx-28">
+      {threadsWithParsedHtml.map((thread) => (
+        <PostCard key={thread.id} {...thread} size="lg" />
+      ))}
+    </section>
   );
 }
