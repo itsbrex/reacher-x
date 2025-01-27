@@ -27,6 +27,8 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
   ({ className, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "footer";
 
+    const currentYear = React.useMemo(() => new Date().getFullYear(), []);
+
     const handleScrollToTop = React.useCallback(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }, []);
@@ -146,7 +148,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
 
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col-reverse gap-2 duration-300 md:flex-row md:items-center md:justify-between">
           <small className="text-sm text-neutral-500">
-            Copyright © 2024 ReacherX. All rights reserved.
+            Copyright &copy; {currentYear} ReacherX. All rights reserved.
           </small>
           <div className="flex items-center space-x-2">
             <Button variant="link" className="px-0">

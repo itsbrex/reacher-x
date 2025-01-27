@@ -78,7 +78,7 @@ export interface PostCardProps
   bookmarksCount?: string | number;
   impressionsCount?: string | number;
 
-  tweetUrl?: string;
+  postUrl?: string;
 }
 
 export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
@@ -101,7 +101,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
       likesCount,
       bookmarksCount,
       impressionsCount,
-      tweetUrl,
+      postUrl,
       size = "md",
       bordered,
       className,
@@ -167,7 +167,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
     const containerClasses = cn(postCardVariants({ bordered }), className);
     const { toast } = useToast();
-    const tweetLink = tweetUrl || "https://twitter.com";
+    const postLink = postUrl || "https://x.com";
 
     const displayTime = formatRelativeTime(dateTime);
 
@@ -179,7 +179,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
     const handleCopyLink = (event: React.MouseEvent) => {
       event.stopPropagation();
-      navigator.clipboard.writeText(tweetLink).then(
+      navigator.clipboard.writeText(postLink).then(
         () => {
           toast({
             title: "☑︎ Copied!",
@@ -199,7 +199,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
     const handleViewOnX = (event: React.MouseEvent) => {
       event.stopPropagation();
-      window.open(tweetLink, "_blank");
+      window.open(postLink, "_blank");
     };
 
     return (
@@ -377,7 +377,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
               <footer className="flex items-center justify-between gap-6 text-xs">
                 {repliesCount !== undefined && (
                   <Link
-                    href={tweetLink}
+                    href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
@@ -393,7 +393,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                 )}
                 {repostsCount !== undefined && (
                   <Link
-                    href={tweetLink}
+                    href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
@@ -406,7 +406,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                 )}
                 {likesCount !== undefined && (
                   <Link
-                    href={tweetLink}
+                    href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
@@ -419,7 +419,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                 )}
                 {bookmarksCount !== undefined && (
                   <Link
-                    href={tweetLink}
+                    href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
@@ -432,7 +432,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                 )}
                 {impressionsCount !== undefined && (
                   <Link
-                    href={tweetLink}
+                    href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
