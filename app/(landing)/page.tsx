@@ -2,6 +2,7 @@ import twitter from "twitter-text";
 import { PostCard } from "@/features/landing/ui/components/PostCard";
 import { WaitlistForm } from "@/features/landing/ui/components/WaitlistForm";
 import { WaitlistUserCard } from "@/features/landing/ui/components/WaitlistUserCard";
+import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -20,11 +21,11 @@ const mockThreads = [
     Want to learn more? Check out this awesome guide by @freeCodeCamp https://www.freecodecamp.org/learn/
     
     #webdev #coding`,
-    repliesCount: "2000",
-    likesCount: "50000",
-    bookmarksCount: "32",
-    impressionsCount: "1000000",
-    repostsCount: "200000",
+    replies: "2000",
+    likes: "50000",
+    bookmarks: "32",
+    impressions: "1000000",
+    reposts: "200000",
     pro: true,
   },
   {
@@ -43,14 +44,25 @@ const mockThreads = [
     Explore different learning paths on @Codecademy https://www.codecademy.com/
     
     #webdevelopment #programming`,
-    repliesCount: "200",
-    likesCount: "58",
-    bookmarksCount: "136",
-    impressionsCount: "10",
-    repostsCount: "20",
+    replies: "200",
+    likes: "58",
+    bookmarks: "136",
+    impressions: "10",
+    reposts: "20",
     pro: true,
   },
 ];
+
+const mockProfile = {
+  avatarUrl: "https://avatars.githubusercontent.com/u/85483006?v=4",
+  displayName: "ReacherX founder",
+  username: "ReacherXfounder",
+  pro: true,
+  bio: "Spreading positivity and good vibes! | Follow my bestie @AmazingFriend | #BeKind #LoveLife | Check out my blog: https://www.exampleblog.com 💻",
+  link: "https://reacherx.com",
+  followers: 96378,
+  following: 876,
+};
 
 // This page.tsx is a Server Component by default, so we can parse on the server.
 export default function Home() {
@@ -73,8 +85,22 @@ export default function Home() {
     };
   });
 
+  // 1) Escape any potential HTML in the bio
+  const escapedBio = twitter.htmlEscape(mockProfile.bio ?? "");
+
+  // 2) Auto-link mentions, hashtags, and URLs using the same config as PostCard
+  const parsedBio = twitter.autoLink(escapedBio, {
+    hashtagUrlBase: "https://twitter.com/hashtag/",
+    usernameUrlBase: "https://twitter.com/",
+    usernameIncludeSymbol: true,
+    targetBlank: true,
+  });
+
   return (
     <section className="max-w-4xl md:mx-28">
+      <div className="mb-12">
+        <UserProfileCard {...mockProfile} parsedBio={parsedBio} />
+      </div>
       <div className="mb-12">
         <WaitlistUserCard
           avatarUrl="https://avatars.githubusercontent.com/u/85483006?v=4"

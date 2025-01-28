@@ -72,11 +72,11 @@ export interface PostCardProps
   body?: string;
   parsedBody?: string;
 
-  repliesCount?: string | number;
-  repostsCount?: string | number;
-  likesCount?: string | number;
-  bookmarksCount?: string | number;
-  impressionsCount?: string | number;
+  replies?: string | number;
+  reposts?: string | number;
+  likes?: string | number;
+  bookmarks?: string | number;
+  impressions?: string | number;
 
   postUrl?: string;
 }
@@ -96,11 +96,11 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
       replyingTo,
       body,
       parsedBody,
-      repliesCount,
-      repostsCount,
-      likesCount,
-      bookmarksCount,
-      impressionsCount,
+      replies,
+      reposts,
+      likes,
+      bookmarks,
+      impressions,
       postUrl,
       size = "md",
       bordered,
@@ -171,11 +171,11 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
     const displayTime = formatRelativeTime(dateTime);
 
-    const replies = formatLargeNumber(Number(repliesCount ?? 0));
-    const reposts = formatLargeNumber(Number(repostsCount ?? 0));
-    const likes = formatLargeNumber(Number(likesCount ?? 0));
-    const bookmarks = formatLargeNumber(Number(bookmarksCount ?? 0));
-    const impressions = formatLargeNumber(Number(impressionsCount ?? 0));
+    const repliesCount = formatLargeNumber(Number(replies ?? 0));
+    const repostsCount = formatLargeNumber(Number(reposts ?? 0));
+    const likesCount = formatLargeNumber(Number(likes ?? 0));
+    const bookmarksCount = formatLargeNumber(Number(bookmarks ?? 0));
+    const impressionsCount = formatLargeNumber(Number(impressions ?? 0));
 
     const handleCopyLink = (event: React.MouseEvent) => {
       event.stopPropagation();
@@ -354,7 +354,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                   lang="auto"
                   className={cn(
                     bodyClass,
-                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground dark:[&_a]:text-neutral-400"
+                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
                   )}
                   dangerouslySetInnerHTML={{ __html: parsedBody }}
                 />
@@ -363,7 +363,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                   <p
                     className={cn(
                       bodyClass,
-                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground dark:[&_a]:text-neutral-400"
+                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
                     )}
                   >
                     {body}
@@ -375,75 +375,75 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
               {/* Footer (stats) */}
               <footer className="flex items-center justify-between gap-6 text-xs">
-                {repliesCount !== undefined && (
+                {replies !== undefined && (
                   <Link
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View replies (${replies})`} // ADDED
-                    title={`View replies (${replies})`} // ADDED
+                    aria-label={`View replies (${repliesCount})`} // ADDED
+                    title={`View replies (${repliesCount})`} // ADDED
                   >
                     <QuickPhrasesIcon
                       className="fill-current"
                       aria-hidden="true"
                     />
-                    {replies}
+                    {repliesCount}
                   </Link>
                 )}
-                {repostsCount !== undefined && (
+                {reposts !== undefined && (
                   <Link
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View reposts (${reposts})`} // ADDED
-                    title={`View reposts (${reposts})`} // ADDED
+                    aria-label={`View reposts (${repostsCount})`} // ADDED
+                    title={`View reposts (${repostsCount})`} // ADDED
                   >
                     <RepeatIcon className="fill-current" aria-hidden="true" />
-                    {reposts}
+                    {repostsCount}
                   </Link>
                 )}
-                {likesCount !== undefined && (
+                {likes !== undefined && (
                   <Link
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View likes (${likes})`} // ADDED
-                    title={`View likes (${likes})`} // ADDED
+                    aria-label={`View likes (${likesCount})`} // ADDED
+                    title={`View likes (${likesCount})`} // ADDED
                   >
                     <FavoriteIcon className="fill-current" aria-hidden="true" />
-                    {likes}
+                    {likesCount}
                   </Link>
                 )}
-                {bookmarksCount !== undefined && (
+                {bookmarks !== undefined && (
                   <Link
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View bookmarks (${bookmarks})`} // ADDED
-                    title={`View bookmarks (${bookmarks})`} // ADDED
+                    aria-label={`View bookmarks (${bookmarksCount})`} // ADDED
+                    title={`View bookmarks (${bookmarksCount})`} // ADDED
                   >
                     <BookmarkIcon className="fill-current" aria-hidden="true" />
-                    {bookmarks}
+                    {bookmarksCount}
                   </Link>
                 )}
-                {impressionsCount !== undefined && (
+                {impressions !== undefined && (
                   <Link
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View impressions (${impressions})`} // ADDED
-                    title={`View impressions (${impressions})`} // ADDED
+                    aria-label={`View impressions (${impressionsCount})`} // ADDED
+                    title={`View impressions (${impressionsCount})`} // ADDED
                   >
                     <InsertChartIcon
                       className="fill-current"
                       aria-hidden="true"
                     />
-                    {impressions}
+                    {impressionsCount}
                   </Link>
                 )}
               </footer>
