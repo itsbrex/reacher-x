@@ -266,7 +266,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                         href={`https://x.com/${username}`}
                         className={cn(
                           usernameClass,
-                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-neutral-500 duration-300 hover:underline"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-muted-foreground duration-300 hover:underline"
                         )}
                         aria-label={`View @${username}'s profile`} // ADDED
                       >
@@ -279,7 +279,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     <time
                       className={cn(
                         timeClass,
-                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-neutral-500 duration-300"
+                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
                       )}
                       dateTime={dateTime}
                     >
@@ -299,7 +299,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                       aria-label="More options" // ADDED
                     >
                       <MoreHorizIcon
-                        className="fill-neutral-500"
+                        className="fill-muted-foreground"
                         aria-hidden="true" // ADDED
                       />
                     </Button>
@@ -335,7 +335,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                 <p
                   className={cn(
                     replyingToClass,
-                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-pre-line font-medium text-neutral-500 duration-300"
+                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-pre-line font-medium text-muted-foreground duration-300"
                   )}
                 >
                   Replying to{" "}
@@ -354,7 +354,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                   lang="auto"
                   className={cn(
                     bodyClass,
-                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500 dark:[&_a]:text-neutral-400"
+                    "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground dark:[&_a]:text-neutral-400"
                   )}
                   dangerouslySetInnerHTML={{ __html: parsedBody }}
                 />
@@ -363,7 +363,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                   <p
                     className={cn(
                       bodyClass,
-                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-neutral-500 dark:[&_a]:text-neutral-400"
+                      "word-break ease-[cubic-bezier(0.25, 1, 0.5, 1)] hyphens-auto whitespace-pre-line duration-300 [&_a]:text-muted-foreground dark:[&_a]:text-neutral-400"
                     )}
                   >
                     {body}
@@ -380,7 +380,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
+                    className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
                     aria-label={`View replies (${replies})`} // ADDED
                     title={`View replies (${replies})`} // ADDED
                   >
@@ -396,7 +396,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
+                    className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
                     aria-label={`View reposts (${reposts})`} // ADDED
                     title={`View reposts (${reposts})`} // ADDED
                   >
@@ -409,7 +409,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
+                    className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
                     aria-label={`View likes (${likes})`} // ADDED
                     title={`View likes (${likes})`} // ADDED
                   >
@@ -422,7 +422,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
+                    className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
                     aria-label={`View bookmarks (${bookmarks})`} // ADDED
                     title={`View bookmarks (${bookmarks})`} // ADDED
                   >
@@ -435,7 +435,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     href={postLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-neutral-500 hover:underline"
+                    className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
                     aria-label={`View impressions (${impressions})`} // ADDED
                     title={`View impressions (${impressions})`} // ADDED
                   >

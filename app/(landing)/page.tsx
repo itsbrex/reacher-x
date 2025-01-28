@@ -1,6 +1,6 @@
 import twitter from "twitter-text";
 import { PostCard } from "@/features/landing/ui/components/PostCard";
-import { SubscriptionForm } from "@/features/landing/ui/components/WaitlistForm";
+import { WaitlistForm } from "@/features/landing/ui/components/WaitlistForm";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -75,7 +75,7 @@ export default function Home() {
   return (
     <section className="max-w-4xl md:mx-28">
       <div className="mb-12 px-4">
-        <SubscriptionForm />
+        <WaitlistForm />
       </div>
       {threadsWithParsedHtml.map((thread) => (
         <PostCard key={thread.id} {...thread} size="lg" />

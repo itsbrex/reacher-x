@@ -9,11 +9,9 @@ import { Checkbox } from "@/shared/ui/components/Checkbox";
 import { Button } from "@/shared/ui/components/Button";
 import { Input } from "@/shared/ui/components/Input";
 
-// Import the shadcn/ui form primitives
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -21,7 +19,7 @@ import {
 } from "@/shared/ui/components/Form";
 
 // 1. Define the Zod schema
-const subscriptionSchema = z.object({
+const waitlistSchema = z.object({
   email: z
     .string()
     .email({ message: "Please enter a valid email address." })
@@ -33,12 +31,12 @@ const subscriptionSchema = z.object({
 });
 
 // 2. Infer the TypeScript type from the schema
-type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
+type WaitlistFormValues = z.infer<typeof waitlistSchema>;
 
-export function SubscriptionForm() {
+export function WaitlistForm() {
   // 3. Initialize react-hook-form
-  const form = useForm<SubscriptionFormValues>({
-    resolver: zodResolver(subscriptionSchema),
+  const form = useForm<WaitlistFormValues>({
+    resolver: zodResolver(waitlistSchema),
     defaultValues: {
       email: "",
       twitter: "",
@@ -47,9 +45,7 @@ export function SubscriptionForm() {
   });
 
   // 4. Submit handler
-  const onSubmit = (data: SubscriptionFormValues) => {
-    // Replace this with your fetch() call or server action
-    // that saves to Supabase or calls your Next.js API route.
+  const onSubmit = (data: WaitlistFormValues) => {
     console.log("Form Submitted:", data);
   };
 
@@ -57,74 +53,91 @@ export function SubscriptionForm() {
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="max-w-md space-y-6"
+        className="flex flex-col gap-6"
       >
-        {/* Email Field */}
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="you@example.com" {...field} />
-              </FormControl>
-              <FormDescription>
-                We will send updates and promotions to this address.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <fieldset className="space-y-6">
+          <legend className="sr-only">Contact Information</legend>
 
-        {/* Twitter Username Field (Optional) */}
-        <FormField
-          control={form.control}
-          name="twitter"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>X/Twitter username</FormLabel>
-              <FormControl>
-                <Input placeholder="@yourhandle" {...field} />
-              </FormControl>
-              <FormDescription>
-                Optional. We might reach out via DM for early previews.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Terms Checkbox */}
-        <FormField
-          control={form.control}
-          name="terms"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  // The Radix <Checkbox> is either `true`, `false`, or "indeterminate".
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  id="terms"
-                />
-                <FormLabel htmlFor="terms" className="text-sm font-normal">
-                  I agree to the terms and conditions and consent to receive
-                  emails about product updates and promotions.
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="email">
+                  Email <span className="text-muted-foreground">*</span>
                 </FormLabel>
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormControl>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    placeholder="e.g., ReacherXfounder@example.com"
+                    aria-required="true"
+                    aria-invalid={!!form.formState.errors.email}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {/* Submit Button - disabled if checkbox not checked */}
+          <FormField
+            control={form.control}
+            name="twitter"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="twitter">
+                  X/Twitter username{" "}
+                  <span className="text-muted-foreground">(Optional)</span>
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    id="twitter"
+                    placeholder="e.g., ReacherXfounder"
+                    aria-required="false"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </fieldset>
+        <fieldset>
+          <legend className="sr-only">Agreement</legend>
+
+          <FormField
+            control={form.control}
+            name="terms"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex gap-2">
+                  <Checkbox
+                    className="mt-[2px]"
+                    id="terms"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    aria-required="true"
+                    aria-invalid={!!form.formState.errors.terms}
+                  />
+                  <FormLabel htmlFor="terms" className="text-sm font-medium">
+                    I agree to the terms and conditions and consent to receive
+                    emails about product updates and promotions.
+                  </FormLabel>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </fieldset>
+
         <Button
           type="submit"
           disabled={!form.watch("terms")} // watch the "terms" field
           className="w-full"
         >
-          Sign Up
+          Join wait-list
         </Button>
       </form>
     </Form>

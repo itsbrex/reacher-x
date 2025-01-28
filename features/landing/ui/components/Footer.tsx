@@ -54,7 +54,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
           <address className="not-italic">
             <Link
               href="mailto:support@reacherx.com"
-              className="font-mono text-sm font-medium text-neutral-500 hover:underline"
+              className="font-mono text-sm font-medium text-muted-foreground hover:underline"
             >
               support@reacherx.com
             </Link>
@@ -63,7 +63,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
 
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-6 duration-300 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-col gap-4">
-            <small className="text-sm font-medium text-neutral-500">
+            <small className="text-sm font-medium text-muted-foreground">
               Links
             </small>
             <menu>
@@ -81,7 +81,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
           </div>
 
           <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-4 duration-300">
-            <small className="text-sm font-medium text-neutral-500">
+            <small className="text-sm font-medium text-muted-foreground">
               Follow on
             </small>
             <div className="flex">
@@ -147,14 +147,14 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
         </Button>
 
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col-reverse gap-2 duration-300 md:flex-row md:items-center md:justify-between">
-          <small className="text-sm text-neutral-500">
+          <small className="text-sm text-muted-foreground">
             Copyright &copy; {currentYear} ReacherX. All rights reserved.
           </small>
           <div className="flex items-center space-x-2">
             <Button variant="link" className="px-0">
               Privacy policy
             </Button>
-            <span className="text-neutral-500">|</span>
+            <span className="text-muted-foreground">|</span>
             <Button variant="link" className="px-0">
               Terms of service
             </Button>

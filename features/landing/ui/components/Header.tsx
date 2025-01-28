@@ -216,7 +216,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
               </menu>
               <footer>
                 <DrawerFooter>
-                  <small className="text-sm font-medium text-neutral-500">
+                  <small className="text-sm font-medium text-muted-foreground">
                     Follow on
                   </small>
                   <div className="flex items-center">
