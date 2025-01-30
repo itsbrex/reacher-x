@@ -1,7 +1,10 @@
 "use client";
 
-import React from "react";
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import Marquee from "react-fast-marquee";
+
+import { cn } from "@/shared/lib/utils/utils";
 import { WaitlistUserCard } from "./WaitlistUserCard";
 
 interface WaitlistUser {
@@ -11,16 +14,33 @@ interface WaitlistUser {
   pro: boolean;
 }
 
-interface WaitlistMarqueeProps {
+export interface WaitlistUsersMarqueeProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   users: WaitlistUser[];
+  asChild?: boolean;
 }
 
-export function WaitlistMarquee({ users }: WaitlistMarqueeProps) {
+export const WaitlistUsersMarquee = React.forwardRef<
+  HTMLDivElement,
+  WaitlistUsersMarqueeProps
+>((props, ref) => {
+  const { className, asChild, users, ...rest } = props;
+  const Comp = asChild ? Slot : Marquee;
+
   return (
-    <Marquee gradient={false} speed={100} pauseOnHover={true} className="mx-12">
+    <Comp
+      gradient={false}
+      speed={100}
+      pauseOnHover={true}
+      className={cn(className)}
+      ref={ref}
+      {...rest}
+    >
       {users.map((user, index) => (
-        <WaitlistUserCard key={index} {...user} />
+        <WaitlistUserCard key={index} className="mr-12" {...user} />
       ))}
-    </Marquee>
+    </Comp>
   );
-}
+});
+
+WaitlistUsersMarquee.displayName = "WaitlistUsersMarquee";

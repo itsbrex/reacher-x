@@ -2,7 +2,7 @@ import twitter from "twitter-text";
 import { Badge } from "@/shared/ui/components/Badge";
 import { Button } from "@/shared/ui/components/Button";
 import { PostCard } from "@/features/landing/ui/components/PostCard";
-import { WaitlistMarquee } from "@/features/landing/ui/components/WaitlistUsersMarquee";
+import { WaitlistUsersMarquee } from "@/features/landing/ui/components/WaitlistUsersMarquee";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -10,7 +10,7 @@ const mockThreads = [
     id: "1",
     detailHref: "/threads/1",
     avatarUrl: "https://avatars.githubusercontent.com/u/85483006?v=4",
-    thread: true,
+    thread: false,
     displayName: "ReacherX founder",
     username: "ReacherXfounder",
     dateTime: "2023-03-01T00:00:00.000Z",
@@ -145,47 +145,58 @@ export default function Home() {
       username: "anonymousAAAA",
       pro: true,
     },
+    {
+      avatarUrl: "https://avatars.githubusercontent.com/u/85483006?v=4",
+      displayName: "John Doe",
+      username: "JohnDoe",
+      pro: false,
+    },
+    {
+      avatarUrl: "https://avatars.githubusercontent.com/u/85483006?v=4",
+      displayName: "John Doe",
+      username: "JohnDoe",
+      pro: false,
+    },
+    {
+      avatarUrl: "https://avatars.githubusercontent.com/u/85483006?v=4",
+      displayName: "John Doe",
+      username: "JohnDoe",
+      pro: false,
+    },
   ];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8 lg:py-16">
-      <section
-        id="hero"
-        aria-labelledby="hero-heading"
-        className="mb-16 space-y-4"
-      >
-        <Badge variant="outline" className="text-sm">
-          ✶ Launching March/April 2025
-        </Badge>
+    <div className="space-y-12 px-4 py-6 md:space-y-48 md:px-28 md:pb-52 md:pt-12">
+      <section id="hero" aria-labelledby="hero-heading">
+        <Badge variant="outline">✶ Launching March/April 2025</Badge>
+        <hgroup className="mt-4 max-w-2xl space-y-4">
+          <h1 id="hero-heading" className="text-4xl font-medium md:text-5xl">
+            A search engine—to find customers.
+          </h1>
+          <p>Join the wait-list for early access and updates!</p>
+        </hgroup>
 
-        <h1 id="hero-heading" className="text-3xl font-bold md:text-4xl">
-          A search engine—to find customers.
-        </h1>
+        <Button className="mt-4">Join wait-list</Button>
 
-        <p className="text-lg text-muted-foreground">
-          Join our wait-list for early access and updates!
-        </p>
-
-        <Button size="lg">Join wait-list</Button>
-
-        <div className="mt-6">
-          <WaitlistMarquee users={mockWaitlistUsers} />
-        </div>
+        <WaitlistUsersMarquee
+          users={mockWaitlistUsers}
+          className="mt-6 md:mt-12"
+        />
       </section>
 
       <section
         id="vision"
         aria-labelledby="vision-heading"
-        className="mb-16 space-y-4"
+        className="space-y-6 md:space-y-12"
       >
-        <h2 id="vision-heading" className="text-2xl font-semibold md:text-3xl">
+        <h2 id="vision-heading" className="text-3xl font-medium">
           Vision.
         </h2>
-        <PostCard {...threadsWithParsedHtml[0]} />
+        <PostCard {...threadsWithParsedHtml[0]} className="px-0" />
       </section>
 
       <section aria-label="Key value props" className="mb-16 space-y-4 text-lg">
-        <div>
+        <div className="text-5xl font-medium md:text-6xl">
           No upfront payments.
           <br />
           No hidden customers.
@@ -197,35 +208,27 @@ export default function Home() {
       <section
         id="recent-thread"
         aria-labelledby="recent-thread-heading"
-        className="mb-16 space-y-4"
+        className="space-y-6 md:space-y-12"
       >
         <div className="flex items-center justify-between">
-          <h2 id="recent-thread-heading" className="text-2xl font-semibold">
-            Recent thread
+          <h2 id="recent-thread-heading" className="text-3xl font-medium">
+            Recent thread.
           </h2>
-          <Button variant="link" className="text-sm">
-            View all
-          </Button>
+          <Button variant="link">View all</Button>
         </div>
-        <PostCard {...threadsWithParsedHtml[0]} />
+        <PostCard {...threadsWithParsedHtml[0]} className="px-0" />
       </section>
 
-      <section
-        id="join-waitlist"
-        aria-labelledby="waitlist-heading"
-        className="space-y-4"
-      >
-        <h2
-          id="waitlist-heading"
-          className="text-2xl font-semibold md:text-3xl"
-        >
+      <section id="join-waitlist" aria-labelledby="waitlist-heading">
+        <h2 id="waitlist-heading" className="text-3xl font-medium">
           Join over 50 people already on the wait-list!
         </h2>
-        <Button size="lg">Join wait-list</Button>
+        <Button className="mt-4">Join wait-list</Button>
 
-        <div className="mt-6">
-          <WaitlistMarquee users={mockWaitlistUsers} />
-        </div>
+        <WaitlistUsersMarquee
+          users={mockWaitlistUsers}
+          className="mt-6 md:mt-12"
+        />
       </section>
     </div>
   );

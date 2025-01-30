@@ -4,6 +4,8 @@
 
 body {
   font-family: var(--font-dm-sans), sans-serif;
+  line-height: 1.2em;
+  letter-spacing: -0.04em;
 }
 
 .font-mono {
