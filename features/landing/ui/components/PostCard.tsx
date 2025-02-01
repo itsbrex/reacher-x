@@ -204,9 +204,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
     return (
       <article ref={ref} {...props}>
-        {/* The entire card is clickable via Link */}
-        <Link
-          href={detailHref}
+        <div
+          // href={detailHref}
           className={cn(containerClasses, "group")}
           aria-label={`View post by ${displayName ?? username ?? "user"}`} // ADDED
         >
@@ -233,7 +232,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
           </div>
 
           {/* Replace <main> with a <div> or <section> if you want to avoid multiple main landmarks. */}
-          <div>
+          <div className="w-full">
             {/* Right Column */}
             <section className={cn(rightColumnClass, "flex flex-col gap-4")}>
               {/* Card Header */}
@@ -451,7 +450,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
 
             {rightSlot && <div>{rightSlot}</div>}
           </div>
-        </Link>
+        </div>
       </article>
     );
   }

@@ -3,6 +3,7 @@ import { Badge } from "@/shared/ui/components/Badge";
 import { Button } from "@/shared/ui/components/Button";
 import { PostCard } from "@/features/landing/ui/components/PostCard";
 import { WaitlistUsersMarquee } from "@/features/landing/ui/components/WaitlistUsersMarquee";
+import TweetMedia from "@/features/landing/ui/components/TweetMedia";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -165,8 +166,919 @@ export default function Home() {
     },
   ];
 
+  const mockTweets = [
+    {
+      tweet_created_at: "2025-01-30T00:00:08.000000Z",
+      id: 1884753424463319430,
+      id_str: "1884753424463319430",
+      conversation_id_str: "1884753424463319430",
+      text: null,
+      full_text:
+        "Overwhelmed trying to find customers on Twitter?_  ReacherX is my solution – it's like having a super-powered search engine just for finding *your* ideal clients_  It's amazing for gathering intel too_  Seriously, game-changer_ https://t.co/ofRJVKqcq5",
+      source:
+        '<a href="https://reacherx.com" rel="nofollow">1796575779846856706testing_use</a>',
+      truncated: false,
+      in_reply_to_status_id: null,
+      in_reply_to_status_id_str: null,
+      in_reply_to_user_id: null,
+      in_reply_to_user_id_str: null,
+      in_reply_to_screen_name: null,
+      user: {
+        id: 1677281259624730631,
+        id_str: "1677281259624730631",
+        name: "testing_demo",
+        screen_name: "testing_userss",
+        location: "",
+        url: null,
+        description: "",
+        protected: false,
+        verified: false,
+        followers_count: 0,
+        friends_count: 1,
+        listed_count: 0,
+        favourites_count: 1,
+        statuses_count: 602,
+        created_at: "2023-07-07T11:40:24.000000Z",
+        profile_banner_url:
+          "https://pbs.twimg.com/profile_banners/1677281259624730631/1735916012",
+        profile_image_url_https:
+          "https://pbs.twimg.com/profile_images/1875195279609077760/Kk8fGYn7_normal.jpg",
+        can_dm: false,
+      },
+      quoted_status_id: null,
+      quoted_status_id_str: null,
+      is_quote_status: false,
+      quoted_status: null,
+      retweeted_status: null,
+      quote_count: 0,
+      reply_count: 0,
+      retweet_count: 0,
+      favorite_count: 0,
+      views_count: 3,
+      bookmark_count: 0,
+      lang: "en",
+      entities: {
+        media: [
+          {
+            display_url: "pic.x.com/ofRJVKqcq5",
+            expanded_url:
+              "https://x.com/testing_userss/status/1884753424463319430/photo/1",
+            id_str: "1884753418582999040",
+            indices: [228, 251],
+            media_key: "3_1884753418582999040",
+            media_url_https: "https://pbs.twimg.com/media/Gif9P5PXwAAa2a1.jpg",
+            type: "photo",
+            url: "https://t.co/ofRJVKqcq5",
+            ext_media_availability: {
+              status: "Available",
+            },
+            features: {
+              large: {
+                faces: [],
+              },
+              medium: {
+                faces: [],
+              },
+              small: {
+                faces: [],
+              },
+              orig: {
+                faces: [],
+              },
+            },
+            sizes: {
+              large: {
+                h: 630,
+                w: 1200,
+                resize: "fit",
+              },
+              medium: {
+                h: 630,
+                w: 1200,
+                resize: "fit",
+              },
+              small: {
+                h: 357,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 630,
+              width: 1200,
+              focus_rects: [
+                {
+                  x: 8,
+                  y: 0,
+                  w: 1125,
+                  h: 630,
+                },
+                {
+                  x: 255,
+                  y: 0,
+                  w: 630,
+                  h: 630,
+                },
+                {
+                  x: 294,
+                  y: 0,
+                  w: 553,
+                  h: 630,
+                },
+                {
+                  x: 413,
+                  y: 0,
+                  w: 315,
+                  h: 630,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1200,
+                  h: 630,
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/ofRJVKqcq5",
+            expanded_url:
+              "https://x.com/testing_userss/status/1884753424463319430/photo/1",
+            id_str: "1884753418733887489",
+            indices: [228, 251],
+            media_key: "3_1884753418733887489",
+            media_url_https: "https://pbs.twimg.com/media/Gif9P5zWIAEvOCP.png",
+            type: "photo",
+            url: "https://t.co/ofRJVKqcq5",
+            ext_media_availability: {
+              status: "Available",
+            },
+            features: {
+              large: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+              medium: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+              small: {
+                faces: [
+                  {
+                    x: 102,
+                    y: 161,
+                    h: 403,
+                    w: 403,
+                  },
+                ],
+              },
+              orig: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+            },
+            sizes: {
+              large: {
+                h: 1080,
+                w: 1080,
+                resize: "fit",
+              },
+              medium: {
+                h: 1080,
+                w: 1080,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 1080,
+              width: 1080,
+              focus_rects: [
+                {
+                  x: 0,
+                  y: 211,
+                  w: 1080,
+                  h: 605,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1080,
+                  h: 1080,
+                },
+                {
+                  x: 94,
+                  y: 0,
+                  w: 947,
+                  h: 1080,
+                },
+                {
+                  x: 297,
+                  y: 0,
+                  w: 540,
+                  h: 1080,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1080,
+                  h: 1080,
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/ofRJVKqcq5",
+            expanded_url:
+              "https://x.com/testing_userss/status/1884753424463319430/photo/1",
+            id_str: "1884753418582999040",
+            indices: [228, 251],
+            media_key: "3_1884753418582999040",
+            media_url_https: "https://pbs.twimg.com/media/Gif9P5PXwAAa2a1.jpg",
+            type: "photo",
+            url: "https://t.co/ofRJVKqcq5",
+            ext_media_availability: {
+              status: "Available",
+            },
+            features: {
+              large: {
+                faces: [],
+              },
+              medium: {
+                faces: [],
+              },
+              small: {
+                faces: [],
+              },
+              orig: {
+                faces: [],
+              },
+            },
+            sizes: {
+              large: {
+                h: 630,
+                w: 1200,
+                resize: "fit",
+              },
+              medium: {
+                h: 630,
+                w: 1200,
+                resize: "fit",
+              },
+              small: {
+                h: 357,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 630,
+              width: 1200,
+              focus_rects: [
+                {
+                  x: 8,
+                  y: 0,
+                  w: 1125,
+                  h: 630,
+                },
+                {
+                  x: 255,
+                  y: 0,
+                  w: 630,
+                  h: 630,
+                },
+                {
+                  x: 294,
+                  y: 0,
+                  w: 553,
+                  h: 630,
+                },
+                {
+                  x: 413,
+                  y: 0,
+                  w: 315,
+                  h: 630,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1200,
+                  h: 630,
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/ofRJVKqcq5",
+            expanded_url:
+              "https://x.com/testing_userss/status/1884753424463319430/photo/1",
+            id_str: "1884753418733887489",
+            indices: [228, 251],
+            media_key: "3_1884753418733887489",
+            media_url_https: "https://pbs.twimg.com/media/Gif9P5zWIAEvOCP.png",
+            type: "photo",
+            url: "https://t.co/ofRJVKqcq5",
+            ext_media_availability: {
+              status: "Available",
+            },
+            features: {
+              large: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+              medium: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+              small: {
+                faces: [
+                  {
+                    x: 102,
+                    y: 161,
+                    h: 403,
+                    w: 403,
+                  },
+                ],
+              },
+              orig: {
+                faces: [
+                  {
+                    x: 163,
+                    y: 256,
+                    h: 641,
+                    w: 641,
+                  },
+                ],
+              },
+            },
+            sizes: {
+              large: {
+                h: 1080,
+                w: 1080,
+                resize: "fit",
+              },
+              medium: {
+                h: 1080,
+                w: 1080,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 1080,
+              width: 1080,
+              focus_rects: [
+                {
+                  x: 0,
+                  y: 211,
+                  w: 1080,
+                  h: 605,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1080,
+                  h: 1080,
+                },
+                {
+                  x: 94,
+                  y: 0,
+                  w: 947,
+                  h: 1080,
+                },
+                {
+                  x: 297,
+                  y: 0,
+                  w: 540,
+                  h: 1080,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  w: 1080,
+                  h: 1080,
+                },
+              ],
+            },
+          },
+        ],
+        user_mentions: [],
+        urls: [],
+        hashtags: [],
+        symbols: [],
+      },
+      is_pinned: false,
+    },
+    {
+      tweet_created_at: "2025-01-17T23:11:52.000000Z",
+      id: 1880392624126791962,
+      id_str: "1880392624126791962",
+      conversation_id_str: "1880392624126791962",
+      text: null,
+      full_text:
+        "↳ How often do you design applications with loading states in mind?\n\nLoading states aren't just fillers—they’re a part of the experience.\n\nI’ve created a Figma prototype that focuses on seamless loading experiences.\n\nLet me know your thoughts!\n\n#buildinpublic #Designers \n\n• Design post—01",
+      source:
+        '<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>',
+      truncated: false,
+      in_reply_to_status_id: null,
+      in_reply_to_status_id_str: null,
+      in_reply_to_user_id: null,
+      in_reply_to_user_id_str: null,
+      in_reply_to_screen_name: null,
+      user: {
+        id: 1743216568451125248,
+        id_str: "1743216568451125248",
+        name: "ReacherX founder",
+        screen_name: "ReacherXfounder",
+        location: "Vice City",
+        url: "http://reacherx.com",
+        description:
+          "Building ReacherX, A search engine—to find customers. DM me for early access.",
+        protected: false,
+        verified: true,
+        followers_count: 122,
+        friends_count: 403,
+        listed_count: 3,
+        favourites_count: 777,
+        statuses_count: 514,
+        created_at: "2024-01-05T10:23:41.000000Z",
+        profile_banner_url:
+          "https://pbs.twimg.com/profile_banners/1743216568451125248/1715349496",
+        profile_image_url_https:
+          "https://pbs.twimg.com/profile_images/1769118183061848064/bOqqwNMn_normal.jpg",
+        can_dm: true,
+      },
+      quoted_status_id: null,
+      quoted_status_id_str: null,
+      is_quote_status: false,
+      quoted_status: null,
+      retweeted_status: null,
+      quote_count: 0,
+      reply_count: 0,
+      retweet_count: 0,
+      favorite_count: 2,
+      views_count: 88,
+      bookmark_count: 0,
+      lang: "en",
+      entities: {
+        media: [
+          {
+            display_url: "pic.x.com/wua2Q7pXNP",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1880392624126791962/video/1",
+            id_str: "1880392542413291520",
+            indices: [275, 298],
+            media_key: "7_1880392542413291520",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1880392542413291520/pu/img/I9CdHjKxWrmayUjM.jpg",
+            type: "video",
+            url: "https://t.co/wua2Q7pXNP",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 966,
+                w: 1914,
+                resize: "fit",
+              },
+              medium: {
+                h: 606,
+                w: 1200,
+                resize: "fit",
+              },
+              small: {
+                h: 343,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 966,
+              width: 1914,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [319, 161],
+              duration_millis: 45137,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/pl/KxltpAS29UKjDKXc.m3u8?tag=12",
+                },
+                {
+                  bitrate: 256000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/534x270/bxtesY189X5a85dJ.mp4?tag=12",
+                },
+                {
+                  bitrate: 832000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/712x360/V1aL8TA8YePOnXsp.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/1426x720/D4ivNB1vwht-WdDs.mp4?tag=12",
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/wua2Q7pXNP",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1880392624126791962/video/1",
+            id_str: "1880392542413291520",
+            indices: [275, 298],
+            media_key: "7_1880392542413291520",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1880392542413291520/pu/img/I9CdHjKxWrmayUjM.jpg",
+            type: "video",
+            url: "https://t.co/wua2Q7pXNP",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 966,
+                w: 1914,
+                resize: "fit",
+              },
+              medium: {
+                h: 606,
+                w: 1200,
+                resize: "fit",
+              },
+              small: {
+                h: 343,
+                w: 680,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 966,
+              width: 1914,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [319, 161],
+              duration_millis: 45137,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/pl/KxltpAS29UKjDKXc.m3u8?tag=12",
+                },
+                {
+                  bitrate: 256000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/534x270/bxtesY189X5a85dJ.mp4?tag=12",
+                },
+                {
+                  bitrate: 832000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/712x360/V1aL8TA8YePOnXsp.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1880392542413291520/pu/vid/avc1/1426x720/D4ivNB1vwht-WdDs.mp4?tag=12",
+                },
+              ],
+            },
+          },
+        ],
+        user_mentions: [],
+        urls: [],
+        hashtags: [
+          {
+            indices: [245, 259],
+            text: "buildinpublic",
+          },
+          {
+            indices: [260, 270],
+            text: "Designers",
+          },
+          {
+            indices: [245, 259],
+            text: "buildinpublic",
+          },
+          {
+            indices: [260, 270],
+            text: "Designers",
+          },
+        ],
+        symbols: [],
+      },
+      is_pinned: false,
+    },
+    {
+      tweet_created_at: "2025-01-21T06:26:31.000000Z",
+      id: 1881589170352914812,
+      id_str: "1881589170352914812",
+      conversation_id_str: "1881589170352914812",
+      text: null,
+      full_text:
+        "Dark mode emails ↯ hit differently.\n\nThis is the waitlist email for ReacherX—all-black everything.\n\n↳ Minimal.\n↳ Sleek.\n↳ Unapologetically bold.\n\nWhat do you think?\n\n#buildinpublic\n\n• Design post—02",
+      source:
+        '<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>',
+      truncated: false,
+      in_reply_to_status_id: null,
+      in_reply_to_status_id_str: null,
+      in_reply_to_user_id: null,
+      in_reply_to_user_id_str: null,
+      in_reply_to_screen_name: null,
+      user: {
+        id: 1743216568451125248,
+        id_str: "1743216568451125248",
+        name: "ReacherX founder",
+        screen_name: "ReacherXfounder",
+        location: "Vice City",
+        url: "http://reacherx.com",
+        description:
+          "Building ReacherX, A search engine—to find customers. DM me for early access.",
+        protected: false,
+        verified: true,
+        followers_count: 122,
+        friends_count: 403,
+        listed_count: 3,
+        favourites_count: 777,
+        statuses_count: 514,
+        created_at: "2024-01-05T10:23:41.000000Z",
+        profile_banner_url:
+          "https://pbs.twimg.com/profile_banners/1743216568451125248/1715349496",
+        profile_image_url_https:
+          "https://pbs.twimg.com/profile_images/1769118183061848064/bOqqwNMn_normal.jpg",
+        can_dm: true,
+      },
+      quoted_status_id: null,
+      quoted_status_id_str: null,
+      is_quote_status: false,
+      quoted_status: null,
+      retweeted_status: null,
+      quote_count: 0,
+      reply_count: 0,
+      retweet_count: 0,
+      favorite_count: 1,
+      views_count: 53,
+      bookmark_count: 0,
+      lang: "en",
+      entities: {
+        media: [
+          {
+            display_url: "pic.x.com/FhiNXmzbQ4",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1881589170352914812/video/1",
+            id_str: "1881589126274670593",
+            indices: [199, 222],
+            media_key: "7_1881589126274670593",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1881589126274670593/pu/img/qrgJrzbYqS_FGHPw.jpg",
+            type: "video",
+            url: "https://t.co/FhiNXmzbQ4",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 960,
+                w: 720,
+                resize: "fit",
+              },
+              medium: {
+                h: 960,
+                w: 720,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 510,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 960,
+              width: 720,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [3, 4],
+              duration_millis: 28292,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/pl/u2FOCi-9WOPFgnWq.m3u8?tag=12",
+                },
+                {
+                  bitrate: 632000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/320x426/nkk8GTpmkMDH51aL.mp4?tag=12",
+                },
+                {
+                  bitrate: 950000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/480x640/jSjHNaR6281FpEN7.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/720x960/o8aks-ycayQhhd4f.mp4?tag=12",
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/FhiNXmzbQ4",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1881589170352914812/video/1",
+            id_str: "1881589126274670593",
+            indices: [199, 222],
+            media_key: "7_1881589126274670593",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1881589126274670593/pu/img/qrgJrzbYqS_FGHPw.jpg",
+            type: "video",
+            url: "https://t.co/FhiNXmzbQ4",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 960,
+                w: 720,
+                resize: "fit",
+              },
+              medium: {
+                h: 960,
+                w: 720,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 510,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 960,
+              width: 720,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [3, 4],
+              duration_millis: 28292,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/pl/u2FOCi-9WOPFgnWq.m3u8?tag=12",
+                },
+                {
+                  bitrate: 632000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/320x426/nkk8GTpmkMDH51aL.mp4?tag=12",
+                },
+                {
+                  bitrate: 950000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/480x640/jSjHNaR6281FpEN7.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1881589126274670593/pu/vid/avc1/720x960/o8aks-ycayQhhd4f.mp4?tag=12",
+                },
+              ],
+            },
+          },
+        ],
+        user_mentions: [],
+        urls: [],
+        hashtags: [
+          {
+            indices: [166, 180],
+            text: "buildinpublic",
+          },
+          {
+            indices: [166, 180],
+            text: "buildinpublic",
+          },
+        ],
+        symbols: [],
+      },
+      is_pinned: false,
+    },
+  ];
+
   return (
     <div className="space-y-12 px-4 py-6 md:space-y-48 md:px-28 md:pb-52 md:pt-12">
+      <section>
+        {mockTweets.map((tweet) => (
+          <PostCard
+            className="px-0"
+            key={tweet.id}
+            detailHref={`/tweets/${tweet.id}`}
+            displayName={tweet.user.name}
+            username={tweet.user.screen_name}
+            avatarUrl={tweet.user.profile_image_url_https}
+            pro={tweet.user.verified}
+            dateTime={tweet.tweet_created_at}
+            body={tweet.full_text || ""}
+            leftSlot={
+              tweet.entities?.media ? (
+                <TweetMedia media={tweet.entities.media} />
+              ) : null
+            }
+          />
+        ))}
+      </section>
       <section id="hero" aria-labelledby="hero-heading">
         <Badge variant="outline">✶ Launching March/April 2025</Badge>
         <hgroup className="mt-4 max-w-2xl space-y-4">
