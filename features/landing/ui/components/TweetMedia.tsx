@@ -7,8 +7,6 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselPrevious,
-  CarouselNext,
 } from "@/shared/ui/components/Carousel";
 import { AspectRatio } from "@/shared/ui/components/AspectRatio";
 import { Button } from "@/shared/ui/components/Button";
@@ -22,17 +20,23 @@ interface TweetMediaProps {
 const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
   if (!media || media.length === 0) return null;
 
-  // State for the "View All" drawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [initialIndex, setInitialIndex] = useState(0);
+  // **** FIX: Deduplicate media items based on a unique identifier (id_str) ****
+  const uniqueMedia = media.filter(
+    (item, index, self) =>
+      index === self.findIndex((m) => m.id_str === item.id_str)
+  );
 
-  // Compute a standard aspect ratio from the first media item.
-  let aspectRatio = 16 / 9; // fallback
-  const firstMedia = media[0];
+  // Compute a standard aspect ratio from the first unique media item.
+  let aspectRatio = 16 / 9; // fallback ratio
+  const firstMedia = uniqueMedia[0];
   if (firstMedia && firstMedia.original_info) {
     aspectRatio =
       firstMedia.original_info.width / firstMedia.original_info.height;
   }
+
+  // State for the "View All" drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [initialIndex, setInitialIndex] = useState(0);
 
   const renderMediaItem = (item: any) => {
     if (item.type === "video" || item.type === "animated_gif") {
@@ -62,26 +66,29 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
           alt={item.ext_alt_text || "Tweet image"}
           width={item.original_info.width}
           height={item.original_info.height}
-          className="w-full object-cover"
+          className="h-full w-full rounded-lg object-cover"
+          loading="eager"
         />
       );
     }
     return null;
   };
 
-  // If a single media item, simply render it.
-  if (media.length === 1) {
+  // Render a simple view if there's only one unique media item.
+  if (uniqueMedia.length === 1) {
     return (
-      <AspectRatio ratio={aspectRatio}>{renderMediaItem(media[0])}</AspectRatio>
+      <AspectRatio ratio={aspectRatio}>
+        {renderMediaItem(uniqueMedia[0])}
+      </AspectRatio>
     );
   }
 
-  // More than one media: render a Carousel with a "View All" button.
+  // More than one unique media item: render a Carousel with a "View All" button.
   return (
-    <div className="bg-orange-500">
-      <Carousel>
+    <div>
+      <Carousel className="overflow-x-hidden rounded-lg">
         <CarouselContent>
-          {media.map((item, index) => (
+          {uniqueMedia.map((item, index) => (
             <CarouselItem key={item.id_str || index}>
               <AspectRatio ratio={aspectRatio}>
                 {renderMediaItem(item)}
@@ -105,7 +112,7 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
       <MediaViewerDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        media={media}
+        media={uniqueMedia}
         initialIndex={initialIndex}
       />
     </div>

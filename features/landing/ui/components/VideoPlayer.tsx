@@ -27,8 +27,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   ...props
 }) => {
   return (
-    <MediaController {...props}>
-      <video slot="media" className="w-full rounded-md" aria-label={ariaLabel}>
+    <MediaController {...props} className="w-full overflow-hidden rounded-lg">
+      <video
+        slot="media"
+        className="h-full w-full object-cover"
+        aria-label={ariaLabel}
+      >
         {hlsUrl && <source src={hlsUrl} type="application/x-mpegURL" />}
         {mp4Url && <source src={mp4Url} type="video/mp4" />}
         {/* You can add additional source tags for hlsUrl or other formats if needed */}

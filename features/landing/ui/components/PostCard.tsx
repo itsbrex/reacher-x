@@ -225,7 +225,9 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                   src={avatarUrl}
                   alt={displayName ? `Avatar of ${displayName}` : "User avatar"} // ADDED
                 />
-                <AvatarFallback>UI</AvatarFallback>
+                <AvatarFallback>
+                  {displayName?.charAt(0).toUpperCase() || "?"}
+                </AvatarFallback>
               </Avatar>
             </Link>
             {thread && <Separator orientation="vertical" className="w-[2px]" />}
@@ -238,13 +240,13 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
               {/* Card Header */}
               <header className="mt-1 flex items-center justify-between gap-4">
                 <div className="grid grid-cols-[auto,auto] items-center gap-1">
-                  <address className="grid grid-cols-[auto,auto,auto] items-center gap-1 not-italic">
+                  <address className="grid grid-cols-[auto_auto_auto] items-center not-italic">
                     {displayName && (
                       <Link
                         href={`https://x.com/${username}`}
                         className={cn(
                           displayNameClass,
-                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-nowrap font-medium duration-300 hover:underline"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 whitespace-nowrap font-medium duration-300 hover:underline"
                         )}
                         aria-label={`View ${displayName}'s profile`} // ADDED
                       >
@@ -255,7 +257,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                       <NewReleasesIcon
                         className={cn(
                           newReleasesIconClass,
-                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] fill-current duration-300"
+                          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] fill-current duration-300",
+                          "mr-1"
                         )}
                         aria-hidden="true" // ADDED
                       />
@@ -282,7 +285,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                       )}
                       dateTime={dateTime}
                     >
-                      {displayTime}
+                      · {displayTime}
                     </time>
                   )}
                 </div>
