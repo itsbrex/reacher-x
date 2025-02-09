@@ -1055,6 +1055,233 @@ export default function Home() {
       },
       is_pinned: false,
     },
+    {
+      tweet_created_at: "2025-02-09T09:27:24.000000Z",
+      id: 1888520061142339744,
+      id_str: "1888520061142339744",
+      conversation_id_str: "1888351506442895405",
+      text: null,
+      full_text:
+        '@fdotinc Built this prototype a while back to validate the idea.\n\nBecause this thing is kinda hard to pull off, I desperately first wanted to validate it before going all in.\n\nSo I did the unthinkable, I used OpenAI "DALLE" AND "ChatGPT" to mock customers.\n\nPeople paid for this, but I refunded the amount back to them by informing them that this was a prototype for validation purposes.\n\nNow I am working on the real version and plan to launch anytime in March.\n\nI would like to get support from you guys because, X API costs a hell of a lot of money. So your help is needed.\n\nYou can also test this prototype at: https://t.co/9A6df19fNj',
+      source:
+        '<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>',
+      truncated: false,
+      in_reply_to_status_id: 1888351506442895405,
+      in_reply_to_status_id_str: "1888351506442895405",
+      in_reply_to_user_id: 1230404765827256320,
+      in_reply_to_user_id_str: "1230404765827256320",
+      in_reply_to_screen_name: "fdotinc",
+      user: {
+        id: 1743216568451125248,
+        id_str: "1743216568451125248",
+        name: "ReacherX founder",
+        screen_name: "ReacherXfounder",
+        location: "Vice City",
+        url: "http://reacherx.com",
+        description:
+          "Building ReacherX, A search engine—to find customers. DM me for early access.",
+        protected: false,
+        verified: true,
+        followers_count: 126,
+        friends_count: 408,
+        listed_count: 3,
+        favourites_count: 778,
+        statuses_count: 515,
+        created_at: "2024-01-05T10:23:41.000000Z",
+        profile_banner_url:
+          "https://pbs.twimg.com/profile_banners/1743216568451125248/1715349496",
+        profile_image_url_https:
+          "https://pbs.twimg.com/profile_images/1769118183061848064/bOqqwNMn_normal.jpg",
+        can_dm: true,
+      },
+      quoted_status_id: null,
+      quoted_status_id_str: null,
+      is_quote_status: false,
+      quoted_status: null,
+      retweeted_status: null,
+      quote_count: 0,
+      reply_count: 0,
+      retweet_count: 0,
+      favorite_count: 0,
+      views_count: 35,
+      bookmark_count: 0,
+      lang: "en",
+      entities: {
+        media: [
+          {
+            display_url: "pic.x.com/DcWsZFMBOu",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1888520061142339744/video/1",
+            id_str: "1888519902689959936",
+            indices: [289, 312],
+            media_key: "7_1888519902689959936",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1888519902689959936/pu/img/bn9-aUx0QKYes6oV.jpg",
+            type: "video",
+            url: "https://t.co/DcWsZFMBOu",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 1280,
+                w: 576,
+                resize: "fit",
+              },
+              medium: {
+                h: 1200,
+                w: 540,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 306,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 1280,
+              width: 576,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [9, 20],
+              duration_millis: 255019,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/pl/SvZh3C2ma-KeM8g8.m3u8?tag=12",
+                },
+                {
+                  bitrate: 632000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/320x710/4-GgWP1pPlq_Aeg-.mp4?tag=12",
+                },
+                {
+                  bitrate: 950000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/480x1066/WusC_uIod6_rz3ED.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/576x1280/LkgOvEr9SZxUJM5C.mp4?tag=12",
+                },
+              ],
+            },
+          },
+          {
+            display_url: "pic.x.com/DcWsZFMBOu",
+            expanded_url:
+              "https://x.com/ReacherXfounder/status/1888520061142339744/video/1",
+            id_str: "1888519902689959936",
+            indices: [289, 312],
+            media_key: "7_1888519902689959936",
+            media_url_https:
+              "https://pbs.twimg.com/ext_tw_video_thumb/1888519902689959936/pu/img/bn9-aUx0QKYes6oV.jpg",
+            type: "video",
+            url: "https://t.co/DcWsZFMBOu",
+            additional_media_info: {
+              monetizable: false,
+            },
+            ext_media_availability: {
+              status: "Available",
+            },
+            sizes: {
+              large: {
+                h: 1280,
+                w: 576,
+                resize: "fit",
+              },
+              medium: {
+                h: 1200,
+                w: 540,
+                resize: "fit",
+              },
+              small: {
+                h: 680,
+                w: 306,
+                resize: "fit",
+              },
+              thumb: {
+                h: 150,
+                w: 150,
+                resize: "crop",
+              },
+            },
+            original_info: {
+              height: 1280,
+              width: 576,
+              focus_rects: [],
+            },
+            video_info: {
+              aspect_ratio: [9, 20],
+              duration_millis: 255019,
+              variants: [
+                {
+                  content_type: "application/x-mpegURL",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/pl/SvZh3C2ma-KeM8g8.m3u8?tag=12",
+                },
+                {
+                  bitrate: 632000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/320x710/4-GgWP1pPlq_Aeg-.mp4?tag=12",
+                },
+                {
+                  bitrate: 950000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/480x1066/WusC_uIod6_rz3ED.mp4?tag=12",
+                },
+                {
+                  bitrate: 2176000,
+                  content_type: "video/mp4",
+                  url: "https://video.twimg.com/ext_tw_video/1888519902689959936/pu/vid/avc1/576x1280/LkgOvEr9SZxUJM5C.mp4?tag=12",
+                },
+              ],
+            },
+          },
+        ],
+        user_mentions: [
+          {
+            id_str: "1230404765827256320",
+            name: "Founders Inc",
+            screen_name: "fdotinc",
+            indices: [0, 8],
+          },
+          {
+            id_str: "1230404765827256320",
+            name: "Founders Inc",
+            screen_name: "fdotinc",
+            indices: [9, 17],
+          },
+          {
+            id_str: "1230404765827256320",
+            name: "Founders Inc",
+            screen_name: "fdotinc",
+            indices: [0, 8],
+          },
+        ],
+        urls: [
+          {
+            display_url: "app.reacherx.com",
+            expanded_url: "http://app.reacherx.com",
+            url: "https://t.co/9A6df19fNj",
+            indices: [615, 638],
+          },
+        ],
+        hashtags: [],
+        symbols: [],
+      },
+      is_pinned: false,
+    },
   ];
 
   return (
@@ -1076,6 +1303,11 @@ export default function Home() {
                 <TweetMedia media={tweet.entities.media} />
               ) : null
             }
+            replies={tweet.reply_count}
+            likes={tweet.favorite_count}
+            bookmarks={tweet.bookmark_count}
+            impressions={tweet.views_count}
+            reposts={tweet.retweet_count}
           />
         ))}
       </section>

@@ -120,8 +120,8 @@ const MediaViewerDrawer: React.FC<MediaViewerDrawerProps> = ({
               </Button>
             </DrawerHeader>
           </header>
-          <main className="px-4 md:px-28">
-            <h2 id="media-heading" className="text-3xl">
+          <main className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-28">
+            <h2 id="media-heading" className="text-3xl font-medium">
               Media.
             </h2>
             {media.length > 1 && (
@@ -138,7 +138,7 @@ const MediaViewerDrawer: React.FC<MediaViewerDrawerProps> = ({
             )}
 
             <Carousel
-              className="relative mt-6 w-full md:mt-12"
+              className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 w-full duration-300 md:mt-12"
               opts={{ loop: true, containScroll: "trimSnaps" }}
               setApi={handleCarouselApi}
             >

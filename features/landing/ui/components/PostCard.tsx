@@ -207,13 +207,13 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
         <div
           // href={detailHref}
           className={cn(containerClasses, "group")}
-          aria-label={`View post by ${displayName ?? username ?? "user"}`} // ADDED
+          aria-label={`View post by ${displayName ?? username ?? "user"}`}
         >
           {/* Avatar & optional vertical separator */}
           <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
             <Link
               href={`https://x.com/${username}`}
-              aria-label={`View ${displayName ?? username}'s profile`} // ADDED
+              aria-label={`View ${displayName ?? username}'s profile`}
             >
               <Avatar
                 className={cn(
@@ -223,7 +223,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
               >
                 <AvatarImage
                   src={avatarUrl}
-                  alt={displayName ? `Avatar of ${displayName}` : "User avatar"} // ADDED
+                  alt={displayName ? `Avatar of ${displayName}` : "User avatar"}
                 />
                 <AvatarFallback>
                   {displayName?.charAt(0).toUpperCase() || "?"}
@@ -248,7 +248,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                           displayNameClass,
                           "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 whitespace-nowrap font-medium duration-300 hover:underline"
                         )}
-                        aria-label={`View ${displayName}'s profile`} // ADDED
+                        aria-label={`View ${displayName}'s profile`}
                       >
                         {displayName}
                       </Link>
@@ -260,7 +260,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                           "ease-[cubic-bezier(0.25, 1, 0.5, 1)] fill-current duration-300",
                           "mr-1"
                         )}
-                        aria-hidden="true" // ADDED
+                        aria-hidden="true"
                       />
                     )}
                     {username && (
@@ -270,7 +270,7 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                           usernameClass,
                           "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-muted-foreground duration-300 hover:underline"
                         )}
-                        aria-label={`View @${username}'s profile`} // ADDED
+                        aria-label={`View @${username}'s profile`}
                       >
                         @{username}
                       </Link>
@@ -298,11 +298,11 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                       variant="ghost"
                       className="h-6 w-6"
                       onClick={(e) => e.stopPropagation()}
-                      aria-label="More options" // ADDED
+                      aria-label="More options"
                     >
                       <MoreHorizIcon
                         className="fill-muted-foreground"
-                        aria-hidden="true" // ADDED
+                        aria-hidden="true"
                       />
                     </Button>
                   </DropdownMenuTrigger>
@@ -383,8 +383,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View replies (${repliesCount})`} // ADDED
-                    title={`View replies (${repliesCount})`} // ADDED
+                    aria-label={`View replies (${repliesCount})`}
+                    title={`View replies (${repliesCount})`}
                   >
                     <QuickPhrasesIcon
                       className="fill-current"
@@ -399,8 +399,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View reposts (${repostsCount})`} // ADDED
-                    title={`View reposts (${repostsCount})`} // ADDED
+                    aria-label={`View reposts (${repostsCount})`}
+                    title={`View reposts (${repostsCount})`}
                   >
                     <RepeatIcon className="fill-current" aria-hidden="true" />
                     {repostsCount}
@@ -412,8 +412,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View likes (${likesCount})`} // ADDED
-                    title={`View likes (${likesCount})`} // ADDED
+                    aria-label={`View likes (${likesCount})`}
+                    title={`View likes (${likesCount})`}
                   >
                     <FavoriteIcon className="fill-current" aria-hidden="true" />
                     {likesCount}
@@ -425,8 +425,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View bookmarks (${bookmarksCount})`} // ADDED
-                    title={`View bookmarks (${bookmarksCount})`} // ADDED
+                    aria-label={`View bookmarks (${bookmarksCount})`}
+                    title={`View bookmarks (${bookmarksCount})`}
                   >
                     <BookmarkIcon className="fill-current" aria-hidden="true" />
                     {bookmarksCount}
@@ -438,8 +438,8 @@ export const PostCard = React.forwardRef<HTMLElement, PostCardProps>(
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-                    aria-label={`View impressions (${impressionsCount})`} // ADDED
-                    title={`View impressions (${impressionsCount})`} // ADDED
+                    aria-label={`View impressions (${impressionsCount})`}
+                    title={`View impressions (${impressionsCount})`}
                   >
                     <InsertChartIcon
                       className="fill-current"
