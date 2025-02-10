@@ -58,6 +58,7 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
           hlsUrl={hlsVariant?.url}
           mp4Url={mp4Variant?.url}
           ariaLabel="Tweet video"
+          className="rounded-lg"
         />
       );
     } else if (item.type === "photo") {
@@ -69,6 +70,7 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
           height={item.original_info.height}
           className="h-full w-full rounded-lg object-cover"
           loading="eager"
+          unoptimized={item.media_url_https.includes("9jnl6fmpas.ufs.sh")}
         />
       );
     }

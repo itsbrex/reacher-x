@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { cn } from "@/shared/lib/utils/utils";
 import {
   MediaController,
   MediaControlBar,
@@ -12,22 +13,28 @@ import {
   MediaMuteButton,
   MediaVolumeRange,
   MediaLoadingIndicator,
+  MediaFullscreenButton,
 } from "media-chrome/react";
 
 interface VideoPlayerProps {
   hlsUrl?: string;
   mp4Url?: string;
   ariaLabel?: string;
+  className?: string;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   hlsUrl,
   mp4Url,
   ariaLabel,
+  className,
   ...props
 }) => {
   return (
-    <MediaController {...props} className="w-full overflow-hidden rounded-lg">
+    <MediaController
+      {...props}
+      className={cn("h-full w-full overflow-hidden", className)}
+    >
       <video
         slot="media"
         className="h-full w-full object-contain" // changed from object-cover to object-contain
@@ -42,12 +49,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       <MediaControlBar>
         <MediaPlayButton />
-        <MediaSeekBackwardButton />
-        <MediaSeekForwardButton />
         <MediaTimeRange />
         <MediaTimeDisplay showDuration remaining />
         <MediaMuteButton />
-        <MediaVolumeRange />
+        <MediaFullscreenButton />
       </MediaControlBar>
     </MediaController>
   );
