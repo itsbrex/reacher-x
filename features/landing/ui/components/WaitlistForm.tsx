@@ -55,55 +55,60 @@ export function WaitlistForm() {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
-        <fieldset className="space-y-6">
+        <fieldset>
+          {/* Legend is for accessibility only */}
           <legend className="sr-only">Contact Information</legend>
 
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor="email">
-                  Email <span className="text-muted-foreground">*</span>
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    placeholder="e.g., ReacherXfounder@example.com"
-                    aria-required="true"
-                    aria-invalid={!!form.formState.errors.email}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Wrap fields in a container with spacing so that the email field becomes the first child */}
+          <div className="space-y-6">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="email">
+                    Email <span className="text-muted-foreground">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      id="email"
+                      type="email"
+                      required
+                      placeholder="e.g., ReacherXfounder@example.com"
+                      aria-required="true"
+                      aria-invalid={!!form.formState.errors.email}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="twitter"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor="twitter">
-                  X/Twitter username{" "}
-                  <span className="text-muted-foreground">(Optional)</span>
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    id="twitter"
-                    placeholder="e.g., ReacherXfounder"
-                    aria-required="false"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="twitter"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="twitter">
+                    X/Twitter username{" "}
+                    <span className="text-muted-foreground">(Optional)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      id="twitter"
+                      placeholder="e.g., ReacherXfounder"
+                      aria-required="false"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </fieldset>
+
         <fieldset>
           <legend className="sr-only">Agreement</legend>
 
@@ -134,7 +139,7 @@ export function WaitlistForm() {
 
         <Button
           type="submit"
-          disabled={!form.watch("terms")} // watch the "terms" field
+          disabled={!form.watch("terms")}
           className="w-full"
         >
           Join wait-list

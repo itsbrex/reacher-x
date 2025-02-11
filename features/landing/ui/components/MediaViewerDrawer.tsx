@@ -125,7 +125,7 @@ const MediaViewerDrawer: React.FC<MediaViewerDrawerProps> = ({
               Media.
             </h2>
             {media.length > 1 && (
-              <div className="mt-4 flex overflow-x-auto pb-2">
+              <div className="mt-4 flex overflow-x-auto px-0.5 py-2">
                 <PostMediaThumbnails
                   variant="drawer"
                   media={media}

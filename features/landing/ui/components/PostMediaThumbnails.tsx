@@ -55,15 +55,15 @@ export const PostMediaThumbnails: React.FC<PostMediaThumbnailsProps> = ({
         const thumbnailClasses = cn(
           "relative h-8 w-8 rounded duration-100",
           isDrawer
-            ? // Drawer variant: add padding, clickable, and 1px border (or 2px if active).
+            ? // Drawer variant: add padding, clickable, and a ring that is 1px (or 2px if active).
               cn(
                 "p-0.5 cursor-pointer hover:opacity-80",
-                isActive ? "border-2 border-primary" : "border border-border"
+                isActive ? "ring-2 ring-primary" : "ring-[1px] ring-border"
               )
-            : // Tweet variant: no padding, non-clickable, and a 4px border with 'border-main'.
-              "cursor-default border-4 border-main",
+            : // Tweet variant: non-clickable, and a 4px ring with 'ring-main'.
+              "cursor-default ring-4 ring-main",
           // In tweet variant, apply a negative left margin to all but the first thumbnail.
-          isTweet && index > 0 && "ml-[-16px]"
+          isTweet && index > 0 && "ml-[-8px]"
         );
 
         return (
@@ -91,8 +91,8 @@ export const PostMediaThumbnails: React.FC<PostMediaThumbnailsProps> = ({
         <div
           className={cn(
             "z-10 flex h-8 w-8 cursor-default items-center justify-center rounded bg-muted font-mono text-xs font-medium",
-            "ml-[-16px]", // Match the stacking negative margin.
-            "border-4 border-main" // Tweet variant: 4px border with border-main.
+            "ml-[-8px]", // Match the stacking negative margin.
+            "ring-4 ring-main" // Tweet variant: 4px ring with ring-main.
           )}
         >
           +{remainingCount}
