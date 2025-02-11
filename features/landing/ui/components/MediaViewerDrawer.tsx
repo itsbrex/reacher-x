@@ -18,7 +18,7 @@ import {
   CarouselPrevious,
   CarouselApi,
 } from "@/shared/ui/components/Carousel";
-import { TweetMediaThumbnails } from "./TweetMediaThumbnails";
+import { PostMediaThumbnails } from "./PostMediaThumbnails";
 
 interface Media {
   id_str?: string;
@@ -126,7 +126,7 @@ const MediaViewerDrawer: React.FC<MediaViewerDrawerProps> = ({
             </h2>
             {media.length > 1 && (
               <div className="mt-4 flex overflow-x-auto pb-2">
-                <TweetMediaThumbnails
+                <PostMediaThumbnails
                   variant="drawer"
                   media={media}
                   currentIndex={currentIndex}
@@ -143,7 +143,7 @@ const MediaViewerDrawer: React.FC<MediaViewerDrawerProps> = ({
               opts={{ loop: true, containScroll: "trimSnaps" }}
               setApi={handleCarouselApi}
             >
-              <div className="overflow-hidden rounded-lg bg-border">
+              <div className="overflow-hidden rounded-lg">
                 <CarouselContent>
                   {media.map((item, index) => (
                     <CarouselItem key={item.id_str || index}>

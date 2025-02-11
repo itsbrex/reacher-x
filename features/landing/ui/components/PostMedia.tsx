@@ -1,4 +1,3 @@
-// components/TweetMedia.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -12,13 +11,13 @@ import { AspectRatio } from "@/shared/ui/components/AspectRatio";
 import { Button } from "@/shared/ui/components/Button";
 import VideoPlayer from "./VideoPlayer";
 import MediaViewerDrawer from "./MediaViewerDrawer";
-import { TweetMediaThumbnails } from "./TweetMediaThumbnails";
+import { PostMediaThumbnails } from "./PostMediaThumbnails";
 
-interface TweetMediaProps {
+interface PostMediaProps {
   media: any[];
 }
 
-const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
+const PostMedia: React.FC<PostMediaProps> = ({ media }) => {
   if (!media || media.length === 0) return null;
 
   // **** FIX: Deduplicate media items based on a unique identifier (id_str) ****
@@ -101,7 +100,7 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
         </CarouselContent>
       </Carousel>
       <div className="mt-2 flex items-center gap-1">
-        <TweetMediaThumbnails
+        <PostMediaThumbnails
           media={uniqueMedia}
           currentIndex={0}
           variant="tweet"
@@ -127,4 +126,4 @@ const TweetMedia: React.FC<TweetMediaProps> = ({ media }) => {
   );
 };
 
-export default TweetMedia;
+export default PostMedia;

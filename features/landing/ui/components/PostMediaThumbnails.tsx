@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { cn } from "@/shared/lib/utils/utils";
 
-export interface TweetMediaThumbnailsProps {
+export interface PostMediaThumbnailsProps {
   media: any[];
   currentIndex?: number;
   onThumbnailClick?: (index: number) => void;
@@ -12,7 +12,7 @@ export interface TweetMediaThumbnailsProps {
   variant?: "tweet" | "drawer";
 }
 
-export const TweetMediaThumbnails: React.FC<TweetMediaThumbnailsProps> = ({
+export const PostMediaThumbnails: React.FC<PostMediaThumbnailsProps> = ({
   media,
   currentIndex = 0,
   onThumbnailClick,
