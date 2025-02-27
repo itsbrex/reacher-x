@@ -8,4 +8,7 @@ export default defineSchema({
     twitter: v.optional(v.string()),
     createdAt: v.string(),
   }).index("by_email", ["email"]), // Index for efficient email queries
+  threads: defineTable({
+    threadId: v.string(),
+  }),
 });

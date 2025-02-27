@@ -55,3 +55,32 @@ export const getTwitterProfile = action({
     }
   },
 });
+
+export const getThreads = action({
+  args: { threadIds: v.array(v.string()) },
+  handler: async (ctx, { threadIds }) => {
+    const apiKey = process.env.SOCIALDATA_API_KEY;
+    if (!apiKey) throw new Error("SOCIALDATA_API_KEY is not set");
+
+    const threads = await Promise.all(
+      threadIds.map(async (threadId) => {
+        const response = await fetch(
+          `https://api.socialdata.tools/twitter/thread/${threadId}`,
+          {
+            headers: { Authorization: `Bearer ${apiKey}` },
+          }
+        );
+        if (!response.ok) throw new Error(`Failed to fetch thread ${threadId}`);
+        return response.json();
+      })
+    );
+    return threads;
+  },
+});
+
+export const getRelevantThreadIds = query({
+  handler: async (ctx) => {
+    const threads = await ctx.db.query("threads").collect();
+    return threads.map((thread) => thread.threadId);
+  },
+});
