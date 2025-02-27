@@ -5,6 +5,7 @@ import { PostCard } from "@/features/landing/ui/components/PostCard";
 import { WaitlistUsersMarquee } from "@/features/landing/ui/components/WaitlistUsersMarquee";
 import { WaitlistDrawer } from "@/features/landing/ui/components/WaitlistDrawer";
 import PostMedia from "@/features/landing/ui/components/PostMedia";
+import { WaitlistConfirmationEmail } from "@/convex/emails/WaitlistConfirmationEmail";
 
 // Mock data that you might fetch from a DB/API
 const mockThreads = [
@@ -2074,6 +2075,10 @@ export default function Home() {
         <WaitlistDrawer waitlistUsers={mockWaitlistUsers} />
 
         <WaitlistUsersMarquee className="mt-6 md:mt-12" />
+      </section>
+
+      <section>
+        <WaitlistConfirmationEmail />
       </section>
 
       <section

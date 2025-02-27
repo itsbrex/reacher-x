@@ -2,7 +2,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
-import { WelcomeEmail } from "./emails/WelcomeEmail";
+import { WaitlistConfirmationEmail } from "./emails/WaitlistConfirmationEmail";
 
 export const sendWelcomeEmail = action({
   args: { email: v.string() },
@@ -17,7 +17,7 @@ export const sendWelcomeEmail = action({
         from: "ReacherX <noreply@reacherx.com>",
         to: email,
         subject: "You're on the wait-list!",
-        react: WelcomeEmail(),
+        react: WaitlistConfirmationEmail(),
       });
       console.log(`Email sent successfully to ${email}`);
     } catch (error) {
