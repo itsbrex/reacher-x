@@ -5,24 +5,26 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
-export default function ThreadsPage() {
-  // Fetch thread IDs using useQuery (remains unchanged)
-  const threadIds = useQuery(api.socialdata.getThreadIds);
+interface Tweet {
+  full_text: string;
+}
 
-  // Get the action function for getThreads
+interface Thread {
+  tweets: Tweet[];
+}
+
+export default function ThreadsPage() {
+  const threadIds = useQuery(api.socialdata.getThreadIds);
   const getThreadsAction = useAction(api.socialdata.getThreads);
 
-  // State to hold the fetched threads, initialized as null
-  const [threads, setThreads] = useState<any[] | null>(null);
+  const [threads, setThreads] = useState<Thread[] | null>(null);
 
-  // Fetch threads when threadIds are available
   useEffect(() => {
     if (threadIds !== undefined) {
       getThreadsAction({ threadIds })
         .then((fetchedThreads) => setThreads(fetchedThreads))
         .catch((error) => {
           console.error("Failed to fetch threads:", error);
-          // Optionally set an error state here if desired
         });
     }
   }, [threadIds, getThreadsAction]);
