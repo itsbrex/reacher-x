@@ -76,10 +76,7 @@ export default function ThreadDetailPage() {
 
   return (
     <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 duration-300 md:mt-12">
-      <Link
-        href="/threads"
-        className="ml-4 block w-fit bg-fuchsia-500 md:ml-28"
-      >
+      <Link href="/threads" className="ml-4 block w-fit md:ml-28">
         <h1 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-3xl font-medium duration-300 md:text-5xl">
           ⇽ Thread #
           {threadNumber !== null && threadNumber > 0
@@ -87,8 +84,8 @@ export default function ThreadDetailPage() {
             : "Loading..."}
         </h1>
       </Link>
-      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-12 bg-red-500 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
-        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] bg-yellow-500 px-4 duration-300 @container md:px-0">
+      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-12 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
+        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 @container md:px-0">
           {tweets.map((tweet, index) => (
             <TweetCard
               key={tweet.id_str}
@@ -109,10 +106,10 @@ export default function ThreadDetailPage() {
             />
           ))}
         </section>
-        <aside className="space-y-6 bg-orange-500">
+        <aside className="space-y-6">
           <section
             aria-labelledby="hero-heading"
-            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] bg-green-500 px-4 duration-300 md:px-0"
+            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-0"
           >
             <Badge variant="outline">
               ✶&nbsp;&nbsp;Launching March/April 2025
@@ -132,7 +129,7 @@ export default function ThreadDetailPage() {
           <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-0">
             <h3 className="text-2xl font-medium">Author.</h3>
             <UserProfileCard
-              className="mt-4 bg-pink-500"
+              className="mt-4"
               profileImageUrlHttps={author.profile_image_url_https}
               name={author.name}
               screenName={author.screen_name}
@@ -189,7 +186,7 @@ export default function ThreadDetailPage() {
       <section
         id="join-waitlist"
         aria-labelledby="waitlist-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] bg-lime-500 px-4 py-12 duration-300 md:px-28 md:py-52"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 py-12 duration-300 md:px-28 md:py-52"
       >
         <h2 id="waitlist-heading" className="text-3xl font-medium">
           Join over 50 people already on the wait-list!

@@ -41,7 +41,7 @@ import { parseText } from "@/shared/lib/utils/parseText";
 import { Entities, Media } from "@/app/(landing)/threads/types";
 
 const tweetCardVariants = cva(
-  "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors bg-violet-500",
+  "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors ",
   {
     variants: {
       bordered: {

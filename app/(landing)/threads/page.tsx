@@ -34,11 +34,11 @@ export default function ThreadsPage() {
 
   return (
     <div className="mt-6 md:mt-12">
-      <Link href="/" className="ml-4 block w-fit bg-fuchsia-500 md:ml-28">
+      <Link href="/" className="ml-4 block w-fit md:ml-28">
         <h1 className="text-3xl font-medium md:text-5xl">⇽ Threads.</h1>
       </Link>
-      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-12 bg-red-500 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
-        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] bg-yellow-500 px-4 duration-300 @container md:px-0">
+      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-12 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
+        <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 @container md:px-0">
           {threads.length === 0 ? (
             <p>No threads available yet.</p>
           ) : (
@@ -70,10 +70,10 @@ export default function ThreadsPage() {
             })
           )}
         </section>
-        <aside className="space-y-6 bg-orange-500">
+        <aside className="space-y-6">
           <section
             aria-labelledby="hero-heading"
-            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] bg-green-500 px-4 duration-300 md:px-0"
+            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-0"
           >
             <Badge variant="outline">
               ✶&nbsp;&nbsp;Launching March/April 2025
@@ -93,7 +93,7 @@ export default function ThreadsPage() {
           <section className="px-4 md:px-0">
             <h3 className="text-2xl font-medium">Author.</h3>
             <UserProfileCard
-              className="mt-4 bg-pink-500"
+              className="mt-4"
               profileImageUrlHttps="https://avatars.githubusercontent.com/u/85483006?v=4"
               name="ReacherX founder"
               screenName="ReacherXfounder"
@@ -107,7 +107,7 @@ export default function ThreadsPage() {
       <section
         id="join-waitlist"
         aria-labelledby="waitlist-heading"
-        className="bg-lime-500 px-4 py-12 md:px-28 md:py-52"
+        className="px-4 py-12 md:px-28 md:py-52"
       >
         <h2 id="waitlist-heading" className="text-3xl font-medium">
           Join over 50 people already on the wait-list!
