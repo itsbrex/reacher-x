@@ -20,7 +20,6 @@ import {
   FormMessage,
 } from "@/shared/ui/components/Form";
 
-// Updated Zod schema
 const waitlistSchema = z.object({
   email: z
     .string()
@@ -29,12 +28,12 @@ const waitlistSchema = z.object({
     .transform((val) => val.toLowerCase()),
   twitter: z
     .string()
-    .trim() // Remove leading/trailing whitespace
+    .trim()
     .refine((val) => val === "" || /^[a-zA-Z0-9_]{1,15}$/.test(val), {
       message:
         "Invalid Twitter handle. It should be 1-15 characters long and contain only letters, numbers, and underscores.",
     })
-    .transform((val) => (val === "" ? undefined : val)) // Empty string becomes undefined
+    .transform((val) => (val === "" ? undefined : val))
     .optional(),
   terms: z.boolean().refine((val) => val === true, {
     message: "You must accept the terms.",
@@ -43,7 +42,7 @@ const waitlistSchema = z.object({
 
 type WaitlistFormValues = z.infer<typeof waitlistSchema>;
 
-export function WaitlistForm() {
+export function WaitlistForm({ onSuccess }: { onSuccess: () => void }) {
   const form = useForm<WaitlistFormValues>({
     resolver: zodResolver(waitlistSchema),
     defaultValues: {
@@ -54,6 +53,7 @@ export function WaitlistForm() {
   });
 
   const joinWaitlistMutation = useMutation(api.waitlist.joinWaitlist);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const onSubmit = async (data: WaitlistFormValues) => {
     try {
@@ -61,9 +61,11 @@ export function WaitlistForm() {
         email: data.email,
         twitter: data.twitter,
       });
-      console.log("Waitlist entry added or updated successfully!");
+      onSuccess(); // Notify parent component of success
     } catch (error) {
-      console.error("Error joining waitlist:", error);
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setErrorMessage(message); // Display error to user
     }
   };
 
@@ -73,6 +75,11 @@ export function WaitlistForm() {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
+        {errorMessage && (
+          <div className="mb-4 text-red-500" role="alert">
+            {errorMessage}
+          </div>
+        )}
         <fieldset>
           <legend className="sr-only">Contact Information</legend>
           <div className="space-y-6">

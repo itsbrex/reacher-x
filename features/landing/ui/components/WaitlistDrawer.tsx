@@ -11,14 +11,16 @@ import {
 import { WaitlistForm } from "@/features/landing/ui/components/WaitlistForm";
 import { AvatarStack } from "./AvatarStack";
 import { useWaitlistUsers } from "@/features/landing/hooks/useWaitlistUsers";
+import Link from "next/link";
+import { NavLink } from "./NavLink";
 
 export function WaitlistDrawer() {
-  const { profiles, loading } = useWaitlistUsers(); // Assuming this hook returns { profiles, loading }
-
+  const { profiles, loading } = useWaitlistUsers();
   const [isOpen, setIsOpen] = React.useState(false);
+  const [joined, setJoined] = React.useState(false);
 
   if (loading) {
-    return <div>Loading waitlist users...</div>; // You could replace this with a skeleton loader
+    return <div>Loading waitlist users...</div>;
   }
 
   return (
@@ -40,16 +42,43 @@ export function WaitlistDrawer() {
               </DrawerHeader>
             </header>
 
-            <main className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 px-4 pb-4 duration-300 md:grid-cols-2 md:gap-12 md:px-28 md:pb-12">
-              <section>
-                <h2 className="text-3xl font-medium">
-                  Join over {profiles.length} people already on the wait-list!
-                </h2>
-                <div className="mt-4">
-                  <AvatarStack users={profiles} />
+            <main className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 pb-4 duration-300 md:px-28 md:pb-12">
+              {joined ? (
+                <div>
+                  <h2 className="text-3xl font-medium">
+                    You’re on the wait-list!
+                  </h2>
+                  <Link
+                    href="https://discord.gg/76dF9NPH"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-block text-xl text-muted-foreground hover:underline"
+                  >
+                    Join Discord ↗
+                  </Link>
+                  <NavLink
+                    href="/threads"
+                    size="lg"
+                    className="mb-0 mt-4 block font-normal md:mb-0"
+                    activeClassName="underline font-medium"
+                  >
+                    Threads ↗
+                  </NavLink>
                 </div>
-              </section>
-              <WaitlistForm />
+              ) : (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-12">
+                  <section>
+                    <h2 className="text-3xl font-medium">
+                      Join over {profiles.length} people already on the
+                      wait-list!
+                    </h2>
+                    <div className="mt-4">
+                      <AvatarStack users={profiles} />
+                    </div>
+                  </section>
+                  <WaitlistForm onSuccess={() => setJoined(true)} />
+                </div>
+              )}
             </main>
           </aside>
         </DrawerContent>
