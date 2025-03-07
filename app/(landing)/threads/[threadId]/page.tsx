@@ -43,7 +43,7 @@ export default function ThreadDetailPage() {
   const recentCount = 5; // Adjustable number of recent threads
   const recentThreadIds = useMemo(() => {
     if (!threadIds || !threadId) return [];
-    return threadIds.filter((id) => id !== threadId).slice(-recentCount);
+    return threadIds.filter((id) => id !== threadId).slice(0, recentCount); // Take the first recentCount (newest) threads
   }, [threadIds, threadId]);
 
   // Fetch recent threads when recentThreadIds changes

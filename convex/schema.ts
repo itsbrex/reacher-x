@@ -10,5 +10,6 @@ export default defineSchema({
   }).index("by_email", ["email"]), // Index for efficient email queries
   threads: defineTable({
     threadId: v.string(),
-  }),
+    createdAt: v.number(), // Timestamp of the first tweet's creation in milliseconds
+  }).index("by_createdAt", ["createdAt"]), // Index for sorting efficiency
 });

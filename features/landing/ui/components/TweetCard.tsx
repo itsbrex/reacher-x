@@ -103,7 +103,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
       size = "md",
       bordered,
       className,
-      characterLimit = 250,
+      characterLimit = 280,
       showFullContent = false,
       ...props
     },
