@@ -15,6 +15,7 @@ import {
   DrawerHeader,
   DrawerFooter,
   DrawerTitle,
+  DrawerClose,
 } from "@/shared/ui/components/Drawer";
 import {
   LightModeIcon,
@@ -198,24 +199,28 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                 aria-label="Mobile menu items"
               >
                 <li>
-                  <NavLink
-                    href="/"
-                    activeClassName="underline text-primary font-medium"
-                    size="lg"
-                    className="px-4 py-2 pt-0 font-normal text-muted-foreground"
-                  >
-                    Home
-                  </NavLink>
+                  <DrawerClose asChild>
+                    <NavLink
+                      href="/"
+                      activeClassName="underline text-primary font-medium"
+                      size="lg"
+                      className="px-4 py-2 pt-0 font-normal text-muted-foreground"
+                    >
+                      Home
+                    </NavLink>
+                  </DrawerClose>
                 </li>
                 <li>
-                  <NavLink
-                    href="/threads"
-                    activeClassName="underline text-primary font-medium"
-                    className="px-4 py-2 font-normal text-muted-foreground"
-                    size="lg"
-                  >
-                    Threads
-                  </NavLink>
+                  <DrawerClose asChild>
+                    <NavLink
+                      href="/threads"
+                      activeClassName="underline text-primary font-medium"
+                      className="px-4 py-2 font-normal text-muted-foreground"
+                      size="lg"
+                    >
+                      Threads
+                    </NavLink>
+                  </DrawerClose>
                 </li>
                 <li>
                   <Button
