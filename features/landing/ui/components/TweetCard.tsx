@@ -276,7 +276,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
             className={cn(
               "grid w-full gap-12",
               hasAdditionalContent
-                ? "grid-cols-1 @[1300px]:grid-cols-[calc(33.53%-1.5rem)_calc(66.47%-1.5rem)]"
+                ? "grid-cols-1 @[1100px]:grid-cols-[calc(33.53%-1.5rem)_calc(66.47%-1.5rem)]"
                 : "grid-cols-1"
             )}
           >
@@ -402,7 +402,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
 
               {/* Render additional content inline when container is small */}
               {additionalContent && (
-                <div className="block shrink-0 @[1300px]:hidden">
+                <div className="block shrink-0 @[1100px]:hidden">
                   {additionalContent}
                 </div>
               )}
@@ -489,7 +489,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
 
             {/* Render additional content in right column when container is large */}
             {hasAdditionalContent && (
-              <aside className="mt-4 hidden @[1300px]:block">
+              <aside className="mt-4 hidden @[1100px]:block">
                 {additionalContent}
               </aside>
             )}

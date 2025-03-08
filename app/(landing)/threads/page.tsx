@@ -39,7 +39,9 @@ export default function ThreadsPage() {
   return (
     <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 duration-300 md:mt-12">
       <Link href="/" className="ml-4 block w-fit md:ml-28">
-        <h1 className="text-3xl font-medium md:text-5xl">⇽ Threads.</h1>
+        <h1 className="text-3xl font-medium md:text-5xl">
+          <span className="inline-block rotate-180">➞</span> Threads.
+        </h1>
       </Link>
       <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-12 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] duration-300 @container">
