@@ -35,14 +35,15 @@ export default function ThreadDetailPage() {
     }
   }, [threadId, getThreadsAction]);
 
-  // Compute thread number based on position in threadIds
-  const threadNumber =
-    threadIds && threadId ? threadIds.indexOf(threadId as string) + 1 : null;
-
   // Loading state for initial render
   if (thread === null || threadIds === undefined) {
     return <div>Loading...</div>;
   }
+
+  // Compute thread number
+  const index =
+    threadIds && threadId ? threadIds.indexOf(threadId as string) : -1;
+  const threadNumber = index !== -1 ? threadIds.length - index : null;
 
   // Thread not found state
   if (thread.length === 0) {
