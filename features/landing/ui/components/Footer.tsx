@@ -81,54 +81,62 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
               Follow on
             </small>
             <div className="flex">
-              <Button
-                aria-label="ReacherX on X"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
+              <Link
+                href="https://x.com/ReacherXfounder"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <XIcon className="fill-current" />
-              </Button>
-              <Button
-                aria-label="ReacherX on Discord"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
+                <Button
+                  aria-label="ReacherX on X (formerly Twitter)"
+                  variant="ghost"
+                  size="icon"
+                  className="[&_svg]:size-8 md:[&_svg]:size-6"
+                >
+                  <XIcon className="fill-current" />
+                </Button>
+              </Link>
+              <Link
+                href="https://discord.gg/76dF9NPH"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <DiscordIcon className="fill-current" />
-              </Button>
-              <Button
-                aria-label="ReacherX on Threads"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
+                <Button
+                  aria-label="ReacherX on Discord"
+                  variant="ghost"
+                  size="icon"
+                  className="[&_svg]:size-8 md:[&_svg]:size-6"
+                >
+                  <DiscordIcon className="fill-current" />
+                </Button>
+              </Link>
+              <Link
+                href="https://threads.net/@reacherxfounder"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <ThreadsIcon className="fill-current" />
-              </Button>
-              <Button
-                aria-label="ReacherX on Instagram"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
+                <Button
+                  aria-label="ReacherX on Threads"
+                  variant="ghost"
+                  size="icon"
+                  className="[&_svg]:size-8 md:[&_svg]:size-6"
+                >
+                  <ThreadsIcon className="fill-current" />
+                </Button>
+              </Link>
+              <Link
+                href="https://instagram.com/reacherxfounder/"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <InstagramIcon className="fill-current" />
-              </Button>
-              <Button
-                aria-label="ReacherX on YouTube"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
-              >
-                <YoutubeIcon className="fill-current" />
-              </Button>
-              <Button
-                aria-label="ReacherX on Reddit"
-                variant="ghost"
-                size="icon"
-                className="[&_svg]:size-8 md:[&_svg]:size-6"
-              >
-                <RedditIcon className="fill-current" />
-              </Button>
+                <Button
+                  aria-label="ReacherX on Instagram"
+                  variant="ghost"
+                  size="icon"
+                  className="[&_svg]:size-8 md:[&_svg]:size-6"
+                >
+                  <InstagramIcon className="fill-current" />
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
@@ -147,13 +155,19 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
             Copyright &copy; {currentYear} ReacherX. All rights reserved.
           </small>
           <div className="flex items-center space-x-2">
-            <Button variant="link" className="px-0">
+            <Link
+              href="/"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
               Privacy policy
-            </Button>
+            </Link>
             <span className="text-muted-foreground">|</span>
-            <Button variant="link" className="px-0">
+            <Link
+              href="/"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
               Terms of service
-            </Button>
+            </Link>
           </div>
         </section>
       </Comp>

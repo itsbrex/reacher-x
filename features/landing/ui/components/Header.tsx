@@ -22,8 +22,8 @@ import {
   DarkModeIcon,
   XIcon,
   DiscordIcon,
-  RedditIcon,
   ThreadsIcon,
+  InstagramIcon,
 } from "@/shared/ui/components/icons";
 import { NavLink } from "./NavLink";
 
@@ -240,38 +240,62 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                     Follow on
                   </small>
                   <div className="flex items-center">
-                    <Button
-                      aria-label="ReacherX on X"
-                      variant={"ghost"}
-                      size={"icon"}
-                      className="[&_svg]:size-8"
+                    <Link
+                      href="https://x.com/ReacherXfounder"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <XIcon className="fill-current" />
-                    </Button>
-                    <Button
-                      aria-label="ReacherX on Discord"
-                      variant={"ghost"}
-                      size={"icon"}
-                      className="[&_svg]:size-8"
+                      <Button
+                        aria-label="ReacherX on X (formerly Twitter)"
+                        variant={"ghost"}
+                        size={"icon"}
+                        className="[&_svg]:size-8"
+                      >
+                        <XIcon className="fill-current" />
+                      </Button>
+                    </Link>
+                    <Link
+                      href="https://discord.gg/76dF9NPH"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <DiscordIcon className="fill-current" />
-                    </Button>
-                    <Button
-                      aria-label="ReacherX on Threads"
-                      variant={"ghost"}
-                      size={"icon"}
-                      className="[&_svg]:size-8"
+                      <Button
+                        aria-label="ReacherX on Discord"
+                        variant={"ghost"}
+                        size={"icon"}
+                        className="[&_svg]:size-8"
+                      >
+                        <DiscordIcon className="fill-current" />
+                      </Button>
+                    </Link>
+                    <Link
+                      href="https://threads.net/@reacherxfounder"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <ThreadsIcon className="fill-current" />
-                    </Button>
-                    <Button
-                      aria-label="ReacherX on Reddit"
-                      variant={"ghost"}
-                      size={"icon"}
-                      className="[&_svg]:size-8"
+                      <Button
+                        aria-label="ReacherX on Threads"
+                        variant={"ghost"}
+                        size={"icon"}
+                        className="[&_svg]:size-8"
+                      >
+                        <ThreadsIcon className="fill-current" />
+                      </Button>
+                    </Link>
+                    <Link
+                      href="https://instagram.com/reacherxfounder/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <RedditIcon className="fill-current" />
-                    </Button>
+                      <Button
+                        aria-label="ReacherX on Instagram"
+                        variant={"ghost"}
+                        size={"icon"}
+                        className="[&_svg]:size-8"
+                      >
+                        <InstagramIcon className="fill-current" />
+                      </Button>
+                    </Link>
                   </div>
                 </DrawerFooter>
               </footer>
