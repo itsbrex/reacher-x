@@ -1,8 +1,8 @@
-// convex/sendEmail.ts
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
-import { WaitlistConfirmationEmail } from "./emails/WaitlistConfirmationEmail";
+import { WaitlistConfirmationEmail } from "../emails/WaitlistConfirmationEmail";
+import { render } from "@react-email/render";
 
 export const sendWelcomeEmail = action({
   args: { email: v.string() },
@@ -13,16 +13,18 @@ export const sendWelcomeEmail = action({
     }
 
     try {
+      const html = await render(WaitlistConfirmationEmail());
+      console.log(html);
+
       await resend.emails.send({
-        from: "ReacherX <noreply@reacherx.com>",
+        from: "ReacherX <noreply@transactional.reacherx.com>",
         to: email,
         subject: "You're on the wait-list!",
-        react: WaitlistConfirmationEmail(),
+        html: html,
       });
       console.log(`Email sent successfully to ${email}`);
     } catch (error) {
       console.error("Failed to send email:", error);
-      // Optionally, log to a Convex table or notify an admin
     }
   },
 });

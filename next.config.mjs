@@ -8,12 +8,6 @@ const nextConfig = {
         port: "",
         search: "",
       },
-      {
-        protocol: "https",
-        hostname: "9jnl6fmpas.ufs.sh",
-        port: "",
-        pathname: "/**",
-      },
     ],
   },
 };

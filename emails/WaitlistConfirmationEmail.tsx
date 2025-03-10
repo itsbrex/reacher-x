@@ -76,7 +76,7 @@ export const WaitlistConfirmationEmail = () => {
                   href="#"
                   className="tracking-custom font-mono text-[1rem] leading-[150%] text-neutral-500 underline underline-offset-4"
                 >
-                  reacherx.com/threads/1
+                  reacherx.com/threads
                 </Link>
               </li>
             </ul>
@@ -108,7 +108,10 @@ export const WaitlistConfirmationEmail = () => {
               </Link>
             </Text>
             <Section className="mt-6">
-              <Link href="#" aria-label="ReacherX on X">
+              <Link
+                href="https://x.com/ReacherXfounder"
+                aria-label="ReacherX on X (formerly Twitter)"
+              >
                 <svg
                   width="32"
                   height="32"
@@ -143,7 +146,10 @@ export const WaitlistConfirmationEmail = () => {
                   />
                 </svg>
               </Link>
-              <Link href="#" aria-label="ReacherX on Threads">
+              <Link
+                href="https://threads.net/@reacherxfounder"
+                aria-label="ReacherX on Threads"
+              >
                 <svg
                   width="32"
                   height="32"
@@ -159,7 +165,10 @@ export const WaitlistConfirmationEmail = () => {
                   />
                 </svg>
               </Link>
-              <Link href="#" aria-label="ReacherX on Instagram">
+              <Link
+                href="https://instagram.com/reacherxfounder/"
+                aria-label="ReacherX on Instagram"
+              >
                 <svg
                   width="32"
                   height="32"
