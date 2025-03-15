@@ -1,6 +1,5 @@
 // features/landing/ui/components/TweetCard.tsx
 import * as React from "react";
-import { Suspense } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
 import { cn } from "@/shared/lib/utils/utils";
@@ -11,7 +10,13 @@ import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
 import { Tweet } from "@/app/(landing)/threads/types";
-import { ReplyLink } from "./ReplyLink";
+import Link from "next/link";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/shared/ui/components/Avatar";
+import { LinkWrapper } from "./LinkWrapper";
 
 const tweetCardVariants = cva(
   "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
@@ -38,7 +43,7 @@ export interface TweetCardProps
   className?: string;
   characterLimit?: number;
   showFullContent?: boolean;
-  isLast?: boolean;
+  showThread?: boolean;
 }
 
 export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
@@ -51,7 +56,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
       className,
       characterLimit = 280,
       showFullContent = false,
-      isLast = false,
+      showThread = false,
       ...props
     },
     ref
@@ -89,6 +94,13 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
       size === "lg" && "md:text-lg"
     );
 
+    const inReplyingToScreenNameClass = cn(
+      "text-sm",
+      size === "sm" && "md:text-sm",
+      size === "md" && "md:text-sm",
+      size === "lg" && "md:text-base"
+    );
+
     const bodyClass = cn(
       "text-base",
       size === "sm" && "md:text-base",
@@ -105,20 +117,22 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
           aria-label={`View post by ${staticTweet?.user?.name ?? staticTweet?.user?.screen_name ?? "user"}`}
         >
           <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
-            <Suspense
-              fallback={
-                <div className={cn(avatarClass, "ring-1 ring-border")}>
-                  Loading...
-                </div>
-              }
+            <LinkWrapper
+              href={`https://x.com/${staticTweet?.user?.screen_name}`}
+              isExternal={true}
             >
-              <TweetHeader
-                threadId={threadId}
-                tweetId={staticTweet?.id_str}
-                avatarClass={avatarClass}
-              />
-            </Suspense>
-            {!isLast && (
+              <Avatar className={cn(avatarClass, "ring-1 ring-border")}>
+                <AvatarImage
+                  src={staticTweet?.user?.profile_image_url_https}
+                  alt={`Avatar of ${staticTweet?.user?.name}`}
+                />
+                <AvatarFallback>
+                  {staticTweet?.user?.name?.charAt(0).toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+            </LinkWrapper>
+
+            {!showThread && bordered === false && (
               <Separator orientation="vertical" className="w-[2px]" />
             )}
           </div>
@@ -133,23 +147,21 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
           >
             <section className={cn(rightColumnClass, "flex flex-col gap-4")}>
               <header className="mt-1 flex items-center justify-between gap-4">
-                <Suspense fallback={<div>Loading...</div>}>
-                  <TweetHeader
-                    threadId={threadId}
-                    tweetId={staticTweet?.id_str}
-                    size="lg"
+                <TweetHeader
+                  threadId={threadId}
+                  tweetId={staticTweet?.id_str}
+                  size="lg"
+                >
+                  <time
+                    className={cn(
+                      timeClass,
+                      "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
+                    )}
+                    dateTime={staticTweet?.tweet_created_at}
                   >
-                    <time
-                      className={cn(
-                        timeClass,
-                        "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
-                      )}
-                      dateTime={staticTweet?.tweet_created_at}
-                    >
-                      · {formatRelativeTime(staticTweet?.tweet_created_at)}
-                    </time>
-                  </TweetHeader>
-                </Suspense>
+                    · {formatRelativeTime(staticTweet?.tweet_created_at)}
+                  </time>
+                </TweetHeader>
 
                 <TweetMenu tweetUrl={tweetUrl} profileUrl={profileUrl} />
               </header>
@@ -157,15 +169,17 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
               {staticTweet?.in_reply_to_screen_name && (
                 <p
                   className={cn(
-                    "text-sm",
-                    size === "sm" && "md:text-sm",
-                    size === "md" && "md:text-sm",
-                    size === "lg" && "md:text-base",
-                    "whitespace-pre-line font-medium text-muted-foreground"
+                    inReplyingToScreenNameClass,
+                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] whitespace-pre-line font-medium text-muted-foreground duration-300"
                   )}
                 >
                   Replying to{" "}
-                  <ReplyLink screenName={staticTweet.in_reply_to_screen_name} />
+                  <Link
+                    className="font-mono text-foreground hover:underline"
+                    href={`https://x.com/${staticTweet?.in_reply_to_screen_name}`}
+                  >
+                    @{staticTweet?.in_reply_to_screen_name}
+                  </Link>
                 </p>
               )}
 
@@ -184,13 +198,11 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                 </div>
               )}
 
-              <Suspense fallback={<footer>Loading...</footer>}>
-                <TweetFooter
-                  threadId={threadId}
-                  tweetId={staticTweet?.id_str}
-                  tweetUrl={tweetUrl}
-                />
-              </Suspense>
+              <TweetFooter
+                threadId={threadId}
+                tweetId={staticTweet?.id_str}
+                tweetUrl={tweetUrl}
+              />
             </section>
 
             {hasAdditionalContent && (

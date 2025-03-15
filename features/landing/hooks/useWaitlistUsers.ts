@@ -7,6 +7,7 @@ import { WaitlistUser } from "../waitlist/types";
 
 export function useWaitlistUsers() {
   const twitterHandles = useQuery(api.waitlist.getTwitterHandles);
+  const totalCount = useQuery(api.waitlist.getWaitlistCount);
   const getTwitterProfile = useAction(api.socialdata.getTwitterProfile);
   const [profiles, setProfiles] = useState<WaitlistUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,5 +41,10 @@ export function useWaitlistUsers() {
     fetchProfiles();
   }, [twitterHandles, getTwitterProfile]);
 
-  return { profiles, loading };
+  return {
+    profiles,
+    loading,
+    totalCount: totalCount ?? 0,
+    isCountLoading: totalCount === undefined,
+  };
 }

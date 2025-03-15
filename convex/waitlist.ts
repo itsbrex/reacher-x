@@ -44,3 +44,10 @@ export const getTwitterHandles = query({
     return entries.map((entry) => entry.twitter) as string[];
   },
 });
+
+export const getWaitlistCount = query({
+  handler: async (ctx) => {
+    const entries = await ctx.db.query("waitlist").collect();
+    return entries.length;
+  },
+});

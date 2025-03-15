@@ -11,6 +11,7 @@ import { WaitlistUser } from "../../waitlist/types";
 
 export interface AvatarStackProps {
   users: WaitlistUser[];
+  totalCount?: number;
   maxAvatars?: number;
   className?: string;
 }
@@ -23,11 +24,16 @@ export interface AvatarStackProps {
  */
 export const AvatarStack: React.FC<AvatarStackProps> = ({
   users,
+  totalCount,
   maxAvatars = 4,
   className,
 }) => {
   const visibleUsers = users.slice(0, maxAvatars);
-  const extraCount = users.length - maxAvatars;
+
+  // Use fallback to users.length if totalCount is undefined
+  // This provides a clean fallback when totalCount isn't provided
+  const count = totalCount !== undefined ? totalCount : users.length;
+  const extraCount = Math.max(0, count - maxAvatars);
 
   return (
     <div className={cn("flex items-center", className)}>

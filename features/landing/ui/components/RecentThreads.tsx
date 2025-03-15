@@ -46,7 +46,6 @@ export async function RecentThreads({
               staticTweet={firstTweet}
               size={size}
               bordered={bordered}
-              isLast={true}
             />
           </LinkWrapper>
         );

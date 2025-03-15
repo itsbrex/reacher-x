@@ -16,6 +16,7 @@ import { AvatarStack } from "./AvatarStack";
 import { useWaitlistUsers } from "@/features/landing/hooks/useWaitlistUsers";
 import Link from "next/link";
 import { NavLink } from "./NavLink";
+import { AvatarStackSkeleton } from "./AvatarStackSkeleton";
 
 const waitlistSchema = z.object({
   email: z
@@ -40,11 +41,10 @@ const waitlistSchema = z.object({
 type WaitlistFormValues = z.infer<typeof waitlistSchema>;
 
 export function WaitlistDrawer() {
-  const { profiles, loading } = useWaitlistUsers();
+  const { profiles, loading, totalCount } = useWaitlistUsers();
   const [isOpen, setIsOpen] = React.useState(false);
   const [joined, setJoined] = React.useState(false);
 
-  // Initialize the form in the parent component
   const form = useForm<WaitlistFormValues>({
     resolver: zodResolver(waitlistSchema),
     defaultValues: {
@@ -53,10 +53,6 @@ export function WaitlistDrawer() {
       terms: false,
     },
   });
-
-  if (loading) {
-    return <div>Loading waitlist users...</div>;
-  }
 
   return (
     <>
@@ -104,11 +100,21 @@ export function WaitlistDrawer() {
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-12">
                   <section>
                     <h2 className="text-3xl font-medium">
-                      Join over {profiles.length} people already on the
-                      wait-list!
+                      Join over{" "}
+                      {totalCount !== undefined ? (
+                        totalCount
+                      ) : (
+                        <span className="inline-block animate-spin">⟳</span>
+                      )}{" "}
+                      people already on the wait-list!
                     </h2>
+
                     <div className="mt-4">
-                      <AvatarStack users={profiles} />
+                      {loading ? (
+                        <AvatarStackSkeleton />
+                      ) : (
+                        <AvatarStack users={profiles} totalCount={totalCount} />
+                      )}
                     </div>
                   </section>
                   <WaitlistForm form={form} onSuccess={() => setJoined(true)} />

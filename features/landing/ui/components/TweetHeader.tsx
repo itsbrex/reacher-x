@@ -5,14 +5,10 @@ import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-} from "@/shared/ui/components/Avatar";
 import { cn } from "@/shared/lib/utils/utils";
 import { NewReleasesIcon } from "@/shared/ui/components/icons";
 import { User, Tweet } from "@/app/(landing)/threads/types";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface TweetHeaderProps {
   threadId: string;
@@ -69,27 +65,18 @@ export function TweetHeader({
       });
   }, [threadId, tweetId, getDynamicThreadData]);
 
-  if (!user) return <div>Loading...</div>;
+  if (!user)
+    return (
+      <>
+        <div className="flex gap-1">
+          <Skeleton className="h-6 w-16" />
+          <Skeleton className="h-6 w-7" />
+        </div>
+      </>
+    );
 
   return (
     <>
-      {avatarClass && (
-        <Link
-          href={`https://x.com/${user.screen_name}`}
-          aria-label={`View ${user.name ?? user.screen_name}'s profile`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Avatar className={cn(avatarClass, "ring-1 ring-border")}>
-            <AvatarImage
-              src={user.profile_image_url_https}
-              alt={`Avatar of ${user.name}`}
-            />
-            <AvatarFallback>
-              {user.name?.charAt(0).toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
-      )}
       {!avatarClass && (
         <div className="grid grid-cols-[auto,auto] items-center gap-1">
           <address className="grid grid-cols-[auto_auto_auto] items-center not-italic">

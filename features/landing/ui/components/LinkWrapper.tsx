@@ -3,13 +3,15 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface LinkWrapperProps {
   href: string;
   children: React.ReactNode;
   className?: string;
-  // Elements that should not trigger navigation when clicked
   excludeSelectors?: string[];
+  stopPropagation?: boolean; // New prop to stop event propagation
+  isExternal?: boolean; // New prop to indicate external URL
 }
 
 export const LinkWrapper: React.FC<LinkWrapperProps> = ({
@@ -17,25 +19,43 @@ export const LinkWrapper: React.FC<LinkWrapperProps> = ({
   children,
   className,
   excludeSelectors = ["button", "a", "video", "[role=button]", "media-chrome"],
+  stopPropagation = false,
+  isExternal = false,
 }) => {
   const router = useRouter();
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Get the clicked element
     const target = e.target as HTMLElement;
+    const shouldExclude = excludeSelectors.some(
+      (selector) => target.closest(selector) !== null
+    );
 
-    // Check if the clicked element or any of its parents match the excluded selectors
-    const shouldExclude = excludeSelectors.some((selector) => {
-      // Check if the target or any of its parents match the selector
-      return target.closest(selector) !== null;
-    });
-
-    // Only navigate if we should not exclude this click
-    if (!shouldExclude) {
-      router.push(href);
+    if (shouldExclude) {
+      return; // Do nothing if the click is on an excluded element
     }
+
+    if (stopPropagation) {
+      e.stopPropagation(); // Stop event from bubbling up
+    }
+
+    if (!isExternal) {
+      router.push(href); // Internal navigation
+    }
+    // For external URLs, navigation is handled by the <a> tag via Link
   };
 
+  // If it's an external link, wrap children in a Link component
+  if (isExternal) {
+    return (
+      <div className={className} onClick={handleClick}>
+        <Link href={href} target="_blank" rel="noopener noreferrer">
+          {children}
+        </Link>
+      </div>
+    );
+  }
+
+  // For internal links, use the div with click handler
   return (
     <div className={className} onClick={handleClick}>
       {children}

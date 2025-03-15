@@ -10,10 +10,10 @@ import {
   QuickPhrasesIcon,
   RepeatIcon,
   FavoriteIcon,
-  BookmarkIcon,
   InsertChartIcon,
 } from "@/shared/ui/components/icons";
 import { Tweet } from "@/app/(landing)/threads/types";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface TweetFooterProps {
   threadId: string;
@@ -41,7 +41,31 @@ export function TweetFooter({ threadId, tweetId, tweetUrl }: TweetFooterProps) {
       });
   }, [threadId, tweetId, getDynamicThreadData]);
 
-  if (!metrics) return <footer>Loading...</footer>;
+  if (!metrics)
+    return (
+      <footer className="flex justify-between">
+        <span className="flex gap-1">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-8" />
+        </span>
+        <span className="flex gap-1">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-8" />
+        </span>
+        <span className="flex gap-1">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-8" />
+        </span>
+        <span className="flex gap-1">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-8" />
+        </span>
+        <span className="flex gap-1">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-8" />
+        </span>
+      </footer>
+    );
 
   const formattedReplyCount = formatLargeNumber(
     Number(metrics.reply_count ?? 0)
@@ -51,9 +75,6 @@ export function TweetFooter({ threadId, tweetId, tweetUrl }: TweetFooterProps) {
   const formattedRepeatSum = formatLargeNumber(repeatSum);
   const formattedFavoriteCount = formatLargeNumber(
     Number(metrics.favorite_count ?? 0)
-  );
-  const formattedBookmarkCount = formatLargeNumber(
-    Number(metrics.bookmark_count ?? 0)
   );
   const formattedViewsCount = formatLargeNumber(
     Number(metrics.views_count ?? 0)
@@ -100,19 +121,7 @@ export function TweetFooter({ threadId, tweetId, tweetUrl }: TweetFooterProps) {
           {formattedFavoriteCount}
         </Link>
       )}
-      {metrics.bookmark_count !== undefined && (
-        <Link
-          href={tweetUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`View bookmarks (${formattedBookmarkCount})`}
-        >
-          <BookmarkIcon className="fill-current" aria-hidden="true" />
-          {formattedBookmarkCount}
-        </Link>
-      )}
+
       {metrics.views_count !== undefined && (
         <Link
           href={tweetUrl}
