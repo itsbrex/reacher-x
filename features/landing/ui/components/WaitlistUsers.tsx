@@ -13,15 +13,19 @@ interface WaitlistUsersProps {
 
 export function WaitlistUsers({ className }: WaitlistUsersProps) {
   const { profiles, loading, totalCount } = useWaitlistUsers();
-  // Set initial state based on window.innerWidth
-  const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth < 768);
+  // Initialize state without accessing window
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
-  // Handle window resize to keep isSmallScreen updated
+  // Update state based on window size on client side
   useEffect(() => {
     const handleResize = () => {
       setIsSmallScreen(window.innerWidth < 768);
     };
+    // Set initial value on mount
+    handleResize();
+    // Add resize event listener
     window.addEventListener("resize", handleResize);
+    // Cleanup listener on unmount
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
