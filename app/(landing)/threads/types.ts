@@ -111,8 +111,8 @@ export interface Tweet {
   quoted_status_id?: number;
   quoted_status_id_str?: string;
   is_quote_status?: boolean;
-  quoted_status?: any;
-  retweeted_status?: any;
+  quoted_status?: Tweet;
+  retweeted_status?: Tweet;
   quote_count?: number;
   reply_count?: number;
   retweet_count?: number;
