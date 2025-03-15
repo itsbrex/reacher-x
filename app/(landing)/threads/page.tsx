@@ -101,4 +101,4 @@ export default async function ThreadsPage() {
   );
 }
 
-export const revalidate = 3600; // Revalidate every hour
+// export const revalidate = 3600; 1h
