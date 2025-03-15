@@ -16,12 +16,13 @@ import { WaitlistSection } from "@/features/landing/ui/components/WaitlistSectio
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 
 export default async function ThreadsPage() {
-  const staticThreads = (await convex.query(
-    api.socialdata.getStaticThreads
-  )) as Thread[];
-
-  if (!staticThreads) {
-    return <div>Loading...</div>;
+  let staticThreads: Thread[] = [];
+  try {
+    staticThreads = (await convex.query(
+      api.socialdata.getStaticThreads
+    )) as Thread[];
+  } catch (error) {
+    console.error("Error fetching threads:", error);
   }
 
   if (staticThreads.length === 0) {
@@ -99,3 +100,5 @@ export default async function ThreadsPage() {
     </div>
   );
 }
+
+export const revalidate = 3600; // Revalidate every hour
