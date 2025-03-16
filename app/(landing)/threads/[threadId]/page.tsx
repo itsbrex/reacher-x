@@ -20,7 +20,10 @@ export default async function ThreadDetailPage(props: {
 }) {
   const params = await props.params;
   const { threadId } = params;
-  const recentThreads = await getRecentThreads();
+  const recentThreads = await getRecentThreads(4);
+  const filteredRecentThreads = recentThreads
+    .filter((thread) => thread.threadId !== threadId)
+    .slice(0, 3);
 
   // Fetch thread data and thread IDs on the server
   const thread = (await convex.query(api.socialdata.getThreadById, {
@@ -103,7 +106,7 @@ export default async function ThreadDetailPage(props: {
             <h3 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 text-2xl font-medium duration-300 md:px-0">
               Recent threads.
             </h3>
-            <RecentThreads bordered={true} threads={recentThreads} />
+            <RecentThreads bordered={true} threads={filteredRecentThreads} />
           </section>
         </aside>
       </div>

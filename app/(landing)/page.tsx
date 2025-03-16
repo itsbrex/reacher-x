@@ -7,7 +7,7 @@ import { WaitlistSection } from "@/features/landing/ui/components/WaitlistSectio
 import { getRecentThreads } from "@/lib/getRecentThreads";
 
 export default async function Home() {
-  const recentThreads = await getRecentThreads();
+  const recentThreads = await getRecentThreads(5);
 
   return (
     <div>
