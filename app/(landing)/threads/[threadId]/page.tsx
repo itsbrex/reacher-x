@@ -18,9 +18,9 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 export async function generateMetadata({
   params,
 }: {
-  params: { threadId: string };
+  params: Promise<{ threadId: string }>;
 }) {
-  const threadId = params.threadId;
+  const { threadId } = await params; // Await the params Promise
   const thread = (await convex.query(api.socialdata.getThreadById, {
     threadId,
   })) as Thread | null;
@@ -32,7 +32,7 @@ export async function generateMetadata({
     };
   }
 
-  const firstTweet = thread?.tweets[0];
+  const firstTweet = thread.tweets[0];
   const ogImage =
     firstTweet?.entities?.media?.[0]?.media_url_https || "/og-default.jpg";
   const title = `Thread by @${firstTweet?.user?.screen_name || "unknown"}`;
