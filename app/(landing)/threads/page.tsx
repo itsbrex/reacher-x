@@ -42,10 +42,6 @@ export default async function ThreadsPage() {
     console.error("Error fetching threads:", error);
   }
 
-  if (staticThreads.length === 0) {
-    return <div>No threads available yet.</div>;
-  }
-
   const firstThread = staticThreads[0];
   const user = firstThread.tweets[0].user;
 
@@ -62,7 +58,9 @@ export default async function ThreadsPage() {
       <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:px-28">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] duration-300 @container">
           {staticThreads.length === 0 ? (
-            <p>No threads available yet.</p>
+            <p className="mt-4 px-4 text-muted-foreground md:px-0">
+              No threads available yet.
+            </p>
           ) : (
             staticThreads.map((thread) => (
               <LinkWrapper
@@ -119,5 +117,3 @@ export default async function ThreadsPage() {
     </div>
   );
 }
-
-// export const revalidate = 3600; 1h

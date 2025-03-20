@@ -1,40 +1,29 @@
-// lib/getRecentThreads.ts
-import { unstable_cache } from "next/cache";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { Thread } from "@/app/(landing)/threads/types";
 
-export const getRecentThreads = (count: number) => {
-  const cachedFetch = unstable_cache(
-    async () => {
-      try {
-        const convex = new ConvexHttpClient(
-          process.env.NEXT_PUBLIC_CONVEX_URL || ""
-        );
-        const rawThreads = await convex.query(api.socialdata.getRecentThreads, {
-          count,
-        });
-        const recentThreads: Thread[] = rawThreads.map((thread) => ({
-          ...thread,
-          tweets: thread.tweets.map((tweet) => ({
-            ...tweet,
-            entities: {
-              ...tweet.entities,
-              urls: tweet.entities?.urls?.map((url) => ({
-                ...url,
-                indices: [url.indices[0], url.indices[1]] as [number, number],
-              })),
-            },
+export const getRecentThreads = async (count: number) => {
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
+  try {
+    const rawThreads = await convex.query(api.socialdata.getRecentThreads, {
+      count,
+    });
+    const recentThreads: Thread[] = rawThreads.map((thread) => ({
+      ...thread,
+      tweets: thread.tweets.map((tweet) => ({
+        ...tweet,
+        entities: {
+          ...tweet.entities,
+          urls: tweet.entities?.urls?.map((url) => ({
+            ...url,
+            indices: [url.indices[0], url.indices[1]] as [number, number],
           })),
-        }));
-        return recentThreads;
-      } catch (error) {
-        console.error("Error fetching recent threads:", error);
-        return [];
-      }
-    },
-    [`recentThreads_${count}`],
-    { revalidate: 60, tags: ["recentThreads"] }
-  );
-  return cachedFetch();
+        },
+      })),
+    }));
+    return recentThreads;
+  } catch (error) {
+    console.error("Error fetching recent threads:", error);
+    return [];
+  }
 };
