@@ -8,6 +8,7 @@ import "../globals.css";
 import ConvexClientProvider from "./ConvexClientProvider";
 import { PostHogProvider } from "./PostHogProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/react";
 
 const dmSans = DM_Sans({
   weight: ["400", "500", "600"],
@@ -52,6 +53,7 @@ export default function RootLayout({
           </ConvexClientProvider>
         </PostHogProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
