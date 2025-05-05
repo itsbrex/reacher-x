@@ -45,7 +45,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         Your browser does not support HTML5 video.
       </video>
 
-      <MediaLoadingIndicator slot="centered-chrome" noautohide />
+      <MediaLoadingIndicator slot="centered-chrome" noAutohide />
 
       <MediaControlBar>
         <MediaPlayButton />
