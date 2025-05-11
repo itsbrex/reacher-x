@@ -12,7 +12,7 @@ import {
   FavoriteIcon,
   InsertChartIcon,
 } from "@/shared/ui/components/icons";
-import { Tweet } from "@/app/(landing)/threads/types";
+import { Tweet } from "@/features/threads/types";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface TweetFooterProps {

@@ -1,7 +1,7 @@
 // features/landing/ui/components/RecentThreads.tsx
-import { TweetCard } from "@/features/landing/ui/components/TweetCard";
-import { Thread } from "@/app/(landing)/threads/types";
-import { LinkWrapper } from "./LinkWrapper";
+import { TweetCard } from "@/features/threads/ui/components/TweetCard";
+import { Thread } from "@/features/threads/types";
+import { LinkWrapper } from "../../../landing/ui/components/LinkWrapper";
 
 interface RecentThreadsProps {
   threads: Thread[]; // Changed to required prop

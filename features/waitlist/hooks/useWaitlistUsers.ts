@@ -3,7 +3,7 @@
 import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState, useEffect } from "react";
-import { WaitlistUser } from "../waitlist/types";
+import { WaitlistUser } from "../types";
 
 export function useWaitlistUsers() {
   const twitterHandles = useQuery(api.waitlist.getTwitterHandles);

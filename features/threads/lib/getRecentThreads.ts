@@ -1,6 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { Thread } from "@/app/(landing)/threads/types";
+import { Thread } from "@/features/threads/types";
 
 export const getRecentThreads = async (count: number) => {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");

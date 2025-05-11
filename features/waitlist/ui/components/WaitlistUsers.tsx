@@ -1,8 +1,8 @@
 "use client";
 
-import { useWaitlistUsers } from "@/features/landing/hooks/useWaitlistUsers";
-import { AvatarStack } from "./AvatarStack";
-import { AvatarStackSkeleton } from "./AvatarStackSkeleton";
+import { useWaitlistUsers } from "@/features/waitlist/hooks/useWaitlistUsers";
+import { AvatarStack } from "../../../landing/ui/components/AvatarStack";
+import { AvatarStackSkeleton } from "../../../landing/ui/components/AvatarStackSkeleton";
 
 interface WaitlistUsersProps {
   className?: string;

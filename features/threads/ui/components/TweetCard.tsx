@@ -4,19 +4,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
 import { cn } from "@/shared/lib/utils/utils";
 import { Separator } from "@/shared/ui/components/Separator";
-import { TweetMedia } from "@/features/landing/ui/components/TweetMedia";
+import { TweetMedia } from "@/features/threads/ui/components/TweetMedia";
 import { parseText } from "@/shared/lib/utils/parseText";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
-import { Tweet } from "@/app/(landing)/threads/types";
+import { Tweet } from "@/features/threads/types";
 import Link from "next/link";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
-import { LinkWrapper } from "./LinkWrapper";
+import { LinkWrapper } from "../../../landing/ui/components/LinkWrapper";
 
 const tweetCardVariants = cva(
   "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",

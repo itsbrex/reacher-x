@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/shared/lib/utils/utils";
 import Link from "next/link";
 import { UserProfileHeader } from "@/features/landing/ui/components/UserProfileHeader";
-import { WaitlistUser } from "../../waitlist/types";
+import { WaitlistUser } from "../../types";
 
 const waitlistUserCardVariants = cva(
   [

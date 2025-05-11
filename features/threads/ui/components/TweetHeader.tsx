@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/shared/lib/utils/utils";
 import { NewReleasesIcon } from "@/shared/ui/components/icons";
-import { User, Tweet } from "@/app/(landing)/threads/types";
+import { User, Tweet } from "@/features/threads/types";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface TweetHeaderProps {

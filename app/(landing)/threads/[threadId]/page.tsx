@@ -1,17 +1,17 @@
 // app/(landing)/threads/[threadId]/page.tsx
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { TweetCard } from "@/features/landing/ui/components/TweetCard";
+import { TweetCard } from "@/features/threads/ui/components/TweetCard";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
-import { WaitlistUsers } from "@/features/landing/ui/components/WaitlistUsers";
+import { WaitlistUsers } from "@/features/waitlist/ui/components/WaitlistUsers";
 import { Badge } from "@/shared/ui/components/Badge";
-import { RecentThreads } from "@/features/landing/ui/components/RecentThreads";
-import { Thread } from "../types";
+import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
+import { Thread } from "../../../../features/threads/types";
 import Link from "next/link";
-import { WaitlistSection } from "@/features/landing/ui/components/WaitlistSection";
-import { getRecentThreads } from "@/lib/getRecentThreads";
-import { WaitlistFormWrapper } from "@/features/landing/ui/components/WaitlistFormWrapper";
+import { WaitlistSection } from "@/features/waitlist/ui/components/WaitlistSection";
+import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
+import { WaitlistFormWrapper } from "@/features/waitlist/ui/components/WaitlistFormWrapper";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 

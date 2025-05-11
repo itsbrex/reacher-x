@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { WaitlistForm, WaitlistFormValues } from "./WaitlistForm";
-import { waitlistSchema } from "@/lib/waitlistSchema";
+import { waitlistSchema } from "@/features/waitlist/lib/waitlistSchema";
 import { useToast } from "@/shared/ui/hooks/useToast";
 
 export function WaitlistFormWrapper({ className }: { className?: string }) {

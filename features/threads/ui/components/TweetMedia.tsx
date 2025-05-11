@@ -9,10 +9,10 @@ import {
 } from "@/shared/ui/components/Carousel";
 import { AspectRatio } from "@/shared/ui/components/AspectRatio";
 import { Button } from "@/shared/ui/components/Button";
-import VideoPlayer from "./VideoPlayer";
+import VideoPlayer from "../../../landing/ui/components/VideoPlayer";
 import MediaViewerDrawer from "./MediaViewerDrawer";
 import { TweetMediaThumbnails } from "./TweetMediaThumbnails";
-import { Media } from "@/app/(landing)/threads/types";
+import { Media } from "@/features/threads/types";
 
 interface TweetMediaProps {
   media: Media[];

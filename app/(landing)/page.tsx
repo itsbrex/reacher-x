@@ -1,11 +1,11 @@
 import { Badge } from "@/shared/ui/components/Badge";
-import { RecentThreads } from "@/features/landing/ui/components/RecentThreads";
+import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
 import Link from "next/link";
-import { WaitlistSection } from "@/features/landing/ui/components/WaitlistSection";
-import { getRecentThreads } from "@/lib/getRecentThreads";
+import { WaitlistSection } from "@/features/waitlist/ui/components/WaitlistSection";
+import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
 import { PictureCarousel } from "@/features/landing/ui/components/PictureCarousel";
-import { WaitlistFormWrapper } from "@/features/landing/ui/components/WaitlistFormWrapper";
-import { WaitlistUsers } from "@/features/landing/ui/components/WaitlistUsers";
+import { WaitlistFormWrapper } from "@/features/waitlist/ui/components/WaitlistFormWrapper";
+import { WaitlistUsers } from "@/features/waitlist/ui/components/WaitlistUsers";
 
 export const metadata = {
   title: "ReacherX",

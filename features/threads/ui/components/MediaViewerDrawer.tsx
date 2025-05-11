@@ -9,7 +9,7 @@ import {
 } from "@/shared/ui/components/Drawer";
 import { Button } from "@/shared/ui/components/Button";
 import Image from "next/image";
-import VideoPlayer from "./VideoPlayer";
+import VideoPlayer from "../../../landing/ui/components/VideoPlayer";
 import {
   Carousel,
   CarouselContent,
@@ -19,7 +19,7 @@ import {
   CarouselApi,
 } from "@/shared/ui/components/Carousel";
 import { TweetMediaThumbnails } from "./TweetMediaThumbnails";
-import { Media } from "@/app/(landing)/threads/types";
+import { Media } from "@/features/threads/types";
 
 export interface MediaViewerDrawerProps {
   open: boolean;

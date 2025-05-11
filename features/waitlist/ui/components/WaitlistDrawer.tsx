@@ -11,13 +11,16 @@ import {
   DrawerClose,
   DrawerTitle,
 } from "@/shared/ui/components/Drawer";
-import { WaitlistForm } from "@/features/landing/ui/components/WaitlistForm";
-import { AvatarStack } from "./AvatarStack";
-import { useWaitlistUsers } from "@/features/landing/hooks/useWaitlistUsers";
+import { WaitlistForm } from "@/features/waitlist/ui/components/WaitlistForm";
+import { AvatarStack } from "../../../landing/ui/components/AvatarStack";
+import { useWaitlistUsers } from "@/features/waitlist/hooks/useWaitlistUsers";
 import Link from "next/link";
-import { NavLink } from "./NavLink";
-import { AvatarStackSkeleton } from "./AvatarStackSkeleton";
-import { waitlistSchema, WaitlistFormValues } from "@/lib/waitlistSchema";
+import { NavLink } from "../../../landing/ui/components/NavLink";
+import { AvatarStackSkeleton } from "../../../landing/ui/components/AvatarStackSkeleton";
+import {
+  waitlistSchema,
+  WaitlistFormValues,
+} from "@/features/waitlist/lib/waitlistSchema";
 import { useToast } from "@/shared/ui/hooks/useToast";
 
 export function WaitlistDrawer() {

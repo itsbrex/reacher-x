@@ -5,7 +5,7 @@ import Marquee from "react-fast-marquee";
 import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/shared/lib/utils/utils";
 import { WaitlistUserCard } from "./WaitlistUserCard";
-import { WaitlistUser } from "../../waitlist/types";
+import { WaitlistUser } from "../../types";
 
 export interface WaitlistUsersMarqueeProps
   extends React.HTMLAttributes<HTMLDivElement> {
