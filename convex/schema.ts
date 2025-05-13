@@ -2,8 +2,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { tweetValidator } from "./validators";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
+  ...authTables,
   waitlist: defineTable({
     email: v.string(),
     twitter: v.optional(v.string()),

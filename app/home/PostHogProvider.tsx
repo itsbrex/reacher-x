@@ -1,4 +1,4 @@
-// app/providers.tsx
+// app/home/PostHogProvider.tsx
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
