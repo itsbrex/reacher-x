@@ -42,6 +42,14 @@ export default async function ThreadsPage() {
     console.error("Error fetching threads:", error);
   }
 
+  if (staticThreads.length === 0) {
+    return (
+      <p className="mt-4 px-4 text-muted-foreground md:px-0">
+        No threads available.
+      </p>
+    );
+  }
+
   const firstThread = staticThreads[0];
   const user = firstThread.tweets[0].user;
 

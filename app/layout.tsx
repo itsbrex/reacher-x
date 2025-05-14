@@ -1,7 +1,9 @@
+// app/layout.tsx
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { PostHogProvider } from "./home/PostHogProvider";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
+import { dmSans, dmMono } from "./fonts";
 
 export default function RootLayout({
   children,
@@ -11,7 +13,7 @@ export default function RootLayout({
   return (
     <ConvexAuthNextjsServerProvider>
       <html lang="en">
-        <body>
+        <body className={`${dmSans.variable} ${dmMono.variable} antialiased`}>
           <PostHogProvider>
             <ConvexClientProvider>
               <ThemeProvider
