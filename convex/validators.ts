@@ -23,7 +23,6 @@ const userValidator = v.object({
 });
 
 // Media validator
-// Media validator
 const mediaValidator = v.object({
   display_url: v.optional(v.string()),
   expanded_url: v.optional(v.string()),
