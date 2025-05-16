@@ -6,6 +6,14 @@ import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
   ...authTables,
+  socialAccounts: defineTable({
+    userId: v.id("users"),
+    provider: v.string(),
+    providerAccountId: v.string(),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+  }).index("by_user_provider", ["userId", "provider"]),
   waitlist: defineTable({
     email: v.string(),
     twitter: v.optional(v.string()),

@@ -7,6 +7,10 @@ import { Button } from "@/shared/ui/components/Button";
 export function SignIn() {
   const { signIn, signOut } = useAuthActions();
 
+  const connectTwitter = () => {
+    signIn("twitter"); // Initiates Twitter OAuth flow
+  };
+
   return (
     <>
       <AuthLoading>
@@ -14,6 +18,7 @@ export function SignIn() {
       </AuthLoading>
       <Authenticated>
         <Button onClick={() => void signOut()}>Sign out</Button>
+        <Button onClick={connectTwitter}>Connect Twitter</Button>
       </Authenticated>
       <Unauthenticated>
         <Button onClick={() => void signIn("google")}>

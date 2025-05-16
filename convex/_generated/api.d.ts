@@ -16,6 +16,7 @@ import type {
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as sendEmail from "../sendEmail.js";
+import type * as socialAccounts from "../socialAccounts.js";
 import type * as socialdata from "../socialdata.js";
 import type * as validators from "../validators.js";
 import type * as waitlist from "../waitlist.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
   sendEmail: typeof sendEmail;
+  socialAccounts: typeof socialAccounts;
   socialdata: typeof socialdata;
   validators: typeof validators;
   waitlist: typeof waitlist;
