@@ -60,11 +60,24 @@ export function KeywordHistory() {
         <SidebarGroupLabel>Keyword history</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {Object.entries(keywordHistory.history).map(
-              ([group, items], index) => (
-                <Tree key={index} name={group} items={items} />
-              )
-            )}
+            <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton>
+                  <ChevronRight className="transition-transform" />
+                  <Folder />
+                  Keyword history
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarMenuSub>
+                  {Object.entries(keywordHistory.history).map(
+                    ([group, items], index) => (
+                      <Tree key={index} name={group} items={items} />
+                    )
+                  )}
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </Collapsible>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
