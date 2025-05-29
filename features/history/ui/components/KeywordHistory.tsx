@@ -29,6 +29,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/ui/components/DropdownMenu";
+import {
+  TodayIcon,
+  EventRepeatIcon,
+  CalendarViewWeekIcon,
+  CalendarClockIcon,
+  DeleteIcon,
+  DoNotDisturbOnIcon,
+  KeepIcon,
+  SearchActivityIcon,
+  YoutubeSearchedForIcon,
+} from "@/shared/ui/components/icons";
 
 // Mock data (replace with Convex backend fetch later)
 const keywordHistory = {
@@ -56,6 +67,14 @@ const keywordHistory = {
       },
     ],
     "Last week": [
+      {
+        keyword: "need a web dev",
+        count: 12,
+        timestamp: "Mar 15, 2025",
+        id: "7",
+      },
+    ],
+    Older: [
       {
         keyword: "need a web dev",
         count: 12,
@@ -100,7 +119,7 @@ function KeywordItem({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton className="pr-16">
-        <Folder />
+        <YoutubeSearchedForIcon className="fill-sidebar-foreground" />
         <span className="truncate">{keyword}</span>
       </SidebarMenuButton>
       {/* <SidebarMenuBadge className="right-8">{count}</SidebarMenuBadge> */}
@@ -121,18 +140,18 @@ function KeywordItem({
           <DropdownMenuItem onClick={handlePin}>
             {isPinned ? (
               <>
-                <PinOff />
-                Unpin keyword
+                <DoNotDisturbOnIcon className="fill-popover-foreground" />
+                Remove from “Pinned”
               </>
             ) : (
               <>
-                <Pin />
+                <KeepIcon className="fill-popover-foreground" />
                 Pin keyword
               </>
             )}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDelete}>
-            <Trash2 />
+            <DeleteIcon className="fill-popover-foreground" />
             Delete keyword
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -180,14 +199,14 @@ export function KeywordHistory() {
       </SidebarGroup>
 
       <SidebarGroup>
-        <SidebarGroupLabel>Keyword history</SidebarGroupLabel>
+        <SidebarGroupLabel>Keywords tried.</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton>
                   <ChevronRight className="transition-transform" />
-                  <Folder />
+                  <SearchActivityIcon className="fill-sidebar-foreground" />
                   Keyword history
                 </SidebarMenuButton>
               </CollapsibleTrigger>
