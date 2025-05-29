@@ -1,5 +1,5 @@
 "use client";
-import { ChevronRight, Folder } from "lucide-react";
+import { Folder } from "lucide-react";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -33,6 +33,11 @@ import {
   KeepIcon,
   SearchActivityIcon,
   YoutubeSearchedForIcon,
+  ChevronRightIcon,
+  SettingsIcon,
+  GroupIcon,
+  QuickPhrasesIcon,
+  ManageAccountsIcon,
 } from "@/shared/ui/components/icons";
 
 // Mock data (replace with Convex backend fetch later)
@@ -135,7 +140,7 @@ function KeywordItem({
             {isPinned ? (
               <>
                 <DoNotDisturbOnIcon className="fill-popover-foreground" />
-                Remove from “Pinned”
+                Remove from "Pinned"
               </>
             ) : (
               <>
@@ -196,18 +201,41 @@ export function KeywordHistory() {
         <SidebarGroupLabel>Navigation.</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {keywordHistory.pinned.map((item) => (
-              <KeywordItem
-                key={item.id}
-                keyword={item.keyword}
-                count={item.count}
-                id={item.id}
-                isPinned={true}
-                onPin={handlePin}
-                onUnpin={handleUnpin}
-                onDelete={handleDelete}
-              />
-            ))}
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <QuickPhrasesIcon className="fill-sidebar-foreground" />
+                <span className="truncate">Replies</span>
+                <SidebarMenuBadge>2</SidebarMenuBadge>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <GroupIcon className="fill-sidebar-foreground" />
+                <span className="truncate">Customers</span>
+                <SidebarMenuBadge>2</SidebarMenuBadge>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Collapsible className="group/collapsible [&[data-state=open]>button>svg:last-child]:rotate-90">
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton>
+                    <SettingsIcon className="fill-sidebar-foreground" />
+                    <span className="truncate">Settings</span>
+                    <ChevronRightIcon className="ml-auto fill-sidebar-foreground transition-transform" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton>
+                        <ManageAccountsIcon className="fill-sidebar-foreground" />
+                        <span className="truncate">Linked accounts</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -219,7 +247,7 @@ export function KeywordHistory() {
             <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton>
-                  <ChevronRight className="transition-transform" />
+                  <ChevronRightIcon className="fill-sidebar-foreground transition-transform" />
                   <SearchActivityIcon className="fill-sidebar-foreground" />
                   Keyword history
                 </SidebarMenuButton>
@@ -287,7 +315,7 @@ function Tree({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton>
-            <ChevronRight className="transition-transform" />
+            <ChevronRightIcon className="fill-sidebar-foreground transition-transform" />
             <Icon className="fill-sidebar-foreground" />
             {name}
             <SidebarMenuBadge>{totalCount}</SidebarMenuBadge>
@@ -297,6 +325,7 @@ function Tree({
           <SidebarMenuSub>
             {items.map((item) => (
               <KeywordItem
+                key={item.id}
                 keyword={item.keyword}
                 count={item.count}
                 id={item.id}
