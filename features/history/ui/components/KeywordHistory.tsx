@@ -175,24 +175,41 @@ export function KeywordHistory() {
     // Implement delete logic here
   };
 
+  const pinnedCount = keywordHistory.pinned.length;
+
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>Pinned keywords</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {keywordHistory.pinned.map((item) => (
-              <KeywordItem
-                key={item.id}
-                keyword={item.keyword}
-                count={item.count}
-                id={item.id}
-                isPinned={true}
-                onPin={handlePin}
-                onUnpin={handleUnpin}
-                onDelete={handleDelete}
-              />
-            ))}
+            <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton>
+                  <ChevronRightIcon className="fill-sidebar-foreground transition-transform" />
+                  <KeepIcon className="fill-sidebar-foreground" />
+                  <span className="truncate">Pinned keywords</span>
+                  <SidebarMenuBadge className="right-3">
+                    {pinnedCount}
+                  </SidebarMenuBadge>
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarMenuSub>
+                  {keywordHistory.pinned.map((item) => (
+                    <KeywordItem
+                      key={item.id}
+                      keyword={item.keyword}
+                      count={item.count}
+                      id={item.id}
+                      isPinned={true}
+                      onPin={handlePin}
+                      onUnpin={handleUnpin}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </Collapsible>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
