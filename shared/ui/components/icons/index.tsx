@@ -1194,7 +1194,7 @@ export const FilledFolderIcon: React.FC<IconProps> = ({
       >
         <rect width="16" height="16" fill="#D9D9D9" />
       </mask>
-      <g mask="url(#mask0_2731_56939)">
+      <g mask={`url(#${maskId})`}>
         <path d="M1.33333 13.3333V2.66666H6.66667L8 3.99999H14.6667V13.3333H1.33333Z" />
       </g>
     </svg>

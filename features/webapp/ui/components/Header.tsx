@@ -38,6 +38,7 @@ import {
   SearchActivityIcon,
 } from "@/shared/ui/components/icons";
 import { NavLink } from "@/features/landing/ui/components/NavLink";
+import { SidebarTrigger } from "@/shared/ui/components/Sidebar";
 
 /* ----------------------------------------------------------------------------
  * Header variants (CVA)
@@ -111,18 +112,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
             v3 Beta
           </span>
 
-          <Button
-            size="xsIcon"
-            variant="ghost"
-            className="hidden md:block"
-            onClick={() => setIsDrawerOpen(true)}
-            aria-label="Open mobile navigation menu"
-          >
-            <ArrowMenuCloseIcon
-              className="fill-foreground"
-              aria-hidden="true"
-            />
-          </Button>
+          <SidebarTrigger />
 
           <Button
             size="xs"
