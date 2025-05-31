@@ -1,8 +1,8 @@
-// app/(webapp)/page.tsx
+// app/(webapp)/search/input/page.tsx
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Separator } from "@/shared/ui/components/Separator";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { KeywordSuggestions } from "@/features/keywords/ui/components/KeywordSuggestions";
@@ -10,7 +10,7 @@ import { RecentKeywords } from "@/features/keywords/ui/components/RecentKeywords
 import { SimilarKeywords } from "@/features/keywords/ui/components/SimilarKeywords";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 
-// Mock data - replace with your actual data fetching
+// Mock data - same as home page
 const mockSuggestions: KeywordItem[] = [
   { id: "1", keyword: "help me in web dev" },
   { id: "2", keyword: "can't do web dev" },
@@ -36,10 +36,25 @@ const mockAllKeywords: KeywordItem[] = [
   },
 ];
 
-export default function WebAppPage() {
+export default function SearchInputPage() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const [currentQuery, setCurrentQuery] = useState("");
+  const initialQuery = searchParams.get("q") || "";
+  const initialExactMatch = searchParams.get("exact") === "true";
+
+  const [currentQuery, setCurrentQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(false);
+
+  // Get recent keywords (excluding current query)
+  const recentKeywords = useMemo(
+    () =>
+      mockAllKeywords
+        .filter(
+          (item) => item.keyword.toLowerCase() !== currentQuery.toLowerCase()
+        )
+        .slice(0, 5),
+    [currentQuery]
+  );
 
   const handleSearch = useCallback(
     (query: string, exactMatch: boolean) => {
@@ -72,21 +87,16 @@ export default function WebAppPage() {
     setCurrentQuery(query);
   }, []);
 
-  // Get recent keywords (limit to 5)
-  const recentKeywords = mockAllKeywords.slice(0, 5);
-
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <div className="text-center">
-        <h1 className="mb-8 text-4xl font-medium md:text-5xl">
-          Who will you <span className="text-primary">sell</span> help?
-        </h1>
-
+      <div className="mb-8">
         <SearchInput
           onSearch={handleSearch}
           onQueryChange={handleQueryChange}
           placeholder="Type keywords..."
-          className="mb-8"
+          defaultValue={initialQuery}
+          defaultExactMatch={initialExactMatch}
+          // Fully functional - not disabled
         />
       </div>
 
@@ -99,7 +109,7 @@ export default function WebAppPage() {
 
         <Separator />
 
-        {/* Show similar keywords if user has typed something */}
+        {/* Show similar keywords if there's a current query */}
         {currentQuery.trim() && (
           <>
             <SimilarKeywords
