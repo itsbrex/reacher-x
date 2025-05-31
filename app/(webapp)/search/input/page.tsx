@@ -43,7 +43,7 @@ export default function SearchInputPage() {
   const initialExactMatch = searchParams.get("exact") === "true";
 
   const [currentQuery, setCurrentQuery] = useState(initialQuery);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   // Get recent keywords (excluding current query)
   const recentKeywords = useMemo(

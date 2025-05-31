@@ -40,7 +40,7 @@ export default function SearchSuggestionsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const currentQuery = searchParams.get("q") || "";
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   // Get recent keywords (excluding the current query)
   const recentKeywords = useMemo(

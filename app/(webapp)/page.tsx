@@ -39,7 +39,7 @@ const mockAllKeywords: KeywordItem[] = [
 export default function WebAppPage() {
   const router = useRouter();
   const [currentQuery, setCurrentQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   const handleSearch = useCallback(
     (query: string, exactMatch: boolean) => {
