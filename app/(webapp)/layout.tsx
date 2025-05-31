@@ -12,7 +12,7 @@ export default function WebAppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <Header />
-      <div className="pt-12">
+      <div className="w-full pt-12">
         {/* Match header height */}
         <div className="flex">
           <Sidebar
@@ -27,7 +27,7 @@ export default function WebAppLayout({ children }: { children: ReactNode }) {
             <KeywordHistory />
             <SidebarRail />
           </Sidebar>
-          <main>{children}</main>
+          <main className="w-full">{children}</main>
         </div>
       </div>
     </SidebarProvider>

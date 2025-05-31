@@ -20,30 +20,57 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
   }) {
     if (loading) {
       return (
-        <div className={className}>
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-            Try these →
-          </h3>
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-9 animate-pulse rounded-md bg-muted" />
-            ))}
-          </div>
-        </div>
+        <section
+          className={className}
+          aria-label="Keyword suggestions"
+          aria-busy="true"
+          role="region"
+        >
+          <dl className="m-0">
+            <dt className="mx-3.5 mb-3 text-sm font-medium text-muted-foreground">
+              Try these ↴
+            </dt>
+            <dd className="m-0">
+              <div
+                className="space-y-2"
+                role="status"
+                aria-label="Loading keyword suggestions"
+              >
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-9 animate-pulse rounded-md bg-muted"
+                    aria-hidden="true"
+                  />
+                ))}
+                <span className="sr-only">Loading suggested keywords...</span>
+              </div>
+            </dd>
+          </dl>
+        </section>
       );
     }
 
     return (
-      <div className={className}>
-        <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-          Try these →
-        </h3>
-        <KeywordList
-          items={suggestions}
-          onKeywordClick={onSuggestionClick}
-          emptyMessage="No suggestions available"
-        />
-      </div>
+      <section
+        className={className}
+        aria-label={`${suggestions.length} keyword suggestions`}
+        role="region"
+      >
+        <dl className="m-0">
+          <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
+            Try these ↴
+          </dt>
+          <dd className="m-0">
+            <KeywordList
+              items={suggestions}
+              onKeywordClick={onSuggestionClick}
+              emptyMessage="No suggestions available"
+              listLabel="Suggested keywords"
+            />
+          </dd>
+        </dl>
+      </section>
     );
   }
 );

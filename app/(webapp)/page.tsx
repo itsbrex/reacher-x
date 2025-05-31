@@ -76,21 +76,19 @@ export default function WebAppPage() {
   const recentKeywords = mockAllKeywords.slice(0, 5);
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="text-center">
-        <h1 className="mb-8 text-4xl font-medium md:text-5xl">
-          Who will you <span className="text-primary">sell</span> help?
-        </h1>
+    <div className="mx-auto mt-12 max-w-lg px-4">
+      <h1 className="mb-4 text-center text-2xl font-medium">
+        Who will you{" "}
+        <span className="text-muted-foreground line-through">sell</span> help?
+      </h1>
 
-        <SearchInput
-          onSearch={handleSearch}
-          onQueryChange={handleQueryChange}
-          placeholder="Type keywords..."
-          className="mb-8"
-        />
-      </div>
-
-      <div className="space-y-6">
+      <SearchInput
+        onSearch={handleSearch}
+        onQueryChange={handleQueryChange}
+        placeholder="Type keywords..."
+        className="mb-4"
+      />
+      <div className="space-y-2">
         <KeywordSuggestions
           suggestions={mockSuggestions}
           onSuggestionClick={handleKeywordClick}

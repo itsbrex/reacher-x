@@ -88,23 +88,23 @@ export default function SearchInputPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-8">
-        <SearchInput
-          onSearch={handleSearch}
-          onQueryChange={handleQueryChange}
-          placeholder="Type keywords..."
-          defaultValue={initialQuery}
-          defaultExactMatch={initialExactMatch}
-          // Fully functional - not disabled
-        />
-      </div>
+    <div className="h-screen max-w-lg border-r-[1px] border-border pt-4">
+      <SearchInput
+        onSearch={handleSearch}
+        onQueryChange={handleQueryChange}
+        placeholder="Type keywords..."
+        defaultValue={initialQuery}
+        defaultExactMatch={initialExactMatch}
+        className="mx-4 mb-4"
+        // Fully functional - not disabled
+      />
 
-      <div className="space-y-6">
+      <div className="space-y-2">
         <KeywordSuggestions
           suggestions={mockSuggestions}
           onSuggestionClick={handleKeywordClick}
           loading={loading}
+          className="px-4"
         />
 
         <Separator />
@@ -119,6 +119,7 @@ export default function SearchInputPage() {
               loading={loading}
               maxResults={5}
               threshold={0.3}
+              className="px-4"
             />
             <Separator />
           </>
@@ -128,6 +129,7 @@ export default function SearchInputPage() {
           keywords={recentKeywords}
           onKeywordClick={handleKeywordClick}
           loading={loading}
+          className="px-4"
         />
       </div>
     </div>

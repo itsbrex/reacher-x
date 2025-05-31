@@ -20,31 +20,58 @@ export const RecentKeywords = memo<RecentKeywordsProps>(
   }) {
     if (loading) {
       return (
-        <div className={className}>
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-            Recent →
-          </h3>
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-9 animate-pulse rounded-md bg-muted" />
-            ))}
-          </div>
-        </div>
+        <section
+          className={className}
+          aria-label="Recent keywords"
+          aria-busy="true"
+          role="region"
+        >
+          <dl className="m-0">
+            <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
+              Recent ↴
+            </dt>
+            <dd className="m-0">
+              <div
+                className="space-y-2"
+                role="status"
+                aria-label="Loading recent keywords"
+              >
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-9 animate-pulse rounded-md bg-muted"
+                    aria-hidden="true"
+                  />
+                ))}
+                <span className="sr-only">Loading recent keywords...</span>
+              </div>
+            </dd>
+          </dl>
+        </section>
       );
     }
 
     return (
-      <div className={className}>
-        <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-          Recent →
-        </h3>
-        <KeywordList
-          items={keywords}
-          onKeywordClick={onKeywordClick}
-          showTimestamp={true}
-          emptyMessage="No recent keywords"
-        />
-      </div>
+      <section
+        className={className}
+        aria-label={`${keywords.length} recent keywords`}
+        role="region"
+      >
+        <dl className="m-0">
+          <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
+            Recent ↴
+          </dt>
+          <dd className="m-0">
+            <KeywordList
+              items={keywords}
+              onKeywordClick={onKeywordClick}
+              showTimestamp={true}
+              emptyMessage="No recent keywords"
+              listLabel="Recent keywords, ordered by most recent"
+            />
+          </dd>
+        </dl>
+      </section>
     );
   }
 );
