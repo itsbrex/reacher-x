@@ -328,7 +328,7 @@ function SearchHeader({
           placeholder="Search keywords..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-8"
+          className="h-9 pl-8"
           aria-label="Search keywords"
         />
       </div>

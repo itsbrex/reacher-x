@@ -4,14 +4,13 @@
 import { useState, useCallback, memo, useEffect } from "react";
 import { Input } from "@/shared/ui/components/Input";
 import { Button } from "@/shared/ui/components/Button";
-import { SearchIcon } from "@/shared/ui/components/icons";
-import { Switch } from "@/shared/ui/components/Switch";
-import { Label } from "@/shared/ui/components/Label";
+import { MatchWordIcon, SearchIcon } from "@/shared/ui/components/icons";
+import { Toggle } from "@/shared/ui/components/Toggle";
 import { cn } from "@/shared/lib/utils/utils";
 
 interface SearchInputProps {
   onSearch?: (query: string, exactMatch: boolean) => void;
-  onQueryChange?: (query: string) => void; // Real-time query changes
+  onQueryChange?: (query: string) => void;
   placeholder?: string;
   className?: string;
   defaultValue?: string;
@@ -45,7 +44,7 @@ export const SearchInput = memo<SearchInputProps>(function SearchInput({
   const handleQueryChange = useCallback(
     (value: string) => {
       setQuery(value);
-      onQueryChange?.(value); // Notify parent of real-time changes
+      onQueryChange?.(value);
     },
     [onQueryChange]
   );
@@ -66,51 +65,56 @@ export const SearchInput = memo<SearchInputProps>(function SearchInput({
     [handleSearch]
   );
 
-  return (
-    <div className={cn("space-y-4", className)}>
-      <div className="relative">
-        <Input
-          type="text"
-          placeholder={placeholder}
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          className="pr-20"
-          aria-label="Search keywords"
-        />
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-          {/* <RandomizeIcon className="h-4 w-4 fill-muted-foreground" /> */}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={handleSearch}
-            disabled={disabled || !query.trim()}
-            className="h-6 w-6 p-0"
-            aria-label="Search"
-          >
-            <SearchIcon className="h-4 w-4 fill-current" />
-          </Button>
-        </div>
-      </div>
+  const handleToggleExactMatch = useCallback((pressed: boolean) => {
+    setExactMatch(pressed);
+  }, []);
 
-      {showExactMatch && (
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="exact-match"
-            checked={exactMatch}
-            onCheckedChange={setExactMatch}
+  return (
+    <div className={cn("relative", className)}>
+      <Input
+        size="sm"
+        type="text"
+        placeholder={placeholder}
+        value={query}
+        onChange={(e) => handleQueryChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        className={cn(
+          // Adjust right padding based on whether exact match toggle is shown
+          // Toggle (~48px) + Search button (24px) + gaps (8px) + padding (16px) = ~96px
+          showExactMatch ? "pr-24" : "pr-12"
+        )}
+        aria-label="Search keywords"
+      />
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {showExactMatch && (
+          <Toggle
+            size="xsIcon"
+            pressed={exactMatch}
+            onPressedChange={handleToggleExactMatch}
             disabled={disabled}
-          />
-          <Label
-            htmlFor="exact-match"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            aria-label={
+              exactMatch
+                ? "Disable exact phrase match"
+                : "Enable exact phrase match"
+            }
+            title="Toggle exact phrase match"
           >
-            Exact phrase/word match
-          </Label>
-        </div>
-      )}
+            <MatchWordIcon className="fill-current" />
+          </Toggle>
+        )}
+        <Button
+          type="button"
+          size="xsIcon"
+          variant="ghost"
+          onClick={handleSearch}
+          disabled={disabled || !query.trim()}
+          aria-label="Search"
+          title="Search"
+        >
+          <SearchIcon className="h-4 w-4 fill-current" />
+        </Button>
+      </div>
     </div>
   );
 });

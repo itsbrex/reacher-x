@@ -21,26 +21,22 @@ export default function SearchResultsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="max-w-lg border-border pt-4 md:min-h-screen md:border-r-[1px]">
       {/* Search header - clickable but shows as input */}
-      <div className="mb-6">
-        <div
-          onClick={handleSearchInputClick}
-          className="relative cursor-pointer"
-        >
-          <input
-            type="text"
-            value={query}
-            readOnly
-            className="w-full rounded-md border border-input bg-background px-3 py-2 pr-20 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Type keywords..."
-          />
-          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-            {/* <RandomizeIcon className="h-4 w-4 fill-muted-foreground" /> */}
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-              {/* <FilterIcon className="h-4 w-4 fill-current" /> */}
-            </Button>
-          </div>
+
+      <div onClick={handleSearchInputClick} className="relative cursor-pointer">
+        <input
+          type="text"
+          value={query}
+          readOnly
+          className="w-full rounded-md border border-input bg-background px-3 py-2 pr-20 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="Type keywords..."
+        />
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+          {/* <RandomizeIcon className="h-4 w-4 fill-muted-foreground" /> */}
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+            {/* <FilterIcon className="h-4 w-4 fill-current" /> */}
+          </Button>
         </div>
       </div>
 
@@ -75,7 +71,7 @@ export default function SearchResultsPage() {
       {/* Search results */}
       <div className="space-y-4">
         {/* Mock search result */}
-        <div className="rounded-lg border p-4">
+        <div className="border p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
               <span className="text-sm font-medium">C</span>
