@@ -17,6 +17,10 @@ import { Button } from "@/shared/ui/components/Button";
 import { FilterAltIcon, SwapVertIcon } from "@/shared/ui/components/icons";
 import { MockTweetCard } from "@/features/search/ui/components/MockTweetCard";
 
+// Valid tab types
+const validTabs = ["all", "posts", "replies", "quotes"] as const;
+type ValidTab = (typeof validTabs)[number];
+
 // Mock data - in real app, these would come from your data layer
 const mockSuggestions: KeywordItem[] = [
   { id: "1", keyword: "help me in web dev" },
@@ -193,13 +197,18 @@ export default function SearchResultsPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Tab and filter state (UI only - no logic applied yet)
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<ValidTab>("all");
 
   // Force re-render key for SearchInput when reverting
   const [inputKey, setInputKey] = useState(0);
 
   // Track if we're in the middle of a commit operation to prevent revert
   const isCommittingRef = useRef(false);
+
+  // Helper function to safely get the current tab
+  const getCurrentTab = useCallback((): ValidTab => {
+    return validTabs.includes(activeTab as any) ? activeTab : "all";
+  }, [activeTab]);
 
   // Sync draft state with committed state when URL changes
   useEffect(() => {
@@ -417,7 +426,10 @@ export default function SearchResultsPage() {
             role="main"
             aria-label="Search results"
           >
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as ValidTab)}
+            >
               {/* Tabs Header with Filters and Sort */}
               <div className="mx-4 flex items-center justify-between gap-1">
                 <TabsList size="sm">
@@ -447,8 +459,7 @@ export default function SearchResultsPage() {
 
               {/* Results count */}
               <div className="mx-4 mt-3 text-sm text-muted-foreground">
-                {tweetsByType[activeTab as keyof typeof tweetsByType].length}{" "}
-                results
+                {tweetsByType[getCurrentTab()].length} results
                 {committedQuery && ` for "${committedQuery}"`}
               </div>
 
