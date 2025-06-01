@@ -20,11 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/components/DropdownMenu";
 import { Button } from "@/shared/ui/components/Button";
-import {
-  AddIcon,
-  FilterAltIcon,
-  SwapVertIcon,
-} from "@/shared/ui/components/icons";
+import { FilterAltIcon, SwapVertIcon } from "@/shared/ui/components/icons";
 import { MockTweetCard } from "@/features/search/ui/components/MockTweetCard";
 
 // Mock data - in real app, these would come from your data layer
@@ -475,108 +471,107 @@ export default function SearchResultsPage() {
             aria-label="Search results"
           >
             {/* Tabs and Filters Header */}
-            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="px-4 pb-4">
-                <Tabs
-                  value={activeTab}
-                  onValueChange={setActiveTab}
-                  className="w-full"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="all">All</TabsTrigger>
-                      <TabsTrigger value="posts">Posts</TabsTrigger>
-                      <TabsTrigger value="replies">Replies</TabsTrigger>
-                      <TabsTrigger value="quotes">Quotes</TabsTrigger>
-                    </TabsList>
 
-                    <div className="flex items-center gap-2">
-                      {/* Filter Dropdown */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="xs" className="gap-2">
-                            <FilterAltIcon className="fill-current" />
-                            Filter
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => setFilterBy("all")}
-                            className={filterBy === "all" ? "bg-accent" : ""}
-                          >
-                            All tweets
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setFilterBy("verified")}
-                            className={
-                              filterBy === "verified" ? "bg-accent" : ""
-                            }
-                          >
-                            Verified accounts
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setFilterBy("media")}
-                            className={filterBy === "media" ? "bg-accent" : ""}
-                          >
-                            With media
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setFilterBy("links")}
-                            className={filterBy === "links" ? "bg-accent" : ""}
-                          >
-                            With links
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+            <div className="px-4">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <div className="flex items-center justify-between gap-1">
+                  <TabsList size="sm">
+                    <TabsTrigger size="sm" value="all">
+                      All
+                    </TabsTrigger>
+                    <TabsTrigger size="sm" value="posts">
+                      Posts
+                    </TabsTrigger>
+                    <TabsTrigger size="sm" value="replies">
+                      Replies
+                    </TabsTrigger>
+                    <TabsTrigger size="sm" value="quotes">
+                      Quotes
+                    </TabsTrigger>
+                  </TabsList>
 
-                      {/* Sort Dropdown */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="xsIcon">
-                            <SwapVertIcon className="fill-current" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => setSortBy("newest")}
-                            className={sortBy === "newest" ? "bg-accent" : ""}
-                          >
-                            Newest first
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setSortBy("oldest")}
-                            className={sortBy === "oldest" ? "bg-accent" : ""}
-                          >
-                            Oldest first
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setSortBy("most_liked")}
-                            className={
-                              sortBy === "most_liked" ? "bg-accent" : ""
-                            }
-                          >
-                            Most liked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setSortBy("most_replied")}
-                            className={
-                              sortBy === "most_replied" ? "bg-accent" : ""
-                            }
-                          >
-                            Most replied
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {/* Filter Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="xs" className="gap-1">
+                          <FilterAltIcon className="fill-current" />
+                          Filter
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setFilterBy("all")}
+                          className={filterBy === "all" ? "bg-accent" : ""}
+                        >
+                          All tweets
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterBy("verified")}
+                          className={filterBy === "verified" ? "bg-accent" : ""}
+                        >
+                          Verified accounts
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterBy("media")}
+                          className={filterBy === "media" ? "bg-accent" : ""}
+                        >
+                          With media
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setFilterBy("links")}
+                          className={filterBy === "links" ? "bg-accent" : ""}
+                        >
+                          With links
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Sort Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="xsIcon">
+                          <SwapVertIcon className="fill-current" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("newest")}
+                          className={sortBy === "newest" ? "bg-accent" : ""}
+                        >
+                          Newest first
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("oldest")}
+                          className={sortBy === "oldest" ? "bg-accent" : ""}
+                        >
+                          Oldest first
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("most_liked")}
+                          className={sortBy === "most_liked" ? "bg-accent" : ""}
+                        >
+                          Most liked
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setSortBy("most_replied")}
+                          className={
+                            sortBy === "most_replied" ? "bg-accent" : ""
+                          }
+                        >
+                          Most replied
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
+                </div>
 
-                  {/* Results count */}
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    {filteredAndSortedTweets.length} results
-                    {committedQuery && ` for "${committedQuery}"`}
-                  </div>
-                </Tabs>
-              </div>
+                {/* Results count */}
+                <div className="mt-3 text-sm text-muted-foreground">
+                  {filteredAndSortedTweets.length} results
+                  {committedQuery && ` for "${committedQuery}"`}
+                </div>
+              </Tabs>
             </div>
 
             {/* Tweet Results */}
