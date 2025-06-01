@@ -266,6 +266,7 @@ function SearchHeader({
           onClick={onNewKeyword}
           tooltip="New keyword"
           size="default"
+          // variant="secondary"
           className="w-full justify-center"
         >
           <AddIcon className="fill-sidebar-foreground" />

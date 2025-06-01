@@ -1230,3 +1230,96 @@ export const MatchWordIcon: React.FC<IconProps> = ({ className, ...props }) => {
     </svg>
   );
 };
+
+export const FilterAltIcon: React.FC<IconProps> = ({ className, ...props }) => {
+  const maskId = React.useId();
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <mask
+        id={maskId}
+        style={{ maskType: "alpha" }}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="16"
+        height="16"
+      >
+        <rect width="16" height="16" fill="#D9D9D9" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path d="M7.2 12.8V8.61668L2.75 3.20001H13.25L8.8 8.61668V12.8H7.2ZM8 7.70001L10.7 4.40001H5.28333L8 7.70001Z" />
+      </g>
+    </svg>
+  );
+};
+
+export const FilledFilterAltIcon: React.FC<IconProps> = ({
+  className,
+  ...props
+}) => {
+  const maskId = React.useId();
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <mask
+        id={maskId}
+        style={{ maskType: "alpha" }}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="16"
+        height="16"
+      >
+        <rect width="16" height="16" fill="#D9D9D9" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path d="M7.2 12.8V8.61668L2.75 3.20001H13.25L8.8 8.61668V12.8H7.2Z" />
+      </g>
+    </svg>
+  );
+};
+
+export const SwapVertIcon: React.FC<IconProps> = ({ className, ...props }) => {
+  const maskId = React.useId();
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <mask
+        id={maskId}
+        style={{ maskType: "alpha" }}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="16"
+        height="17"
+      >
+        <rect y="0.138992" width="16" height="16" fill="#D9D9D9" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path d="M5.39999 8.939V4.039L3.64999 5.789L2.79999 4.939L5.99999 1.739L9.19999 4.939L8.34999 5.789L6.59999 4.039V8.939H5.39999ZM9.99999 14.539L6.79999 11.339L7.64999 10.489L9.39999 12.239V7.339H10.6V12.239L12.35 10.489L13.2 11.339L9.99999 14.539Z" />
+      </g>
+    </svg>
+  );
+};

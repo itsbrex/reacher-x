@@ -7,6 +7,25 @@ import { SearchContent } from "@/features/search/ui/components/SearchContent";
 import { useCallback, useState, useMemo, useEffect, useRef } from "react";
 import { cn } from "@/shared/lib/utils/utils";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/shared/ui/components/Tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/components/DropdownMenu";
+import { Button } from "@/shared/ui/components/Button";
+import {
+  AddIcon,
+  FilterAltIcon,
+  SwapVertIcon,
+} from "@/shared/ui/components/icons";
+import { MockTweetCard } from "@/features/search/ui/components/MockTweetCard";
 
 // Mock data - in real app, these would come from your data layer
 const mockSuggestions: KeywordItem[] = [
@@ -34,6 +53,144 @@ const mockAllKeywords: KeywordItem[] = [
   },
 ];
 
+// Mock tweet data structure matching your types
+const mockTweets = [
+  {
+    id: "1",
+    id_str: "1234567890",
+    threadId: "thread_1",
+    user: {
+      id: 123,
+      id_str: "123",
+      name: "Customer",
+      screen_name: "Customer",
+      location: "San Francisco, CA",
+      url: "https://reacherx.com",
+      description: "Building the future of customer acquisition",
+      protected: false,
+      verified: false,
+      followers_count: 1250,
+      friends_count: 300,
+      listed_count: 15,
+      favourites_count: 2340,
+      statuses_count: 450,
+      created_at: "2020-01-15T10:30:00.000Z",
+      profile_image_url_https: "",
+      can_dm: true,
+    },
+    text: "@Vecterz Find #unlimited customers for your products/services with the help of advance search of ReacherX. https://reacherx.com",
+    created_at: "2025-06-01T14:03:44.000Z",
+    reply_count: 12,
+    retweet_count: 45,
+    quote_count: 8,
+    favorite_count: 156,
+    views_count: 2340,
+
+    type: "post" as const,
+  },
+  {
+    id: "2",
+    id_str: "1234567891",
+    threadId: "thread_2",
+    user: {
+      id: 124,
+      id_str: "124",
+      name: "Web Developer",
+      screen_name: "webdev_pro",
+      location: "Remote",
+      description: "Full-stack developer sharing web dev tips and tricks",
+      protected: false,
+      verified: true,
+      followers_count: 5420,
+      friends_count: 890,
+      listed_count: 45,
+      favourites_count: 12300,
+      statuses_count: 2340,
+      created_at: "2019-05-20T14:22:00.000Z",
+      profile_image_url_https: "",
+      can_dm: true,
+    },
+    text: "Struggling with web development? Here are 5 tips that changed my career: 1. Master the fundamentals 2. Build projects 3. Join communities 4. Never stop learning 5. Share your knowledge",
+    created_at: "2025-06-01T13:30:22.000Z",
+    reply_count: 34,
+    retweet_count: 123,
+    quote_count: 15,
+    favorite_count: 567,
+    views_count: 4520,
+
+    type: "post" as const,
+  },
+  {
+    id: "3",
+    id_str: "1234567892",
+    threadId: "thread_1",
+    user: {
+      id: 125,
+      id_str: "125",
+      name: "Sarah Chen",
+      screen_name: "sarahc_dev",
+      location: "New York, NY",
+      description: "Product designer who codes",
+      protected: false,
+      verified: false,
+      followers_count: 890,
+      friends_count: 456,
+      listed_count: 12,
+      favourites_count: 3450,
+      statuses_count: 678,
+      created_at: "2021-03-10T09:15:00.000Z",
+      profile_image_url_https: "",
+      can_dm: true,
+    },
+    text: "@Customer This looks amazing! I've been looking for something exactly like this. How does the pricing work?",
+    created_at: "2025-06-01T13:45:15.000Z",
+    reply_count: 5,
+    retweet_count: 2,
+    quote_count: 0,
+    favorite_count: 23,
+    views_count: 145,
+
+    type: "reply" as const,
+    in_reply_to_status_id_str: "1234567890",
+  },
+  {
+    id: "4",
+    id_str: "1234567893",
+    threadId: "thread_3",
+    user: {
+      id: 126,
+      id_str: "126",
+      name: "Tech Startup",
+      screen_name: "techstartup2025",
+      location: "Austin, TX",
+      description: "Early stage startup building the future",
+      protected: false,
+      verified: true,
+      followers_count: 2340,
+      friends_count: 567,
+      listed_count: 23,
+      favourites_count: 5670,
+      statuses_count: 890,
+      created_at: "2022-08-01T16:45:00.000Z",
+      profile_image_url_https: "",
+      can_dm: true,
+    },
+    text: "Quote tweet: This is exactly what we need for our customer acquisition! https://twitter.com/Customer/status/1234567890",
+    created_at: "2025-06-01T12:20:33.000Z",
+    reply_count: 8,
+    retweet_count: 34,
+    quote_count: 3,
+    favorite_count: 89,
+    views_count: 890,
+
+    type: "quote" as const,
+    quoted_status_id_str: "1234567890",
+  },
+];
+
+type SortOption = "newest" | "oldest" | "most_liked" | "most_replied";
+type FilterOption = "all" | "verified" | "media" | "links";
+
 export default function SearchResultsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -51,6 +208,11 @@ export default function SearchResultsPage() {
   const [loading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Tab and filter state
+  const [activeTab, setActiveTab] = useState("all");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [filterBy, setFilterBy] = useState<FilterOption>("all");
 
   // Force re-render key for SearchInput when reverting
   const [inputKey, setInputKey] = useState(0);
@@ -103,6 +265,49 @@ export default function SearchResultsPage() {
         .slice(0, 5),
     [committedQuery]
   );
+
+  // Filter and sort tweets based on current selections
+  const filteredAndSortedTweets = useMemo(() => {
+    let tweets = [...mockTweets];
+
+    // Filter by tab
+    if (activeTab === "posts") {
+      tweets = tweets.filter((tweet) => tweet.type === "post");
+    } else if (activeTab === "replies") {
+      tweets = tweets.filter((tweet) => tweet.type === "reply");
+    } else if (activeTab === "quotes") {
+      tweets = tweets.filter((tweet) => tweet.type === "quote");
+    }
+
+    // Apply additional filters
+    if (filterBy === "verified") {
+      tweets = tweets.filter((tweet) => tweet.user.verified);
+    } else if (filterBy === "links") {
+      tweets = tweets.filter((tweet) => tweet.text?.includes("http"));
+    }
+
+    // Sort tweets
+    tweets.sort((a, b) => {
+      switch (sortBy) {
+        case "newest":
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        case "oldest":
+          return (
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        case "most_liked":
+          return (b.favorite_count || 0) - (a.favorite_count || 0);
+        case "most_replied":
+          return (b.reply_count || 0) - (a.reply_count || 0);
+        default:
+          return 0;
+      }
+    });
+
+    return tweets;
+  }, [activeTab, sortBy, filterBy]);
 
   // Commit draft state (search execution)
   const handleSearch = useCallback(
@@ -240,7 +445,9 @@ export default function SearchResultsPage() {
           <div>Committed: &quot;{committedQuery}&quot;</div>
           <div>Draft: &quot;{draftQuery}&quot;</div>
           <div>Mode: {isSearchMode ? "Search" : "Results"}</div>
-          <div>IsCommitting: {isCommittingRef.current ? "Yes" : "No"}</div>
+          <div>Active Tab: {activeTab}</div>
+          <div>Sort: {sortBy}</div>
+          <div>Filter: {filterBy}</div>
         </div>
       )}
 
@@ -262,65 +469,144 @@ export default function SearchResultsPage() {
         ) : (
           <div
             className={cn(
-              "duration-200 animate-in fade-in-50 slide-in-from-bottom-2",
-              "space-y-4"
+              "duration-200 animate-in fade-in-50 slide-in-from-bottom-2"
             )}
             role="main"
             aria-label="Search results"
           >
-            {/* Search results content */}
-            <div className="border-b p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                  <span className="text-sm font-medium">C</span>
-                </div>
-                <div className="flex-1">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="font-medium">Customer</span>
-                    <span className="text-sm text-muted-foreground">
-                      @Customer
-                    </span>
-                    <span className="rounded bg-black px-2 py-0.5 text-xs text-white">
-                      Load new
-                    </span>
-                  </div>
-                  <div className="mb-2 text-sm text-muted-foreground">
-                    Replying to <span className="text-primary">@Customer</span>
-                  </div>
-                  <p className="mb-3 text-sm">
-                    @Vecterz Find{" "}
-                    <span className="text-amber-600">#unlimited</span>{" "}
-                    <span className="font-medium">customers</span> for your{" "}
-                    <span className="font-medium">products/services</span> with
-                    the help of advance search of ReacherX.
-                  </p>
-                  <a
-                    href="https://reacherx.com"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    https://reacherx.com
-                  </a>
+            {/* Tabs and Filters Header */}
+            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="px-4 pb-4">
+                <Tabs
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                  className="w-full"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="posts">Posts</TabsTrigger>
+                      <TabsTrigger value="replies">Replies</TabsTrigger>
+                      <TabsTrigger value="quotes">Quotes</TabsTrigger>
+                    </TabsList>
 
-                  {/* Placeholder images grid */}
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="aspect-video rounded bg-muted" />
-                    ))}
+                    <div className="flex items-center gap-2">
+                      {/* Filter Dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="xs" className="gap-2">
+                            <FilterAltIcon className="fill-current" />
+                            Filter
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setFilterBy("all")}
+                            className={filterBy === "all" ? "bg-accent" : ""}
+                          >
+                            All tweets
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterBy("verified")}
+                            className={
+                              filterBy === "verified" ? "bg-accent" : ""
+                            }
+                          >
+                            Verified accounts
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterBy("media")}
+                            className={filterBy === "media" ? "bg-accent" : ""}
+                          >
+                            With media
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setFilterBy("links")}
+                            className={filterBy === "links" ? "bg-accent" : ""}
+                          >
+                            With links
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* Sort Dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="xsIcon">
+                            <SwapVertIcon className="fill-current" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("newest")}
+                            className={sortBy === "newest" ? "bg-accent" : ""}
+                          >
+                            Newest first
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("oldest")}
+                            className={sortBy === "oldest" ? "bg-accent" : ""}
+                          >
+                            Oldest first
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("most_liked")}
+                            className={
+                              sortBy === "most_liked" ? "bg-accent" : ""
+                            }
+                          >
+                            Most liked
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("most_replied")}
+                            className={
+                              sortBy === "most_replied" ? "bg-accent" : ""
+                            }
+                          >
+                            Most replied
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                </div>
+
+                  {/* Results count */}
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    {filteredAndSortedTweets.length} results
+                    {committedQuery && ` for "${committedQuery}"`}
+                  </div>
+                </Tabs>
               </div>
             </div>
 
-            {/* More results placeholder */}
-            <div className="mx-4 rounded-lg border bg-muted/50 p-4">
-              <div className="text-center text-sm text-muted-foreground">
-                {committedQuery ? (
-                  <>Search results for &quot;{committedQuery}&quot;</>
-                ) : (
-                  "More search results would appear here..."
-                )}
-              </div>
+            {/* Tweet Results */}
+            <div className="divide-y divide-border">
+              {filteredAndSortedTweets.length > 0 ? (
+                filteredAndSortedTweets.map((tweet) => (
+                  <div key={tweet.id} className="px-4 py-4">
+                    <MockTweetCard tweet={tweet} />
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-8 text-center">
+                  <div className="mx-auto max-w-sm text-muted-foreground">
+                    <p className="text-lg font-medium">No results found</p>
+                    <p className="mt-2 text-sm">
+                      Try adjusting your search terms or filters
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Load more placeholder */}
+            {filteredAndSortedTweets.length > 0 && (
+              <div className="border-t p-4">
+                <Button variant="outline" className="w-full">
+                  Load more results
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
