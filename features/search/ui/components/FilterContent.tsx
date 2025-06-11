@@ -193,10 +193,10 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
             noValidate
           >
             {/* Verification Section */}
-            <div className="space-y-4 px-4 pt-4">
+            <div className="space-y-1.5 px-4 pt-4">
               <div>
                 <h3 className="text-sm font-medium">Verification.</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   ↳ Filter based on verification status.
                 </p>
               </div>
@@ -214,8 +214,8 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           disabled={isLoading}
                         />
                       </FormControl>
-                      <div className="grid gap-1.5 leading-none">
-                        <FormLabel className="text-sm font-normal">
+                      <div className="grid gap-0.5">
+                        <FormLabel className="text-sm font-medium">
                           Verified
                         </FormLabel>
                         <FormDescription className="text-xs">
@@ -241,8 +241,8 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           disabled={isLoading}
                         />
                       </FormControl>
-                      <div className="grid gap-1.5 leading-none">
-                        <FormLabel className="text-sm font-normal">
+                      <div className="grid gap-0.5">
+                        <FormLabel className="text-sm font-medium">
                           Unverified
                         </FormLabel>
                         <FormDescription className="text-xs">
@@ -274,12 +274,13 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       </FormLabel>
                       <FormControl>
                         <Input
+                          size="sm"
                           placeholder="e.g., elonmusk"
                           disabled={isLoading}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
+                      <FormDescription className="ml-3 text-xs text-muted-foreground">
                         ↳ Posts from a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -298,12 +299,13 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       <FormLabel className="text-sm font-medium">To</FormLabel>
                       <FormControl>
                         <Input
+                          size="sm"
                           placeholder="e.g., elonmusk"
                           disabled={isLoading}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
+                      <FormDescription className="ml-3 text-xs text-muted-foreground">
                         ↳ Posts replying to a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -324,12 +326,13 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       </FormLabel>
                       <FormControl>
                         <Input
+                          size="sm"
                           placeholder="e.g., elonmusk"
                           disabled={isLoading}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
+                      <FormDescription className="ml-3 text-xs text-muted-foreground">
                         ↳ Posts mentioning a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -350,12 +353,13 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       </FormLabel>
                       <FormControl>
                         <Input
+                          size="sm"
                           placeholder="e.g., esa/astronauts"
                           disabled={isLoading}
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
+                      <FormDescription className="ml-3 text-xs text-muted-foreground">
                         ↳ Posts from members of a specified public list (by list
                         ID or slug).
                       </FormDescription>
