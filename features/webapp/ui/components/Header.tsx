@@ -24,8 +24,6 @@ import {
   DrawerClose,
 } from "@/shared/ui/components/Drawer";
 import {
-  LightModeIcon,
-  DarkModeIcon,
   XIcon,
   DiscordIcon,
   ThreadsIcon,
@@ -33,8 +31,6 @@ import {
   MoreHorizIcon,
   MailIcon,
   HomeIcon,
-  LoginIcon,
-  ArrowMenuCloseIcon,
   SearchActivityIcon,
 } from "@/shared/ui/components/icons";
 import { NavLink } from "@/features/landing/ui/components/NavLink";

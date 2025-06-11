@@ -1,9 +1,10 @@
 import React from "react";
 
 /**
- * Define a generic interface for icon props.
+ * Define a generic type for icon props.
+ * Using a `type` alias is the correct approach here instead of an empty interface.
  */
-interface IconProps extends React.SVGProps<SVGSVGElement> {}
+type IconProps = React.SVGProps<SVGSVGElement>;
 
 export const DarkModeIcon: React.FC<IconProps> = ({ className, ...props }) => {
   const maskId = React.useId();

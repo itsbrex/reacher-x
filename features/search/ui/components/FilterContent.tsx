@@ -260,9 +260,9 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
             <Separator />
 
-            <section className="space-y-4 px-4 pb-4">
-              {/* Responsive Grid Container for Form Fields */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Container Query Grid */}
+            <section className="space-y-4 px-4 pb-4 @container">
+              <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @md:grid-cols-3 @lg:grid-cols-4">
                 {/* From Section */}
                 <Controller
                   control={form.control}
@@ -279,7 +279,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="ml-3 text-xs text-muted-foreground">
+                      <FormDescription className="text-xs text-muted-foreground">
                         ↳ Posts from a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -303,7 +303,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="ml-3 text-xs text-muted-foreground">
+                      <FormDescription className="text-xs text-muted-foreground">
                         ↳ Posts replying to a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -329,7 +329,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="ml-3 text-xs text-muted-foreground">
+                      <FormDescription className="text-xs text-muted-foreground">
                         ↳ Posts mentioning a specific @username.
                       </FormDescription>
                       {fieldState.error && (
@@ -355,7 +355,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription className="ml-3 text-xs text-muted-foreground">
+                      <FormDescription className="text-xs text-muted-foreground">
                         ↳ Posts from members of a specified public list (by list
                         ID or slug).
                       </FormDescription>
