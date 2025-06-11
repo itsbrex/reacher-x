@@ -1,15 +1,25 @@
-// features/search/ui/components/FilterContent.tsx
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useEffect, useRef, useCallback } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/shared/ui/components/Button";
 import { Input } from "@/shared/ui/components/Input";
 import { Checkbox } from "@/shared/ui/components/Checkbox";
-import { Label } from "@/shared/ui/components/Label";
-import { Separator } from "@/shared/ui/components/Separator";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { ArrowBackIcon } from "@/shared/ui/components/icons";
+import { FormSection } from "@/shared/ui/components/FormSection";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/shared/ui/components/Form";
 import { cn } from "@/shared/lib/utils/utils";
+import { filterSchema, type FilterFormData } from "../../lib/schemas";
+import { filterStateToFormData, formDataToFilterState } from "../../lib/utils";
 import type { FilterState } from "../../types";
 
 interface FilterContentProps {
@@ -17,8 +27,9 @@ interface FilterContentProps {
   onFiltersChange: (filters: FilterState) => void;
   onApply: () => void;
   onReset: () => void;
-  onBack?: () => void; // For mobile back navigation
+  onBack?: () => void;
   className?: string;
+  isLoading?: boolean;
 }
 
 export const FilterContent = memo<FilterContentProps>(function FilterContent({
@@ -28,175 +39,324 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
   onReset,
   onBack,
   className,
+  isLoading = false,
 }) {
-  const handleFilterChange = useCallback(
-    (key: keyof FilterState, value: boolean | string) => {
-      onFiltersChange({ ...filters, [key]: value });
+  // Refs to prevent infinite loops
+  const isExternalUpdateRef = useRef(false);
+  const lastFiltersRef = useRef<FilterState>(filters);
+
+  const form = useForm({
+    resolver: zodResolver(filterSchema),
+    defaultValues: filterStateToFormData(filters),
+    mode: "onChange", // Enable real-time validation
+  });
+
+  // Watch form values - this creates a new object reference on each change
+  const watchedValues = form.watch();
+
+  // Deep comparison utility to avoid unnecessary updates
+  const areFiltersEqual = useCallback(
+    (a: FilterState, b: FilterState): boolean => {
+      return JSON.stringify(a) === JSON.stringify(b);
     },
-    [filters, onFiltersChange]
+    []
   );
 
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+  // Memoized filter state conversion to avoid unnecessary recalculations
+  const currentFilterState = useCallback(() => {
+    return formDataToFilterState(watchedValues);
+  }, [watchedValues]);
+
+  // Sync form changes to parent state (only for user-initiated changes)
+  useEffect(() => {
+    // Skip if this is an external update (from props)
+    if (isExternalUpdateRef.current) {
+      return;
+    }
+
+    const newFilterState = currentFilterState();
+
+    // Only update if filters actually changed (deep comparison)
+    if (!areFiltersEqual(newFilterState, lastFiltersRef.current)) {
+      lastFiltersRef.current = newFilterState;
+      onFiltersChange(newFilterState);
+    }
+  }, [watchedValues, onFiltersChange, currentFilterState, areFiltersEqual]);
+
+  // Sync external filters to form (only when props actually change)
+  useEffect(() => {
+    // Only update if external filters are different from what we have
+    if (!areFiltersEqual(filters, lastFiltersRef.current)) {
+      isExternalUpdateRef.current = true;
+      lastFiltersRef.current = filters;
+
+      const formData = filterStateToFormData(filters);
+      form.reset(formData, {
+        keepErrors: false,
+        keepDirty: false,
+        keepIsSubmitted: false,
+        keepTouched: false,
+        keepIsValid: false,
+        keepSubmitCount: false,
+      });
+
+      // Reset the flag after React has processed the update
+      queueMicrotask(() => {
+        isExternalUpdateRef.current = false;
+      });
+    }
+  }, [filters, form, areFiltersEqual]);
+
+  const handleSubmit = useCallback(
+    (data: FilterFormData) => {
+      console.log("Form submitted with data:", data);
+      onApply();
+    },
+    [onApply]
+  );
+
+  const handleReset = useCallback(() => {
+    isExternalUpdateRef.current = true;
+    const emptyState: FilterState = {};
+    const emptyFormData = filterStateToFormData(emptyState);
+
+    lastFiltersRef.current = emptyState;
+    form.reset(emptyFormData, {
+      keepErrors: false,
+      keepDirty: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false,
+      keepSubmitCount: false,
+    });
+
+    queueMicrotask(() => {
+      isExternalUpdateRef.current = false;
+    });
+
+    onReset();
+  }, [form, onReset]);
+
+  // Check if there are active filters (memoized for performance)
+  const hasActiveFilters = useCallback(() => {
+    return Object.values(watchedValues).some((value) =>
+      typeof value === "boolean" ? value : Boolean(value?.trim())
+    );
+  }, [watchedValues]);
 
   return (
-    <aside className={cn("flex h-full flex-col", className)}>
-      {/* Mobile Header with Back Button */}
+    <div className={cn("flex h-full flex-col", className)}>
+      {/* Header */}
       <header className="flex items-center justify-between border-b py-2 pl-2.5 pr-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="xsIcon"
-            onClick={onBack}
-            aria-label="Go back"
-          >
-            <ArrowBackIcon className="h-4 w-4 fill-current" />
-          </Button>
-          <small className="text-sm font-medium">Filter.</small>
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="xsIcon"
+              onClick={onBack}
+              aria-label="Go back"
+              type="button"
+            >
+              <ArrowBackIcon className="h-4 w-4 fill-current" />
+            </Button>
+          )}
+          <h2 className="text-sm font-medium">Filter.</h2>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="xs"
-            onClick={onReset}
-            disabled={!hasActiveFilters}
+            onClick={handleReset}
+            disabled={!hasActiveFilters() || isLoading}
+            type="button"
           >
             Reset
           </Button>
-          <Button size="xs" onClick={onApply}>
+          <Button
+            size="xs"
+            type="submit"
+            form="filter-form"
+            disabled={isLoading}
+          >
             Apply
           </Button>
         </div>
       </header>
 
-      {/* Filter Content - Scrollable */}
+      {/* Form Content */}
       <ScrollArea className="flex-1">
-        <div className="space-y-4">
-          {/* Verification */}
-          <section className="space-y-3 px-4 pt-4">
-            <div className="space-y-1.5">
-              <h3 className="font-medium">Verification.</h3>
-              <p className="text-sm text-muted-foreground">
-                ↳ Filter based on verification status.
-              </p>
-            </div>
-            <div className="space-y-0.5">
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="verified"
-                  checked={filters.verified || false}
-                  onCheckedChange={(checked) =>
-                    handleFilterChange("verified", checked as boolean)
-                  }
+        <Form {...form}>
+          <form
+            id="filter-form"
+            onSubmit={form.handleSubmit(handleSubmit)}
+            className="space-y-6 p-4"
+            noValidate
+          >
+            {/* Verification Section */}
+            <FormSection
+              title="Verification."
+              description="Filter based on verification status."
+            >
+              <div className="space-y-3">
+                <Controller
+                  control={form.control}
+                  name="verified"
+                  render={({ field, fieldState }) => (
+                    <FormItem className="flex flex-row items-start gap-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <div className="grid gap-1.5 leading-none">
+                        <FormLabel className="text-sm font-normal">
+                          Verified
+                        </FormLabel>
+                        <FormDescription className="text-xs">
+                          ↳ Potential customer with a verification badge.
+                        </FormDescription>
+                      </div>
+                      {fieldState.error && (
+                        <FormMessage>{fieldState.error.message}</FormMessage>
+                      )}
+                    </FormItem>
+                  )}
                 />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="verified"
-                    className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Verified
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    ↳ Potential customer with a verification badge.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="unverified"
-                  checked={filters.unverified || false}
-                  onCheckedChange={(checked) =>
-                    handleFilterChange("unverified", checked as boolean)
-                  }
+
+                <Controller
+                  control={form.control}
+                  name="unverified"
+                  render={({ field, fieldState }) => (
+                    <FormItem className="flex flex-row items-start gap-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <div className="grid gap-1.5 leading-none">
+                        <FormLabel className="text-sm font-normal">
+                          Unverified
+                        </FormLabel>
+                        <FormDescription className="text-xs">
+                          ↳ Potential customer without a verification badge.
+                        </FormDescription>
+                      </div>
+                      {fieldState.error && (
+                        <FormMessage>{fieldState.error.message}</FormMessage>
+                      )}
+                    </FormItem>
+                  )}
                 />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="unverified"
-                    className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Unverified
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    ↳ Potential customer without a verification badge.
-                  </p>
-                </div>
               </div>
-            </div>
-          </section>
+            </FormSection>
 
-          <Separator />
+            {/* From Section */}
+            <FormSection
+              title="From"
+              description="Posts from a specific @username."
+            >
+              <Controller
+                control={form.control}
+                name="from"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., elonmusk"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    {fieldState.error && (
+                      <FormMessage>{fieldState.error.message}</FormMessage>
+                    )}
+                  </FormItem>
+                )}
+              />
+            </FormSection>
 
-          {/* From */}
-          <div className="space-y-3">
-            <Label htmlFor="from" className="font-medium">
-              From
-            </Label>
-            <Input
-              id="from"
-              placeholder="e.g., elonmusk"
-              value={filters.from || ""}
-              onChange={(e) => handleFilterChange("from", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Posts from a specific @username.
-            </p>
-          </div>
+            {/* To Section */}
+            <FormSection
+              title="To"
+              description="Posts replying to a specific @username."
+            >
+              <Controller
+                control={form.control}
+                name="to"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., elonmusk"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    {fieldState.error && (
+                      <FormMessage>{fieldState.error.message}</FormMessage>
+                    )}
+                  </FormItem>
+                )}
+              />
+            </FormSection>
 
-          <Separator />
+            {/* Mention Section */}
+            <FormSection
+              title="Mention"
+              description="Posts mentioning a specific @username."
+            >
+              <Controller
+                control={form.control}
+                name="mention"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., elonmusk"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    {fieldState.error && (
+                      <FormMessage>{fieldState.error.message}</FormMessage>
+                    )}
+                  </FormItem>
+                )}
+              />
+            </FormSection>
 
-          {/* To */}
-          <div className="space-y-3">
-            <Label htmlFor="to" className="font-medium">
-              To
-            </Label>
-            <Input
-              id="to"
-              placeholder="e.g., elonmusk"
-              value={filters.to || ""}
-              onChange={(e) => handleFilterChange("to", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Posts replying to a specific @username.
-            </p>
-          </div>
-
-          <Separator />
-
-          {/* Mention */}
-          <div className="space-y-3">
-            <Label htmlFor="mention" className="font-medium">
-              Mention
-            </Label>
-            <Input
-              id="mention"
-              placeholder="e.g., elonmusk"
-              value={filters.mention || ""}
-              onChange={(e) => handleFilterChange("mention", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Posts mentioning a specific @username.
-            </p>
-          </div>
-
-          <Separator />
-
-          {/* List */}
-          <div className="space-y-3">
-            <Label htmlFor="list" className="font-medium">
-              List
-            </Label>
-            <Input
-              id="list"
-              placeholder="e.g., esa/astronauts"
-              value={filters.list || ""}
-              onChange={(e) => handleFilterChange("list", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Posts from members of a specified public list (by list ID or
-              slug).
-            </p>
-          </div>
-        </div>
+            {/* List Section */}
+            <FormSection
+              title="List"
+              description="Posts from members of a specified public list (by list ID or slug)."
+              showSeparator={false}
+            >
+              <Controller
+                control={form.control}
+                name="list"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., esa/astronauts"
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    {fieldState.error && (
+                      <FormMessage>{fieldState.error.message}</FormMessage>
+                    )}
+                  </FormItem>
+                )}
+              />
+            </FormSection>
+          </form>
+        </Form>
       </ScrollArea>
-    </aside>
+    </div>
   );
 });

@@ -1,6 +1,7 @@
 // app/(webapp)/search/components/SearchLayout.tsx
 "use client";
 
+import { memo, useMemo } from "react";
 import { FilterContent } from "@/features/search/ui/components/FilterContent";
 import { useFilter } from "@/features/search/contexts/FilterContext";
 import { cn } from "@/shared/lib/utils/utils";
@@ -9,7 +10,9 @@ interface SearchLayoutProps {
   children: React.ReactNode;
 }
 
-export function SearchLayout({ children }: SearchLayoutProps) {
+export const SearchLayout = memo<SearchLayoutProps>(function SearchLayout({
+  children,
+}) {
   const {
     isFilterMode,
     filterState,
@@ -18,6 +21,30 @@ export function SearchLayout({ children }: SearchLayoutProps) {
     resetFilters,
     closeFilter,
   } = useFilter();
+
+  // Memoize the filter panel to prevent unnecessary re-renders
+  const filterPanel = useMemo(() => {
+    if (!isFilterMode) return null;
+
+    return (
+      <div className="w-full">
+        <FilterContent
+          filters={filterState}
+          onFiltersChange={updateFilters}
+          onApply={applyFilters}
+          onReset={resetFilters}
+          onBack={closeFilter}
+        />
+      </div>
+    );
+  }, [
+    isFilterMode,
+    filterState,
+    updateFilters,
+    applyFilters,
+    resetFilters,
+    closeFilter,
+  ]);
 
   return (
     <div className="flex max-w-full justify-start">
@@ -34,17 +61,7 @@ export function SearchLayout({ children }: SearchLayoutProps) {
       </div>
 
       {/* Filter Panel */}
-      {isFilterMode && (
-        <div className="w-full">
-          <FilterContent
-            filters={filterState}
-            onFiltersChange={updateFilters}
-            onApply={applyFilters}
-            onReset={resetFilters}
-            onBack={closeFilter}
-          />
-        </div>
-      )}
+      {filterPanel}
     </div>
   );
-}
+});

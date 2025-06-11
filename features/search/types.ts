@@ -8,6 +8,9 @@ export interface FilterState {
   list?: string;
 }
 
+// Convert FilterState to form-compatible type
+export type FilterFormState = Required<FilterState>;
+
 // You can add more search-related types here in the future
 export interface SearchQuery {
   query: string;
