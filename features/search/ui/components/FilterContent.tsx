@@ -233,14 +233,11 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
             </Button>
           )}
           <div className="flex items-center gap-1">
-            <h2 className="text-sm font-medium">Filter</h2>
+            <h2 className="text-sm font-medium">Filter.</h2>
             {activeFilterCount > 0 && (
-              <>
-                <span className="text-sm text-muted-foreground">·</span>
-                <span className="text-sm font-medium text-primary">
-                  {activeFilterCount}
-                </span>
-              </>
+              <span className="font-mono text-xs font-medium text-muted-foreground">
+                &nbsp;· {activeFilterCount} active
+              </span>
             )}
           </div>
         </div>

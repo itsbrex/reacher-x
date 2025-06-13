@@ -15,7 +15,11 @@ import {
   TabsContent,
 } from "@/shared/ui/components/Tabs";
 import { Button } from "@/shared/ui/components/Button";
-import { FilterAltIcon, SwapVertIcon } from "@/shared/ui/components/icons";
+import {
+  FilledFilterAltIcon,
+  FilterAltIcon,
+  SwapVertIcon,
+} from "@/shared/ui/components/icons";
 import { MockTweetCard } from "@/features/search/ui/components/MockTweetCard";
 
 // Valid tab types
@@ -182,7 +186,8 @@ const mockTweets = [
 export default function SearchResultsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { openFilter, isFilterMode, hasActiveFilters } = useFilter();
+  const { openFilter, isFilterMode, hasActiveFilters, activeFilterCount } =
+    useFilter();
 
   // Committed state (from URL - source of truth)
   const committedQuery = searchParams.get("q") || "";
@@ -458,18 +463,18 @@ export default function SearchResultsPage() {
                     aria-expanded={isFilterMode}
                     aria-controls="search-filter-panel"
                   >
-                    <FilterAltIcon className="fill-current" />
-                    <span className="flex items-center gap-1">
-                      Filter
-                      {hasActiveFilters && (
-                        <span
-                          className="text-xs text-primary"
-                          aria-label="Filters active"
-                        >
-                          ·
-                        </span>
-                      )}
-                    </span>
+                    {hasActiveFilters && activeFilterCount > 0 ? (
+                      <FilledFilterAltIcon className="fill-current" />
+                    ) : (
+                      <FilterAltIcon className="fill-current" />
+                    )}
+                    {hasActiveFilters && activeFilterCount > 0 ? (
+                      <span className="font-mono text-xs">
+                        {activeFilterCount}
+                      </span>
+                    ) : (
+                      "Filter"
+                    )}
                   </Button>
                   <Button variant="outline" size="xsIcon">
                     <SwapVertIcon className="fill-current" />
