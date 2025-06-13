@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import { Calendar as CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/shared/lib/utils/utils";
@@ -13,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/shared/ui/components/Popover";
+import { CalendarTodayIcon } from "./icons";
 
 interface DateRangePickerProps {
   value?: DateRange;
@@ -45,7 +45,7 @@ export function DateRangePicker({
             )}
             disabled={disabled}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
+            <CalendarTodayIcon className="mr-2 fill-current" />
             {value?.from ? (
               value.to ? (
                 <>
@@ -56,13 +56,13 @@ export function DateRangePicker({
                 value.from.toLocaleDateString()
               )
             ) : (
-              <span>{placeholder}</span>
+              <span className="text-muted-foreground">{placeholder}</span>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            initialFocus
+            autoFocus
             mode="range"
             defaultMonth={value?.from}
             selected={value}

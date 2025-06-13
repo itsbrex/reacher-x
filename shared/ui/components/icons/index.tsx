@@ -840,6 +840,39 @@ export const CalendarClockIcon: React.FC<IconProps> = ({
   );
 };
 
+export const CalendarTodayIcon: React.FC<IconProps> = ({
+  className,
+  ...props
+}) => {
+  const maskId = React.useId();
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <mask
+        id={maskId}
+        style={{ maskType: "alpha" }}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="16"
+        height="16"
+      >
+        <rect width="16" height="16" fill="#D9D9D9" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path d="M2.4 14.4V3.20001H4.8V1.60001H6V3.20001H10V1.60001H11.2V3.20001H13.6V14.4H2.4ZM3.6 13.2H12.4V7.20001H3.6V13.2ZM3.6 6.00001H12.4V4.40001H3.6V6.00001Z" />
+      </g>
+    </svg>
+  );
+};
+
 export const SearchIcon: React.FC<IconProps> = ({ className, ...props }) => {
   const maskId = React.useId();
   return (
