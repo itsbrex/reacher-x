@@ -257,26 +257,24 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
       </header>
 
       {/* Tabs Navigation */}
-      <Tabs defaultValue="users" className="flex h-full flex-col">
-        <div className="border-b bg-main px-4 py-2">
-          <TabsList className="grid w-full grid-cols-5" size="sm">
-            <TabsTrigger value="users" size="sm">
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="date" size="sm">
-              Date
-            </TabsTrigger>
-            <TabsTrigger value="content" size="sm">
-              Content
-            </TabsTrigger>
-            <TabsTrigger value="media" size="sm">
-              Media
-            </TabsTrigger>
-            <TabsTrigger value="engagement" size="sm">
-              Engagement
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <Tabs defaultValue="users">
+        <TabsList size="sm" className="m-4">
+          <TabsTrigger value="users" size="sm">
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="date" size="sm">
+            Date
+          </TabsTrigger>
+          <TabsTrigger value="content" size="sm">
+            Content
+          </TabsTrigger>
+          <TabsTrigger value="media" size="sm">
+            Media
+          </TabsTrigger>
+          <TabsTrigger value="engagement" size="sm">
+            Engagement
+          </TabsTrigger>
+        </TabsList>
 
         {/* Form Content */}
         <ScrollArea className="flex-1">
@@ -289,9 +287,9 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
             >
               {/* Users Tab */}
               <TabsContent value="users" className="mt-0">
-                <div className="space-y-4 p-4">
+                <div className="space-y-4">
                   {/* Verification Section */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 px-4">
                     <div>
                       <h3 className="text-sm font-medium">Verification.</h3>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -364,8 +362,8 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                   <Separator />
 
                   {/* User Fields */}
-                  <section className="space-y-4 @container">
-                    <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @md:grid-cols-3 @lg:grid-cols-4">
+                  <section className="space-y-4 px-4 @container">
+                    <div className="grid grid-cols-1 gap-x-2 gap-y-4 @sm:grid-cols-2 @md:grid-cols-3 @lg:grid-cols-4">
                       <Controller
                         control={form.control}
                         name="from"
@@ -485,9 +483,9 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
               {/* Date Tab */}
               <TabsContent value="date" className="mt-0">
-                <div className="space-y-4 p-4">
+                <div className="space-y-4">
                   {/* No Range Section */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 px-4">
                     <div>
                       <h3 className="text-sm font-medium">No range.</h3>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -506,7 +504,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                               onValueChange={field.onChange}
                               disabled={isLoading}
                             >
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-start space-x-2">
                                 <RadioGroupItem
                                   value="all_time"
                                   id="all_time"
@@ -533,7 +531,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                   <Separator />
 
                   {/* Filter by Range Section */}
-                  <div className="space-y-3">
+                  <div className="space-y-1.5 px-4">
                     <div>
                       <h3 className="text-sm font-medium">Filter by range.</h3>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -551,7 +549,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                               value={field.value}
                               onValueChange={field.onChange}
                               disabled={isLoading}
-                              className="space-y-2"
+                              className="gap-0.5"
                             >
                               {[
                                 {
@@ -646,7 +644,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                               )}
 
                               {/* Custom Range Option */}
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-start space-x-2">
                                 <RadioGroupItem
                                   value="custom_range"
                                   id="custom_range"
@@ -776,9 +774,9 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
               {/* Media Tab */}
               <TabsContent value="media" className="mt-0">
-                <div className="space-y-4 p-4">
+                <div className="space-y-4">
                   {/* Media Presence */}
-                  <div className="space-y-3">
+                  <div className="space-y-1.5 px-4">
                     <div>
                       <h3 className="text-sm font-medium">Media presence.</h3>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -796,7 +794,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                               value={field.value}
                               onValueChange={handleMediaPresenceChange}
                               disabled={isLoading}
-                              className="space-y-2"
+                              className="gap-0.5"
                             >
                               <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="any" id="media_any" />
@@ -844,7 +842,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                     <>
                       <Separator />
 
-                      <div className="space-y-3">
+                      <div className="space-y-1.5 px-4">
                         <div>
                           <h3 className="text-sm font-medium">Media types.</h3>
                           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -852,7 +850,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           </p>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="gap-0.5">
                           <Controller
                             control={form.control}
                             name="images"
@@ -912,7 +910,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
                           {/* Video sub-options */}
                           {videos && (
-                            <div className="ml-6 space-y-1">
+                            <div className="ml-6 gap-0.5">
                               {/* SOLVED: Map over the typed array. No `as any` is needed. */}
                               {videoOptions.map((option) => (
                                 <Controller
@@ -981,7 +979,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       <Separator />
 
                       {/* Content Filters */}
-                      <div className="space-y-3">
+                      <div className="space-y-1.5 px-4">
                         <div>
                           <h3 className="text-sm font-medium">
                             Content filters.
@@ -991,7 +989,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                           </p>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="gap-0.5">
                           {/* SOLVED: Map over the typed array. No `as any` is needed. */}
                           {contentFilterOptions.map((option) => (
                             <Controller
@@ -1020,7 +1018,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                       <Separator />
 
                       {/* Sensitive Content */}
-                      <div className="space-y-3">
+                      <div className="space-y-1.5 px-4">
                         <div>
                           <h3 className="text-sm font-medium">
                             Sensitive content.
@@ -1056,9 +1054,9 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
               {/* Engagement Tab */}
               <TabsContent value="engagement" className="mt-0">
-                <div className="space-y-4 p-4">
+                <div className="space-y-4">
                   {/* Engagement */}
-                  <div className="space-y-3">
+                  <div className="space-y-1.5 px-4">
                     <div>
                       <h3 className="text-sm font-medium">Engagement.</h3>
                       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -1076,7 +1074,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                               value={field.value}
                               onValueChange={field.onChange}
                               disabled={isLoading}
-                              className="space-y-2"
+                              className="gap-0.5"
                             >
                               <div className="flex items-center space-x-2">
                                 <RadioGroupItem
@@ -1136,7 +1134,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                     <>
                       <Separator />
 
-                      <div className="space-y-4">
+                      <div className="space-y-4 px-4">
                         <div>
                           <h3 className="text-sm font-medium">
                             Engagement count.
@@ -1161,7 +1159,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Min likes.
                                   </FormDescription>
                                 </div>
@@ -1178,7 +1176,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Max likes.
                                   </FormDescription>
                                 </div>
@@ -1202,7 +1200,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Min replies.
                                   </FormDescription>
                                 </div>
@@ -1219,7 +1217,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Max replies.
                                   </FormDescription>
                                 </div>
@@ -1243,7 +1241,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Min retweets.
                                   </FormDescription>
                                 </div>
@@ -1260,7 +1258,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                     disabled={isLoading}
                                     {...field}
                                   />
-                                  <FormDescription className="text-xs">
+                                  <FormDescription className="ml-3 text-xs">
                                     ↳ Max retweets.
                                   </FormDescription>
                                 </div>
