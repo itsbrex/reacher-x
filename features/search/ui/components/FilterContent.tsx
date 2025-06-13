@@ -623,7 +623,10 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                                         onValueChange={field.onChange}
                                         disabled={isLoading}
                                       >
-                                        <SelectTrigger className="w-24">
+                                        <SelectTrigger
+                                          className="w-24"
+                                          size="sm"
+                                        >
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -742,7 +745,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
                             onValueChange={field.onChange}
                             disabled={isLoading}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger size="sm">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
