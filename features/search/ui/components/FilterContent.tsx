@@ -258,23 +258,41 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="users">
-        <TabsList size="sm" className="m-4">
-          <TabsTrigger value="users" size="sm">
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="date" size="sm">
-            Date
-          </TabsTrigger>
-          <TabsTrigger value="content" size="sm">
-            Content
-          </TabsTrigger>
-          <TabsTrigger value="media" size="sm">
-            Media
-          </TabsTrigger>
-          <TabsTrigger value="engagement" size="sm">
-            Engagement
-          </TabsTrigger>
-        </TabsList>
+        <div className="relative my-4">
+          {/* Gradient overlays (no changes here) */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-background to-transparent"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-background to-transparent"
+            aria-hidden="true"
+          />
+
+          {/* 
+    The inner div is the scroll container.
+    Add the new classes here to hide the scrollbar.
+  */}
+          <div className="scrollbar-none overflow-x-scroll px-4 [&::-webkit-scrollbar]:hidden">
+            <TabsList size="sm">
+              <TabsTrigger value="users" size="sm">
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="date" size="sm">
+                Date
+              </TabsTrigger>
+              <TabsTrigger value="content" size="sm">
+                Content
+              </TabsTrigger>
+              <TabsTrigger value="media" size="sm">
+                Media
+              </TabsTrigger>
+              <TabsTrigger value="engagement" size="sm">
+                Engagement
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
         {/* Form Content */}
         <ScrollArea className="flex-1">
