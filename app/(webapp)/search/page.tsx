@@ -383,7 +383,11 @@ export default function SearchResultsPage() {
   return (
     <div
       ref={containerRef}
-      className="max-w-lg pt-4 md:border-r md:border-border"
+      className={cn(
+        "max-w-lg pt-4 md:h-full",
+        // Conditionally apply the border only when neither panel is open
+        !isFilterMode && !isSortMode && "md:border-r md:border-border"
+      )}
     >
       {/* Search header */}
       <div className="mx-4">

@@ -216,7 +216,12 @@ export const SortContent = memo<SortContentProps>(function SortContent({
   );
 
   return (
-    <div className={cn("flex h-full flex-col", className)}>
+    <div
+      className={cn(
+        "flex h-full flex-col md:border-l md:border-border",
+        className
+      )}
+    >
       {/* Header */}
       <header className="sticky left-0 right-0 top-12 z-20 flex items-center justify-between border-b bg-background py-2 pl-2.5 pr-4">
         <div className="flex items-center gap-2">
