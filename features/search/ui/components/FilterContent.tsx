@@ -82,7 +82,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
   // Get filter state from context
   const {
     hasActiveFilters,
-    activeFilterCount,
+    firstActiveFilter,
     canApplyChanges,
     updateFormDirtyState,
   } = useFilter();
@@ -187,14 +187,14 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
   // Handle video checkbox dependencies
   const handleVideosChange = useCallback(
     (checked: boolean) => {
-      form.setValue("videos", checked);
+      form.setValue("videos", checked, { shouldDirty: true });
       if (checked) {
         // Auto-select all video types when videos is checked
-        form.setValue("periscope", true);
-        form.setValue("nativeVideo", true);
-        form.setValue("consumerVideo", true);
-        form.setValue("proVideo", true);
-        form.setValue("vine", true);
+        form.setValue("periscope", true, { shouldDirty: true });
+        form.setValue("nativeVideo", true, { shouldDirty: true });
+        form.setValue("consumerVideo", true, { shouldDirty: true });
+        form.setValue("proVideo", true, { shouldDirty: true });
+        form.setValue("vine", true, { shouldDirty: true });
       }
     },
     [form]
@@ -205,23 +205,25 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
     (value: string) => {
       // SOLVED: Cast the value to the specific type expected by the 'mediaPresence' field.
       // This is a safe downcast because the RadioGroup only provides values defined in the schema.
-      form.setValue("mediaPresence", value as FilterFormData["mediaPresence"]);
+      form.setValue("mediaPresence", value as FilterFormData["mediaPresence"], {
+        shouldDirty: true,
+      });
       if (value === "any" || value === "with_media") {
         // Auto-select all media types and content filters
-        form.setValue("images", true);
-        form.setValue("twitterImages", true);
-        form.setValue("videos", true);
-        form.setValue("periscope", true);
-        form.setValue("nativeVideo", true);
-        form.setValue("consumerVideo", true);
-        form.setValue("proVideo", true);
-        form.setValue("vine", true);
-        form.setValue("spaces", true);
-        form.setValue("links", true);
-        form.setValue("mentions", true);
-        form.setValue("news", true);
-        form.setValue("hashtags", true);
-        form.setValue("hideSensitiveContent", true);
+        form.setValue("images", true, { shouldDirty: true });
+        form.setValue("twitterImages", true, { shouldDirty: true });
+        form.setValue("videos", true, { shouldDirty: true });
+        form.setValue("periscope", true, { shouldDirty: true });
+        form.setValue("nativeVideo", true, { shouldDirty: true });
+        form.setValue("consumerVideo", true, { shouldDirty: true });
+        form.setValue("proVideo", true, { shouldDirty: true });
+        form.setValue("vine", true, { shouldDirty: true });
+        form.setValue("spaces", true, { shouldDirty: true });
+        form.setValue("links", true, { shouldDirty: true });
+        form.setValue("mentions", true, { shouldDirty: true });
+        form.setValue("news", true, { shouldDirty: true });
+        form.setValue("hashtags", true, { shouldDirty: true });
+        form.setValue("hideSensitiveContent", true, { shouldDirty: true });
       }
     },
     [form]
@@ -250,9 +252,10 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
           )}
           <div className="flex items-center gap-1">
             <h2 className="text-sm font-medium">Filter.</h2>
-            {activeFilterCount > 0 && (
+            {firstActiveFilter && (
               <span className="font-mono text-xs font-medium text-muted-foreground">
-                &nbsp;· {activeFilterCount} active
+                &nbsp;· {firstActiveFilter.name}
+                {firstActiveFilter.count > 0 && `, +${firstActiveFilter.count}`}
               </span>
             )}
           </div>
@@ -271,7 +274,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
             size="xs"
             type="submit"
             form="filter-form"
-            disabled={!canApplyChanges || isLoading} // UPDATED: Use canApplyChanges instead of hasChanges
+            disabled={!canApplyChanges || isLoading}
           >
             Apply
           </Button>
