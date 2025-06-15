@@ -76,7 +76,7 @@ export function MockTweetCard({ tweet, className }: MockTweetCardProps) {
           <Link
             key={index}
             href={`https://x.com/${word.slice(1)}`}
-            className="text-blue-500 hover:underline"
+            className="text-muted-foreground hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             {word}{" "}
@@ -85,7 +85,7 @@ export function MockTweetCard({ tweet, className }: MockTweetCardProps) {
       }
       if (word.startsWith("#")) {
         return (
-          <span key={index} className="text-blue-500">
+          <span key={index} className="text-muted-foreground">
             {word}{" "}
           </span>
         );
@@ -95,7 +95,7 @@ export function MockTweetCard({ tweet, className }: MockTweetCardProps) {
           <Link
             key={index}
             href={word}
-            className="text-blue-500 hover:underline"
+            className="text-muted-foreground hover:underline"
             onClick={(e) => e.stopPropagation()}
             target="_blank"
             rel="noopener noreferrer"
@@ -134,7 +134,7 @@ export function MockTweetCard({ tweet, className }: MockTweetCardProps) {
                 {tweet.user.name}
               </Link>
               {tweet.user.verified && (
-                <NewReleasesIcon className="h-4 w-4 fill-blue-500" />
+                <NewReleasesIcon className="h-4 w-4 fill-current" />
               )}
               <Link
                 href={profileUrl}
@@ -157,7 +157,7 @@ export function MockTweetCard({ tweet, className }: MockTweetCardProps) {
               Replying to{" "}
               <Link
                 href={`https://x.com/status/${tweet.in_reply_to_status_id_str}`}
-                className="text-blue-500 hover:underline"
+                className="text-muted-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 this tweet
