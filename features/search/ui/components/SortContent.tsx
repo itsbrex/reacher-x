@@ -153,6 +153,13 @@ export const SortContent = memo<SortContentProps>(function SortContent({
     onReset();
   }, [form, onReset]);
 
+  // Get the label for the current sort option
+  const getSortLabel = useCallback((sort: SortOption) => {
+    const allOptions = Object.values(sortOptions).flat();
+    const option = allOptions.find((opt) => opt.value === sort);
+    return option?.label || sort;
+  }, []);
+
   // Render a sort section
   const renderSortSection = useCallback(
     (
@@ -236,7 +243,14 @@ export const SortContent = memo<SortContentProps>(function SortContent({
               <ArrowBackIcon className="h-4 w-4 fill-current" />
             </Button>
           )}
-          <h2 className="text-sm font-medium">Sort.</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-sm font-medium">Sort.</h2>
+            {isModified && (
+              <span className="font-mono text-xs font-medium text-muted-foreground">
+                &nbsp;· {getSortLabel(currentSort)}
+              </span>
+            )}
+          </div>
         </div>
         <Button
           variant="ghost"

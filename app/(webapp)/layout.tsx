@@ -1,9 +1,5 @@
 // app/(webapp)/layout.tsx
-import {
-  Sidebar,
-  SidebarProvider,
-  SidebarRail,
-} from "@/shared/ui/components/Sidebar";
+import { Sidebar, SidebarProvider } from "@/shared/ui/components/Sidebar";
 import { Header } from "@/features/webapp/ui/components/Header";
 import { ReactNode } from "react";
 import { KeywordHistory } from "@/features/history/ui/components/KeywordHistory";
@@ -25,7 +21,7 @@ export default function WebAppLayout({ children }: { children: ReactNode }) {
             }
           >
             <KeywordHistory />
-            <SidebarRail />
+            {/* <SidebarRail /> */}
           </Sidebar>
           <main className="w-full">{children}</main>
         </div>
