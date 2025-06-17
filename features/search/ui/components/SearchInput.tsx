@@ -28,6 +28,7 @@ interface SearchInputProps {
   disabled?: boolean;
   showExactMatch?: boolean;
   autoFocus?: boolean;
+  "aria-expanded"?: boolean;
 }
 
 export const SearchInput = memo(
@@ -45,6 +46,7 @@ export const SearchInput = memo(
       disabled = false,
       showExactMatch = true,
       autoFocus = false,
+      "aria-expanded": ariaExpanded,
     },
     ref
   ) {
@@ -138,8 +140,8 @@ export const SearchInput = memo(
           autoFocus={autoFocus}
           className={cn(showExactMatch ? "pr-24" : "pr-12")}
           aria-label="Search keywords"
-          aria-expanded={false}
           aria-haspopup="listbox"
+          aria-expanded={ariaExpanded}
         />
         <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
           {showExactMatch && (

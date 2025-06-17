@@ -21,13 +21,15 @@ import {
   FilterAltIcon,
   SwapVertIcon,
 } from "@/shared/ui/components/icons";
-import { MockTweetCard } from "@/features/search/ui/components/MockTweetCard";
+import { TweetCard } from "@/features/threads/ui/components/TweetCard";
+import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
+import { Tweet } from "@/features/threads/types";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
 type ValidTab = (typeof validTabs)[number];
 
-// Mock data - in real app, these would come from your data layer
+// Mock suggestions - in real app, these would come from your data layer
 const mockSuggestions: KeywordItem[] = [
   { id: "1", keyword: "help me in web dev" },
   { id: "2", keyword: "can't do web dev" },
@@ -53,143 +55,11 @@ const mockAllKeywords: KeywordItem[] = [
   },
 ];
 
-// Mock tweet data structure matching your types
-const mockTweets = [
-  {
-    id: "1",
-    id_str: "1234567890",
-    threadId: "thread_1",
-    user: {
-      id: 123,
-      id_str: "123",
-      name: "Customer",
-      screen_name: "Customer",
-      location: "San Francisco, CA",
-      url: "https://reacherx.com",
-      description: "Building the future of customer acquisition",
-      protected: false,
-      verified: false,
-      followers_count: 1250,
-      friends_count: 300,
-      listed_count: 15,
-      favourites_count: 2340,
-      statuses_count: 450,
-      created_at: "2020-01-15T10:30:00.000Z",
-      profile_image_url_https: "",
-      can_dm: true,
-    },
-    text: "@Vecterz Find #unlimited customers for your products/services with the help of advance search of ReacherX. https://reacherx.com",
-    created_at: "2025-06-01T14:03:44.000Z",
-    reply_count: 12,
-    retweet_count: 45,
-    quote_count: 8,
-    favorite_count: 156,
-    views_count: 2340,
-    type: "post" as const,
-  },
-  {
-    id: "2",
-    id_str: "1234567891",
-    threadId: "thread_2",
-    user: {
-      id: 124,
-      id_str: "124",
-      name: "Web Developer",
-      screen_name: "webdev_pro",
-      location: "Remote",
-      description: "Full-stack developer sharing web dev tips and tricks",
-      protected: false,
-      verified: true,
-      followers_count: 5420,
-      friends_count: 890,
-      listed_count: 45,
-      favourites_count: 12300,
-      statuses_count: 2340,
-      created_at: "2019-05-20T14:22:00.000Z",
-      profile_image_url_https: "",
-      can_dm: true,
-    },
-    text: "Struggling with web development? Here are 5 tips that changed my career: 1. Master the fundamentals 2. Build projects 3. Join communities 4. Never stop learning 5. Share your knowledge",
-    created_at: "2025-06-01T13:30:22.000Z",
-    reply_count: 34,
-    retweet_count: 123,
-    quote_count: 15,
-    favorite_count: 567,
-    views_count: 4520,
-    type: "post" as const,
-  },
-  {
-    id: "3",
-    id_str: "1234567892",
-    threadId: "thread_1",
-    user: {
-      id: 125,
-      id_str: "125",
-      name: "Sarah Chen",
-      screen_name: "sarahc_dev",
-      location: "New York, NY",
-      description: "Product designer who codes",
-      protected: false,
-      verified: false,
-      followers_count: 890,
-      friends_count: 456,
-      listed_count: 12,
-      favourites_count: 3450,
-      statuses_count: 678,
-      created_at: "2021-03-10T09:15:00.000Z",
-      profile_image_url_https: "",
-      can_dm: true,
-    },
-    text: "@Customer This looks amazing! I've been looking for something exactly like this. How does the pricing work?",
-    created_at: "2025-06-01T13:45:15.000Z",
-    reply_count: 5,
-    retweet_count: 2,
-    quote_count: 0,
-    favorite_count: 23,
-    views_count: 145,
-    type: "reply" as const,
-    in_reply_to_status_id_str: "1234567890",
-  },
-  {
-    id: "4",
-    id_str: "1234567893",
-    threadId: "thread_3",
-    user: {
-      id: 126,
-      id_str: "126",
-      name: "Tech Startup",
-      screen_name: "techstartup2025",
-      location: "Austin, TX",
-      description: "Early stage startup building the future",
-      protected: false,
-      verified: true,
-      followers_count: 2340,
-      friends_count: 567,
-      listed_count: 23,
-      favourites_count: 5670,
-      statuses_count: 890,
-      created_at: "2022-08-01T16:45:00.000Z",
-      profile_image_url_https: "",
-      can_dm: true,
-    },
-    text: "Quote tweet: This is exactly what we need for our customer acquisition! https://twitter.com/Customer/status/1234567890",
-    created_at: "2025-06-01T12:20:33.000Z",
-    reply_count: 8,
-    retweet_count: 34,
-    quote_count: 3,
-    favorite_count: 89,
-    views_count: 890,
-    type: "quote" as const,
-    quoted_status_id_str: "1234567890",
-  },
-];
-
 export default function SearchResultsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { openFilter, isFilterMode, hasActiveFilters, activeFilterCount } =
     useFilter();
-  // Add sort context usage
   const { openSort, isSortMode, isModified: isSortModified } = useSort();
 
   // Committed state (from URL - source of truth)
@@ -202,7 +72,6 @@ export default function SearchResultsPage() {
 
   // UI state
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [loading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -214,6 +83,13 @@ export default function SearchResultsPage() {
 
   // Track if we're in the middle of a commit operation to prevent revert
   const isCommittingRef = useRef(false);
+
+  // Twitter search hook
+  const { searchTweets, results, loading, error, retryCount, clearResults } =
+    useTwitterSearch();
+
+  // Track the next cursor for pagination
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   // Helper function to safely get the current tab
   const getCurrentTab = useCallback((): ValidTab => {
@@ -227,7 +103,29 @@ export default function SearchResultsPage() {
     setIsSearchMode(false);
     setInputKey((prev) => prev + 1);
     isCommittingRef.current = false;
-  }, [committedQuery, committedExactMatch]);
+    setNextCursor(null); // Reset cursor on new search
+
+    // Perform search when URL changes
+    if (committedQuery) {
+      searchTweets(committedQuery, committedExactMatch);
+    } else {
+      clearResults();
+    }
+  }, [committedQuery, committedExactMatch, searchTweets, clearResults]);
+
+  // Update next cursor when results change
+  useEffect(() => {
+    if (results?.meta?.next_cursor) {
+      setNextCursor(results.meta.next_cursor);
+    }
+  }, [results?.meta?.next_cursor]);
+
+  // Handle load more
+  const handleLoadMore = useCallback(() => {
+    if (nextCursor && committedQuery) {
+      searchTweets(committedQuery, committedExactMatch, false, nextCursor);
+    }
+  }, [nextCursor, committedQuery, committedExactMatch, searchTweets]);
 
   // Revert draft state whenever search mode exits without commit
   useEffect(() => {
@@ -262,17 +160,30 @@ export default function SearchResultsPage() {
 
   // Separate tweets by type for proper TabsContent usage
   const tweetsByType = useMemo(() => {
-    const posts = mockTweets.filter((tweet) => tweet.type === "post");
-    const replies = mockTweets.filter((tweet) => tweet.type === "reply");
-    const quotes = mockTweets.filter((tweet) => tweet.type === "quote");
+    if (!results?.tweets) {
+      return {
+        all: [],
+        posts: [],
+        replies: [],
+        quotes: [],
+      };
+    }
+
+    const posts = results.tweets.filter(
+      (tweet) => !tweet.in_reply_to_status_id_str && !tweet.quoted_status_id_str
+    );
+    const replies = results.tweets.filter(
+      (tweet) => tweet.in_reply_to_status_id_str
+    );
+    const quotes = results.tweets.filter((tweet) => tweet.quoted_status_id_str);
 
     return {
-      all: mockTweets,
+      all: results.tweets,
       posts,
       replies,
       quotes,
     };
-  }, []);
+  }, [results?.tweets]);
 
   // Commit draft state (search execution)
   const handleSearch = useCallback(
@@ -364,18 +275,36 @@ export default function SearchResultsPage() {
   }, [handleKeyDown]);
 
   // Render tweet list component
-  const renderTweetList = (tweets: typeof mockTweets) => (
+  const renderTweetList = (tweets: Tweet[]) => (
     <div className="divide-y">
       {tweets.length > 0 ? (
         tweets.map((tweet) => (
-          <div key={tweet.id} className="p-4">
-            <MockTweetCard tweet={tweet} />
+          <div key={tweet.id_str} className="p-4">
+            <TweetCard
+              threadId={tweet.conversation_id_str || tweet.id_str || ""}
+              staticTweet={tweet}
+              size="md"
+              bordered={false}
+              showFullContent={true}
+            />
           </div>
         ))
       ) : (
         <p className="text-lg font-medium text-muted-foreground">
           No results found
         </p>
+      )}
+      {results?.meta?.has_next_page && (
+        <div className="p-4">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleLoadMore}
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Load more"}
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -414,6 +343,8 @@ export default function SearchResultsPage() {
           <div>Draft: &quot;{draftQuery}&quot;</div>
           <div>Mode: {isSearchMode ? "Search" : "Results"}</div>
           <div>Active Tab: {activeTab}</div>
+          {error && <div className="text-destructive">Error: {error}</div>}
+          {retryCount > 0 && <div>Retry count: {retryCount}</div>}
         </div>
       )}
 
