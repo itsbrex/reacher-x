@@ -4,8 +4,11 @@ import { action } from "./_generated/server";
 import type { Tweet, Entities } from "../features/threads/types";
 
 // Constants for API configuration
+// TEMPORARY: Using webhook.site to prevent credit usage during debugging
 const TWITTER_API_BASE_URL =
-  "https://api.twitterapi.io/twitter/tweet/advanced_search";
+  "https://webhook.site/b47a9d11-d1be-41e6-99f5-e49f6441c4a0";
+// Original URL (commented out to prevent credit usage):
+// const TWITTER_API_BASE_URL = "https://api.twitterapi.io/twitter/tweet/advanced_search";
 const MAX_QUERY_LENGTH = 500;
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 
@@ -203,7 +206,109 @@ export const searchTwitter = action({
         );
       }
 
-      // Get and validate API key
+      // TEMPORARY: Return mock data when using webhook endpoint
+      if (TWITTER_API_BASE_URL.includes("webhook.site")) {
+        console.log("Using mock data for webhook endpoint");
+
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const mockTweets: Tweet[] = [
+          {
+            id: 1234567890,
+            id_str: "1234567890",
+            text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
+            full_text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
+            tweet_created_at: new Date().toISOString(),
+            source: "Mock Client",
+            retweet_count: 5,
+            reply_count: 2,
+            favorite_count: 10,
+            quote_count: 1,
+            views_count: 100,
+            lang: "en",
+            bookmark_count: 3,
+            in_reply_to_status_id_str: undefined,
+            conversation_id_str: "1234567890",
+            in_reply_to_user_id_str: undefined,
+            in_reply_to_screen_name: undefined,
+            user: {
+              id: 987654321,
+              id_str: "987654321",
+              name: "Mock User",
+              screen_name: "mockuser",
+              verified: false,
+              profile_image_url_https: "https://via.placeholder.com/400x400",
+              protected: false,
+              followers_count: 1000,
+              friends_count: 500,
+              listed_count: 10,
+              favourites_count: 2000,
+              statuses_count: 5000,
+              created_at: "2020-01-01T00:00:00.000Z",
+              can_dm: true,
+            },
+            entities: {
+              hashtags: [],
+              symbols: [],
+              user_mentions: [],
+              urls: [],
+            },
+          },
+          {
+            id: 1234567891,
+            id_str: "1234567891",
+            text: `Another mock tweet for "${query}". This helps test pagination and multiple results.`,
+            full_text: `Another mock tweet for "${query}". This helps test pagination and multiple results.`,
+            tweet_created_at: new Date(Date.now() - 3600000).toISOString(),
+            source: "Mock Web App",
+            retweet_count: 2,
+            reply_count: 1,
+            favorite_count: 7,
+            quote_count: 0,
+            views_count: 50,
+            lang: "en",
+            bookmark_count: 1,
+            in_reply_to_status_id_str: undefined,
+            conversation_id_str: "1234567891",
+            in_reply_to_user_id_str: undefined,
+            in_reply_to_screen_name: undefined,
+            user: {
+              id: 987654322,
+              id_str: "987654322",
+              name: "Another Mock User",
+              screen_name: "anothermockuser",
+              verified: true,
+              profile_image_url_https: "https://via.placeholder.com/400x400",
+              protected: false,
+              followers_count: 5000,
+              friends_count: 1000,
+              listed_count: 25,
+              favourites_count: 3000,
+              statuses_count: 8000,
+              created_at: "2019-01-01T00:00:00.000Z",
+              can_dm: false,
+            },
+            entities: {
+              hashtags: [],
+              symbols: [],
+              user_mentions: [],
+              urls: [],
+            },
+          },
+        ];
+
+        return {
+          success: true,
+          data: {
+            tweets: mockTweets,
+            has_next_page: !cursor, // Only show "next page" for first request
+            next_cursor: cursor ? "" : "mock_cursor_12345",
+          },
+        };
+      }
+
+      // Get and validate API key (for real API calls)
       const twitterApiKey = process.env.TWITTER_API_KEY;
       if (!twitterApiKey) {
         throw new Error(

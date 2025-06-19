@@ -88,8 +88,10 @@ export default function SearchResultsPage() {
   const { searchTweets, results, loading, error, retryCount, clearResults } =
     useTwitterSearch();
 
-  // Track the next cursor for pagination
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // Add safeguards against infinite loops
+  const isInitialSearchDone = useRef(false);
+  const lastCommittedQuery = useRef<string>("");
+  const lastCommittedExactMatch = useRef<boolean>(false);
 
   // Helper function to safely get the current tab
   const getCurrentTab = useCallback((): ValidTab => {
@@ -98,34 +100,65 @@ export default function SearchResultsPage() {
 
   // Sync draft state with committed state when URL changes
   useEffect(() => {
+    console.log("URL sync effect triggered:", {
+      committedQuery,
+      committedExactMatch,
+      lastCommittedQuery: lastCommittedQuery.current,
+      lastCommittedExactMatch: lastCommittedExactMatch.current,
+    });
+
+    // Prevent infinite loops by checking if the committed values actually changed
+    if (
+      committedQuery === lastCommittedQuery.current &&
+      committedExactMatch === lastCommittedExactMatch.current
+    ) {
+      console.log("No actual change in committed values, skipping search");
+      return;
+    }
+
+    // Update tracking refs
+    lastCommittedQuery.current = committedQuery;
+    lastCommittedExactMatch.current = committedExactMatch;
+
     setDraftQuery(committedQuery);
     setDraftExactMatch(committedExactMatch);
     setIsSearchMode(false);
     setInputKey((prev) => prev + 1);
     isCommittingRef.current = false;
-    setNextCursor(null); // Reset cursor on new search
 
-    // Perform search when URL changes
-    if (committedQuery) {
+    // Only trigger search if we have a query, and prevent duplicate initial searches
+    if (committedQuery && committedQuery.trim()) {
+      console.log("Triggering search for:", committedQuery);
       searchTweets(committedQuery, committedExactMatch);
+      isInitialSearchDone.current = true;
     } else {
+      console.log("Clearing results - no query");
       clearResults();
+      isInitialSearchDone.current = false;
     }
   }, [committedQuery, committedExactMatch, searchTweets, clearResults]);
 
-  // Update next cursor when results change
-  useEffect(() => {
-    if (results?.meta?.next_cursor) {
-      setNextCursor(results.meta.next_cursor);
-    }
-  }, [results?.meta?.next_cursor]);
-
   // Handle load more
   const handleLoadMore = useCallback(() => {
-    if (nextCursor && committedQuery) {
-      searchTweets(committedQuery, committedExactMatch, false, nextCursor);
+    if (results?.meta?.next_cursor && committedQuery && !loading) {
+      console.log(
+        "Loading more results with cursor:",
+        results.meta.next_cursor
+      );
+      searchTweets(
+        committedQuery,
+        committedExactMatch,
+        false,
+        results.meta.next_cursor
+      );
     }
-  }, [nextCursor, committedQuery, committedExactMatch, searchTweets]);
+  }, [
+    results?.meta?.next_cursor,
+    committedQuery,
+    committedExactMatch,
+    loading,
+    searchTweets,
+  ]);
 
   // Revert draft state whenever search mode exits without commit
   useEffect(() => {
@@ -283,7 +316,7 @@ export default function SearchResultsPage() {
             <TweetCard
               threadId={tweet.conversation_id_str || tweet.id_str || ""}
               staticTweet={tweet}
-              size="md"
+              size="sm"
               bordered={false}
               showFullContent={true}
             />
