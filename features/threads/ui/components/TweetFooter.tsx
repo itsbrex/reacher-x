@@ -19,29 +19,53 @@ interface TweetFooterProps {
   threadId: string;
   tweetId: string | undefined;
   tweetUrl: string;
+  // New prop for static data - when provided, skips API call
+  staticTweet?: Tweet;
 }
 
-export function TweetFooter({ threadId, tweetId, tweetUrl }: TweetFooterProps) {
+export function TweetFooter({
+  threadId,
+  tweetId,
+  tweetUrl,
+  staticTweet,
+}: TweetFooterProps) {
   const getDynamicThreadData = useAction(api.socialdata.getDynamicThreadData);
-  const [metrics, setMetrics] = useState<Tweet | null>(null);
+  const [metrics, setMetrics] = useState<Tweet | null>(staticTweet || null);
+  const [loading, setLoading] = useState(!staticTweet);
 
   useEffect(() => {
-    getDynamicThreadData({ threadId })
-      .then((data) => {
-        const tweetData = data.tweets.find((t: Tweet) => t.id_str === tweetId);
-        if (!tweetData) {
-          console.error(
-            `Tweet with id ${tweetId} not found in thread ${threadId}`
-          );
-        }
-        setMetrics(tweetData || null);
-      })
-      .catch((error) => {
-        console.error("Error fetching dynamic thread data:", error);
-      });
-  }, [threadId, tweetId, getDynamicThreadData]);
+    // Skip API call if static tweet data is provided
+    if (staticTweet) {
+      setMetrics(staticTweet);
+      setLoading(false);
+      return;
+    }
 
-  if (!metrics)
+    // Only make API call if no static data is available
+    if (!staticTweet && threadId && tweetId) {
+      setLoading(true);
+      getDynamicThreadData({ threadId })
+        .then((data) => {
+          const tweetData = data.tweets.find(
+            (t: Tweet) => t.id_str === tweetId
+          );
+          if (!tweetData) {
+            console.error(
+              `Tweet with id ${tweetId} not found in thread ${threadId}`
+            );
+          }
+          setMetrics(tweetData || null);
+        })
+        .catch((error) => {
+          console.error("Error fetching dynamic thread data:", error);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [threadId, tweetId, staticTweet, getDynamicThreadData]);
+
+  if (loading || !metrics)
     return (
       <footer className="flex justify-between">
         <span className="flex gap-1">

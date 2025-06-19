@@ -318,26 +318,26 @@ export default function SearchResultsPage() {
               staticTweet={tweet}
               size="sm"
               bordered={false}
-              showFullContent={true}
+              showFullContent={false}
+              showThread={true}
             />
           </div>
         ))
       ) : (
-        <p className="text-lg font-medium text-muted-foreground">
+        <p className="text-center text-sm font-medium text-muted-foreground">
           No results found
         </p>
       )}
       {results?.meta?.has_next_page && (
-        <div className="p-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={handleLoadMore}
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "Load more"}
-          </Button>
-        </div>
+        <Button
+          variant="default"
+          size="xs"
+          className="mx-auto my-4 block"
+          onClick={handleLoadMore}
+          disabled={loading}
+        >
+          {loading ? "Loading..." : "Load more"}
+        </Button>
       )}
     </div>
   );

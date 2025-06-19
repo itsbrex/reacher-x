@@ -151,6 +151,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                   threadId={threadId}
                   tweetId={staticTweet?.id_str}
                   size="lg"
+                  staticUser={staticTweet?.user}
                 >
                   <time
                     className={cn(
@@ -202,6 +203,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                 threadId={threadId}
                 tweetId={staticTweet?.id_str}
                 tweetUrl={tweetUrl}
+                staticTweet={staticTweet}
               />
             </section>
 

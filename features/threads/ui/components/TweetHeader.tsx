@@ -16,6 +16,8 @@ interface TweetHeaderProps {
   avatarClass?: string;
   children?: React.ReactNode;
   size?: "sm" | "md" | "lg";
+  // New prop for static data - when provided, skips API call
+  staticUser?: User;
 }
 
 export function TweetHeader({
@@ -24,6 +26,7 @@ export function TweetHeader({
   avatarClass,
   children,
   size,
+  staticUser,
 }: TweetHeaderProps) {
   const nameClass = cn(
     "text-base",
@@ -47,25 +50,42 @@ export function TweetHeader({
   );
 
   const getDynamicThreadData = useAction(api.socialdata.getDynamicThreadData);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(staticUser || null);
+  const [loading, setLoading] = useState(!staticUser);
 
   useEffect(() => {
-    getDynamicThreadData({ threadId })
-      .then((data) => {
-        const tweetData = data.tweets.find((t: Tweet) => t.id_str === tweetId);
-        if (!tweetData) {
-          console.error(
-            `Tweet with id ${tweetId} not found in thread ${threadId}`
-          );
-        }
-        setUser(tweetData?.user || null);
-      })
-      .catch((error) => {
-        console.error("Error fetching dynamic thread data:", error);
-      });
-  }, [threadId, tweetId, getDynamicThreadData]);
+    // Skip API call if static user data is provided
+    if (staticUser) {
+      setUser(staticUser);
+      setLoading(false);
+      return;
+    }
 
-  if (!user)
+    // Only make API call if no static data is available
+    if (!staticUser && threadId && tweetId) {
+      setLoading(true);
+      getDynamicThreadData({ threadId })
+        .then((data) => {
+          const tweetData = data.tweets.find(
+            (t: Tweet) => t.id_str === tweetId
+          );
+          if (!tweetData) {
+            console.error(
+              `Tweet with id ${tweetId} not found in thread ${threadId}`
+            );
+          }
+          setUser(tweetData?.user || null);
+        })
+        .catch((error) => {
+          console.error("Error fetching dynamic thread data:", error);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [threadId, tweetId, staticUser, getDynamicThreadData]);
+
+  if (loading || !user)
     return (
       <>
         <div className="flex gap-1">

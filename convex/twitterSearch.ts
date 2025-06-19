@@ -217,8 +217,8 @@ export const searchTwitter = action({
           {
             id: 1234567890,
             id_str: "1234567890",
-            text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
-            full_text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
+            text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues. Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues. Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
+            full_text: `Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues. Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues. Mock tweet about ${query}. This is a test tweet to simulate API response while debugging infinite loop issues.`,
             tweet_created_at: new Date().toISOString(),
             source: "Mock Client",
             retweet_count: 5,
