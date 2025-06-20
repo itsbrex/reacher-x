@@ -346,7 +346,7 @@ export default function SearchResultsPage() {
     <div
       ref={containerRef}
       className={cn(
-        "max-w-lg pt-4 md:h-full",
+        "w-full pt-4 md:h-full md:w-[514px]",
         // Conditionally apply the border only when neither panel is open
         !isFilterMode && !isSortMode && "md:border-r md:border-border"
       )}
