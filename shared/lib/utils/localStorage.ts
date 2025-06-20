@@ -1,0 +1,113 @@
+/**
+ * Safe localStorage utilities with error handling
+ * Handles browser compatibility and storage quotas gracefully
+ */
+
+// Storage keys
+export const STORAGE_KEYS = {
+  WORKSPACE_DESCRIPTION: "workspace_description",
+  WORKSPACE_NAME: "workspace_name",
+} as const;
+
+/**
+ * Check if localStorage is available
+ */
+function isLocalStorageAvailable(): boolean {
+  try {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const test = "__localStorage_test__";
+    localStorage.setItem(test, "test");
+    localStorage.removeItem(test);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Safely get an item from localStorage
+ */
+export function getLocalStorage(key: string): string | null {
+  try {
+    if (!isLocalStorageAvailable()) {
+      return null;
+    }
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn(`Failed to get localStorage item '${key}':`, error);
+    return null;
+  }
+}
+
+/**
+ * Safely set an item in localStorage
+ */
+export function setLocalStorage(key: string, value: string): boolean {
+  try {
+    if (!isLocalStorageAvailable()) {
+      return false;
+    }
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn(`Failed to set localStorage item '${key}':`, error);
+    return false;
+  }
+}
+
+/**
+ * Safely remove an item from localStorage
+ */
+export function removeLocalStorage(key: string): boolean {
+  try {
+    if (!isLocalStorageAvailable()) {
+      return false;
+    }
+    localStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    console.warn(`Failed to remove localStorage item '${key}':`, error);
+    return false;
+  }
+}
+
+/**
+ * Store workspace description for non-signed-in users
+ */
+export function storeWorkspaceDescription(description: string): boolean {
+  return setLocalStorage(STORAGE_KEYS.WORKSPACE_DESCRIPTION, description);
+}
+
+/**
+ * Get workspace description for non-signed-in users
+ */
+export function getWorkspaceDescription(): string | null {
+  return getLocalStorage(STORAGE_KEYS.WORKSPACE_DESCRIPTION);
+}
+
+/**
+ * Store workspace name for non-signed-in users
+ */
+export function storeWorkspaceName(name: string): boolean {
+  return setLocalStorage(STORAGE_KEYS.WORKSPACE_NAME, name);
+}
+
+/**
+ * Get workspace name for non-signed-in users
+ */
+export function getWorkspaceName(): string | null {
+  return getLocalStorage(STORAGE_KEYS.WORKSPACE_NAME);
+}
+
+/**
+ * Clear all workspace data
+ */
+export function clearWorkspaceData(): boolean {
+  const descriptionRemoved = removeLocalStorage(
+    STORAGE_KEYS.WORKSPACE_DESCRIPTION
+  );
+  const nameRemoved = removeLocalStorage(STORAGE_KEYS.WORKSPACE_NAME);
+  return descriptionRemoved && nameRemoved;
+}
