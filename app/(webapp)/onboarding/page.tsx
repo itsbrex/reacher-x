@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+import NumberFlow from "@number-flow/react";
 import { Button } from "@/shared/ui/components/Button";
 import {
   Form,
@@ -58,7 +59,7 @@ function getHelpText(charCount: number): {
 
   if (charCount >= MAX_CHARS) {
     return {
-      text: "No more room left.",
+      text: "Character limit reached.",
       variant: "error",
     };
   }
@@ -70,7 +71,8 @@ function getHelpText(charCount: number): {
 }
 
 /**
- * Character counter component with proper styling
+ * Character counter component with NumberFlow animation
+ * Uses NumberFlow for smooth transitions when character count changes
  */
 interface CharacterCounterProps {
   current: number;
@@ -82,21 +84,36 @@ function CharacterCounter({ current, max, className }: CharacterCounterProps) {
   const isOverLimit = current > max;
   const isNearLimit = current > max * 0.8;
 
+  // Determine the color class based on character count state
+  const colorClass = isOverLimit
+    ? "text-red-500"
+    : isNearLimit
+      ? "text-primary dark:text-primary"
+      : "text-muted-foreground";
+
   return (
     <span
-      className={cn(
-        "font-mono text-sm font-medium tabular-nums",
-        isOverLimit
-          ? "text-red-500"
-          : isNearLimit
-            ? "text-primary dark:text-primary"
-            : "text-muted-foreground",
-        className
-      )}
+      className={cn("text-sm font-medium", colorClass, className)}
       aria-live="polite"
       aria-label={`${current} of ${max} characters used`}
     >
-      {current}/{max}
+      <NumberFlow
+        value={current}
+        className="font-mono tabular-nums"
+        style={
+          {
+            // Apply color styling to NumberFlow parts
+            "--number-flow-color": "currentColor",
+            fontVariantNumeric: "tabular-nums",
+          } as React.CSSProperties
+        }
+        // Optimize for frequent updates since users type continuously
+        willChange={true}
+        // Smooth transitions for better UX
+        transformTiming={{ duration: 150, easing: "ease-out" }}
+        opacityTiming={{ duration: 100, easing: "ease-out" }}
+      />
+      <span className="font-mono tabular-nums">/{max}</span>
     </span>
   );
 }
@@ -178,7 +195,7 @@ export default function OnboardingPage() {
                   className={cn(
                     "text-sm transition-colors",
                     helpText.variant === "error"
-                      ? "text-red-500"
+                      ? "text-red-500 focus-visible:ring-red-500"
                       : helpText.variant === "warning"
                         ? "text-primary dark:text-primary"
                         : "text-muted-foreground"
