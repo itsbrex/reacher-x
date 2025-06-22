@@ -45,27 +45,27 @@ function getHelpText(charCount: number): {
 } {
   if (charCount === 0) {
     return {
-      text: "Description is required for keyword suggestions.",
+      text: "↳ Required for keyword suggestions and filtering.",
       variant: "default",
     };
   }
 
   if (charCount < MIN_CHARS) {
     return {
-      text: "Describe more.",
+      text: "↳ Describe more.",
       variant: "warning",
     };
   }
 
   if (charCount >= MAX_CHARS) {
     return {
-      text: "Character limit reached.",
+      text: "↳ Character limit reached.",
       variant: "error",
     };
   }
 
   return {
-    text: "Keywords will be suggested based on this description.",
+    text: "↳ Keywords will be suggested based on this description.",
     variant: "default",
   };
 }
