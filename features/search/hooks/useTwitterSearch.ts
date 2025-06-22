@@ -56,6 +56,31 @@ export function useTwitterSearch() {
   const searchTwitterAction = useAction(api.twitterSearch.searchTwitter);
   const filterTweetsAction = useAction(api.llmFilter.filterTweetsWithLLM);
 
+  // Helper function to merge pagination results
+  const mergePaginationResults = (
+    existingResults: SearchResult,
+    newTweets: Tweet[],
+    transformedResults: SearchResult,
+    customFilteredCount?: number
+  ): SearchResult => {
+    const existingMeta = existingResults.meta || {};
+
+    return {
+      tweets: [...existingResults.tweets, ...newTweets],
+      meta: {
+        ...transformedResults.meta,
+        originalCount:
+          (existingMeta.originalCount || 0) + transformedResults.tweets.length,
+        filteredCount:
+          customFilteredCount ??
+          existingResults.tweets.length + newTweets.length,
+        llmProcessedCount:
+          (existingMeta.llmProcessedCount || 0) +
+          (transformedResults.meta?.llmProcessedCount || 0),
+      },
+    };
+  };
+
   // Stable search function with enhanced logging and automatic LLM filtering
   const searchTweets = useCallback(
     async (
@@ -285,28 +310,22 @@ export function useTwitterSearch() {
                     const existingMeta = resultsRef.current.meta || {};
                     const newMeta = filterResult.data.meta || {};
 
-                    finalResults = {
-                      tweets: [
-                        ...resultsRef.current.tweets, // Existing filtered tweets
-                        ...filterResult.data.tweets, // Newly filtered tweets
-                      ],
-                      meta: {
-                        ...transformedResults.meta, // Pagination info (next_cursor, etc.)
-                        originalCount:
-                          (existingMeta.originalCount || 0) +
-                          transformedResults.tweets.length,
-                        filteredCount:
-                          resultsRef.current.tweets.length +
-                          filterResult.data.tweets.length,
-                        llmProcessedCount:
-                          (existingMeta.llmProcessedCount || 0) +
-                          (newMeta.llmProcessedCount || 0),
-                        processingTimeMs: newMeta.processingTimeMs,
-                        llmProcessingTimeMs: newMeta.llmProcessingTimeMs,
-                        requestId: newMeta.requestId,
-                        filterSummary: `Total: ${resultsRef.current.tweets.length + filterResult.data.tweets.length} tweets from ${(existingMeta.originalCount || 0) + transformedResults.tweets.length} original`,
-                        confidenceStats: newMeta.confidenceStats, // Use stats from latest batch
-                      },
+                    finalResults = mergePaginationResults(
+                      resultsRef.current,
+                      filterResult.data.tweets,
+                      transformedResults,
+                      resultsRef.current.tweets.length +
+                        filterResult.data.tweets.length
+                    );
+
+                    // Add specific meta properties for filtered results
+                    finalResults.meta = {
+                      ...finalResults.meta,
+                      processingTimeMs: newMeta.processingTimeMs,
+                      llmProcessingTimeMs: newMeta.llmProcessingTimeMs,
+                      requestId: newMeta.requestId,
+                      filterSummary: `Total: ${resultsRef.current.tweets.length + filterResult.data.tweets.length} tweets from ${(existingMeta.originalCount || 0) + transformedResults.tweets.length} original`,
+                      confidenceStats: newMeta.confidenceStats, // Use stats from latest batch
                     };
 
                     console.log(
@@ -343,21 +362,11 @@ export function useTwitterSearch() {
 
                   // For pagination with failed filtering: merge unfiltered new tweets with existing results
                   if (isPagination && resultsRef.current) {
-                    finalResults = {
-                      tweets: [
-                        ...resultsRef.current.tweets,
-                        ...transformedResults.tweets,
-                      ],
-                      meta: {
-                        ...transformedResults.meta,
-                        originalCount:
-                          (resultsRef.current.meta?.originalCount || 0) +
-                          transformedResults.tweets.length,
-                        filteredCount:
-                          resultsRef.current.tweets.length +
-                          transformedResults.tweets.length,
-                      },
-                    };
+                    finalResults = mergePaginationResults(
+                      resultsRef.current,
+                      transformedResults.tweets,
+                      transformedResults
+                    );
                   }
                   // For initial search: use unfiltered results (finalResults already set above)
                 }
@@ -378,21 +387,11 @@ export function useTwitterSearch() {
 
                 // For pagination with error: merge unfiltered new tweets with existing results
                 if (isPagination && resultsRef.current) {
-                  finalResults = {
-                    tweets: [
-                      ...resultsRef.current.tweets,
-                      ...transformedResults.tweets,
-                    ],
-                    meta: {
-                      ...transformedResults.meta,
-                      originalCount:
-                        (resultsRef.current.meta?.originalCount || 0) +
-                        transformedResults.tweets.length,
-                      filteredCount:
-                        resultsRef.current.tweets.length +
-                        transformedResults.tweets.length,
-                    },
-                  };
+                  finalResults = mergePaginationResults(
+                    resultsRef.current,
+                    transformedResults.tweets,
+                    transformedResults
+                  );
                 }
                 // For initial search: use unfiltered results (finalResults already set above)
               }
@@ -408,21 +407,11 @@ export function useTwitterSearch() {
 
               // For pagination without filtering: merge all tweets
               if (isPagination && resultsRef.current) {
-                finalResults = {
-                  tweets: [
-                    ...resultsRef.current.tweets,
-                    ...transformedResults.tweets,
-                  ],
-                  meta: {
-                    ...transformedResults.meta,
-                    originalCount:
-                      (resultsRef.current.meta?.originalCount || 0) +
-                      transformedResults.tweets.length,
-                    filteredCount:
-                      resultsRef.current.tweets.length +
-                      transformedResults.tweets.length,
-                  },
-                };
+                finalResults = mergePaginationResults(
+                  resultsRef.current,
+                  transformedResults.tweets,
+                  transformedResults
+                );
               }
               // For initial search: use results as-is (finalResults already set above)
             }
