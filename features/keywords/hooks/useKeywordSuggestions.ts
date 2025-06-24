@@ -104,6 +104,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const lastRequestTimestamp = useRef<number>(0);
   const isInitialized = useRef<boolean>(false);
   const hasAttemptedInitialFetch = useRef<boolean>(false);
+  const isLoadingRef = useRef<boolean>(false);
 
   // Convex action for keyword generation
   const generateKeywordsAction = useAction(
@@ -252,7 +253,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       return;
     }
 
-    if (loading) {
+    if (isLoadingRef.current) {
       console.log(
         "[KEYWORD_SUGGESTIONS] Generation already in progress, skipping"
       );
@@ -260,6 +261,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     }
 
     lastRequestTimestamp.current = now;
+    isLoadingRef.current = true;
     setLoading(true);
     setError(null);
     setFromCache(false);
@@ -344,12 +346,12 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       );
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   }, [
     hasValidDescription,
     userDescription,
     userDescriptionHash,
-    loading,
     generateKeywordsAction,
   ]);
 
@@ -383,7 +385,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
     console.log("[KEYWORD_SUGGESTIONS] Refreshing suggestions:", {
       hasValidDescription,
-      suggestionsCount: suggestions.length,
     });
 
     // Try cache first
@@ -403,7 +404,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     loadCachedSuggestions,
     loadFallbackSuggestions,
     generateKeywords,
-    suggestions.length,
   ]);
 
   // Clear error state

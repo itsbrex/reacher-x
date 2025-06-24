@@ -90,7 +90,7 @@ export function useTwitterSearch() {
       cursor?: string
     ) => {
       const searchStartTime = Date.now();
-      const searchRequestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const searchRequestId = `search_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
       console.log(
         `[TWITTER_SEARCH] Starting search request ${searchRequestId}`,

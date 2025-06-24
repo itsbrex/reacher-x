@@ -137,8 +137,13 @@ function calculateKeywordSimilarity(
   if (s1 === s2) return 1.0;
 
   // Simple word overlap similarity for performance
-  const words1 = s1.split(/\s+/);
-  const words2 = s2.split(/\s+/);
+  const words1 = s1.split(/\s+/).filter((w) => w.length > 0);
+  const words2 = s2.split(/\s+/).filter((w) => w.length > 0);
+
+  // Handle empty word arrays
+  if (words1.length === 0 || words2.length === 0) {
+    return s1 === s2 ? 1.0 : 0.0;
+  }
 
   const allWords = new Set([...words1, ...words2]);
   const commonWords = words1.filter((word) => words2.includes(word));
@@ -298,7 +303,7 @@ export function addKeywordToTracking(
   }
 ): string {
   const keywords = getAllKeywordPerformance();
-  const keywordId = `keyword_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const keywordId = `keyword_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
   // Check for duplicates
   const existingKeyword = keywords.find(
@@ -363,7 +368,7 @@ export function recordKeywordVote(
     return false;
   }
 
-  const voteId = `vote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const voteId = `vote_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   const newVote: KeywordVote = {
     id: voteId,
     keywordId,

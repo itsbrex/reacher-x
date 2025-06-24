@@ -57,7 +57,7 @@ const LLM_CONFIGS = {
     temperature: 0.3,
     description: "OpenAI GPT-3.5 Turbo - Fast and economical",
   },
-  "grok-beta": {
+  "grok-3-latest": {
     modelName: "grok-3-latest",
     temperature: 0.7,
     description: "xAI Grok3 - Optimized for Twitter/X understanding",
@@ -173,7 +173,7 @@ export const filterTweetsWithLLM = action({
   },
   handler: async (ctx, { tweets, originalQuery, userDescription }) => {
     const startTime = Date.now();
-    const requestId = `llm_filter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `llm_filter_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
     console.log(`[LLM_FILTER] Starting request ${requestId}`, {
       originalQuery,
