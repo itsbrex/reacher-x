@@ -180,7 +180,7 @@ export default function OnboardingPage() {
                 <FormControl>
                   <Textarea
                     id="description"
-                    placeholder="Briefly describe your product, service, or skill..."
+                    placeholder="Briefly describe your product, service, or skill in 'English'..."
                     className={cn(
                       "max-h-fit min-h-[120px] resize-y",
                       // Add error styling when at character limit
