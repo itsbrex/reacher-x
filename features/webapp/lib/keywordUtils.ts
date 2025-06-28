@@ -14,14 +14,27 @@ import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList"
 /**
  * Groups keywords by time period (Today, Yesterday, Last week, Older)
  * This is a pure function that doesn't modify the input array
+ *
+ * Note: This function uses local time for date calculations. This means:
+ * - "Today" is based on the user's local timezone
+ * - Grouping may differ between users in different timezones
+ * - This is generally acceptable for client-side keyword management
+ * - If server-client consistency is required, consider UTC-based approach below
  */
 export function groupKeywordsByTime(
   keywords: KeywordItem[]
 ): Record<string, KeywordItem[]> {
+  // Local time approach (current implementation)
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
   const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // Alternative UTC-based approach (uncomment if server-client consistency is needed):
+  // const nowUTC = new Date();
+  // const todayUTC = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth(), nowUTC.getUTCDate()));
+  // const yesterdayUTC = new Date(todayUTC.getTime() - 24 * 60 * 60 * 1000);
+  // const lastWeekUTC = new Date(todayUTC.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const groups: Record<string, KeywordItem[]> = {
     Today: [],

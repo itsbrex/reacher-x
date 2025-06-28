@@ -47,7 +47,7 @@ interface SidebarContextType {
   recentKeywords: KeywordItem[];
 
   // Actions
-  handlePin: (id: string, keyword: string) => void;
+  handlePin: (keyword: string) => void;
   handleUnpin: (id: string) => void;
   handleDelete: (id: string) => void;
   handleNewKeyword: () => void;
@@ -70,7 +70,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   const [pinnedKeywords, setPinnedKeywords] = useState<PinnedKeyword[]>([]);
 
   // Get search history
-  const { history } = useSearchHistory();
+  const { history, removeFromHistory } = useSearchHistory();
 
   // Load pinned keywords on mount
   useEffect(() => {
@@ -82,13 +82,16 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     return groupKeywordsByTime(history);
   }, [history]);
 
-  // Flatten all keywords for searching
+  // Flatten all keywords for searching with deduplication
   const allKeywords = useMemo(() => {
     const keywords: (KeywordItem & { isPinned: boolean; source: string })[] =
       [];
+    const seenKeywords = new Set<string>();
 
-    // Add pinned keywords
+    // Add pinned keywords first
     pinnedKeywords.forEach((item) => {
+      const keywordLower = item.keyword.toLowerCase();
+      seenKeywords.add(keywordLower);
       keywords.push({
         id: item.id,
         keyword: item.keyword,
@@ -99,10 +102,14 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       });
     });
 
-    // Add history keywords
+    // Add history keywords (skip if already pinned)
     Object.entries(groupedHistory).forEach(([group, items]) => {
       items.forEach((item: KeywordItem) => {
-        keywords.push({ ...item, isPinned: false, source: group });
+        const keywordLower = item.keyword.toLowerCase();
+        if (!seenKeywords.has(keywordLower)) {
+          seenKeywords.add(keywordLower);
+          keywords.push({ ...item, isPinned: false, source: group });
+        }
       });
     });
 
@@ -127,11 +134,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   }, [history]);
 
   // Actions
-  const handlePin = useCallback((id: string, keyword: string) => {
+  const handlePin = useCallback((keyword: string) => {
     const success = pinKeyword(keyword, "manual");
     if (success) {
       setPinnedKeywords(getPinnedKeywords());
-      console.log("Pinned keyword:", keyword);
     }
   }, []);
 
@@ -139,14 +145,18 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     const success = unpinKeywordById(id);
     if (success) {
       setPinnedKeywords(getPinnedKeywords());
-      console.log("Unpinned keyword:", id);
     }
   }, []);
 
-  const handleDelete = useCallback((id: string) => {
-    // TODO: Implement delete from search history
-    console.log("Delete keyword:", id);
-  }, []);
+  const handleDelete = useCallback(
+    (id: string) => {
+      // Try to remove from search history first
+      if (removeFromHistory) {
+        removeFromHistory(id);
+      }
+    },
+    [removeFromHistory]
+  );
 
   const handleNewKeyword = useCallback(() => {
     // Navigate to home page for new keyword creation

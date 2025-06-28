@@ -42,7 +42,7 @@ export interface KeywordItemComponentProps {
   id: string;
   isPinned?: boolean;
   timestamp?: string;
-  onPin?: (id: string, keyword: string) => void;
+  onPin?: (keyword: string) => void;
   onUnpin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
@@ -75,7 +75,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
       if (isPinned) {
         onUnpin?.(id);
       } else {
-        onPin?.(id, keyword);
+        onPin?.(keyword);
       }
     }, [isPinned, onUnpin, onPin, id, keyword]);
 

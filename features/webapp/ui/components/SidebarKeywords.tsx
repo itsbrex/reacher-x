@@ -47,6 +47,7 @@ import {
   YoutubeSearchedForIcon,
   ChevronRightIcon,
 } from "@/shared/ui/components/icons";
+import { formatRelativeTime } from "@/shared/lib/utils/format";
 import { useSidebarContext } from "@/features/webapp/contexts/SidebarContext";
 import { KeywordItemComponent } from "./SidebarKeywordsShared";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
@@ -54,8 +55,8 @@ import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList"
 // Tree Component for grouping keywords by time
 interface TreeProps {
   name: string;
-  items: KeywordItem[];
-  onPin?: (id: string, keyword: string) => void;
+  items: (KeywordItem & { isPinned?: boolean })[];
+  onPin?: (keyword: string) => void;
   onUnpin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
@@ -98,7 +99,7 @@ function Tree({ name, items, onPin, onUnpin, onDelete, onSelect }: TreeProps) {
                 key={item.id}
                 keyword={item.keyword}
                 id={item.id}
-                isPinned={false}
+                isPinned={item.isPinned || false}
                 timestamp={item.timestamp}
                 onPin={onPin}
                 onUnpin={onUnpin}
@@ -161,7 +162,13 @@ function CollapsedMenuButton({
                 <span>{item.keyword}</span>
                 {item.timestamp && (
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {new Date(item.timestamp).toLocaleDateString()}
+                    {typeof item.timestamp === "string" &&
+                    (item.timestamp.includes("now") ||
+                      item.timestamp.includes("h") ||
+                      item.timestamp.includes("d") ||
+                      item.timestamp.includes("m"))
+                      ? item.timestamp
+                      : formatRelativeTime(item.timestamp)}
                   </span>
                 )}
               </CommandItem>
@@ -218,19 +225,17 @@ export function SidebarKeywords() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarMenuSub>
-                  {Object.entries(groupedHistory).map(
-                    ([group, items], index) => (
-                      <Tree
-                        key={index}
-                        name={group}
-                        items={items}
-                        onPin={handlePin}
-                        onUnpin={handleUnpin}
-                        onDelete={handleDelete}
-                        onSelect={handleKeywordSelect}
-                      />
-                    )
-                  )}
+                  {Object.entries(groupedHistory).map(([group, items]) => (
+                    <Tree
+                      key={group}
+                      name={group}
+                      items={items}
+                      onPin={handlePin}
+                      onUnpin={handleUnpin}
+                      onDelete={handleDelete}
+                      onSelect={handleKeywordSelect}
+                    />
+                  ))}
                 </SidebarMenuSub>
               </CollapsibleContent>
             </Collapsible>

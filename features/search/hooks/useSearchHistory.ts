@@ -43,6 +43,13 @@ export function useSearchHistory() {
     [setHistory]
   );
 
+  const removeFromHistory = useCallback(
+    (id: string) => {
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+    },
+    [setHistory]
+  );
+
   const clearHistory = useCallback(() => {
     setHistory([]);
   }, [setHistory]);
@@ -57,6 +64,7 @@ export function useSearchHistory() {
   return {
     history: keywordItems,
     addToHistory,
+    removeFromHistory,
     clearHistory,
     isLoaded,
   };
@@ -65,14 +73,28 @@ export function useSearchHistory() {
 function formatTimestamp(timestamp: number): string {
   const date = new Date(timestamp);
   const now = new Date();
-  const diffInHours = Math.floor(
-    (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-  );
 
-  if (diffInHours < 1) return "now";
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  // Handle cases where the timestamp is in the future or exactly now
+  if (diffInSeconds <= 0) return "now";
+
+  // Less than 60 seconds - show "now"
+  if (diffInSeconds < 60) return "now";
+
+  // Less than 60 minutes - show minutes
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}m`;
+
+  // Less than 24 hours - show hours
+  const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) return `${diffInHours}h`;
-  if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`;
 
+  // Less than 7 days - show days
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) return `${diffInDays}d`;
+
+  // 7 days or older - show formatted date
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
