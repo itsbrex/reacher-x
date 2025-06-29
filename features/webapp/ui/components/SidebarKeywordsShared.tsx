@@ -34,6 +34,7 @@ import {
   useHighlight,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils/highlighting";
+import type { KeywordItemWithRawTimestamp } from "@/features/search/hooks/useSearchHistory";
 
 // Keyword Item Component Props
 export interface KeywordItemComponentProps {
@@ -41,8 +42,9 @@ export interface KeywordItemComponentProps {
   count?: number;
   id: string;
   isPinned?: boolean;
-  timestamp?: string;
-  onPin?: (keyword: string) => void;
+  timestamp?: string; // This is for display, can be relative
+  rawTimestamp?: number; // Raw UTC timestamp for actions
+  onPin?: (item: KeywordItemWithRawTimestamp) => void;
   onUnpin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
@@ -59,6 +61,8 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
     count,
     id,
     isPinned = false,
+    timestamp,
+    rawTimestamp,
     onPin,
     onUnpin,
     onDelete,
@@ -75,9 +79,14 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
       if (isPinned) {
         onUnpin?.(id);
       } else {
-        onPin?.(keyword);
+        onPin?.({
+          id,
+          keyword,
+          timestamp: timestamp || "",
+          rawTimestamp: rawTimestamp || 0,
+        });
       }
-    }, [isPinned, onUnpin, onPin, id, keyword]);
+    }, [isPinned, onUnpin, onPin, id, keyword, timestamp, rawTimestamp]);
 
     const handleDelete = useCallback(() => {
       onDelete?.(id);

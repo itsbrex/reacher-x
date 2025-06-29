@@ -114,21 +114,22 @@ function validateAndGroupKeyword(
  * - Date edge cases: https://stackoverflow.com/questions/7556591/is-the-javascript-date-object-always-one-day-off
  */
 export function groupKeywordsByTime(
-  keywords: KeywordItem[] | KeywordItemWithRawTimestamp[],
+  keywords: (KeywordItem | KeywordItemWithRawTimestamp)[],
   timezoneInfo?: TimezoneInfo
-): Record<string, KeywordItem[]> {
+): Record<string, (KeywordItem | KeywordItemWithRawTimestamp)[]> {
   // Use provided timezone info or detect current user's timezone
   const tz = timezoneInfo || getUserTimezoneInfo();
 
   // Calculate timezone-aware boundaries
   const boundaries = calculateGroupingBoundaries(tz);
 
-  const groups: Record<string, KeywordItem[]> = {
-    Today: [],
-    Yesterday: [],
-    "Last week": [],
-    Older: [],
-  };
+  const groups: Record<string, (KeywordItem | KeywordItemWithRawTimestamp)[]> =
+    {
+      Today: [],
+      Yesterday: [],
+      "Last week": [],
+      Older: [],
+    };
 
   // Track validation issues for debugging
   const validationIssues: Array<{ keyword: string; issue: string }> = [];

@@ -33,6 +33,7 @@ import {
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 import { groupKeywordsByTime } from "@/features/webapp/lib/keywordUtils";
 import { getUserTimezoneInfo } from "@/shared/lib/utils/timeUtils";
+import type { KeywordItemWithRawTimestamp } from "@/features/search/hooks/useSearchHistory";
 
 interface SidebarContextType {
   // Search state
@@ -43,18 +44,26 @@ interface SidebarContextType {
   // Keywords state
   pinnedKeywords: PinnedKeyword[];
   groupedHistory: Record<string, KeywordItem[]>;
-  filteredGroupedHistory: Record<string, KeywordItem[]>;
-  allKeywords: (KeywordItem & { isPinned: boolean; source: string })[];
-  filteredKeywords: (KeywordItem & { isPinned: boolean; source: string })[];
-  recentKeywords: KeywordItem[];
+  filteredGroupedHistory: Record<string, KeywordItemWithRawTimestamp[]>;
+  allKeywords: (KeywordItemWithRawTimestamp & {
+    isPinned: boolean;
+    source: string;
+  })[];
+  filteredKeywords: (KeywordItemWithRawTimestamp & {
+    isPinned: boolean;
+    source: string;
+  })[];
+  recentKeywords: KeywordItemWithRawTimestamp[];
 
   // Actions
-  handlePin: (keyword: string) => void;
+  handlePin: (item: KeywordItemWithRawTimestamp) => void;
   handleUnpin: (id: string) => void;
   handleDelete: (id: string) => void;
   handleNewKeyword: () => void;
   handleKeywordSelect: (keyword: string) => void;
-  handleKeywordItemSelect: (item: KeywordItem) => void;
+  handleKeywordItemSelect: (
+    item: KeywordItem | KeywordItemWithRawTimestamp
+  ) => void;
 
   // Computed values
   pinnedCount: number;
@@ -72,8 +81,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   const [pinnedKeywords, setPinnedKeywords] = useState<PinnedKeyword[]>([]);
 
   // Get search history with enhanced timestamp support
-  const { history, historyWithRawTimestamp, removeFromHistory } =
-    useSearchHistory();
+  const { historyWithRawTimestamp, removeFromHistory } = useSearchHistory();
 
   // Load pinned keywords on mount
   useEffect(() => {
@@ -94,7 +102,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       pinnedKeywords.map((pk) => pk.keyword.toLowerCase())
     );
 
-    const filtered: Record<string, KeywordItem[]> = {};
+    const filtered: Record<string, KeywordItemWithRawTimestamp[]> = {};
 
     Object.entries(groupedHistory).forEach(([group, items]) => {
       const filteredItems = items.filter(
@@ -103,7 +111,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
       // Only include groups that have items after filtering
       if (filteredItems.length > 0) {
-        filtered[group] = filteredItems;
+        filtered[group] = filteredItems as KeywordItemWithRawTimestamp[];
       }
     });
 
@@ -112,8 +120,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   // Flatten all keywords for searching with deduplication
   const allKeywords = useMemo(() => {
-    const keywords: (KeywordItem & { isPinned: boolean; source: string })[] =
-      [];
+    const keywords: (KeywordItemWithRawTimestamp & {
+      isPinned: boolean;
+      source: string;
+    })[] = [];
     const seenKeywords = new Set<string>();
 
     // Add pinned keywords first
@@ -123,16 +133,19 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       keywords.push({
         id: item.id,
         keyword: item.keyword,
-        timestamp: new Date(item.pinnedAt).toISOString(),
-        metadata: item.metadata,
+        timestamp: new Date(
+          item.originalTimestamp || item.pinnedAt
+        ).toISOString(),
+        rawTimestamp: item.originalTimestamp || item.pinnedAt,
         isPinned: true,
         source: "pinned",
+        metadata: item.metadata,
       });
     });
 
     // Add history keywords (skip if already pinned)
     Object.entries(filteredGroupedHistory).forEach(([group, items]) => {
-      items.forEach((item: KeywordItem) => {
+      items.forEach((item) => {
         const keywordLower = item.keyword.toLowerCase();
         if (!seenKeywords.has(keywordLower)) {
           seenKeywords.add(keywordLower);
@@ -158,12 +171,12 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   // Get recent keywords
   const recentKeywords = useMemo(() => {
-    return history.slice(0, 5);
-  }, [history]);
+    return historyWithRawTimestamp.slice(0, 5);
+  }, [historyWithRawTimestamp]);
 
   // Actions
-  const handlePin = useCallback((keyword: string) => {
-    const success = pinKeyword(keyword, "manual");
+  const handlePin = useCallback((item: KeywordItemWithRawTimestamp) => {
+    const success = pinKeyword(item.keyword, "manual", {}, item.rawTimestamp);
     if (success) {
       setPinnedKeywords(getPinnedKeywords());
     }
@@ -202,7 +215,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   );
 
   const handleKeywordItemSelect = useCallback(
-    (item: KeywordItem) => {
+    (item: KeywordItem | KeywordItemWithRawTimestamp) => {
       handleKeywordSelect(item.keyword);
     },
     [handleKeywordSelect]

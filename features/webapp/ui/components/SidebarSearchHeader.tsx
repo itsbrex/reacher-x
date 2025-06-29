@@ -32,6 +32,7 @@ import {
   YoutubeSearchedForIcon,
 } from "@/shared/ui/components/icons";
 import { useSidebarContext } from "@/features/webapp/contexts/SidebarContext";
+import { formatTimestampForDisplay } from "@/shared/lib/utils/timeUtils";
 
 export function SidebarSearchHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -84,9 +85,9 @@ export function SidebarSearchHeader() {
                 >
                   <YoutubeSearchedForIcon className="fill-current" />
                   <span>{item.keyword}</span>
-                  {item.timestamp && (
+                  {item.rawTimestamp && (
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {new Date(item.timestamp).toLocaleDateString()}
+                      {formatTimestampForDisplay(item.rawTimestamp)}
                     </span>
                   )}
                 </CommandItem>

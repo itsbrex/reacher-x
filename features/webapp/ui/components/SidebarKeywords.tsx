@@ -50,13 +50,13 @@ import {
 import { formatRelativeTime } from "@/shared/lib/utils/format";
 import { useSidebarContext } from "@/features/webapp/contexts/SidebarContext";
 import { KeywordItemComponent } from "./SidebarKeywordsShared";
-import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
+import { KeywordItemWithRawTimestamp } from "@/features/search/hooks/useSearchHistory";
 
 // Tree Component for grouping keywords by time
 interface TreeProps {
   name: string;
-  items: (KeywordItem & { isPinned?: boolean })[];
-  onPin?: (keyword: string) => void;
+  items: KeywordItemWithRawTimestamp[];
+  onPin?: (item: KeywordItemWithRawTimestamp) => void;
   onUnpin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
@@ -99,8 +99,9 @@ function Tree({ name, items, onPin, onUnpin, onDelete, onSelect }: TreeProps) {
                 key={item.id}
                 keyword={item.keyword}
                 id={item.id}
-                isPinned={item.isPinned || false}
+                isPinned={false}
                 timestamp={item.timestamp}
+                rawTimestamp={item.rawTimestamp}
                 onPin={onPin}
                 onUnpin={onUnpin}
                 onDelete={onDelete}
@@ -118,8 +119,8 @@ function Tree({ name, items, onPin, onUnpin, onDelete, onSelect }: TreeProps) {
 interface CollapsedMenuButtonProps {
   icon: React.ComponentType<{ className?: string }>;
   tooltip: string;
-  items: KeywordItem[];
-  onItemSelect?: (item: KeywordItem) => void;
+  items: KeywordItemWithRawTimestamp[];
+  onItemSelect?: (item: KeywordItemWithRawTimestamp) => void;
   commandTitle: string;
   commandHeading: string;
 }
@@ -160,15 +161,11 @@ function CollapsedMenuButton({
               >
                 <YoutubeSearchedForIcon className="fill-current" />
                 <span>{item.keyword}</span>
-                {item.timestamp && (
+                {item.rawTimestamp && (
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {typeof item.timestamp === "string" &&
-                    (item.timestamp.includes("now") ||
-                      item.timestamp.includes("h") ||
-                      item.timestamp.includes("d") ||
-                      item.timestamp.includes("m"))
-                      ? item.timestamp
-                      : formatRelativeTime(item.timestamp)}
+                    {formatRelativeTime(
+                      new Date(item.rawTimestamp).toISOString()
+                    )}
                   </span>
                 )}
               </CommandItem>
@@ -250,12 +247,18 @@ export function SidebarKeywords() {
                 <CollapsedMenuButton
                   icon={KeepIcon}
                   tooltip="Pinned keywords"
-                  items={pinnedKeywords.map((p) => ({
-                    id: p.id,
-                    keyword: p.keyword,
-                    timestamp: new Date(p.pinnedAt).toISOString(),
-                    metadata: p.metadata,
-                  }))}
+                  items={pinnedKeywords.map(
+                    (p) =>
+                      ({
+                        id: p.id,
+                        keyword: p.keyword,
+                        timestamp: new Date(
+                          p.originalTimestamp || p.pinnedAt
+                        ).toISOString(),
+                        rawTimestamp: p.originalTimestamp || p.pinnedAt,
+                        metadata: p.metadata,
+                      }) as KeywordItemWithRawTimestamp
+                  )}
                   onItemSelect={handleKeywordItemSelect}
                   commandTitle="Pinned Keywords"
                   commandHeading="Pinned keywords"
@@ -282,6 +285,10 @@ export function SidebarKeywords() {
                       keyword={item.keyword}
                       id={item.id}
                       isPinned={true}
+                      timestamp={new Date(
+                        item.originalTimestamp || item.pinnedAt
+                      ).toISOString()}
+                      rawTimestamp={item.originalTimestamp || item.pinnedAt}
                       onPin={handlePin}
                       onUnpin={handleUnpin}
                       onDelete={handleDelete}

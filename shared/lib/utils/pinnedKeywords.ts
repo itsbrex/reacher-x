@@ -30,6 +30,7 @@ export interface PinnedKeyword {
   id: string;
   keyword: string;
   pinnedAt: number; // UTC timestamp in milliseconds
+  originalTimestamp?: number; // Optional: UTC timestamp of the original search
   source: "suggestion" | "search" | "manual";
   metadata?: {
     originalKeywordId?: string; // ID from search history or suggestions
@@ -125,7 +126,8 @@ export function isKeywordPinned(keyword: string): boolean {
 export function pinKeyword(
   keyword: string,
   source: PinnedKeyword["source"] = "manual",
-  metadata?: PinnedKeyword["metadata"]
+  metadata?: PinnedKeyword["metadata"],
+  originalTimestamp?: number
 ): boolean {
   try {
     const keywords = loadPinnedKeywords();
@@ -140,7 +142,7 @@ export function pinKeyword(
       console.log(
         `[PINNED_KEYWORDS] Keyword already pinned: "${normalizedKeyword}"`
       );
-      return false;
+      return true; // Return true as it's already in the desired state
     }
 
     // Check limit
@@ -155,6 +157,7 @@ export function pinKeyword(
       id: generateUniqueId("pinned"),
       keyword: normalizedKeyword,
       pinnedAt: getCurrentUTCTimestamp(), // Always use UTC timestamp
+      originalTimestamp, // Store the original timestamp
       source,
       metadata,
     };
