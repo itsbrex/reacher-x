@@ -4,14 +4,21 @@
 import { useCallback } from "react";
 import { useLocalStorage } from "./useLocalStorage";
 import { generateUniqueId } from "@/shared/lib/utils/request";
+import {
+  getCurrentUTCTimestamp,
+  formatTimestampForDisplay,
+  migrateLegacyTimestamp,
+} from "@/shared/lib/utils/timeUtils";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 
 interface SearchHistoryItem {
   id: string;
   keyword: string;
   exactMatch: boolean;
-  timestamp: number;
+  timestamp: number; // Always UTC timestamp in milliseconds
   resultsCount?: number;
+  // Migration field for backward compatibility
+  legacyTimestamp?: string | number;
 }
 
 // Extended interface for internal use with raw timestamps
@@ -31,7 +38,7 @@ export function useSearchHistory() {
         id: generateUniqueId("search_history"),
         keyword: query.trim(),
         exactMatch,
-        timestamp: Date.now(),
+        timestamp: getCurrentUTCTimestamp(), // Always use UTC timestamp
         resultsCount,
       };
 
@@ -39,6 +46,7 @@ export function useSearchHistory() {
         keyword: newItem.keyword,
         id: newItem.id,
         timestamp: newItem.timestamp,
+        utcTime: new Date(newItem.timestamp).toISOString(),
         exactMatch,
         resultsCount,
       });
@@ -49,15 +57,36 @@ export function useSearchHistory() {
           keywords: prev.map((h) => h.keyword),
         });
 
+        // Migrate any legacy timestamps in existing history
+        const migratedHistory = prev.map((item) => {
+          if (typeof item.timestamp !== "number" || item.timestamp < 0) {
+            const migratedTimestamp = migrateLegacyTimestamp(
+              item.legacyTimestamp || item.timestamp,
+              new Date() // Fallback to current time
+            );
+            console.warn("[SEARCH_HISTORY] Migrated legacy timestamp for:", {
+              keyword: item.keyword,
+              oldTimestamp: item.timestamp,
+              newTimestamp: migratedTimestamp,
+            });
+            return {
+              ...item,
+              timestamp: migratedTimestamp,
+              legacyTimestamp: item.timestamp,
+            };
+          }
+          return item;
+        });
+
         // Remove duplicate queries (same keyword)
-        const filtered = prev.filter(
+        const filtered = migratedHistory.filter(
           (item) => item.keyword.toLowerCase() !== query.trim().toLowerCase()
         );
 
         console.log("[SEARCH_HISTORY] After filtering duplicates:", {
-          originalCount: prev.length,
+          originalCount: migratedHistory.length,
           filteredCount: filtered.length,
-          removedDuplicates: prev.length - filtered.length,
+          removedDuplicates: migratedHistory.length - filtered.length,
         });
 
         // Add new item at the beginning and limit to 50 items
@@ -98,7 +127,7 @@ export function useSearchHistory() {
   const keywordItems: KeywordItem[] = history.map((item) => ({
     id: item.id,
     keyword: item.keyword,
-    timestamp: formatTimestamp(item.timestamp),
+    timestamp: formatTimestampForDisplay(item.timestamp), // Use timezone-aware formatting
   }));
 
   // Enhanced version with raw timestamps for accurate grouping
@@ -106,8 +135,8 @@ export function useSearchHistory() {
     history.map((item) => ({
       id: item.id,
       keyword: item.keyword,
-      timestamp: formatTimestamp(item.timestamp), // Formatted for display
-      rawTimestamp: item.timestamp, // Raw for grouping
+      timestamp: formatTimestampForDisplay(item.timestamp), // Formatted for display
+      rawTimestamp: item.timestamp, // Raw UTC timestamp for grouping
     }));
 
   // Debug logging for current state
@@ -116,6 +145,12 @@ export function useSearchHistory() {
     historyCount: history.length,
     keywordItemsCount: keywordItems.length,
     enhancedItemsCount: keywordItemsWithRawTimestamp.length,
+    sampleTimestamps: history.slice(0, 3).map((h) => ({
+      keyword: h.keyword,
+      timestamp: h.timestamp,
+      utcTime: new Date(h.timestamp).toISOString(),
+      displayTime: formatTimestampForDisplay(h.timestamp),
+    })),
   });
 
   return {
@@ -127,35 +162,4 @@ export function useSearchHistory() {
     clearHistory,
     isLoaded,
   };
-}
-
-function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  // Handle cases where the timestamp is in the future or exactly now
-  if (diffInSeconds <= 0) return "now";
-
-  // Less than 60 seconds - show "now"
-  if (diffInSeconds < 60) return "now";
-
-  // Less than 60 minutes - show minutes
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return `${diffInMinutes}m`;
-
-  // Less than 24 hours - show hours
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours}h`;
-
-  // Less than 7 days - show days
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays}d`;
-
-  // 7 days or older - show formatted date
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 }

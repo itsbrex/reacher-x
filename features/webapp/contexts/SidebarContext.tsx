@@ -32,6 +32,7 @@ import {
 } from "@/shared/lib/utils/pinnedKeywords";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 import { groupKeywordsByTime } from "@/features/webapp/lib/keywordUtils";
+import { getUserTimezoneInfo } from "@/shared/lib/utils/timeUtils";
 
 interface SidebarContextType {
   // Search state
@@ -81,7 +82,9 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   // Convert search history to grouped format using raw timestamps for accuracy
   const groupedHistory = useMemo(() => {
-    return groupKeywordsByTime(historyWithRawTimestamp);
+    // Get current timezone info for consistent grouping
+    const timezoneInfo = getUserTimezoneInfo();
+    return groupKeywordsByTime(historyWithRawTimestamp, timezoneInfo);
   }, [historyWithRawTimestamp]);
 
   // Create filtered grouped history that excludes pinned keywords

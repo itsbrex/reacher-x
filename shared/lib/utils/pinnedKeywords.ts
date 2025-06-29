@@ -4,14 +4,18 @@
  * Clean localStorage-based system for managing pinned keywords.
  * Follows the same patterns as existing keywordStorage.ts for consistency.
  *
+ * UPDATED: Now uses timezone-aware UTC timestamps for consistency across all user types
+ *
  * References:
  * - localStorage Best Practices: https://developer.mozilla.org/en-US/docs/Web/API/Storage
  * - Data normalization patterns: Redux Toolkit Query approach
  * - Optimistic updates: React Query patterns
+ * - UTC timestamp storage: W3C timezone best practices
  */
 
 import { getLocalStorage, setLocalStorage } from "./localStorage";
 import { generateUniqueId } from "./request";
+import { getCurrentUTCTimestamp } from "./timeUtils";
 
 // Storage key for pinned keywords
 const PINNED_KEYWORDS_KEY = "reacherx_pinned_keywords";
@@ -25,7 +29,7 @@ const PINNED_KEYWORDS_CONFIG = {
 export interface PinnedKeyword {
   id: string;
   keyword: string;
-  pinnedAt: number; // Unix timestamp
+  pinnedAt: number; // UTC timestamp in milliseconds
   source: "suggestion" | "search" | "manual";
   metadata?: {
     originalKeywordId?: string; // ID from search history or suggestions
@@ -36,7 +40,7 @@ export interface PinnedKeyword {
 
 export interface PinnedKeywordsCache {
   keywords: PinnedKeyword[];
-  lastUpdated: number;
+  lastUpdated: number; // UTC timestamp
 }
 
 /**
@@ -50,12 +54,31 @@ function loadPinnedKeywords(): PinnedKeyword[] {
     const cache: PinnedKeywordsCache = JSON.parse(stored);
 
     // Check if cache is still valid
-    if (Date.now() - cache.lastUpdated > PINNED_KEYWORDS_CONFIG.CACHE_TTL_MS) {
+    if (
+      getCurrentUTCTimestamp() - cache.lastUpdated >
+      PINNED_KEYWORDS_CONFIG.CACHE_TTL_MS
+    ) {
       console.log("[PINNED_KEYWORDS] Cache expired, clearing data");
       return [];
     }
 
-    return cache.keywords || [];
+    // Ensure all keywords have valid UTC timestamps
+    const validatedKeywords = cache.keywords.map((keyword) => {
+      // Migrate legacy timestamps if needed
+      if (typeof keyword.pinnedAt !== "number" || keyword.pinnedAt < 0) {
+        console.warn(
+          "[PINNED_KEYWORDS] Migrating legacy timestamp for:",
+          keyword.keyword
+        );
+        return {
+          ...keyword,
+          pinnedAt: getCurrentUTCTimestamp(),
+        };
+      }
+      return keyword;
+    });
+
+    return validatedKeywords || [];
   } catch (error) {
     console.warn("[PINNED_KEYWORDS] Failed to load pinned keywords:", error);
     return [];
@@ -69,7 +92,7 @@ function savePinnedKeywords(keywords: PinnedKeyword[]): boolean {
   try {
     const cache: PinnedKeywordsCache = {
       keywords,
-      lastUpdated: Date.now(),
+      lastUpdated: getCurrentUTCTimestamp(),
     };
 
     return setLocalStorage(PINNED_KEYWORDS_KEY, JSON.stringify(cache));
@@ -129,7 +152,7 @@ export function pinKeyword(
     const newPinnedKeyword: PinnedKeyword = {
       id: generateUniqueId("pinned"),
       keyword: normalizedKeyword,
-      pinnedAt: Date.now(),
+      pinnedAt: getCurrentUTCTimestamp(), // Always use UTC timestamp
       source,
       metadata,
     };
@@ -139,7 +162,7 @@ export function pinKeyword(
 
     if (success) {
       console.log(
-        `[PINNED_KEYWORDS] Successfully pinned: "${normalizedKeyword}"`
+        `[PINNED_KEYWORDS] Successfully pinned: "${normalizedKeyword}" at ${new Date(newPinnedKeyword.pinnedAt).toISOString()}`
       );
     }
 
@@ -186,6 +209,7 @@ export function unpinKeyword(keyword: string): boolean {
 export function unpinKeywordById(id: string): boolean {
   try {
     const keywords = loadPinnedKeywords();
+    const keywordToRemove = keywords.find((k) => k.id === id);
     const filteredKeywords = keywords.filter((k) => k.id !== id);
 
     if (filteredKeywords.length === keywords.length) {
@@ -195,9 +219,9 @@ export function unpinKeywordById(id: string): boolean {
 
     const success = savePinnedKeywords(filteredKeywords);
 
-    if (success) {
+    if (success && keywordToRemove) {
       console.log(
-        `[PINNED_KEYWORDS] Successfully unpinned keyword with ID: "${id}"`
+        `[PINNED_KEYWORDS] Successfully unpinned keyword "${keywordToRemove.keyword}" with ID: "${id}"`
       );
     }
 
