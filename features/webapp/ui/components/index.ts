@@ -15,5 +15,6 @@ export { SidebarResources } from "./SidebarResources";
 export { SidebarKeywords } from "./SidebarKeywords";
 export { SidebarFooter } from "./SidebarFooter";
 export { SidebarContentWrapper } from "./SidebarContentWrapper";
+export { SidebarWrapper } from "./SidebarWrapper";
 export { KeywordItemComponent } from "./SidebarKeywordsShared";
 export type { KeywordItemComponentProps } from "./SidebarKeywordsShared";

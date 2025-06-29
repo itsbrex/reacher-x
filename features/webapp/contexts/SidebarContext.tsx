@@ -67,15 +67,20 @@ interface SidebarContextType {
 
   // Computed values
   pinnedCount: number;
+  activeKeyword: string;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 interface SidebarProviderProps {
   children: ReactNode;
+  activeKeyword: string;
 }
 
-export function SidebarProvider({ children }: SidebarProviderProps) {
+export function SidebarProvider({
+  children,
+  activeKeyword,
+}: SidebarProviderProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [pinnedKeywords, setPinnedKeywords] = useState<PinnedKeyword[]>([]);
@@ -243,6 +248,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       handleKeywordSelect,
       handleKeywordItemSelect,
       pinnedCount,
+      activeKeyword,
     }),
     [
       searchQuery,
@@ -260,6 +266,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       handleKeywordSelect,
       handleKeywordItemSelect,
       pinnedCount,
+      activeKeyword,
     ]
   );
 

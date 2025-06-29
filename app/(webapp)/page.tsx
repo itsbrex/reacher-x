@@ -16,7 +16,11 @@ import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList"
 export default function WebAppPage() {
   const router = useRouter();
   const [currentQuery, setCurrentQuery] = useState("");
-  const { history: historyKeywords, isLoaded } = useSearchHistory();
+  const {
+    history: historyKeywords,
+    isLoaded,
+    addToHistory,
+  } = useSearchHistory();
 
   // Use the keyword suggestions hook
   const {
@@ -42,17 +46,23 @@ export default function WebAppPage() {
 
   const handleSearch = useCallback(
     (query: string, exactMatch: boolean) => {
+      // Optimistically add to history
+      if (query) {
+        addToHistory(query, exactMatch);
+      }
       const params = new URLSearchParams();
       params.set("q", query);
       if (exactMatch) params.set("exact", "true");
 
       router.push(`/search?${params.toString()}`);
     },
-    [router]
+    [router, addToHistory]
   );
 
   const handleKeywordClick = useCallback(
     (item: KeywordItem) => {
+      // Optimistically add to history
+      addToHistory(item.keyword, false);
       // Record keyword usage for performance tracking
       recordKeywordUsage(item.id, item.keyword);
 
@@ -63,7 +73,7 @@ export default function WebAppPage() {
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, recordKeywordUsage]
+    [router, recordKeywordUsage, addToHistory]
   );
 
   const handleQueryChange = useCallback((query: string) => {

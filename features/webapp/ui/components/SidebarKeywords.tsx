@@ -60,9 +60,18 @@ interface TreeProps {
   onUnpin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
+  isActive: (item: KeywordItemWithRawTimestamp) => boolean;
 }
 
-function Tree({ name, items, onPin, onUnpin, onDelete, onSelect }: TreeProps) {
+function Tree({
+  name,
+  items,
+  onPin,
+  onUnpin,
+  onDelete,
+  onSelect,
+  isActive,
+}: TreeProps) {
   if (!items.length) {
     return null;
   }
@@ -100,6 +109,7 @@ function Tree({ name, items, onPin, onUnpin, onDelete, onSelect }: TreeProps) {
                 keyword={item.keyword}
                 id={item.id}
                 isPinned={false}
+                isActive={isActive(item)}
                 timestamp={item.timestamp}
                 rawTimestamp={item.rawTimestamp}
                 onPin={onPin}
@@ -190,6 +200,7 @@ export function SidebarKeywords() {
     handleKeywordSelect,
     handleKeywordItemSelect,
     pinnedCount,
+    activeKeyword,
   } = useSidebarContext();
 
   const isCollapsed = state === "collapsed";
@@ -232,6 +243,10 @@ export function SidebarKeywords() {
                         onUnpin={handleUnpin}
                         onDelete={handleDelete}
                         onSelect={handleKeywordSelect}
+                        isActive={(item) =>
+                          item.keyword.toLowerCase() ===
+                          activeKeyword.toLowerCase()
+                        }
                       />
                     )
                   )}
@@ -285,6 +300,10 @@ export function SidebarKeywords() {
                       keyword={item.keyword}
                       id={item.id}
                       isPinned={true}
+                      isActive={
+                        item.keyword.toLowerCase() ===
+                        activeKeyword.toLowerCase()
+                      }
                       timestamp={new Date(
                         item.originalTimestamp || item.pinnedAt
                       ).toISOString()}

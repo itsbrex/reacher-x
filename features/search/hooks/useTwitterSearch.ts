@@ -4,7 +4,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useSearchHistory } from "./useSearchHistory";
 import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { generateRequestId } from "@/shared/lib/utils/request";
@@ -58,7 +57,6 @@ export function useTwitterSearch() {
   } | null>(null);
   const pendingRequestRef = useRef<Promise<void> | null>(null);
 
-  const { addToHistory } = useSearchHistory();
   const searchTwitterAction = useAction(api.twitterSearch.searchTwitter);
   const filterTweetsAction = useAction(api.llmFilter.filterTweetsWithLLM);
 
@@ -452,20 +450,6 @@ export function useTwitterSearch() {
 
             // Add to local search history only for initial search (not pagination)
             if (!cursor) {
-              console.log(
-                `[TWITTER_SEARCH] ${searchRequestId} - Adding to search history:`,
-                {
-                  query: query.trim(),
-                  exactMatch,
-                  resultCount: finalResults.tweets.length,
-                }
-              );
-              addToHistory(
-                query.trim(),
-                exactMatch,
-                finalResults.tweets.length
-              );
-
               // Cache the search result for initial searches only
               const cacheSuccess = cacheSearchResult(
                 query.trim(),
@@ -568,7 +552,7 @@ export function useTwitterSearch() {
         pendingRequestRef.current = null;
       }
     },
-    [searchTwitterAction, filterTweetsAction, addToHistory] // Stable dependencies
+    [searchTwitterAction, filterTweetsAction] // Stable dependencies
   );
 
   // Enhanced clear function with logging

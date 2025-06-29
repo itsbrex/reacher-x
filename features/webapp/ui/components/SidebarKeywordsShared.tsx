@@ -42,6 +42,7 @@ export interface KeywordItemComponentProps {
   count?: number;
   id: string;
   isPinned?: boolean;
+  isActive?: boolean;
   timestamp?: string; // This is for display, can be relative
   rawTimestamp?: number; // Raw UTC timestamp for actions
   onPin?: (item: KeywordItemWithRawTimestamp) => void;
@@ -61,6 +62,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
     count,
     id,
     isPinned = false,
+    isActive = false,
     timestamp,
     rawTimestamp,
     onPin,
@@ -102,6 +104,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
           tooltip={keyword}
           onClick={handleSelect}
           className="cursor-pointer"
+          variant={isActive ? "secondary" : "ghost"}
         >
           <YoutubeSearchedForIcon className="fill-sidebar-foreground" />
           <span className="truncate text-sm">

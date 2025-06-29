@@ -24,6 +24,7 @@ import {
 import { TweetCard } from "@/features/threads/ui/components/TweetCard";
 import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
+import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { addKeywordToTracking } from "@/shared/lib/utils/keywordStorage";
@@ -72,6 +73,8 @@ export default function SearchResultsPage() {
   // Twitter search hook
   const { searchTweets, results, loading, error, retryCount, clearResults } =
     useTwitterSearch();
+
+  const { addToHistory } = useSearchHistory();
 
   // Keyword suggestions hook
   const { suggestions: keywordSuggestions, recordKeywordUsage } =
@@ -254,14 +257,21 @@ export default function SearchResultsPage() {
       isCommittingRef.current = true;
       setIsSearchMode(false);
 
+      const trimmedQuery = searchQuery.trim();
+
+      // Optimistically add to history
+      if (trimmedQuery) {
+        addToHistory(trimmedQuery, isExactMatch);
+      }
+
       const params = new URLSearchParams();
-      if (searchQuery.trim()) {
-        params.set("q", searchQuery.trim());
+      if (trimmedQuery) {
+        params.set("q", trimmedQuery);
 
         // Create a temporary keyword for vote tracking if this is a custom search
         // Check if this matches any existing keyword suggestions first
         const existingKeyword = keywordSuggestions.find(
-          (kw) => kw.keyword.toLowerCase() === searchQuery.trim().toLowerCase()
+          (kw) => kw.keyword.toLowerCase() === trimmedQuery.toLowerCase()
         );
 
         if (existingKeyword) {
@@ -269,13 +279,13 @@ export default function SearchResultsPage() {
           params.set("keywordId", existingKeyword.id);
         } else {
           // Create new keyword for tracking
-          const keywordId = addKeywordToTracking(searchQuery.trim(), {
+          const keywordId = addKeywordToTracking(trimmedQuery, {
             source: "user_created",
           });
           params.set("keywordId", keywordId);
 
           console.log("[SEARCH_PAGE] Created new keyword for tracking:", {
-            keyword: searchQuery.trim(),
+            keyword: trimmedQuery,
             keywordId,
           });
         }
@@ -286,7 +296,7 @@ export default function SearchResultsPage() {
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, userDescription, keywordSuggestions]
+    [router, userDescription, keywordSuggestions, addToHistory]
   );
 
   // Handle keyword selection from suggestions
@@ -296,6 +306,9 @@ export default function SearchResultsPage() {
         keyword: item.keyword,
         hasUserDescription: !!userDescription,
       });
+
+      // Optimistically add to history
+      addToHistory(item.keyword, false);
 
       // Record keyword usage for performance tracking
       recordKeywordUsage(item.id, item.keyword);
@@ -310,7 +323,7 @@ export default function SearchResultsPage() {
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, userDescription, recordKeywordUsage]
+    [router, userDescription, recordKeywordUsage, addToHistory]
   );
 
   // Update draft state

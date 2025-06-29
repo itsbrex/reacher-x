@@ -39,6 +39,7 @@ export function SidebarContentWrapper({
     handleUnpin,
     handleDelete,
     handleKeywordSelect,
+    activeKeyword,
   } = useSidebarContext();
 
   const isCollapsed = state === "collapsed";
@@ -57,6 +58,9 @@ export function SidebarContentWrapper({
                     keyword={item.keyword}
                     id={item.id}
                     isPinned={item.isPinned}
+                    isActive={
+                      item.keyword.toLowerCase() === activeKeyword.toLowerCase()
+                    }
                     onPin={handlePin}
                     onUnpin={handleUnpin}
                     onDelete={handleDelete}
