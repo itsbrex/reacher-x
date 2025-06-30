@@ -104,14 +104,18 @@ function loadSearchCache(): SearchCache {
  */
 function saveSearchCache(cache: SearchCache): boolean {
   try {
-    const serialized = JSON.stringify(cache);
+    let serialized = JSON.stringify(cache);
 
-    // Check if serialized data exceeds storage limits
+    // If still too large attempt one more eviction round
     if (serialized.length > CACHE_CONFIG.MAX_STORAGE_SIZE) {
-      console.warn(
-        "[SEARCH_CACHE] Cache too large, performing aggressive cleanup"
-      );
-      return false;
+      cache = evictLRUEntries(cache);
+      serialized = JSON.stringify(cache);
+      if (serialized.length > CACHE_CONFIG.MAX_STORAGE_SIZE) {
+        console.error(
+          "[SEARCH_CACHE] Unable to save cache – size still exceeds limit after eviction"
+        );
+        return false;
+      }
     }
 
     return setLocalStorage(SEARCH_CACHE_KEY, serialized);
@@ -154,17 +158,10 @@ function cleanExpiredEntries(cache: SearchCache): SearchCache {
  * Reference: LRU implementation patterns
  */
 function evictLRUEntries(cache: SearchCache): SearchCache {
-  const entries = Object.values(cache.entries);
-
-  if (entries.length <= CACHE_CONFIG.MAX_ENTRIES) {
-    return cache;
-  }
-
-  // Sort by lastAccessed (LRU first)
-  const sortedEntries = entries.sort((a, b) => a.lastAccessed - b.lastAccessed);
-
-  // Keep only the most recent MAX_ENTRIES
-  const toKeep = sortedEntries.slice(-CACHE_CONFIG.MAX_ENTRIES);
+  // Always sort entries by LRU (oldest first)
+  const sorted = Object.values(cache.entries).sort(
+    (a, b) => a.lastAccessed - b.lastAccessed
+  );
 
   const newCache: SearchCache = {
     entries: {},
@@ -172,13 +169,35 @@ function evictLRUEntries(cache: SearchCache): SearchCache {
     lastCleanup: cache.lastCleanup,
   };
 
-  toKeep.forEach((entry) => {
+  // Helper to add entry if limits allow
+  const tryAdd = (entry: CachedSearchResult) => {
+    // Respect max entry count
+    if (Object.keys(newCache.entries).length >= CACHE_CONFIG.MAX_ENTRIES) {
+      return false;
+    }
+
+    // Respect storage size limit
+    if (newCache.totalSize + entry.size > CACHE_CONFIG.MAX_STORAGE_SIZE) {
+      return false;
+    }
+
     newCache.entries[entry.key] = entry;
     newCache.totalSize += entry.size;
-  });
+    return true;
+  };
 
-  const evictedCount = entries.length - toKeep.length;
-  console.log(`[SEARCH_CACHE] Evicted ${evictedCount} LRU entries`);
+  // Iterate from newest to oldest to keep most recent useful data
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const entry = sorted[i];
+    tryAdd(entry);
+  }
+
+  const evictedCount = sorted.length - Object.keys(newCache.entries).length;
+  if (evictedCount > 0) {
+    console.warn(
+      `[SEARCH_CACHE] Evicted ${evictedCount} entries to fit size limits`
+    );
+  }
 
   return newCache;
 }

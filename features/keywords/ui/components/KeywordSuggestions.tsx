@@ -3,6 +3,7 @@
 
 import { memo, useMemo } from "react";
 import { KeywordList, type KeywordItem } from "./KeywordList";
+import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 
 interface KeywordSuggestionsProps {
   suggestions: KeywordItem[];
@@ -21,16 +22,37 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
     className,
     currentQuery = "",
   }) {
-    // Filter out current query from suggestions (defensive)
-    const filteredSuggestions = useMemo(() => {
-      if (!currentQuery.trim()) return suggestions;
+    const MAX_DISPLAY = 5;
 
-      return suggestions.filter(
-        (item) =>
-          item.keyword.toLowerCase().trim() !==
-          currentQuery.toLowerCase().trim()
-      );
-    }, [suggestions, currentQuery]);
+    // Get search history to exclude keywords that the user has already used.
+    const { history } = useSearchHistory();
+
+    const historyKeywordSet = useMemo(
+      () => new Set(history.map((item) => item.keyword.toLowerCase())),
+      [history]
+    );
+
+    const filteredSuggestions = useMemo(() => {
+      return suggestions
+        .filter((item) => {
+          // Exclude current query (defensive)
+          if (
+            item.keyword.toLowerCase().trim() ===
+            currentQuery.toLowerCase().trim()
+          ) {
+            return false;
+          }
+
+          // Exclude keywords that already exist in search history
+          if (historyKeywordSet.has(item.keyword.toLowerCase())) {
+            return false;
+          }
+
+          return true;
+        })
+        .slice(0, MAX_DISPLAY);
+    }, [suggestions, currentQuery, historyKeywordSet]);
+
     if (loading) {
       return (
         <section

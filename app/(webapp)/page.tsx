@@ -200,32 +200,6 @@ export default function WebAppPage() {
                 .map((k) => k.timestamp)
                 .join(", ") || "None"}
             </div>
-
-            <div className="mt-1 border-t pt-1">
-              <div className="text-xs font-medium">Test Instructions:</div>
-              <div>
-                1. Search for &ldquo;cats&rdquo; → should appear in
-                &ldquo;Today&rdquo;
-              </div>
-              <div>
-                2. Search for &ldquo;dogs&rdquo; → both should be in
-                &ldquo;Today&rdquo;
-              </div>
-              <div>
-                3. Pin &ldquo;cats&rdquo; → should disappear from history
-              </div>
-              <div>
-                4. Check sidebar → &ldquo;cats&rdquo; only in Pinned,
-                &ldquo;dogs&rdquo; only in History
-              </div>
-            </div>
-
-            <div className="mt-1 border-t pt-1">
-              <div className="text-xs font-medium">Expected Fixes:</div>
-              <div>✅ Multiple keywords in history</div>
-              <div>✅ Pinned keywords excluded from history</div>
-              <div>✅ Recent keywords in correct time groups</div>
-            </div>
           </div>
         </div>
       )}
