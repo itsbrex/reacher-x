@@ -66,6 +66,7 @@ interface TreeProps {
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
   isActive: (item: KeywordItemWithRawTimestamp) => boolean;
+  isPinnedItems?: boolean;
 }
 
 function Tree({
@@ -76,6 +77,7 @@ function Tree({
   onDelete,
   onSelect,
   isActive,
+  isPinnedItems = false,
 }: TreeProps) {
   if (!items.length) {
     return null;
@@ -84,6 +86,7 @@ function Tree({
   const totalCount = items.length;
 
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    Pinned: KeepIcon,
     Today: TodayIcon,
     Yesterday: EventRepeatIcon,
     "Last week": CalendarViewWeekIcon,
@@ -96,7 +99,7 @@ function Tree({
     <SidebarMenuItem>
       <Collapsible
         className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
-        defaultOpen={name === "Today"}
+        defaultOpen={name === "Today" || name === "Pinned"}
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={name}>
@@ -115,7 +118,7 @@ function Tree({
                 key={item.id}
                 keyword={item.keyword}
                 id={item.id}
-                isPinned={false}
+                isPinned={isPinnedItems}
                 isActive={isActive(item)}
                 timestamp={item.timestamp}
                 rawTimestamp={item.rawTimestamp}
@@ -136,21 +139,21 @@ function Tree({
 interface CollapsedMenuButtonProps {
   icon: React.ComponentType<{ className?: string }>;
   tooltip: string;
-  items: KeywordItemWithRawTimestamp[];
-  allItems?: KeywordItemWithRawTimestamp[]; // All items for searching
+  recentItems: KeywordItemWithRawTimestamp[];
+  allItems: KeywordItemWithRawTimestamp[];
+  pinnedKeywords: string[]; // Set of pinned keyword strings for identification
   onItemSelect?: (item: KeywordItemWithRawTimestamp) => void;
   commandTitle: string;
-  commandHeading: string;
 }
 
 function CollapsedMenuButton({
   icon: Icon,
   tooltip,
-  items,
+  recentItems,
   allItems,
+  pinnedKeywords,
   onItemSelect,
   commandTitle,
-  commandHeading,
 }: CollapsedMenuButtonProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -165,17 +168,24 @@ function CollapsedMenuButton({
   // Determine which items to display based on search query
   const displayedItems = useMemo(() => {
     if (!searchQuery.trim()) {
-      // Show provided items (recent/pinned) when not searching
-      return items;
+      // Show only the 5 most recent keywords when not searching
+      return recentItems.slice(0, 5);
     }
 
     // Show all matching items when searching
     const query = searchQuery.toLowerCase();
-    const searchableItems = allItems || items;
-    return searchableItems.filter((item) =>
+    return allItems.filter((item) =>
       item.keyword.toLowerCase().includes(query)
     );
-  }, [searchQuery, items, allItems]);
+  }, [searchQuery, recentItems, allItems]);
+
+  // Create heading based on search state
+  const heading = useMemo(() => {
+    if (searchQuery.trim()) {
+      return `Similar to "${searchQuery}" ↴`;
+    }
+    return "Recent ↴";
+  }, [searchQuery]);
 
   return (
     <>
@@ -201,14 +211,13 @@ function CollapsedMenuButton({
                 No {commandTitle.toLowerCase()} found.
               </CommandEmpty>
             ) : (
-              <CommandGroup
-                heading={searchQuery.trim() ? "Search results" : commandHeading}
-              >
+              <CommandGroup heading={heading}>
                 {displayedItems.map((item) => (
                   <CommandKeywordItem
                     key={item.id}
                     item={item}
                     searchQuery={searchQuery}
+                    isPinned={pinnedKeywords.includes(item.keyword)}
                     onSelect={() => {
                       onItemSelect?.(item);
                       setOpen(false);
@@ -228,12 +237,14 @@ function CollapsedMenuButton({
 interface CommandKeywordItemProps {
   item: KeywordItemWithRawTimestamp;
   searchQuery: string;
+  isPinned: boolean;
   onSelect: () => void;
 }
 
 function CommandKeywordItem({
   item,
   searchQuery,
+  isPinned,
   onSelect,
 }: CommandKeywordItemProps) {
   const { highlightedText } = useHighlight(
@@ -248,6 +259,7 @@ function CommandKeywordItem({
       <span className="flex-1">{highlightedText}</span>
       {item.rawTimestamp && (
         <span className="ml-auto text-xs text-muted-foreground">
+          {isPinned && <span className="mr-1">𖥣 Pinned</span>} ·{" "}
           {formatRelativeTime(new Date(item.rawTimestamp).toISOString())}
         </span>
       )}
@@ -274,117 +286,76 @@ export function SidebarKeywords() {
 
   const isCollapsed = state === "collapsed";
 
-  // Get all keywords (including pinned) for search in the collapsed view
-  // This ensures consistency with the expanded sidebar search behavior
-  const allKeywordsForSearch = useMemo(() => {
-    return allKeywords; // Include all keywords (both history and pinned)
-  }, [allKeywords]);
+  // Create a set of pinned keyword strings for easy lookup
+  const pinnedKeywordStrings = useMemo(() => {
+    return pinnedKeywords.map((p) => p.keyword);
+  }, [pinnedKeywords]);
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Keywords tried.</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {/* Pinned Keywords */}
-          {isCollapsed ? (
-            pinnedCount > 0 && (
-              <SidebarMenuItem>
-                <CollapsedMenuButton
-                  icon={KeepIcon}
-                  tooltip="Pinned keywords"
-                  items={pinnedKeywords.map(
-                    (p) =>
-                      ({
-                        id: p.id,
-                        keyword: p.keyword,
-                        timestamp: new Date(
-                          p.originalTimestamp || p.pinnedAt
-                        ).toISOString(),
-                        rawTimestamp: p.originalTimestamp || p.pinnedAt,
-                        metadata: p.metadata,
-                      }) as KeywordItemWithRawTimestamp
-                  )}
-                  allItems={pinnedKeywords.map(
-                    (p) =>
-                      ({
-                        id: p.id,
-                        keyword: p.keyword,
-                        timestamp: new Date(
-                          p.originalTimestamp || p.pinnedAt
-                        ).toISOString(),
-                        rawTimestamp: p.originalTimestamp || p.pinnedAt,
-                        metadata: p.metadata,
-                      }) as KeywordItemWithRawTimestamp
-                  )}
-                  onItemSelect={handleKeywordItemSelect}
-                  commandTitle="Pinned Keywords"
-                  commandHeading="Pinned keywords"
-                />
-              </SidebarMenuItem>
-            )
-          ) : pinnedCount > 0 ? (
-            <Collapsible className="group/collapsible [&[data-state=open]>button>svg:last-child]:rotate-90">
-              <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip="Pinned keywords">
-                  <KeepIcon className="fill-sidebar-foreground" />
-                  <span className="truncate">Pinned keywords</span>
-                  <span className="ml-auto select-none font-mono text-xs font-medium text-muted-foreground">
-                    · {pinnedCount}
-                  </span>
-                  <ChevronRightIcon className="fill-sidebar-foreground transition-transform" />
-                </SidebarMenuButton>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  {pinnedKeywords.map((item) => (
-                    <KeywordItemComponent
-                      key={item.id}
-                      keyword={item.keyword}
-                      id={item.id}
-                      isPinned={true}
-                      isActive={
-                        item.keyword.toLowerCase() ===
-                        activeKeyword.toLowerCase()
-                      }
-                      timestamp={new Date(
-                        item.originalTimestamp || item.pinnedAt
-                      ).toISOString()}
-                      rawTimestamp={item.originalTimestamp || item.pinnedAt}
-                      onPin={handlePin}
-                      onUnpin={handleUnpin}
-                      onDelete={handleDelete}
-                      onSelect={handleKeywordSelect}
-                    />
-                  ))}
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </Collapsible>
-          ) : null}
-
-          {/* Keyword History */}
           {isCollapsed ? (
             <SidebarMenuItem>
               <CollapsedMenuButton
                 icon={SearchActivityIcon}
                 tooltip="Keyword history"
-                items={recentKeywords}
-                allItems={allKeywordsForSearch}
+                recentItems={recentKeywords}
+                allItems={allKeywords}
+                pinnedKeywords={pinnedKeywordStrings}
                 onItemSelect={handleKeywordItemSelect}
                 commandTitle="Keyword History"
-                commandHeading="Recent keywords"
               />
             </SidebarMenuItem>
           ) : (
-            <Collapsible className="group/collapsible [&[data-state=open]>button>svg:last-child]:rotate-90">
+            <Collapsible
+              className="group/collapsible [&[data-state=open]>button>svg:last-child]:rotate-90"
+              defaultOpen
+            >
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton tooltip="Keyword history">
                   <SearchActivityIcon className="fill-sidebar-foreground" />
                   <span className="truncate">Keyword history</span>
-                  <ChevronRightIcon className="ml-auto fill-sidebar-foreground transition-transform" />
+                  {allKeywords.length > 0 && (
+                    <span className="ml-auto select-none font-mono text-xs font-medium text-muted-foreground">
+                      · {allKeywords.length}
+                    </span>
+                  )}
+                  <ChevronRightIcon className="fill-sidebar-foreground transition-transform" />
                 </SidebarMenuButton>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarMenuSub>
+                  {/* Pinned Keywords Group */}
+                  {pinnedCount > 0 && (
+                    <Tree
+                      name="Pinned"
+                      items={pinnedKeywords.map(
+                        (p) =>
+                          ({
+                            id: p.id,
+                            keyword: p.keyword,
+                            timestamp: new Date(
+                              p.originalTimestamp || p.pinnedAt
+                            ).toISOString(),
+                            rawTimestamp: p.originalTimestamp || p.pinnedAt,
+                            metadata: p.metadata,
+                          }) as KeywordItemWithRawTimestamp
+                      )}
+                      onPin={handlePin}
+                      onUnpin={handleUnpin}
+                      onDelete={handleDelete}
+                      onSelect={handleKeywordSelect}
+                      isActive={(item) =>
+                        item.keyword.toLowerCase() ===
+                        activeKeyword.toLowerCase()
+                      }
+                      isPinnedItems={true}
+                    />
+                  )}
+
+                  {/* Time-based History Groups */}
                   {Object.entries(filteredGroupedHistory).map(
                     ([group, items]) => (
                       <Tree

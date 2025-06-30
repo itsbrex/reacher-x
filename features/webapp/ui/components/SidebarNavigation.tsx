@@ -44,7 +44,9 @@ export function SidebarNavigation() {
             <SidebarMenuButton tooltip="Replies">
               <QuickPhrasesIcon className="fill-sidebar-foreground" />
               <span className="truncate">Replies</span>
-              <SidebarMenuBadge>2</SidebarMenuBadge>
+              <SidebarMenuBadge className="font-mono text-muted-foreground">
+                02
+              </SidebarMenuBadge>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
@@ -53,7 +55,9 @@ export function SidebarNavigation() {
             <SidebarMenuButton tooltip="Customers">
               <GroupIcon className="fill-sidebar-foreground" />
               <span className="truncate">Customers</span>
-              <SidebarMenuBadge>2</SidebarMenuBadge>
+              <SidebarMenuBadge className="font-mono text-muted-foreground">
+                02
+              </SidebarMenuBadge>
             </SidebarMenuButton>
           </SidebarMenuItem>
 

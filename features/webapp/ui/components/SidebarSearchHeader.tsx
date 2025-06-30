@@ -150,7 +150,7 @@ export function SidebarSearchHeader() {
         New keyword
       </Button>
       <div className="relative">
-        <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 fill-sidebar-foreground" />
+        <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 fill-muted-foreground" />
         <SidebarInput
           type="text"
           placeholder="Search keywords..."
