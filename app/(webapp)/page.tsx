@@ -12,6 +12,7 @@ import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
+import { addKeywordToTracking } from "@/shared/lib/utils/keywordStorage";
 
 export default function WebAppPage() {
   const router = useRouter();
@@ -54,9 +55,27 @@ export default function WebAppPage() {
       params.set("q", query);
       if (exactMatch) params.set("exact", "true");
 
+      // Attach keywordId so that voting can work even for custom keywords
+      if (query.trim()) {
+        // Try to find an existing generated suggestion that matches this query
+        const existingKeyword = suggestions.find(
+          (kw) => kw.keyword.toLowerCase() === query.trim().toLowerCase()
+        );
+
+        if (existingKeyword) {
+          params.set("keywordId", existingKeyword.id);
+        } else {
+          // Create a new keyword entry for tracking purposes
+          const keywordId = addKeywordToTracking(query.trim(), {
+            source: "user_created",
+          });
+          params.set("keywordId", keywordId);
+        }
+      }
+
       router.push(`/search?${params.toString()}`);
     },
-    [router, addToHistory]
+    [router, addToHistory, suggestions]
   );
 
   const handleKeywordClick = useCallback(
