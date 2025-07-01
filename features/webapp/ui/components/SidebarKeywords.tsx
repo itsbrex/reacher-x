@@ -61,8 +61,7 @@ import {
 interface TreeProps {
   name: string;
   items: KeywordItemWithRawTimestamp[];
-  onPin?: (item: KeywordItemWithRawTimestamp) => void;
-  onUnpin?: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
   isActive: (item: KeywordItemWithRawTimestamp) => boolean;
@@ -72,8 +71,7 @@ interface TreeProps {
 function Tree({
   name,
   items,
-  onPin,
-  onUnpin,
+  onTogglePin,
   onDelete,
   onSelect,
   isActive,
@@ -120,10 +118,7 @@ function Tree({
                 id={item.id}
                 isPinned={isPinnedItems}
                 isActive={isActive(item)}
-                timestamp={item.timestamp}
-                rawTimestamp={item.rawTimestamp}
-                onPin={onPin}
-                onUnpin={onUnpin}
+                onTogglePin={onTogglePin}
                 onDelete={onDelete}
                 onSelect={onSelect}
               />
@@ -275,8 +270,7 @@ export function SidebarKeywords() {
     pinnedKeywords,
     recentKeywords,
     allKeywords,
-    handlePin,
-    handleUnpin,
+    handleTogglePin,
     handleDelete,
     handleKeywordSelect,
     handleKeywordItemSelect,
@@ -291,6 +285,32 @@ export function SidebarKeywords() {
     return pinnedKeywords.map((p) => p.keyword);
   }, [pinnedKeywords]);
 
+  const pinnedKeywordItems: KeywordItemWithRawTimestamp[] = useMemo(() => {
+    return pinnedKeywords.map(
+      (p) =>
+        ({
+          id: p.id,
+          keyword: p.keyword,
+          timestamp: new Date(p.pinnedAt || p.createdAt).toISOString(),
+          rawTimestamp: p.pinnedAt || p.createdAt,
+          metadata: p.metadata,
+        }) as KeywordItemWithRawTimestamp
+    );
+  }, [pinnedKeywords]);
+
+  const allKeywordItems: KeywordItemWithRawTimestamp[] = useMemo(() => {
+    return allKeywords.map(
+      (p) =>
+        ({
+          id: p.id,
+          keyword: p.keyword,
+          timestamp: new Date(p.lastUsedAt).toISOString(),
+          rawTimestamp: p.lastUsedAt,
+          metadata: p.metadata,
+        }) as KeywordItemWithRawTimestamp
+    );
+  }, [allKeywords]);
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Keywords tried.</SidebarGroupLabel>
@@ -302,7 +322,7 @@ export function SidebarKeywords() {
                 icon={SearchActivityIcon}
                 tooltip="Keyword history"
                 recentItems={recentKeywords}
-                allItems={allKeywords}
+                allItems={allKeywordItems}
                 pinnedKeywords={pinnedKeywordStrings}
                 onItemSelect={handleKeywordItemSelect}
                 commandTitle="Keyword History"
@@ -331,20 +351,8 @@ export function SidebarKeywords() {
                   {pinnedCount > 0 && (
                     <Tree
                       name="Pinned"
-                      items={pinnedKeywords.map(
-                        (p) =>
-                          ({
-                            id: p.id,
-                            keyword: p.keyword,
-                            timestamp: new Date(
-                              p.originalTimestamp || p.pinnedAt
-                            ).toISOString(),
-                            rawTimestamp: p.originalTimestamp || p.pinnedAt,
-                            metadata: p.metadata,
-                          }) as KeywordItemWithRawTimestamp
-                      )}
-                      onPin={handlePin}
-                      onUnpin={handleUnpin}
+                      items={pinnedKeywordItems}
+                      onTogglePin={handleTogglePin}
                       onDelete={handleDelete}
                       onSelect={handleKeywordSelect}
                       isActive={(item) =>
@@ -362,8 +370,7 @@ export function SidebarKeywords() {
                         key={group}
                         name={group}
                         items={items}
-                        onPin={handlePin}
-                        onUnpin={handleUnpin}
+                        onTogglePin={handleTogglePin}
                         onDelete={handleDelete}
                         onSelect={handleKeywordSelect}
                         isActive={(item) =>

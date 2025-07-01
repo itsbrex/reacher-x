@@ -6,8 +6,8 @@ import { useCallback, useState, useEffect } from "react";
 import {
   getFlaggedKeywords,
   clearKeywordFlags,
-  updateKeywordSuggestions,
-} from "@/shared/lib/utils/keywordStorage";
+  addOrUseKeyword,
+} from "@/shared/lib/utils/unifiedKeywordStore";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 
 export interface RePromptState {
@@ -75,6 +75,15 @@ export function useKeywordRePrompt() {
         return { success: false, error: "No flagged keywords to process" };
       }
 
+      const flaggedKeywordsForAction = flaggedKeywords.map((kw) => ({
+        keyword: kw.keyword,
+        status: kw.status,
+        decayedScore: kw.decayedScore,
+        totalVotes: kw.votes.length,
+        upVotes: kw.votes.filter((v) => v.vote === "up").length,
+        downVotes: kw.votes.filter((v) => v.vote === "down").length,
+      }));
+
       console.log("[KEYWORD_REPROMPT] Processing flagged keywords:", {
         count: flaggedKeywords.length,
         keywords: flaggedKeywords.map((k) => k.keyword),
@@ -83,7 +92,7 @@ export function useKeywordRePrompt() {
       // Call the Convex action
       const result = await rePromptAction({
         userDescription,
-        flaggedKeywords,
+        flaggedKeywords: flaggedKeywordsForAction,
       });
 
       if (!result.success || !result.data) {
@@ -93,10 +102,12 @@ export function useKeywordRePrompt() {
       const { improvedKeywords, insights } = result.data;
 
       // Update keyword suggestions with improved keywords
-      updateKeywordSuggestions(improvedKeywords);
+      improvedKeywords.forEach((kw: KeywordItem) => {
+        addOrUseKeyword(kw.keyword, "ai_reprompt", kw.metadata);
+      });
 
       // Clear flags for processed keywords
-      clearKeywordFlags(flaggedKeywords.map((k) => k.keyword));
+      clearKeywordFlags(flaggedKeywords.map((k) => k.id));
 
       console.log(
         "[KEYWORD_REPROMPT] Successfully generated improved keywords:",

@@ -26,14 +26,9 @@ import { api } from "@/convex/_generated/api";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
 import {
-  getCachedKeywordSuggestions,
-  cacheKeywordSuggestions,
-  hashUserDescription,
-  addKeywordToTracking,
-  getHighValueKeywords,
-  getActiveKeywords,
-  getAllKeywordPerformance,
-} from "@/shared/lib/utils/keywordStorage";
+  getKeywords,
+  type UnifiedKeyword,
+} from "@/shared/lib/utils/unifiedKeywordStore";
 import type { KeywordItem } from "../ui/components/KeywordList";
 
 // Hook configuration
@@ -100,6 +95,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const [cacheAge, setCacheAge] = useState<number | undefined>();
   const [generationMetadata, setGenerationMetadata] =
     useState<GenerationMetadata>({});
+  const [allKeywords, setAllKeywords] = useState<UnifiedKeyword[]>([]);
 
   // Request deduplication
   const lastRequestTimestamp = useRef<number>(0);
@@ -134,6 +130,19 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     }
   }, []); // No dependencies - only run once
 
+  // Load keywords from unified store and listen for changes
+  useEffect(() => {
+    const refreshAllKeywords = () => {
+      setAllKeywords(getKeywords());
+    };
+    refreshAllKeywords(); // Initial load
+
+    window.addEventListener("onLocalStorageChange", refreshAllKeywords);
+    return () => {
+      window.removeEventListener("onLocalStorageChange", refreshAllKeywords);
+    };
+  }, []);
+
   // Computed values - stable dependencies
   const hasValidDescription = useMemo(() => {
     return (
@@ -142,75 +151,79 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     );
   }, [userDescription]);
 
-  const userDescriptionHash = useMemo(() => {
-    return userDescription ? hashUserDescription(userDescription) : "";
-  }, [userDescription]);
-
-  // Performance tracking data - FIXED: Remove suggestions dependency to prevent circular updates
+  // Performance tracking data is now derived from the unified store
   const performanceData = useMemo(() => {
-    const allKeywords = getAllKeywordPerformance();
-    const highValue = getHighValueKeywords();
+    const highValue = allKeywords.filter((kw) => kw.status === "high_value");
+    const activeKeywords = allKeywords.filter(
+      (kw) => kw.status === "active" || kw.status === "high_value"
+    );
 
     return {
       totalTrackedKeywords: allKeywords.length,
       highValueKeywords: highValue.length,
-      availableForFallback: getActiveKeywords().slice(
-        0,
-        HOOK_CONFIG.MAX_FALLBACK_KEYWORDS
-      ),
+      availableForFallback: activeKeywords
+        .sort((a, b) => b.decayedScore - a.decayedScore)
+        .slice(0, HOOK_CONFIG.MAX_FALLBACK_KEYWORDS),
     };
-  }, []); // FIXED: No dependencies - compute fresh each time function is called
+  }, [allKeywords]);
 
   // Stable helper functions
   const loadCachedSuggestions = useCallback(() => {
-    if (!userDescriptionHash) return false;
+    if (!userDescription) return false;
 
-    try {
-      const cached = getCachedKeywordSuggestions(userDescriptionHash);
-      if (cached && cached.length > 0) {
-        setSuggestions(cached);
-        setFromCache(true);
-        setCacheAge(Date.now());
+    // "Cache" is now just previously generated AI suggestions
+    const aiSuggestions = allKeywords.filter(
+      (kw) => kw.source === "ai_suggestion" || kw.source === "ai_reprompt"
+    );
 
-        console.log("[KEYWORD_SUGGESTIONS] Loaded suggestions from cache:", {
-          count: cached.length,
-          userDescriptionHash,
-        });
-
-        return true;
-      }
-    } catch (error) {
-      console.warn(
-        "[KEYWORD_SUGGESTIONS] Failed to load cached suggestions:",
-        error
+    if (aiSuggestions.length > 0) {
+      setSuggestions(
+        aiSuggestions.map((kw) => ({
+          id: kw.id,
+          keyword: kw.keyword,
+          timestamp: new Date(kw.createdAt).toISOString(),
+          metadata: kw.metadata,
+        }))
       );
+      setFromCache(true);
+      setCacheAge(
+        aiSuggestions.reduce((max, kw) => Math.max(max, kw.createdAt), 0)
+      );
+
+      console.log(
+        "[KEYWORD_SUGGESTIONS] Loaded AI suggestions from unified store:",
+        {
+          count: aiSuggestions.length,
+        }
+      );
+      return true;
     }
 
     return false;
-  }, [userDescriptionHash]);
+  }, [userDescription, allKeywords]);
 
   const loadFallbackSuggestions = useCallback(() => {
     if (!HOOK_CONFIG.USE_PERFORMANCE_FALLBACK) return false;
 
     try {
       // Get fresh performance data to avoid stale dependencies
-      const activeKeywords = getActiveKeywords().slice(
-        0,
-        HOOK_CONFIG.MAX_FALLBACK_KEYWORDS
-      );
+      const fallbackFromStore = performanceData.availableForFallback;
 
-      if (activeKeywords.length > 0) {
-        const fallbackSuggestions: KeywordItem[] = activeKeywords.map((kw) => ({
-          id: kw.id,
-          keyword: kw.keyword,
-          timestamp: new Date(kw.lastVoteTimestamp).toISOString(),
-          metadata: {
-            source: "performance_tracking",
-            decayedScore: kw.decayedScore,
-            status: kw.status,
-            totalVotes: kw.totalVotes,
-          },
-        }));
+      if (fallbackFromStore.length > 0) {
+        const fallbackSuggestions: KeywordItem[] = fallbackFromStore.map(
+          (kw) => ({
+            id: kw.id,
+            keyword: kw.keyword,
+            timestamp: new Date(kw.lastUsedAt).toISOString(),
+            metadata: {
+              ...kw.metadata,
+              source: "performance_tracking",
+              decayedScore: kw.decayedScore,
+              status: kw.status,
+              totalVotes: kw.votes.length,
+            },
+          })
+        );
 
         setSuggestions(fallbackSuggestions);
         setFromCache(false);
@@ -219,7 +232,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           "[KEYWORD_SUGGESTIONS] Loaded fallback suggestions from performance data:",
           {
             count: fallbackSuggestions.length,
-            sources: activeKeywords.map((k) => k.source),
+            sources: fallbackFromStore.map((k) => k.source),
           }
         );
 
@@ -272,7 +285,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     try {
       console.log("[KEYWORD_SUGGESTIONS] Starting keyword generation:", {
         descriptionLength: userDescription.length,
-        userDescriptionHash,
         dedupeCheck: now - lastRequestTimestamp.current,
       });
 
@@ -286,32 +298,22 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
       const { keywords, metadata } = result.data;
 
-      // Transform to KeywordItem format and track performance
-      const keywordItems: KeywordItem[] = keywords.map((kw) => {
-        // Add to performance tracking
-        const trackingId = addKeywordToTracking(kw.keyword, {
-          source: "generated",
-          generationRequestId: metadata.requestId,
-          originalConfidence: kw.metadata?.confidence,
-          searchIntent: kw.metadata?.searchIntent,
-        });
+      // Transform to KeywordItem format.
+      // DO NOT add to the unified store yet. They are only suggestions.
+      const keywordItems: KeywordItem[] = keywords.map((kw) => ({
+        id: kw.id, // This is the temporary ID from the backend, e.g., "generated_..."
+        keyword: kw.keyword,
+        timestamp: kw.timestamp,
+        metadata: {
+          ...kw.metadata,
+          fromGeneration: true,
+        },
+      }));
 
-        return {
-          id: trackingId, // Use performance tracking ID instead of generated ID
-          keyword: kw.keyword,
-          timestamp: kw.timestamp,
-          metadata: {
-            ...kw.metadata,
-            trackingId,
-            fromGeneration: true,
-          },
-        };
-      });
-
-      // Cache the suggestions
-      cacheKeywordSuggestions(keywordItems, userDescriptionHash);
-
+      // Set the suggestions in the local state of this hook.
       setSuggestions(keywordItems);
+      setFromCache(false);
+
       setGenerationMetadata({
         requestId: metadata.requestId,
         processingTimeMs: metadata.processingTimeMs,
@@ -355,7 +357,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   }, [
     hasValidDescription,
     userDescription,
-    userDescriptionHash,
     generateKeywordsAction,
     loadFallbackSuggestions,
   ]);
@@ -392,7 +393,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       hasValidDescription,
     });
 
-    // Try cache first. If it's a new description, this will miss.
+    // Try loading from unified store first
     if (loadCachedSuggestions()) {
       return;
     }

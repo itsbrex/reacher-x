@@ -34,7 +34,6 @@ import {
   useHighlight,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils/highlighting";
-import type { KeywordItemWithRawTimestamp } from "@/features/search/hooks/useSearchHistory";
 
 // Keyword Item Component Props
 export interface KeywordItemComponentProps {
@@ -43,10 +42,7 @@ export interface KeywordItemComponentProps {
   id: string;
   isPinned?: boolean;
   isActive?: boolean;
-  timestamp?: string; // This is for display, can be relative
-  rawTimestamp?: number; // Raw UTC timestamp for actions
-  onPin?: (item: KeywordItemWithRawTimestamp) => void;
-  onUnpin?: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
   highlightQuery?: string;
@@ -63,10 +59,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
     id,
     isPinned = false,
     isActive = false,
-    timestamp,
-    rawTimestamp,
-    onPin,
-    onUnpin,
+    onTogglePin,
     onDelete,
     onSelect,
     highlightQuery,
@@ -77,18 +70,9 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
       HIGHLIGHT_PRESETS.KEYWORD
     );
 
-    const handlePin = useCallback(() => {
-      if (isPinned) {
-        onUnpin?.(id);
-      } else {
-        onPin?.({
-          id,
-          keyword,
-          timestamp: timestamp || "",
-          rawTimestamp: rawTimestamp || 0,
-        });
-      }
-    }, [isPinned, onUnpin, onPin, id, keyword, timestamp, rawTimestamp]);
+    const handlePinToggle = useCallback(() => {
+      onTogglePin?.(id);
+    }, [onTogglePin, id]);
 
     const handleDelete = useCallback(() => {
       onDelete?.(id);
@@ -127,7 +111,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
             </SidebarMenuAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="right">
-            <DropdownMenuItem onClick={handlePin}>
+            <DropdownMenuItem onClick={handlePinToggle}>
               {isPinned ? (
                 <>
                   <DoNotDisturbOnIcon className="fill-popover-foreground" />

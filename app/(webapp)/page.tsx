@@ -12,16 +12,12 @@ import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
-import { addKeywordToTracking } from "@/shared/lib/utils/keywordStorage";
+import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
 
 export default function WebAppPage() {
   const router = useRouter();
   const [currentQuery, setCurrentQuery] = useState("");
-  const {
-    history: historyKeywords,
-    isLoaded,
-    addToHistory,
-  } = useSearchHistory();
+  const { history: historyKeywords, isLoaded } = useSearchHistory();
 
   // Use the keyword suggestions hook
   const {
@@ -47,60 +43,39 @@ export default function WebAppPage() {
 
   const handleSearch = useCallback(
     (query: string, exactMatch: boolean) => {
-      // Optimistically add to history
-      if (query) {
-        addToHistory(query, exactMatch);
-      }
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) return;
+
+      // Add to unified store and get the ID
+      const keywordId = addOrUseKeyword(trimmedQuery, "user_created");
+
       const params = new URLSearchParams();
-      params.set("q", query);
+      params.set("q", trimmedQuery);
       if (exactMatch) params.set("exact", "true");
-
-      // Attach keywordId so that voting can work even for custom keywords
-      if (query.trim()) {
-        // Try to find an existing generated suggestion that matches this query
-        const existingKeyword = suggestions.find(
-          (kw) => kw.keyword.toLowerCase() === query.trim().toLowerCase()
-        );
-
-        if (existingKeyword) {
-          params.set("keywordId", existingKeyword.id);
-        } else {
-          // Create a new keyword entry for tracking purposes
-          const keywordId = addKeywordToTracking(query.trim(), {
-            source: "user_created",
-          });
-          params.set("keywordId", keywordId);
-        }
-      }
+      params.set("keywordId", keywordId); // Pass the unified ID
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, addToHistory, suggestions]
+    [router]
   );
 
   const handleKeywordClick = useCallback(
     (item: KeywordItem) => {
-      // Optimistically add to history
-      addToHistory(item.keyword, false);
-      // Record keyword usage for performance tracking
-      recordKeywordUsage(item.id, item.keyword);
-
-      // Ensure we have a keywordId from performance tracking (search history ids are not tracked)
-      let keywordTrackingId = item.id;
-      if (keywordTrackingId.startsWith("search_history_")) {
-        keywordTrackingId = addKeywordToTracking(item.keyword.trim(), {
-          source: "user_created",
-        });
-      }
+      // Record usage in our unified store. Note that AI suggestions will have metadata.
+      const keywordId = addOrUseKeyword(
+        item.keyword,
+        "ai_suggestion",
+        item.metadata
+      );
+      recordKeywordUsage(item.id, item.keyword); // This hook might still be useful for other analytics
 
       const params = new URLSearchParams();
       params.set("q", item.keyword);
-      // Include keyword ID for vote tracking
-      params.set("keywordId", keywordTrackingId);
+      params.set("keywordId", keywordId); // Pass the unified ID
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, recordKeywordUsage, addToHistory]
+    [router, recordKeywordUsage]
   );
 
   const handleQueryChange = useCallback((query: string) => {

@@ -14,7 +14,12 @@ export interface KeywordItem {
   id: string;
   keyword: string;
   timestamp?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    rationale?: string;
+    searchIntent?: string;
+    confidence?: number;
+    [key: string]: unknown;
+  };
 }
 
 // Re-export the similarity function from the shared utility

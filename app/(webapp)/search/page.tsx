@@ -24,10 +24,9 @@ import {
 import { TweetCard } from "@/features/threads/ui/components/TweetCard";
 import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
-import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
-import { addKeywordToTracking } from "@/shared/lib/utils/keywordStorage";
+import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
@@ -73,8 +72,6 @@ export default function SearchResultsPage() {
   // Twitter search hook
   const { searchTweets, results, loading, error, retryCount, clearResults } =
     useTwitterSearch();
-
-  const { addToHistory } = useSearchHistory();
 
   // Keyword suggestions hook
   const { suggestions: keywordSuggestions, recordKeywordUsage } =
@@ -248,55 +245,29 @@ export default function SearchResultsPage() {
   // Commit draft state (search execution)
   const handleSearch = useCallback(
     (searchQuery: string, isExactMatch: boolean) => {
+      const trimmedQuery = searchQuery.trim();
+      if (!trimmedQuery) return;
+
       console.log("[SEARCH_PAGE] Committing search:", {
-        searchQuery: searchQuery.trim(),
+        searchQuery: trimmedQuery,
         isExactMatch,
-        hasUserDescription: !!userDescription,
       });
 
       isCommittingRef.current = true;
       setIsSearchMode(false);
 
-      const trimmedQuery = searchQuery.trim();
-
-      // Optimistically add to history
-      if (trimmedQuery) {
-        addToHistory(trimmedQuery, isExactMatch);
-      }
+      const keywordId = addOrUseKeyword(trimmedQuery, "user_created");
 
       const params = new URLSearchParams();
-      if (trimmedQuery) {
-        params.set("q", trimmedQuery);
-
-        // Create a temporary keyword for vote tracking if this is a custom search
-        // Check if this matches any existing keyword suggestions first
-        const existingKeyword = keywordSuggestions.find(
-          (kw) => kw.keyword.toLowerCase() === trimmedQuery.toLowerCase()
-        );
-
-        if (existingKeyword) {
-          // Use existing keyword ID
-          params.set("keywordId", existingKeyword.id);
-        } else {
-          // Create new keyword for tracking
-          const keywordId = addKeywordToTracking(trimmedQuery, {
-            source: "user_created",
-          });
-          params.set("keywordId", keywordId);
-
-          console.log("[SEARCH_PAGE] Created new keyword for tracking:", {
-            keyword: trimmedQuery,
-            keywordId,
-          });
-        }
-      }
+      params.set("q", trimmedQuery);
       if (isExactMatch) {
         params.set("exact", "true");
       }
+      params.set("keywordId", keywordId);
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, userDescription, keywordSuggestions, addToHistory]
+    [router]
   );
 
   // Handle keyword selection from suggestions
@@ -304,34 +275,26 @@ export default function SearchResultsPage() {
     (item: KeywordItem) => {
       console.log("[SEARCH_PAGE] Keyword selected from suggestions:", {
         keyword: item.keyword,
-        hasUserDescription: !!userDescription,
       });
 
-      // Optimistically add to history
-      addToHistory(item.keyword, false);
-
-      // Record keyword usage for performance tracking
-      recordKeywordUsage(item.id, item.keyword);
-
-      // Ensure we have a keywordId that exists in performance tracking
-      let keywordTrackingId = item.id;
-      if (keywordTrackingId.startsWith("search_history_")) {
-        keywordTrackingId = addKeywordToTracking(item.keyword.trim(), {
-          source: "user_created",
-        });
-      }
+      // Record usage in our unified store.
+      const keywordId = addOrUseKeyword(
+        item.keyword,
+        "ai_suggestion",
+        item.metadata
+      );
+      recordKeywordUsage(item.id, item.keyword); // This hook can still be used for other analytics
 
       isCommittingRef.current = true;
       setIsSearchMode(false);
 
       const params = new URLSearchParams();
       params.set("q", item.keyword);
-      // Include keyword ID for vote tracking
-      params.set("keywordId", keywordTrackingId);
+      params.set("keywordId", keywordId);
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, userDescription, recordKeywordUsage, addToHistory]
+    [router, recordKeywordUsage]
   );
 
   // Update draft state

@@ -13,7 +13,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { recordKeywordVote } from "@/shared/lib/utils/keywordStorage";
+import { recordVote } from "@/shared/lib/utils/unifiedKeywordStore";
 
 export interface TweetVote {
   id: string;
@@ -206,9 +206,8 @@ export function useTweetVoting(): UseTweetVotingReturn {
         );
 
         // Record vote in keyword performance system
-        const success = recordKeywordVote(keywordId, voteType, {
+        const success = recordVote(keywordId, voteType, {
           tweetId,
-          searchQuery,
         });
 
         if (!success) {
