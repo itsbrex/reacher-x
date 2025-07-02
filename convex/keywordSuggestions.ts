@@ -27,7 +27,7 @@ import { generateRequestId } from "../shared/lib/utils/request";
 
 // Configuration constants
 const KEYWORD_GENERATION_CONFIG = {
-  TARGET_KEYWORD_COUNT: 5,
+  TARGET_KEYWORD_COUNT: 15, // Generate 15 keywords at a time
 } as const;
 
 // Enhanced schema for keyword generation results
@@ -116,7 +116,7 @@ export const generateKeywords = action({
 User's Business Description:
 "${userDescription}"
 
-Your task: Generate exactly ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} powerful keywords/phrases that will help this user find potential customers expressing buying intent on Twitter/X.
+Your task: Generate exactly ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} powerful keywords/phrases that will help this user find potential customers expressing buying intent on Twitter/X. These keywords will be shown to the user in batches of 5, so ensure variety and quality across all ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} keywords.
 
 Focus on keywords that capture:
 • People expressing pain points or problems

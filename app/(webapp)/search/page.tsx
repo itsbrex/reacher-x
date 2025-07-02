@@ -139,6 +139,11 @@ export default function SearchResultsPage() {
         exactMatch: committedExactMatch,
         hasUserDescription: !!userDescription,
       });
+
+      // Add keyword to unified store when search is performed
+      // This handles both manual searches and keyword suggestion clicks
+      addOrUseKeyword(committedQuery, "user_created");
+
       searchTweets(committedQuery, committedExactMatch);
       isInitialSearchDone.current = true;
     } else {
@@ -256,14 +261,12 @@ export default function SearchResultsPage() {
       isCommittingRef.current = true;
       setIsSearchMode(false);
 
-      const keywordId = addOrUseKeyword(trimmedQuery, "user_created");
-
+      // Don't add to unified store here - it will be added in the useEffect when URL changes
       const params = new URLSearchParams();
       params.set("q", trimmedQuery);
       if (isExactMatch) {
         params.set("exact", "true");
       }
-      params.set("keywordId", keywordId);
 
       router.push(`/search?${params.toString()}`);
     },
@@ -277,12 +280,8 @@ export default function SearchResultsPage() {
         keyword: item.keyword,
       });
 
-      // Record usage in our unified store.
-      const keywordId = addOrUseKeyword(
-        item.keyword,
-        "ai_suggestion",
-        item.metadata
-      );
+      // Don't add to unified store yet - this is just a suggestion click
+      // The keyword will be added to history when the user actually performs the search
       recordKeywordUsage(item.id, item.keyword); // This hook can still be used for other analytics
 
       isCommittingRef.current = true;
@@ -290,7 +289,7 @@ export default function SearchResultsPage() {
 
       const params = new URLSearchParams();
       params.set("q", item.keyword);
-      params.set("keywordId", keywordId);
+      // Don't pass keywordId since we haven't created it yet
 
       router.push(`/search?${params.toString()}`);
     },

@@ -62,8 +62,8 @@ const KeywordRePromptSchema = z
             ),
         })
       )
-      .length(5)
-      .describe("Array of 5 improved keywords based on performance feedback"),
+      .length(15)
+      .describe("Array of 15 improved keywords based on performance feedback"),
 
     analysisInsights: z
       .object({
@@ -177,7 +177,7 @@ ${
     : "- None identified yet"
 }
 
-TASK: Generate 5 IMPROVED keywords based on this performance feedback.
+TASK: Generate 15 IMPROVED keywords based on this performance feedback. These keywords will be shown to the user in batches of 5, so ensure variety and quality across all 15 keywords.
 
 ANALYSIS STRATEGY:
 1. If high-performing keywords exist: Identify what makes them successful (word choices, intent types, specificity levels) and create similar variations

@@ -1,16 +1,12 @@
 /**
  * Keyword Suggestions Hook
  *
- * This hook provides a complete integration between the frontend and the keyword
- * suggestion system, managing both AI generation and performance tracking.
- *
- * Features:
- * - Smart caching with description-based invalidation
- * - Fallback to high-value keywords from performance tracking
- * - Seamless integration with existing KeywordItem interface
- * - Automatic performance tracking initialization
- * - Error handling and loading states
- * - Request deduplication to prevent infinite loops
+ * This hook implements the proper keyword suggestion management system:
+ * - Store 15 generated keywords at a time
+ * - Show only 5 unused keywords to the user
+ * - When a keyword is used, remove it from suggestions and show a new one
+ * - When no unused keywords remain, trigger regeneration
+ * - Use re-prompt service if user has voting data, otherwise use simple generation
  *
  * References:
  * - React Query patterns: https://react-query.tanstack.com/guides/dependent-queries
@@ -29,7 +25,78 @@ import {
   getKeywords,
   type UnifiedKeyword,
 } from "@/shared/lib/utils/unifiedKeywordStore";
+import {
+  getUnusedSuggestions,
+  markSuggestionAsUsed,
+  shouldRegenerateSuggestions,
+  storeNewSuggestions,
+  hasUserDescriptionChanged,
+  getSuggestionsStats,
+  type KeywordSuggestion,
+} from "@/shared/lib/utils/keywordSuggestionsStore";
 import type { KeywordItem } from "../ui/components/KeywordList";
+
+// Type definitions for API responses
+interface KeywordGenerationResponse {
+  keywords: Array<{
+    id: string;
+    keyword: string;
+    timestamp: string;
+    metadata: {
+      rationale: string;
+      searchIntent: string;
+      confidence: number;
+      generatedAt: number;
+      source: string;
+      usedFallback: boolean;
+    };
+  }>;
+  metadata: {
+    requestId: string;
+    generatedAt: number;
+    processingTimeMs: number;
+    llmProcessingTimeMs: number;
+    confidenceStats: {
+      min: number;
+      max: number;
+      avg: number;
+    };
+    intentDistribution: Record<string, number>;
+    userDescriptionLength: number;
+    modelUsed: string;
+    usedFallback: boolean;
+  };
+}
+
+interface KeywordRePromptResponse {
+  improvedKeywords: Array<{
+    id: string;
+    keyword: string;
+    timestamp: string;
+    metadata: {
+      improvementReason: string;
+      searchIntent: string;
+      confidence: number;
+      basedOnPerformance: boolean;
+    };
+  }>;
+  insights: {
+    highPerformingPatterns: string[];
+    lowPerformingPatterns: string[];
+    recommendedAdjustments: string[];
+  };
+  metadata: {
+    requestId: string;
+    generatedAt: number;
+    processingTimeMs: number;
+    llmProcessingTimeMs: number;
+    basedOnKeywords: string[];
+    performanceContext: {
+      highPerformingCount: number;
+      lowPerformingCount: number;
+    };
+  };
+}
 
 // Hook configuration
 const HOOK_CONFIG = {
@@ -83,7 +150,7 @@ export interface GenerationMetadata {
 }
 
 /**
- * Hook for managing keyword suggestions with AI generation and performance tracking
+ * Hook for managing keyword suggestions with proper lifecycle management
  */
 export function useKeywordSuggestions(): KeywordSuggestionsState {
   // State management
@@ -103,12 +170,30 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const hasAttemptedInitialFetch = useRef<boolean>(false);
   const isLoadingRef = useRef<boolean>(false);
 
-  // Convex action for keyword generation
+  // Convex actions
   const generateKeywordsAction = useAction(
     api.keywordSuggestions.generateKeywords
   );
+  const rePromptKeywordsAction = useAction(
+    api.keywordRePrompt.rePromptKeywords
+  );
 
-  // Load user description and validate - stable effect
+  // Helper function to transform UnifiedKeyword to expected format
+  const transformKeywordsForRePrompt = useCallback(
+    (keywords: UnifiedKeyword[]) => {
+      return keywords.map((kw) => ({
+        status: kw.status,
+        keyword: kw.keyword,
+        decayedScore: kw.decayedScore,
+        totalVotes: kw.votes.length,
+        upVotes: kw.votes.filter((v) => v.vote === "up").length,
+        downVotes: kw.votes.filter((v) => v.vote === "down").length,
+      }));
+    },
+    []
+  );
+
+  // Load user description and validate
   useEffect(() => {
     try {
       const description = getWorkspaceDescription();
@@ -128,7 +213,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       );
       setError("Failed to load workspace description");
     }
-  }, []); // No dependencies - only run once
+  }, []);
 
   // Load keywords from unified store and listen for changes
   useEffect(() => {
@@ -143,7 +228,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     };
   }, []);
 
-  // Computed values - stable dependencies
+  // Computed values
   const hasValidDescription = useMemo(() => {
     return (
       userDescription &&
@@ -151,7 +236,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     );
   }, [userDescription]);
 
-  // Performance tracking data is now derived from the unified store
+  // Performance tracking data derived from unified store
   const performanceData = useMemo(() => {
     const highValue = allKeywords.filter((kw) => kw.status === "high_value");
     const activeKeywords = allKeywords.filter(
@@ -167,90 +252,47 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     };
   }, [allKeywords]);
 
-  // Stable helper functions
-  const loadCachedSuggestions = useCallback(() => {
+  // Load suggestions from store
+  const loadSuggestionsFromStore = useCallback(() => {
     if (!userDescription) return false;
 
-    // "Cache" is now just previously generated AI suggestions
-    const aiSuggestions = allKeywords.filter(
-      (kw) => kw.source === "ai_suggestion" || kw.source === "ai_reprompt"
-    );
+    const unusedSuggestions = getUnusedSuggestions();
 
-    if (aiSuggestions.length > 0) {
-      setSuggestions(
-        aiSuggestions.map((kw) => ({
-          id: kw.id,
-          keyword: kw.keyword,
-          timestamp: new Date(kw.createdAt).toISOString(),
-          isPinned: kw.isPinned,
-          metadata: kw.metadata,
-        }))
+    if (unusedSuggestions.length > 0) {
+      const keywordItems: KeywordItem[] = unusedSuggestions.map(
+        (suggestion) => ({
+          id: suggestion.id,
+          keyword: suggestion.keyword,
+          timestamp: new Date(suggestion.generatedAt).toISOString(),
+          isPinned: false,
+          metadata: suggestion.metadata,
+        })
       );
+
+      setSuggestions(keywordItems);
       setFromCache(true);
-      setCacheAge(
-        aiSuggestions.reduce((max, kw) => Math.max(max, kw.createdAt), 0)
-      );
+      setCacheAge(unusedSuggestions[0]?.generatedAt);
 
-      console.log(
-        "[KEYWORD_SUGGESTIONS] Loaded AI suggestions from unified store:",
-        {
-          count: aiSuggestions.length,
-        }
-      );
+      console.log("[KEYWORD_SUGGESTIONS] Loaded suggestions from store:", {
+        count: unusedSuggestions.length,
+        stats: getSuggestionsStats(),
+      });
       return true;
     }
 
     return false;
-  }, [userDescription, allKeywords]);
+  }, [userDescription]);
 
-  const loadFallbackSuggestions = useCallback(() => {
-    if (!HOOK_CONFIG.USE_PERFORMANCE_FALLBACK) return false;
+  // Check if we should use re-prompt service
+  const shouldUseRePrompt = useCallback(() => {
+    const stats = getSuggestionsStats();
+    const hasVotingData = allKeywords.some((kw) => kw.votes.length > 0);
 
-    try {
-      // Get fresh performance data to avoid stale dependencies
-      const fallbackFromStore = performanceData.availableForFallback;
+    // Use re-prompt if user has voting data and we have some tracked keywords
+    return hasVotingData && stats.total > 0;
+  }, [allKeywords]);
 
-      if (fallbackFromStore.length > 0) {
-        const fallbackSuggestions: KeywordItem[] = fallbackFromStore.map(
-          (kw) => ({
-            id: kw.id,
-            keyword: kw.keyword,
-            timestamp: new Date(kw.lastUsedAt).toISOString(),
-            isPinned: kw.isPinned,
-            metadata: {
-              ...kw.metadata,
-              source: "performance_tracking",
-              decayedScore: kw.decayedScore,
-              status: kw.status,
-              totalVotes: kw.votes.length,
-            },
-          })
-        );
-
-        setSuggestions(fallbackSuggestions);
-        setFromCache(false);
-
-        console.log(
-          "[KEYWORD_SUGGESTIONS] Loaded fallback suggestions from performance data:",
-          {
-            count: fallbackSuggestions.length,
-            sources: fallbackFromStore.map((k) => k.source),
-          }
-        );
-
-        return true;
-      }
-    } catch (error) {
-      console.warn(
-        "[KEYWORD_SUGGESTIONS] Failed to load fallback suggestions:",
-        error
-      );
-    }
-
-    return false;
-  }, []); // FIXED: No dependencies - compute fresh data each time
-
-  // Generate new keywords using AI - with request deduplication
+  // Generate new keywords using AI
   const generateKeywords = useCallback(async () => {
     if (!hasValidDescription || !userDescription) {
       setError("Valid workspace description required for keyword generation");
@@ -287,52 +329,109 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     try {
       console.log("[KEYWORD_SUGGESTIONS] Starting keyword generation:", {
         descriptionLength: userDescription.length,
-        dedupeCheck: now - lastRequestTimestamp.current,
+        useRePrompt: shouldUseRePrompt(),
+        stats: getSuggestionsStats(),
       });
 
-      const result = await generateKeywordsAction({
-        userDescription,
-      });
+      let result;
+
+      if (shouldUseRePrompt()) {
+        // Use re-prompt service with voting data
+        const flaggedKeywords = allKeywords.filter((kw) => kw.votes.length > 0);
+        const transformedKeywords = transformKeywordsForRePrompt(
+          flaggedKeywords.slice(0, 10)
+        ); // Limit to 10 for performance
+        result = await rePromptKeywordsAction({
+          userDescription,
+          flaggedKeywords: transformedKeywords,
+        });
+      } else {
+        // Use simple generation
+        result = await generateKeywordsAction({
+          userDescription,
+        });
+      }
 
       if (!result.success || !result.data) {
         throw new Error(result.error || "Failed to generate keywords");
       }
 
-      const { keywords, metadata } = result.data;
+      // Handle different response structures
+      let keywords: Array<{
+        keyword: string;
+        metadata?: KeywordSuggestion["metadata"];
+      }>;
+      let metadata:
+        | KeywordGenerationResponse["metadata"]
+        | KeywordRePromptResponse["metadata"];
 
-      // Transform to KeywordItem format.
-      // DO NOT add to the unified store yet. They are only suggestions.
-      const keywordItems: KeywordItem[] = keywords.map((kw) => ({
-        id: kw.id, // This is the temporary ID from the backend, e.g., "generated_..."
-        keyword: kw.keyword,
-        timestamp: kw.timestamp,
-        isPinned: false, // AI-generated keywords are not pinned by default
-        metadata: {
-          ...kw.metadata,
-          fromGeneration: true,
-        },
-      }));
+      if (shouldUseRePrompt()) {
+        // Re-prompt service returns improvedKeywords
+        const rePromptData = result.data as KeywordRePromptResponse;
+        keywords = rePromptData.improvedKeywords.map((kw) => ({
+          keyword: kw.keyword,
+          metadata: {
+            ...kw.metadata,
+            source: "ai_reprompt",
+          },
+        }));
+        metadata = rePromptData.metadata;
+      } else {
+        // Simple generation returns keywords
+        const genData = result.data as KeywordGenerationResponse;
+        keywords = genData.keywords.map((kw) => ({
+          keyword: kw.keyword,
+          metadata: {
+            ...kw.metadata,
+            source: "ai_generation",
+          },
+        }));
+        metadata = genData.metadata;
+      }
 
-      // Set the suggestions in the local state of this hook.
-      setSuggestions(keywordItems);
-      setFromCache(false);
+      // Store new suggestions in the store
+      const storeSuccess = storeNewSuggestions(
+        keywords.map((kw) => ({
+          keyword: kw.keyword,
+          metadata: kw.metadata,
+        })),
+        userDescription
+      );
 
-      setGenerationMetadata({
-        requestId: metadata.requestId,
-        processingTimeMs: metadata.processingTimeMs,
-        llmProcessingTimeMs: metadata.llmProcessingTimeMs,
-        confidenceStats: metadata.confidenceStats,
-        intentDistribution: metadata.intentDistribution,
-        modelUsed: metadata.modelUsed,
-        usedFallback: metadata.usedFallback,
-      });
+      if (!storeSuccess) {
+        throw new Error("Failed to store new suggestions");
+      }
+
+      // Load the updated suggestions
+      loadSuggestionsFromStore();
+
+      // Set generation metadata based on response type
+      if (shouldUseRePrompt()) {
+        const rePromptMetadata =
+          metadata as KeywordRePromptResponse["metadata"];
+        setGenerationMetadata({
+          requestId: rePromptMetadata.requestId,
+          processingTimeMs: rePromptMetadata.processingTimeMs,
+          llmProcessingTimeMs: rePromptMetadata.llmProcessingTimeMs,
+        });
+      } else {
+        const genMetadata = metadata as KeywordGenerationResponse["metadata"];
+        setGenerationMetadata({
+          requestId: genMetadata.requestId,
+          processingTimeMs: genMetadata.processingTimeMs,
+          llmProcessingTimeMs: genMetadata.llmProcessingTimeMs,
+          confidenceStats: genMetadata.confidenceStats,
+          intentDistribution: genMetadata.intentDistribution,
+          modelUsed: genMetadata.modelUsed,
+          usedFallback: genMetadata.usedFallback,
+        });
+      }
 
       const endTime = Date.now();
       console.log("[KEYWORD_SUGGESTIONS] Generation completed successfully:", {
-        keywordCount: keywordItems.length,
+        keywordCount: keywords.length,
         totalTimeMs: endTime - startTime,
-        avgConfidence: metadata.confidenceStats?.avg,
-        intentTypes: Object.keys(metadata.intentDistribution || {}),
+        useRePrompt: shouldUseRePrompt(),
       });
     } catch (err) {
       const errorMessage =
@@ -344,15 +443,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         stack: err instanceof Error ? err.stack : undefined,
         processingTimeMs: Date.now() - startTime,
       });
-
-      // If generation fails, attempt to load fallback suggestions as a last resort.
-      console.warn(
-        "[KEYWORD_SUGGESTIONS] Generation failed. Attempting to load fallback suggestions."
-      );
-      if (!loadFallbackSuggestions()) {
-        // Ensure suggestions are empty if there are no fallbacks either to avoid showing stale data.
-        setSuggestions([]);
-      }
     } finally {
       setLoading(false);
       isLoadingRef.current = false;
@@ -361,10 +451,14 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     hasValidDescription,
     userDescription,
     generateKeywordsAction,
-    loadFallbackSuggestions,
+    rePromptKeywordsAction,
+    shouldUseRePrompt,
+    allKeywords,
+    loadSuggestionsFromStore,
+    transformKeywordsForRePrompt,
   ]);
 
-  // Record keyword usage for performance tracking
+  // Record keyword usage and mark as used in store
   const recordKeywordUsage = useCallback(
     (keywordId: string, keyword: string) => {
       try {
@@ -373,8 +467,12 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           keyword,
         });
 
-        // This can be extended to record actual usage patterns
-        // For now, we just log the usage - voting will be handled separately
+        // Mark the suggestion as used in the store
+        const success = markSuggestionAsUsed(keyword);
+        if (success) {
+          // Reload suggestions to show new ones
+          loadSuggestionsFromStore();
+        }
       } catch (error) {
         console.warn(
           "[KEYWORD_SUGGESTIONS] Failed to record keyword usage:",
@@ -382,10 +480,10 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         );
       }
     },
-    []
+    [loadSuggestionsFromStore]
   );
 
-  // Refresh suggestions - FIXED: Stable implementation without circular dependencies
+  // Refresh suggestions
   const refreshSuggestions = useCallback(async () => {
     if (!hasValidDescription) {
       setError("Valid workspace description required");
@@ -394,31 +492,58 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
     console.log("[KEYWORD_SUGGESTIONS] Refreshing suggestions:", {
       hasValidDescription,
+      shouldRegenerate: shouldRegenerateSuggestions(),
+      descriptionChanged: hasUserDescriptionChanged(userDescription || ""),
     });
 
-    // Try loading from unified store first
-    if (loadCachedSuggestions()) {
+    // Check if user description changed (needs regeneration)
+    if (hasUserDescriptionChanged(userDescription || "")) {
+      console.log(
+        "[KEYWORD_SUGGESTIONS] User description changed, regenerating"
+      );
+      await generateKeywords();
       return;
     }
 
-    // If cache misses, generate new suggestions. This now handles its own fallback logic on error.
-    await generateKeywords();
-  }, [hasValidDescription, loadCachedSuggestions, generateKeywords]);
+    // Try loading from store first
+    if (loadSuggestionsFromStore()) {
+      return;
+    }
+
+    // Check if regeneration is needed
+    if (shouldRegenerateSuggestions()) {
+      console.log(
+        "[KEYWORD_SUGGESTIONS] Regeneration needed, generating new keywords"
+      );
+      await generateKeywords();
+      return;
+    }
+
+    // If we still have no suggestions, generate them
+    if (suggestions.length === 0) {
+      console.log("[KEYWORD_SUGGESTIONS] No suggestions available, generating");
+      await generateKeywords();
+    }
+  }, [
+    hasValidDescription,
+    userDescription,
+    loadSuggestionsFromStore,
+    generateKeywords,
+    suggestions.length,
+  ]);
 
   // Clear error state
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // FIXED: Stable auto-fetch on mount with proper controls
+  // Auto-fetch on mount with proper controls
   useEffect(() => {
-    // Only run once when component mounts and has valid description
     if (
       !isInitialized.current &&
       !hasAttemptedInitialFetch.current &&
       HOOK_CONFIG.AUTO_FETCH_ON_MOUNT &&
-      hasValidDescription &&
-      suggestions.length === 0
+      hasValidDescription
     ) {
       hasAttemptedInitialFetch.current = true;
       isInitialized.current = true;
@@ -432,7 +557,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [hasValidDescription]); // FIXED: Only depend on hasValidDescription
+  }, [hasValidDescription, refreshSuggestions]);
 
   // Mark as initialized when we have suggestions or an error
   useEffect(() => {
