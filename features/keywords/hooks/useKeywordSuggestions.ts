@@ -32,7 +32,6 @@ import {
   storeNewSuggestions,
   hasUserDescriptionChanged,
   getSuggestionsStats,
-  type KeywordSuggestion,
 } from "@/shared/lib/utils/keywordSuggestionsStore";
 import type { KeywordItem } from "../ui/components/KeywordList";
 
@@ -65,36 +64,6 @@ interface KeywordGenerationResponse {
     userDescriptionLength: number;
     modelUsed: string;
     usedFallback: boolean;
-  };
-}
-
-interface KeywordRePromptResponse {
-  improvedKeywords: Array<{
-    id: string;
-    keyword: string;
-    timestamp: string;
-    metadata: {
-      improvementReason: string;
-      searchIntent: string;
-      confidence: number;
-      basedOnPerformance: boolean;
-    };
-  }>;
-  insights: {
-    highPerformingPatterns: string[];
-    lowPerformingPatterns: string[];
-    recommendedAdjustments: string[];
-  };
-  metadata: {
-    requestId: string;
-    generatedAt: number;
-    processingTimeMs: number;
-    llmProcessingTimeMs: number;
-    basedOnKeywords: string[];
-    performanceContext: {
-      highPerformingCount: number;
-      lowPerformingCount: number;
-    };
   };
 }
 
@@ -173,9 +142,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   // Convex actions
   const generateKeywordsAction = useAction(
     api.keywordSuggestions.generateKeywords
-  );
-  const rePromptKeywordsAction = useAction(
-    api.keywordRePrompt.rePromptKeywords
   );
 
   // Helper function to transform UnifiedKeyword to expected format
@@ -284,13 +250,11 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   }, [userDescription]);
 
   // Check if we should use re-prompt service
+  // Note: Re-prompting is now handled by the separate useKeywordRePrompt hook
+  // This hook only handles regular keyword generation
   const shouldUseRePrompt = useCallback(() => {
-    const stats = getSuggestionsStats();
-    const hasVotingData = allKeywords.some((kw) => kw.votes.length > 0);
-
-    // Use re-prompt if user has voting data and we have some tracked keywords
-    return hasVotingData && stats.total > 0;
-  }, [allKeywords]);
+    return false; // Disable re-prompting in this hook
+  }, []);
 
   // Generate new keywords using AI
   const generateKeywords = useCallback(async () => {
@@ -333,61 +297,25 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         stats: getSuggestionsStats(),
       });
 
-      let result;
-
-      if (shouldUseRePrompt()) {
-        // Use re-prompt service with voting data
-        const flaggedKeywords = allKeywords.filter((kw) => kw.votes.length > 0);
-        const transformedKeywords = transformKeywordsForRePrompt(
-          flaggedKeywords.slice(0, 10)
-        ); // Limit to 10 for performance
-        result = await rePromptKeywordsAction({
-          userDescription,
-          flaggedKeywords: transformedKeywords,
-        });
-      } else {
-        // Use simple generation
-        result = await generateKeywordsAction({
-          userDescription,
-        });
-      }
+      // Use simple generation (re-prompting is handled by useKeywordRePrompt hook)
+      const result = await generateKeywordsAction({
+        userDescription,
+      });
 
       if (!result.success || !result.data) {
         throw new Error(result.error || "Failed to generate keywords");
       }
 
-      // Handle different response structures
-      let keywords: Array<{
-        keyword: string;
-        metadata?: KeywordSuggestion["metadata"];
-      }>;
-      let metadata:
-        | KeywordGenerationResponse["metadata"]
-        | KeywordRePromptResponse["metadata"];
-
-      if (shouldUseRePrompt()) {
-        // Re-prompt service returns improvedKeywords
-        const rePromptData = result.data as KeywordRePromptResponse;
-        keywords = rePromptData.improvedKeywords.map((kw) => ({
-          keyword: kw.keyword,
-          metadata: {
-            ...kw.metadata,
-            source: "ai_reprompt",
-          },
-        }));
-        metadata = rePromptData.metadata;
-      } else {
-        // Simple generation returns keywords
-        const genData = result.data as KeywordGenerationResponse;
-        keywords = genData.keywords.map((kw) => ({
-          keyword: kw.keyword,
-          metadata: {
-            ...kw.metadata,
-            source: "ai_generation",
-          },
-        }));
-        metadata = genData.metadata;
-      }
+      // Handle simple generation response
+      const genData = result.data as KeywordGenerationResponse;
+      const keywords = genData.keywords.map((kw) => ({
+        keyword: kw.keyword,
+        metadata: {
+          ...kw.metadata,
+          source: "ai_generation",
+        },
+      }));
+      const metadata = genData.metadata;
 
       // Store new suggestions in the store
       const storeSuccess = storeNewSuggestions(
@@ -402,30 +330,26 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         throw new Error("Failed to store new suggestions");
       }
 
+      // Trigger a refresh of suggestions UI
+      window.dispatchEvent(
+        new CustomEvent("keywordSuggestionsUpdated", {
+          detail: { source: "generation", count: keywords.length },
+        })
+      );
+
       // Load the updated suggestions
       loadSuggestionsFromStore();
 
-      // Set generation metadata based on response type
-      if (shouldUseRePrompt()) {
-        const rePromptMetadata =
-          metadata as KeywordRePromptResponse["metadata"];
-        setGenerationMetadata({
-          requestId: rePromptMetadata.requestId,
-          processingTimeMs: rePromptMetadata.processingTimeMs,
-          llmProcessingTimeMs: rePromptMetadata.llmProcessingTimeMs,
-        });
-      } else {
-        const genMetadata = metadata as KeywordGenerationResponse["metadata"];
-        setGenerationMetadata({
-          requestId: genMetadata.requestId,
-          processingTimeMs: genMetadata.processingTimeMs,
-          llmProcessingTimeMs: genMetadata.llmProcessingTimeMs,
-          confidenceStats: genMetadata.confidenceStats,
-          intentDistribution: genMetadata.intentDistribution,
-          modelUsed: genMetadata.modelUsed,
-          usedFallback: genMetadata.usedFallback,
-        });
-      }
+      // Set generation metadata
+      setGenerationMetadata({
+        requestId: metadata.requestId,
+        processingTimeMs: metadata.processingTimeMs,
+        llmProcessingTimeMs: metadata.llmProcessingTimeMs,
+        confidenceStats: metadata.confidenceStats,
+        intentDistribution: metadata.intentDistribution,
+        modelUsed: metadata.modelUsed,
+        usedFallback: metadata.usedFallback,
+      });
 
       const endTime = Date.now();
       console.log("[KEYWORD_SUGGESTIONS] Generation completed successfully:", {
@@ -451,7 +375,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     hasValidDescription,
     userDescription,
     generateKeywordsAction,
-    rePromptKeywordsAction,
     shouldUseRePrompt,
     allKeywords,
     loadSuggestionsFromStore,
@@ -558,6 +481,30 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       return () => clearTimeout(timeoutId);
     }
   }, [hasValidDescription, refreshSuggestions]);
+
+  // Listen for suggestions updates from reprompt hook
+  useEffect(() => {
+    const handleSuggestionsUpdate = (event: CustomEvent) => {
+      console.log(
+        "[KEYWORD_SUGGESTIONS] Received suggestions update event:",
+        event.detail
+      );
+      // Refresh suggestions when new ones are added by reprompt
+      loadSuggestionsFromStore();
+    };
+
+    window.addEventListener(
+      "keywordSuggestionsUpdated",
+      handleSuggestionsUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keywordSuggestionsUpdated",
+        handleSuggestionsUpdate as EventListener
+      );
+    };
+  }, [loadSuggestionsFromStore]);
 
   // Mark as initialized when we have suggestions or an error
   useEffect(() => {

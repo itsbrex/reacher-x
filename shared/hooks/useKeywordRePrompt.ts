@@ -6,8 +6,8 @@ import { useCallback, useState, useEffect } from "react";
 import {
   getFlaggedKeywords,
   clearKeywordFlags,
-  addOrUseKeyword,
 } from "@/shared/lib/utils/unifiedKeywordStore";
+import { storeNewSuggestions } from "@/shared/lib/utils/keywordSuggestionsStore";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 
 export interface RePromptState {
@@ -101,10 +101,30 @@ export function useKeywordRePrompt() {
 
       const { improvedKeywords, insights } = result.data;
 
-      // Update keyword suggestions with improved keywords
-      improvedKeywords.forEach((kw: KeywordItem) => {
-        addOrUseKeyword(kw.keyword, "ai_reprompt", kw.metadata);
-      });
+      // Store improved keywords in suggestions store (not unified store)
+      const success = storeNewSuggestions(
+        improvedKeywords.map((kw: KeywordItem) => ({
+          keyword: kw.keyword,
+          metadata: {
+            ...kw.metadata,
+            source: "ai_reprompt",
+            isRePrompt: true,
+            basedOnPerformance: true,
+          },
+        })),
+        userDescription
+      );
+
+      if (!success) {
+        console.warn("[KEYWORD_REPROMPT] Failed to store new suggestions");
+      } else {
+        // Trigger a refresh of suggestions UI by dispatching a custom event
+        window.dispatchEvent(
+          new CustomEvent("keywordSuggestionsUpdated", {
+            detail: { source: "reprompt", count: improvedKeywords.length },
+          })
+        );
+      }
 
       // Clear flags for processed keywords
       clearKeywordFlags(flaggedKeywords.map((k) => k.id));

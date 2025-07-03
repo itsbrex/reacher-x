@@ -27,6 +27,7 @@ import {
   getKeywords as getUnifiedKeywords,
   togglePin,
   deleteKeyword as deleteUnifiedKeyword,
+  addOrUseKeyword,
   type UnifiedKeyword,
 } from "@/shared/lib/utils/unifiedKeywordStore";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
@@ -205,8 +206,12 @@ export function SidebarProvider({
 
   const handleKeywordSelect = useCallback(
     (keyword: string) => {
+      // Add keyword to unified store and get the ID
+      const keywordId = addOrUseKeyword(keyword, "user_created");
+
       const params = new URLSearchParams();
       params.set("q", keyword);
+      params.set("keywordId", keywordId);
       router.push(`/search?${params.toString()}`);
     },
     [router]

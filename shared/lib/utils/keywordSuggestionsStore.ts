@@ -114,7 +114,7 @@ export function getUnusedSuggestions(): KeywordSuggestion[] {
 
   const unusedSuggestions = state.suggestions
     .filter((s) => !s.isUsed)
-    .sort((a, b) => a.generatedAt - b.generatedAt); // Show oldest first
+    .sort((a, b) => b.generatedAt - a.generatedAt); // Show newest first
 
   return unusedSuggestions.slice(0, SUGGESTIONS_CONFIG.DISPLAY_COUNT);
 }
@@ -182,7 +182,7 @@ export function storeNewSuggestions(
   let finalSuggestions = newSuggestions;
   if (state) {
     const unusedExisting = state.suggestions.filter((s) => !s.isUsed);
-    finalSuggestions = [...unusedExisting, ...newSuggestions];
+    finalSuggestions = [...newSuggestions, ...unusedExisting]; // New suggestions first
   }
 
   const newState: KeywordSuggestionsState = {

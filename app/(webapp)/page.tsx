@@ -11,6 +11,7 @@ import { SimilarKeywords } from "@/features/keywords/ui/components/SimilarKeywor
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
+import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 
 export default function WebAppPage() {
@@ -45,10 +46,13 @@ export default function WebAppPage() {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) return;
 
-      // Don't add to unified store here - it will be added in the search page useEffect when URL changes
+      // Add keyword to unified store and get the ID
+      const keywordId = addOrUseKeyword(trimmedQuery, "user_created");
+
       const params = new URLSearchParams();
       params.set("q", trimmedQuery);
       if (exactMatch) params.set("exact", "true");
+      params.set("keywordId", keywordId);
 
       router.push(`/search?${params.toString()}`);
     },
@@ -57,13 +61,17 @@ export default function WebAppPage() {
 
   const handleKeywordClick = useCallback(
     (item: KeywordItem) => {
-      // Don't add to unified store yet - this is just a suggestion click
-      // The keyword will be added to history when the user actually performs the search
+      // Add keyword to unified store and get the ID
+      const keywordId = addOrUseKeyword(
+        item.keyword,
+        "ai_suggestion",
+        item.metadata
+      );
       recordKeywordUsage(item.id, item.keyword); // This hook might still be useful for other analytics
 
       const params = new URLSearchParams();
       params.set("q", item.keyword);
-      // Don't pass keywordId since we haven't created it yet
+      params.set("keywordId", keywordId);
 
       router.push(`/search?${params.toString()}`);
     },
