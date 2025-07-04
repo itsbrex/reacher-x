@@ -24,9 +24,11 @@ import {
 import { TweetCard } from "@/features/threads/ui/components/TweetCard";
 import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
+import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
 import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
+import { startSearch, endSearch } from "@/shared/lib/utils/performance";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
@@ -77,6 +79,9 @@ export default function SearchResultsPage() {
   const { suggestions: keywordSuggestions, recordKeywordUsage } =
     useKeywordSuggestions();
 
+  // Optimistic search hook
+  const { getOptimisticResult, clearOptimisticCache } = useOptimisticSearch();
+
   // Add safeguards against infinite loops
   const isInitialSearchDone = useRef(false);
   const lastCommittedQuery = useRef<string>("");
@@ -95,6 +100,20 @@ export default function SearchResultsPage() {
       console.error("[SEARCH_PAGE] Failed to load user description:", error);
     }
   }, []);
+
+  // Cleanup optimistic cache on unmount
+  useEffect(() => {
+    return () => {
+      clearOptimisticCache();
+    };
+  }, [clearOptimisticCache]);
+
+  // Monitor results loading for performance tracking
+  useEffect(() => {
+    if (results && !loading && committedQuery) {
+      endSearch(committedQuery, results.tweets.length);
+    }
+  }, [results, loading, committedQuery]);
 
   // Helper function to safely get the current tab
   const getCurrentTab = useCallback((): ValidTab => {
@@ -140,6 +159,26 @@ export default function SearchResultsPage() {
         hasUserDescription: !!userDescription,
       });
 
+      // Start performance monitoring
+      startSearch(committedQuery);
+
+      // Check for optimistic results first
+      const optimisticResult = getOptimisticResult(
+        committedQuery,
+        committedExactMatch
+      );
+      if (optimisticResult) {
+        console.log("[SEARCH_PAGE] Using optimistic result:", {
+          tweetCount: optimisticResult.tweets.length,
+        });
+        // Clear optimistic cache after using it
+        clearOptimisticCache();
+        // End performance monitoring with optimistic results
+        endSearch(committedQuery, optimisticResult.tweets.length);
+        // Continue with normal search flow - the optimistic result will be used
+        // by the useTwitterSearch hook's cache mechanism
+      }
+
       // Add keyword to unified store when search is performed
       // This handles both manual searches and keyword suggestion clicks
       const keywordId = addOrUseKeyword(committedQuery, "user_created");
@@ -169,6 +208,8 @@ export default function SearchResultsPage() {
     clearResults,
     userDescription,
     router,
+    getOptimisticResult,
+    clearOptimisticCache,
   ]);
 
   // Handle load more

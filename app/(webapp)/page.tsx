@@ -1,7 +1,7 @@
 // app/(webapp)/page.tsx
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/shared/ui/components/Separator";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
@@ -12,6 +12,8 @@ import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
 import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
+import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
+import { startNavigation } from "@/shared/lib/utils/performance";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 
 export default function WebAppPage() {
@@ -38,13 +40,27 @@ export default function WebAppPage() {
   const { isRePrompting, getFlaggedKeywordsCount, insights } =
     useKeywordRePrompt();
 
+  // Use optimistic search for instant results
+  const { startOptimisticSearch } = useOptimisticSearch();
+
   // Get flagged keywords count for status display
   const flaggedCount = getFlaggedKeywordsCount();
+
+  // Prefetch the search route for instant navigation
+  useEffect(() => {
+    router.prefetch("/search");
+  }, [router]);
 
   const handleSearch = useCallback(
     (query: string, exactMatch: boolean) => {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) return;
+
+      // Start performance monitoring
+      startNavigation(trimmedQuery);
+
+      // Start optimistic search immediately
+      startOptimisticSearch(trimmedQuery, exactMatch);
 
       // Add keyword to unified store and get the ID
       const keywordId = addOrUseKeyword(trimmedQuery, "user_created");
@@ -54,13 +70,21 @@ export default function WebAppPage() {
       if (exactMatch) params.set("exact", "true");
       params.set("keywordId", keywordId);
 
-      router.push(`/search?${params.toString()}`);
+      // Use replace instead of push for faster navigation
+      // This avoids adding to browser history for search operations
+      router.replace(`/search?${params.toString()}`);
     },
-    [router]
+    [router, startOptimisticSearch]
   );
 
   const handleKeywordClick = useCallback(
     (item: KeywordItem) => {
+      // Start performance monitoring
+      startNavigation(item.keyword);
+
+      // Start optimistic search immediately
+      startOptimisticSearch(item.keyword, false);
+
       // Add keyword to unified store and get the ID
       const keywordId = addOrUseKeyword(
         item.keyword,
@@ -73,9 +97,10 @@ export default function WebAppPage() {
       params.set("q", item.keyword);
       params.set("keywordId", keywordId);
 
-      router.push(`/search?${params.toString()}`);
+      // Use replace for faster navigation
+      router.replace(`/search?${params.toString()}`);
     },
-    [router, recordKeywordUsage]
+    [router, recordKeywordUsage, startOptimisticSearch]
   );
 
   const handleQueryChange = useCallback((query: string) => {

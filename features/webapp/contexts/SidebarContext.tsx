@@ -212,7 +212,8 @@ export function SidebarProvider({
       const params = new URLSearchParams();
       params.set("q", keyword);
       params.set("keywordId", keywordId);
-      router.push(`/search?${params.toString()}`);
+      // Use replace for faster navigation
+      router.replace(`/search?${params.toString()}`);
     },
     [router]
   );
