@@ -2,18 +2,17 @@ import * as React from "react";
 import type { Tweet as TweetType } from "../../types";
 import { cn } from "@/shared/lib/utils/utils";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
-import { parseText } from "@/shared/lib/utils/parseText";
-import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
 import { TweetMedia } from "./TweetMedia";
+import { TweetBody } from "./TweetBody";
+import { QuoteTweetCard } from "./QuoteTweetCard";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
-import Link from "next/link";
 import { Separator } from "@/shared/ui/components/Separator";
 import { LinkWrapper } from "@/features/landing/ui/components/LinkWrapper";
 
@@ -45,15 +44,6 @@ export const Tweet: React.FC<TweetProps> = ({
   highlightQuery,
   className,
 }) => {
-  const fullText = tweet?.full_text || tweet?.text || "Tweet text unavailable";
-  const isTextLong = fullText.length > characterLimit;
-  const visibleText =
-    showFullContent || !isTextLong
-      ? fullText
-      : fullText.substring(0, characterLimit) + ".... Read full ↗";
-  // Parse and highlight keywords in the tweet body
-  const parsedBody = parseText(visibleText, tweet?.entities);
-  const highlightedBody = highlightInReactTree(parsedBody, highlightQuery);
   const media = tweet?.entities?.media;
   const tweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
   const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
@@ -132,26 +122,14 @@ export const Tweet: React.FC<TweetProps> = ({
           <TweetMenu tweetUrl={tweetUrl} profileUrl={profileUrl} />
         </header>
 
-        {/* Replying to */}
-        {tweet?.in_reply_to_screen_name && (
-          <p className="my-1 text-sm font-medium text-muted-foreground">
-            Replying to{" "}
-            <Link
-              className="font-mono text-foreground hover:underline"
-              href={`https://x.com/${tweet?.in_reply_to_screen_name}`}
-            >
-              @{tweet?.in_reply_to_screen_name}
-            </Link>
-          </p>
-        )}
-
         {/* Body */}
-        <p
-          lang="auto"
-          className="word-break hyphens-auto whitespace-pre-line text-sm [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
-        >
-          {highlightedBody}
-        </p>
+        <TweetBody
+          tweet={tweet}
+          characterLimit={characterLimit}
+          showFullContent={showFullContent}
+          highlightQuery={highlightQuery}
+          className="my-1"
+        />
 
         {/* Media */}
         {media && (
@@ -162,15 +140,12 @@ export const Tweet: React.FC<TweetProps> = ({
 
         {/* Quoted Tweet */}
         {hasQuoted && tweet.quoted_status && (
-          <div className="mt-2 rounded border bg-muted p-2">
-            <Tweet
+          <div className="mt-2">
+            <QuoteTweetCard
               tweet={tweet.quoted_status}
               characterLimit={characterLimit}
               showFullContent={showFullContent}
-              showThread={showThread}
-              votingContext={votingContext}
               highlightQuery={highlightQuery}
-              // No reply-later/remove for quoted tweets
             />
           </div>
         )}
