@@ -21,7 +21,7 @@ import {
   FilterAltIcon,
   SwapVertIcon,
 } from "@/shared/ui/components/icons";
-import { TweetCard } from "@/features/threads/ui/components/TweetCard";
+import { Tweet as TweetComponent } from "@/features/threads/ui/components/Tweet";
 import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
@@ -368,12 +368,10 @@ export default function SearchResultsPage() {
     <div className="divide-y">
       {tweets.length > 0 ? (
         tweets.map((tweet) => (
-          <div key={tweet.id_str} className="p-4">
-            <TweetCard
-              threadId={tweet.conversation_id_str || tweet.id_str || ""}
-              staticTweet={tweet}
-              size="sm"
-              bordered={false}
+          <div key={tweet.id_str} className="p-2">
+            <TweetComponent
+              tweet={tweet}
+              characterLimit={280}
               showFullContent={false}
               showThread={true}
               // Pass voting context when we have a keyword and query

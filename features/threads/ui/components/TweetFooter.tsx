@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatLargeNumber } from "@/shared/lib/utils/format";
+import { cn } from "@/shared/lib/utils/utils";
 import {
   QuickPhrasesIcon,
   RepeatIcon,
@@ -32,6 +33,7 @@ interface TweetFooterProps {
     keywordId: string;
     searchQuery: string;
   };
+  className?: string;
 }
 
 export function TweetFooter({
@@ -40,6 +42,7 @@ export function TweetFooter({
   tweetUrl,
   staticTweet,
   votingContext,
+  className,
 }: TweetFooterProps) {
   const getDynamicThreadData = useAction(api.socialdata.getDynamicThreadData);
   const [metrics, setMetrics] = useState<Tweet | null>(staticTweet || null);
@@ -99,7 +102,7 @@ export function TweetFooter({
 
   if (loading || !metrics)
     return (
-      <footer className="flex justify-between">
+      <footer className={cn("flex justify-between", className)}>
         <span className="flex gap-1">
           <Skeleton className="h-4 w-4" />
           <Skeleton className="h-4 w-8" />
@@ -140,7 +143,12 @@ export function TweetFooter({
   const isCurrentlyVoting = tweetId ? isVoting(tweetId) : false;
 
   return (
-    <footer className="flex items-center justify-between gap-6 text-xs">
+    <footer
+      className={cn(
+        "flex items-center justify-between gap-6 text-xs",
+        className
+      )}
+    >
       {/* Engagement Metrics */}
       <div className="flex items-center gap-6">
         {metrics.reply_count !== undefined && (
