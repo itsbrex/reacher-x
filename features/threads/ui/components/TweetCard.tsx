@@ -6,6 +6,7 @@ import { cn } from "@/shared/lib/utils/utils";
 import { Separator } from "@/shared/ui/components/Separator";
 import { TweetMedia } from "@/features/threads/ui/components/TweetMedia";
 import { parseText } from "@/shared/lib/utils/parseText";
+import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
@@ -74,6 +75,10 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
         ? fullText
         : fullText.substring(0, characterLimit) + ".... Read full ↗";
     const parsedBody = parseText(visibleText, staticTweet?.entities);
+    const highlightedBody = highlightInReactTree(
+      parsedBody,
+      votingContext?.searchQuery
+    );
     const media = staticTweet?.entities?.media;
     const tweetUrl = `https://x.com/${staticTweet?.user?.screen_name}/status/${staticTweet?.id_str}`;
     const profileUrl = `https://x.com/${staticTweet?.user?.screen_name}`;
@@ -196,8 +201,9 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                   bodyClass,
                   "word-break hyphens-auto whitespace-pre-line [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
                 )}
-                dangerouslySetInnerHTML={{ __html: parsedBody }}
-              />
+              >
+                {highlightedBody}
+              </p>
 
               {hasAdditionalContent && (
                 <div className="block shrink-0 @[1100px]:hidden">

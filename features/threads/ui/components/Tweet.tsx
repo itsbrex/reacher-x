@@ -2,7 +2,8 @@ import * as React from "react";
 import type { Tweet as TweetType } from "../../types";
 import { cn } from "@/shared/lib/utils/utils";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
-import { useHighlight } from "@/shared/lib/utils/highlighting";
+import { parseText } from "@/shared/lib/utils/parseText";
+import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
@@ -50,8 +51,9 @@ export const Tweet: React.FC<TweetProps> = ({
     showFullContent || !isTextLong
       ? fullText
       : fullText.substring(0, characterLimit) + ".... Read full ↗";
-  // Use highlighting if highlightQuery is provided
-  const { highlightedText } = useHighlight(visibleText, highlightQuery);
+  // Parse and highlight keywords in the tweet body
+  const parsedBody = parseText(visibleText, tweet?.entities);
+  const highlightedBody = highlightInReactTree(parsedBody, highlightQuery);
   const media = tweet?.entities?.media;
   const tweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
   const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
@@ -60,6 +62,32 @@ export const Tweet: React.FC<TweetProps> = ({
   const hasQuoted = tweet?.is_quote_status && tweet?.quoted_status;
   const tweetId = tweet.id_str || tweet.id?.toString() || "";
   const threadId = tweet.conversation_id_str || tweetId;
+
+  // Extract tweet source (e.g., Twitter for iPhone)
+  let tweetSource: React.ReactNode = null;
+  if (tweet?.source) {
+    // tweet.source is HTML like: <a href="...">Twitter for iPhone</a>
+    if (typeof window !== "undefined") {
+      const parser = new window.DOMParser();
+      const doc = parser.parseFromString(tweet.source, "text/html");
+      const a = doc.querySelector("a");
+      if (a) {
+        tweetSource = (
+          <span className="text-xs text-muted-foreground">
+            via{" "}
+            <a
+              href={a.getAttribute("href") || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {a.textContent}
+            </a>
+          </span>
+        );
+      }
+    }
+  }
 
   return (
     <article
@@ -122,7 +150,7 @@ export const Tweet: React.FC<TweetProps> = ({
           lang="auto"
           className="word-break hyphens-auto whitespace-pre-line text-sm [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
         >
-          {highlightedText}
+          {highlightedBody}
         </p>
 
         {/* Media */}
@@ -146,6 +174,9 @@ export const Tweet: React.FC<TweetProps> = ({
             />
           </div>
         )}
+
+        {/* Tweet source */}
+        {tweetSource && <div className="mt-1">{tweetSource}</div>}
 
         {/* Footer/Actions */}
         <TweetFooter

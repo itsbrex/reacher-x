@@ -4,7 +4,6 @@
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { formatLargeNumber } from "@/shared/lib/utils/format";
 import { cn } from "@/shared/lib/utils/utils";
 import {
@@ -34,6 +33,40 @@ interface TweetFooterProps {
     searchQuery: string;
   };
   className?: string;
+}
+
+// TweetActionButton: icon-only if count is 0, icon+label if count > 0
+function TweetActionButton({
+  icon: Icon,
+  count,
+  href,
+  ariaLabel,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  count?: number;
+  href: string;
+  ariaLabel: string;
+}) {
+  const showLabel = !!count && count > 0;
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size={showLabel ? "xs" : "xsIcon"}
+      aria-label={ariaLabel}
+      className="gap-1 font-mono text-muted-foreground"
+    >
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Icon className="fill-current" aria-hidden="true" />
+        {showLabel && `${count}`}
+      </a>
+    </Button>
+  );
 }
 
 export function TweetFooter({
@@ -150,62 +183,32 @@ export function TweetFooter({
       )}
     >
       {/* Engagement Metrics */}
-      <div className="flex items-center gap-6">
-        {metrics.reply_count !== undefined && (
-          <Link
-            href={tweetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View replies (${formattedReplyCount})`}
-          >
-            <QuickPhrasesIcon className="fill-current" aria-hidden="true" />
-            {formattedReplyCount}
-          </Link>
-        )}
-        {metrics.retweet_count !== undefined && (
-          <Link
-            href={tweetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View retweets and quotes (${formattedRepeatSum})`}
-          >
-            <RepeatIcon className="fill-current" aria-hidden="true" />
-            {formattedRepeatSum}
-          </Link>
-        )}
-        {metrics.favorite_count !== undefined && (
-          <Link
-            href={tweetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View likes (${formattedFavoriteCount})`}
-          >
-            <FavoriteIcon className="fill-current" aria-hidden="true" />
-            {formattedFavoriteCount}
-          </Link>
-        )}
-
-        {metrics.views_count !== undefined && (
-          <Link
-            href={tweetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 font-mono text-muted-foreground hover:underline"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View impressions (${formattedViewsCount})`}
-          >
-            <InsertChartIcon className="fill-current" aria-hidden="true" />
-            {formattedViewsCount}
-          </Link>
-        )}
+      <div className="flex items-center gap-2">
+        <TweetActionButton
+          icon={QuickPhrasesIcon}
+          count={metrics.reply_count}
+          href={tweetUrl}
+          ariaLabel={`View replies (${formattedReplyCount})`}
+        />
+        <TweetActionButton
+          icon={RepeatIcon}
+          count={repeatSum}
+          href={tweetUrl}
+          ariaLabel={`View retweets and quotes (${formattedRepeatSum})`}
+        />
+        <TweetActionButton
+          icon={FavoriteIcon}
+          count={metrics.favorite_count}
+          href={tweetUrl}
+          ariaLabel={`View likes (${formattedFavoriteCount})`}
+        />
+        <TweetActionButton
+          icon={InsertChartIcon}
+          count={metrics.views_count}
+          href={tweetUrl}
+          ariaLabel={`View impressions (${formattedViewsCount})`}
+        />
       </div>
-
       {/* Simple Voting Buttons - only show when voting context is provided */}
       {votingContext && tweetId && (
         <div className="flex items-center gap-1">

@@ -205,6 +205,43 @@ export function highlightText(
 }
 
 /**
+ * Recursively highlights keywords in a React node tree.
+ * @param node - The React node tree to process
+ * @param query - The keyword or phrase to highlight
+ * @param options - Highlighting options
+ * @returns React node tree with highlights applied
+ */
+export function highlightInReactTree(
+  node: React.ReactNode,
+  query: string | null | undefined,
+  options: HighlightOptions = {}
+): React.ReactNode {
+  if (!query?.trim() || !node) return node;
+  if (typeof node === "string") {
+    // Use highlightText for string nodes
+    return highlightText(node, query, options).highlightedText;
+  }
+  if (Array.isArray(node)) {
+    return node.map((child) => highlightInReactTree(child, query, options));
+  }
+  if (React.isValidElement(node)) {
+    // Don't highlight inside <a> tags (preserve links)
+    if (node.type === "a") {
+      return node;
+    }
+    // Recursively process children
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return React.cloneElement(
+      node,
+      node.props as any, // Suppress linter: safe for React.cloneElement
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      highlightInReactTree((node.props as any).children, query, options)
+    );
+  }
+  return node;
+}
+
+/**
  * Calculate text similarity for keyword matching
  * Uses word overlap algorithm for performance
  *
