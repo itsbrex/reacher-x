@@ -122,9 +122,9 @@ export default async function ThreadDetailPage(props: {
             className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-0"
           >
             <Badge variant="outline">
-              Beta release · June 2025{" "}
+              Beta release · August 2025{" "}
               <span className="rotating-symbol">&nbsp;&nbsp;⧖&nbsp;&nbsp;</span>{" "}
-              (worth the wait)
+              (worth waiting)
             </Badge>
             <hgroup className="mt-4 max-w-2xl space-y-4">
               <h2 id="hero-heading" className="text-3xl font-medium">
