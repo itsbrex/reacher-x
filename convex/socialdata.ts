@@ -21,11 +21,11 @@ export const getTwitterHandles = query({
 export const getTwitterProfile = action({
   args: { twitter: v.string() },
   handler: async (ctx, { twitter }) => {
-    const apiKey = process.env.SOCIALDATA_API_KEY;
-    if (!apiKey) throw new Error("SOCIALDATA_API_KEY is not set");
+    const apiKey = process.env.SOCIALAPI_API_KEY;
+    if (!apiKey) throw new Error("SOCIALAPI_API_KEY is not set");
     try {
       const response = await fetch(
-        `https://api.socialdata.tools/twitter/user/${twitter}`,
+        `https://api.socialapi.me/twitter/user/${twitter}`,
         {
           headers: { Authorization: `Bearer ${apiKey}` },
         }
@@ -68,14 +68,14 @@ export const getTwitterProfile = action({
 export const getThreads = action({
   args: { threadIds: v.array(v.string()) },
   handler: async (ctx, { threadIds }) => {
-    const apiKey = process.env.SOCIALDATA_API_KEY;
-    if (!apiKey) throw new Error("SOCIALDATA_API_KEY is not set");
+    const apiKey = process.env.SOCIALAPI_API_KEY;
+    if (!apiKey) throw new Error("SOCIALAPI_API_KEY is not set");
 
     // Use Promise.allSettled instead of Promise.all
     const results = await Promise.allSettled(
       threadIds.map(async (threadId) => {
         const response = await fetch(
-          `https://api.socialdata.tools/twitter/thread/${threadId}`,
+          `https://api.socialapi.me/twitter/thread/${threadId}`,
           {
             headers: { Authorization: `Bearer ${apiKey}` },
           }
@@ -133,12 +133,12 @@ export const insertThreadMutation = mutation({
 export const insertThread = action({
   args: { threadId: v.string() },
   handler: async (ctx, { threadId }) => {
-    const apiKey = process.env.SOCIALDATA_API_KEY;
-    if (!apiKey) throw new Error("SOCIALDATA_API_KEY is not set");
+    const apiKey = process.env.SOCIALAPI_API_KEY;
+    if (!apiKey) throw new Error("SOCIALAPI_API_KEY is not set");
 
     // Fetch thread data from the API
     const response = await fetch(
-      `https://api.socialdata.tools/twitter/thread/${threadId}`,
+      `https://api.socialapi.me/twitter/thread/${threadId}`,
       {
         headers: { Authorization: `Bearer ${apiKey}` },
       }
@@ -309,11 +309,11 @@ export const insertThread = action({
 export const getDynamicThreadData = action({
   args: { threadId: v.string() },
   handler: async (ctx, { threadId }) => {
-    const apiKey = process.env.SOCIALDATA_API_KEY;
-    if (!apiKey) throw new Error("SOCIALDATA_API_KEY is not set");
+    const apiKey = process.env.SOCIALAPI_API_KEY;
+    if (!apiKey) throw new Error("SOCIALAPI_API_KEY is not set");
 
     const response = await fetch(
-      `https://api.socialdata.tools/twitter/thread/${threadId}`,
+      `https://api.socialapi.me/twitter/thread/${threadId}`,
       {
         headers: { Authorization: `Bearer ${apiKey}` },
       }
