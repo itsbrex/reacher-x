@@ -226,6 +226,8 @@ export default function SearchResultsPage() {
     router,
     getOptimisticResult,
     clearOptimisticCache,
+    loadFiltersForKeyword,
+    loadSortForKeyword,
   ]);
 
   // Handle load more
