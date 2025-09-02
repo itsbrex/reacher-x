@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
@@ -28,23 +28,40 @@ export function ToolbarBridgePlugin({
   onFormattingChange?: (state: FormattingState) => void;
 }) {
   const [editor] = useLexicalComposerContext();
+  const hasReportedReadyRef = useRef(false);
+  const lastFormattingRef = useRef<FormattingState>({
+    isBold: false,
+    isItalic: false,
+  });
 
   useEffect(() => {
-    onReady?.({
-      toggleBold: () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold"),
-      toggleItalic: () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic"),
-    });
+    if (!hasReportedReadyRef.current) {
+      onReady?.({
+        toggleBold: () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold"),
+        toggleItalic: () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic"),
+      });
+      hasReportedReadyRef.current = true;
+    }
+
+    const emitFormattingIfChanged = (next: FormattingState) => {
+      const prev = lastFormattingRef.current;
+      if (prev.isBold !== next.isBold || prev.isItalic !== next.isItalic) {
+        lastFormattingRef.current = next;
+        onFormattingChange?.(next);
+      }
+    };
 
     // Emit initial state
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection)) {
-        onFormattingChange?.({
+        emitFormattingIfChanged({
           isBold: selection.hasFormat("bold"),
           isItalic: selection.hasFormat("italic"),
         });
       } else {
-        onFormattingChange?.({ isBold: false, isItalic: false });
+        emitFormattingIfChanged({ isBold: false, isItalic: false });
       }
     });
 
@@ -54,12 +71,12 @@ export function ToolbarBridgePlugin({
         editor.getEditorState().read(() => {
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
-            onFormattingChange?.({
+            emitFormattingIfChanged({
               isBold: selection.hasFormat("bold"),
               isItalic: selection.hasFormat("italic"),
             });
           } else {
-            onFormattingChange?.({ isBold: false, isItalic: false });
+            emitFormattingIfChanged({ isBold: false, isItalic: false });
           }
         });
         return false;

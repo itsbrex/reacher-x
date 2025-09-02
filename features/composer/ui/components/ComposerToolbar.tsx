@@ -139,7 +139,7 @@ export function ComposerToolbar({
 
       {/* Emoji Picker */}
       {config.showEmoji && (
-        <Popover open={isEmojiOpen} onOpenChange={setIsEmojiOpen}>
+        <Popover open={isEmojiOpen} onOpenChange={setIsEmojiOpen} modal={false}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="xsIcon" title="Add emoji">
               <MoodIcon className="fill-current" />

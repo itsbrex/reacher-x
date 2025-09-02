@@ -157,6 +157,22 @@ export function BaseComposer({
   });
   const [editorAPI, setEditorAPI] = useState<ComposerEditorAPI | null>(null);
 
+  const handleBridgeReady = useCallback((api: ComposerEditorAPI) => {
+    setEditorAPI(api);
+  }, []);
+
+  const handleFormattingChange = useCallback((state: FormattingState) => {
+    setFormattingState(state);
+  }, []);
+
+  const handleBold = useCallback(() => {
+    editorAPI?.toggleBold();
+  }, [editorAPI]);
+
+  const handleItalic = useCallback(() => {
+    editorAPI?.toggleItalic();
+  }, [editorAPI]);
+
   return (
     <div className={cn("bg-background", className)}>
       {/* Header */}
@@ -211,8 +227,8 @@ export function BaseComposer({
                 canSubmit={!!canSubmit}
                 isSubmitting={isSubmitting}
                 className="flex-1"
-                onBold={() => editorAPI?.toggleBold()}
-                onItalic={() => editorAPI?.toggleItalic()}
+                onBold={handleBold}
+                onItalic={handleItalic}
                 isBoldActive={formattingState.isBold}
                 isItalicActive={formattingState.isItalic}
                 beforeSubmitSlot={
@@ -238,8 +254,8 @@ export function BaseComposer({
             showCharacterCount={false} // We'll handle this ourselves
             disabled={disabled}
             onContentChange={handleContentChange}
-            onBridgeReady={(api: ComposerEditorAPI) => setEditorAPI(api)}
-            onFormattingChange={(s: FormattingState) => setFormattingState(s)}
+            onBridgeReady={handleBridgeReady}
+            onFormattingChange={handleFormattingChange}
             className="min-h-[120px]"
           />
           {/* Bridge is mounted within ComposerEditor via extraPlugins */}
