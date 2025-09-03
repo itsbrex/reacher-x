@@ -5,6 +5,7 @@ import { cn } from "@/shared/lib/utils/utils";
 import { Button } from "@/shared/ui/components/Button";
 import { Textarea } from "@/shared/ui/components/TextArea";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import Image from "next/image";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 import { MediaUpload } from "../../types";
@@ -218,7 +219,7 @@ export function MediaUploadSection({
                       setDraft(e.target.value.slice(0, MAX_DESCRIPTION))
                     }
                     placeholder="Type here."
-                    className="h-auto min-h-0 resize-none overflow-hidden border-0 p-0 focus-visible:ring-0"
+                    className="h-auto min-h-0 resize-none overflow-hidden rounded-none border-0 p-0 focus-visible:ring-0"
                     rows={1}
                   />
                   <div className="mt-2 flex items-center justify-between gap-4">
@@ -236,8 +237,12 @@ export function MediaUploadSection({
                       <AutorenewIcon className="fill-current" /> Auto-fill
                     </Button>
                     <div className="flex items-center gap-1">
-                      <span className="font-mono text-sm font-medium text-muted-foreground">
-                        {draft.length}/{MAX_DESCRIPTION} ·
+                      <CharacterCounter
+                        current={draft.length}
+                        max={MAX_DESCRIPTION}
+                      />
+                      <span className="text-muted-foreground">
+                        &nbsp;&nbsp;·
                       </span>
                       <Button
                         type="button"

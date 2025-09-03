@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils/utils";
+import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import {
   Avatar,
   AvatarFallback,
@@ -233,14 +234,13 @@ export function BaseComposer({
                 isItalicActive={formattingState.isItalic}
                 beforeSubmitSlot={
                   showCharacterCount ? (
-                    <span
-                      className={cn(
-                        "font-mono text-sm text-muted-foreground",
-                        isOverLimit && "text-destructive"
-                      )}
-                    >
-                      {characterCount}/{maxLength} ·
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <CharacterCounter
+                        current={characterCount}
+                        max={maxLength}
+                      />
+                      <span className="text-muted-foreground">·</span>
+                    </div>
                   ) : undefined
                 }
               />

@@ -88,7 +88,7 @@ export function ComposerEditor({
 
       {/* Error State */}
       {isOverLimit && (
-        <div className="mt-1 text-xs text-destructive">
+        <div className="mt-1 text-xs text-red-500">
           Character limit exceeded
         </div>
       )}

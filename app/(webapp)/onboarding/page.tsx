@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import NumberFlow from "@number-flow/react";
+import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import { Button } from "@/shared/ui/components/Button";
 import {
   Form,
@@ -60,53 +60,7 @@ function getHelpText(charCount: number): {
   };
 }
 
-/**
- * Character counter component with NumberFlow animation
- * Uses NumberFlow for smooth transitions when character count changes
- */
-interface CharacterCounterProps {
-  current: number;
-  max: number;
-  className?: string;
-}
-
-function CharacterCounter({ current, max, className }: CharacterCounterProps) {
-  const isOverLimit = current > max;
-  const isNearLimit = current > max * 0.8;
-
-  // Determine the color class based on character count state
-  const colorClass = isOverLimit
-    ? "text-red-500"
-    : isNearLimit
-      ? "text-primary dark:text-primary"
-      : "text-muted-foreground";
-
-  return (
-    <span
-      className={cn("text-sm font-medium", colorClass, className)}
-      aria-live="polite"
-      aria-label={`${current} of ${max} characters used`}
-    >
-      <NumberFlow
-        value={current}
-        className="font-mono tabular-nums"
-        style={
-          {
-            // Apply color styling to NumberFlow parts
-            "--number-flow-color": "currentColor",
-            fontVariantNumeric: "tabular-nums",
-          } as React.CSSProperties
-        }
-        // Optimize for frequent updates since users type continuously
-        willChange={true}
-        // Smooth transitions for better UX
-        transformTiming={{ duration: 150, easing: "ease-out" }}
-        opacityTiming={{ duration: 100, easing: "ease-out" }}
-      />
-      <span className="font-mono tabular-nums">/{max}</span>
-    </span>
-  );
-}
+// CharacterCounter moved to shared component
 
 export default function OnboardingPage() {
   const router = useRouter();
