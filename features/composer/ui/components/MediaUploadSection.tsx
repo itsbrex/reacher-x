@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/shared/lib/utils/utils";
 import { Button } from "@/shared/ui/components/Button";
 import { Textarea } from "@/shared/ui/components/TextArea";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 import Image from "next/image";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
-import { X, Plus, Upload, RefreshCw, Pencil } from "lucide-react";
+import { X, Plus, RefreshCw, Pencil } from "lucide-react";
 import { MediaUpload } from "../../types";
 
 interface MediaUploadSectionProps {
@@ -116,7 +117,7 @@ export function MediaUploadSection({
         <div key={upload.id}>
           {/* Media Preview */}
           <div
-            className="relative w-full overflow-hidden rounded-md bg-muted"
+            className="relative w-full overflow-hidden rounded-md"
             style={{ aspectRatio: aspectById[upload.id] ?? "16 / 9" }}
           >
             {upload.type === "image" && upload.url && (
@@ -149,9 +150,7 @@ export function MediaUploadSection({
               />
             )}
             {!upload.url && (
-              <div className="flex h-full items-center justify-center">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-              </div>
+              <Skeleton className="absolute inset-0 h-full w-full" />
             )}
 
             {/* Remove Button */}
@@ -188,22 +187,19 @@ export function MediaUploadSection({
             {/* Description Input */}
             <div className="flex-1">
               {editingId !== upload.id ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => {
                     setEditingId(upload.id);
                     setDraft(descriptions[upload.id] ?? "");
                   }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {descriptions[upload.id] ? (
-                    <Pencil className="h-3 w-3" />
-                  ) : (
-                    <Plus className="h-3 w-3" />
-                  )}
+                  {descriptions[upload.id] ? <Pencil /> : <Plus />}
                   {descriptions[upload.id]
                     ? "Edit description"
                     : "Add description"}
-                </button>
+                </Button>
               ) : (
                 <div>
                   <Textarea
@@ -216,10 +212,10 @@ export function MediaUploadSection({
                     className="h-auto min-h-0 resize-none overflow-hidden border-0 p-0 focus-visible:ring-0"
                     rows={1}
                   />
-                  <div className="mt-2 flex items-center gap-4">
+                  <div className="mt-2 flex items-center justify-between gap-4">
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="xs"
                       onClick={() => {
                         const name = upload.file?.name?.replace(/\.[^.]+$/, "");
@@ -228,40 +224,37 @@ export function MediaUploadSection({
                       }}
                       className="flex items-center gap-2"
                     >
-                      <RefreshCw className="h-4 w-4" /> Auto-fill
+                      <RefreshCw /> Auto-fill
                     </Button>
-                    <span className="text-xs text-muted-foreground">
-                      {draft.length}/{MAX_DESCRIPTION}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => {
-                        setEditingId(null);
-                        setDraft("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      size="xs"
-                      onClick={() => {
-                        handleDescriptionChange(upload.id, draft.trim());
-                        setEditingId(null);
-                      }}
-                      disabled={draft.trim().length === 0}
-                    >
-                      Done
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-sm font-medium text-muted-foreground">
+                        {draft.length}/{MAX_DESCRIPTION} ·
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => {
+                          setEditingId(null);
+                          setDraft("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        onClick={() => {
+                          handleDescriptionChange(upload.id, draft.trim());
+                          setEditingId(null);
+                        }}
+                        disabled={draft.trim().length === 0}
+                      >
+                        Done
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              )}
-              {descriptions[upload.id] && editingId !== upload.id && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {descriptions[upload.id]}
-                </p>
               )}
             </div>
           </div>
