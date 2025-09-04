@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import NumberFlow from "@number-flow/react";
 import { cn } from "@/shared/lib/utils/utils";
+import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 
 export interface CharacterCounterProps {
   current: number;
@@ -35,21 +35,7 @@ export function CharacterCounter({
       aria-live="polite"
       aria-label={`${current} of ${max} characters used`}
     >
-      <NumberFlow
-        value={current}
-        className="font-mono tabular-nums"
-        style={
-          {
-            // Color for NumberFlow parts; supported via currentColor
-            // See @number-flow/react README and d.ts for supported props
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore CSS var for runtime styling
-            "--number-flow-color": "currentColor",
-            fontVariantNumeric: "tabular-nums",
-          } as React.CSSProperties
-        }
-        willChange={true}
-      />
+      <AnimatedNumber value={current} />
       <span className="font-mono tabular-nums">/{max}</span>
     </span>
   );

@@ -8,6 +8,7 @@ import { Skeleton } from "@/shared/ui/components/Skeleton";
 import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import Image from "next/image";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import AnimatedPercent from "@/shared/ui/components/AnimatedPercent";
 import { MediaUpload } from "../../types";
 import {
   AddIcon,
@@ -179,7 +180,10 @@ export function MediaUploadSection({
                   className="h-4 w-4"
                   style={{ animationDuration: "400ms" }}
                 />
-                <span>Uploading · {upload.progress}%</span>
+                <span className="flex items-baseline gap-1">
+                  Uploading ·
+                  <AnimatedPercent value={upload.progress} />
+                </span>
               </div>
             )}
 
