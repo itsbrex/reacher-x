@@ -3,6 +3,11 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils/utils";
+import {
+  extractTextFromEditorState,
+  getFirstValidUrl,
+  isLikelyToHaveOpenGraph,
+} from "@/shared/lib/utils/urlDetection";
 import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import {
   Avatar,
@@ -71,20 +76,24 @@ export function BaseComposer({
     [onContentChange]
   );
 
-  // Detect first URL in text content to preview OG card
+  // Detect first valid URL in text content to preview OG card
   const firstUrl = useMemo(() => {
-    try {
-      const text: string = JSON.stringify(content ?? {});
-      const match = text.match(/https?:\/\/[^"\\s]+/i);
-      return match?.[0] ?? null;
-    } catch {
-      return null;
-    }
+    if (!content) return null;
+
+    const text = extractTextFromEditorState(content);
+    const url = getFirstValidUrl(text);
+
+    // Only show preview for URLs likely to have Open Graph data
+    return url && isLikelyToHaveOpenGraph(url) ? url : null;
   }, [content]);
 
-  // Update preview URL when content changes
+  // Update preview URL when content changes with debouncing
   useEffect(() => {
-    setPreviewUrl(firstUrl);
+    const timeoutId = setTimeout(() => {
+      setPreviewUrl(firstUrl);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [firstUrl]);
 
   const handleMediaUpload = useCallback((files: FileList | File[]) => {
