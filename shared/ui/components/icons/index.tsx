@@ -2014,3 +2014,33 @@ export const CloseIcon: React.FC<IconProps> = ({ className, ...props }) => {
     </svg>
   );
 };
+
+export const BarcodeIcon: React.FC<IconProps> = ({ className, ...props }) => {
+  const maskId = React.useId();
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <mask
+        id={maskId}
+        style={{ maskType: "alpha" }}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="16"
+        height="16"
+      >
+        <rect width="16" height="16" fill="#D9D9D9" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path d="M0.799999 12.8V3.20001H2V12.8H0.799999ZM2.8 12.8V3.20001H4V12.8H2.8ZM4.8 12.8V3.20001H5.6V12.8H4.8ZM6.8 12.8V3.20001H8V12.8H6.8ZM8.8 12.8V3.20001H10.4V12.8H8.8ZM11.2 12.8V3.20001H12V12.8H11.2ZM13.6 12.8V3.20001H15.2V12.8H13.6Z" />
+      </g>
+    </svg>
+  );
+};
