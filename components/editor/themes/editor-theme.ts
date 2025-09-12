@@ -38,7 +38,7 @@ export const editorTheme: EditorThemeClasses = {
     ul: "m-0 p-0 list-outside",
   },
   hashtag: "font-mono text-muted-foreground",
-  mention: "font-mono text-muted-foreground bg-muted/50 px-1 py-0.5 rounded-sm",
+  mention: "font-mono text-muted-foreground",
   text: {
     bold: "font-bold",
     code: "bg-gray-100 p-1 rounded-md",

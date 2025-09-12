@@ -13,7 +13,7 @@ import React from "react";
 export interface SerializedMentionNode extends SerializedLexicalNode {
   mentionName: string;
   mentionId: string;
-  type: "mention";
+  type: "MentionNode";
   version: 1;
 }
 
@@ -22,7 +22,7 @@ export class MentionNode extends DecoratorNode<React.ReactElement> {
   __mentionId: string;
 
   static getType(): string {
-    return "mention";
+    return "MentionNode";
   }
 
   static clone(node: MentionNode): MentionNode {
@@ -55,17 +55,17 @@ export class MentionNode extends DecoratorNode<React.ReactElement> {
 
   createDOM(): HTMLElement {
     const span = document.createElement("span");
-    span.className = "mention-node";
+    span.className = "font-mono text-muted-foreground";
     span.setAttribute("data-mention-id", this.__mentionId);
     span.setAttribute("data-mention-name", this.__mentionName);
     span.setAttribute("contenteditable", "false");
-    span.textContent = `@${this.__mentionName}`;
+    // Don't set textContent here - let the decorate() method handle rendering
     return span;
   }
 
   updateDOM(prevNode: MentionNode, dom: HTMLElement): boolean {
     if (prevNode.__mentionName !== this.__mentionName) {
-      dom.textContent = `@${this.__mentionName}`;
+      // Don't set textContent here - let the decorate() method handle rendering
       dom.setAttribute("data-mention-name", this.__mentionName);
     }
     if (prevNode.__mentionId !== this.__mentionId) {
@@ -106,7 +106,7 @@ export class MentionNode extends DecoratorNode<React.ReactElement> {
     return {
       mentionName: this.__mentionName,
       mentionId: this.__mentionId,
-      type: "mention",
+      type: "MentionNode",
       version: 1,
     };
   }
@@ -115,7 +115,7 @@ export class MentionNode extends DecoratorNode<React.ReactElement> {
     return React.createElement(
       "span",
       {
-        className: "mention-node",
+        className: "font-mono text-muted-foreground",
         "data-mention-id": this.__mentionId,
         "data-mention-name": this.__mentionName,
       },

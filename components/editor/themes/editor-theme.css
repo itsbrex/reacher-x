@@ -90,8 +90,8 @@
   list-style-type: disclosure-open;
 }
 
-/* Mention Node Styling */
-.mention-node {
+/* Mention Node Styling commented out because of design consistency with hashtags and links */
+/* .mention-node {
   font-family:
     ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo,
     monospace;
@@ -106,7 +106,7 @@
 
 .mention-node:hover {
   background-color: hsl(var(--muted) / 0.7);
-}
+} */
 
 /* Image Node Styling */
 .editor-image {
