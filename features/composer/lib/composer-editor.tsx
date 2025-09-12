@@ -100,7 +100,8 @@ export function ComposerEditor({
       {showCharacterCount && (
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
           <span className={cn(isOverLimit && "text-destructive")}>
-            {characterCount}/{maxLength}
+            {characterCount.toLocaleString("en-US", { useGrouping: false })}/
+            {maxLength}
           </span>
         </div>
       )}

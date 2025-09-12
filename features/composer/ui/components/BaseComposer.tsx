@@ -14,6 +14,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
+import Link from "next/link";
 import { ComposerEditor } from "../../lib/composer-editor";
 import {
   ComposerEditorAPI,
@@ -188,7 +189,9 @@ export function BaseComposer({
   const characterCount = getCharacterCount(content);
   const isOverLimit = characterCount > maxLength;
   const canSubmit =
-    content && characterCount > 0 && !isOverLimit && !isSubmitting;
+    ((content && characterCount > 0) || mediaUploads.length > 0) &&
+    !isOverLimit &&
+    !isSubmitting;
 
   const [formattingState, setFormattingState] = useState<FormattingState>({
     isBold: false,
@@ -236,12 +239,26 @@ export function BaseComposer({
                 headerPrimary
               ) : (
                 <>
-                  <span className="text-sm font-semibold">
+                  <Link
+                    href={`https://x.com/${currentUser.screenName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`View ${currentUser.name}'s profile`}
+                  >
                     {currentUser.name}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
+                  </Link>
+                  <Link
+                    href={`https://x.com/${currentUser.screenName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-muted-foreground hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`View @${currentUser.screenName}'s profile`}
+                  >
                     @{currentUser.screenName}
-                  </span>
+                  </Link>
                 </>
               )}
             </div>

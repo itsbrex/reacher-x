@@ -10,6 +10,7 @@ import {
 } from "@/shared/ui/components/DropdownMenu";
 import { Button } from "@/shared/ui/components/Button";
 import { MoreHorizIcon } from "@/shared/ui/components/icons";
+import Link from "next/link";
 import { BaseComposer } from "./BaseComposer";
 import { ReplyComposerProps } from "../../types";
 
@@ -66,10 +67,18 @@ export function ReplyComposer({
           <div className="flex items-center gap-1">
             <span>Replying to</span>
             {replyTo.users.map((user, index) => (
-              <span key={user.screenName} className="font-mono text-foreground">
+              <Link
+                key={user.screenName}
+                href={`https://x.com/${user.screenName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-foreground hover:underline"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`View @${user.screenName}'s profile`}
+              >
                 @{user.screenName}
                 {index < replyTo.users.length - 1 && ", "}
-              </span>
+              </Link>
             ))}
           </div>
         }

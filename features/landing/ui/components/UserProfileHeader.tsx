@@ -38,6 +38,8 @@ export function UserProfileHeader({
           {name && (
             <Link
               href={`https://x.com/${screenName}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-base font-medium hover:underline"
               aria-label={`View ${name}'s profile`}
             >
@@ -54,6 +56,8 @@ export function UserProfileHeader({
         {screenName && (
           <Link
             href={`https://x.com/${screenName}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="font-mono text-sm font-medium text-muted-foreground hover:underline"
             aria-label={`View @${screenName}'s profile`}
           >

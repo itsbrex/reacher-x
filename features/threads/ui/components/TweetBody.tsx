@@ -42,6 +42,8 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
           <Link
             className="font-mono text-foreground hover:underline"
             href={`https://x.com/${tweet?.in_reply_to_screen_name}`}
+            target="_blank"
+            rel="noopener noreferrer"
           >
             @{tweet?.in_reply_to_screen_name}
           </Link>

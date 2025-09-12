@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchOpenGraphServer } from "@/shared/lib/utils/opengraph-server";
+import { fetchOpenGraphServer } from "@/shared/lib/utils/opengraphServer";
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       timeout: 10000, // 10 seconds timeout
       retries: 3,
       retryDelay: 1000,
-      userAgent: "ReacherXBot/1.0 (+https://reacherx.app)",
+      userAgent: "ReacherXBot/1.0 (+https://reacherx.com)",
       cache: true,
     });
 

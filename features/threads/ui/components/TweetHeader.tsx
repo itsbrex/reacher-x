@@ -103,6 +103,8 @@ export function TweetHeader({
             {user.name && (
               <Link
                 href={`https://x.com/${user.screen_name}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={cn(
                   nameClass,
                   "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 whitespace-nowrap font-medium duration-300 hover:underline"
@@ -126,6 +128,8 @@ export function TweetHeader({
             {user.screen_name && (
               <Link
                 href={`https://x.com/${user.screen_name}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={cn(
                   screenNameClass,
                   "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate font-mono font-medium text-muted-foreground duration-300 hover:underline"

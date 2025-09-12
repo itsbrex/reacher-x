@@ -35,7 +35,12 @@ export function CharacterCounter({
       aria-live="polite"
       aria-label={`${current} of ${max} characters used`}
     >
-      <AnimatedNumber value={current} />
+      <AnimatedNumber
+        value={current}
+        format={{
+          useGrouping: false,
+        }}
+      />
       <span className="font-mono tabular-nums">/{max}</span>
     </span>
   );

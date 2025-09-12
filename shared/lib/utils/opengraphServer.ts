@@ -41,7 +41,7 @@ export async function fetchOpenGraphServer(
     timeout = 10000,
     retries = 3,
     retryDelay = 1000,
-    userAgent = "ReacherXBot/1.0 (+https://reacherx.app)",
+    userAgent = "ReacherXBot/1.0 (+https://reacherx.com)",
     cache = true,
   } = options;
 
