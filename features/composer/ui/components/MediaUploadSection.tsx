@@ -7,7 +7,7 @@ import { Textarea } from "@/shared/ui/components/TextArea";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import CharacterCounter from "@/shared/ui/components/CharacterCounter";
 import Image from "next/image";
-import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import { Spinner } from "@/shared/ui/components/Spinner";
 import AnimatedPercent from "@/shared/ui/components/AnimatedPercent";
 import { MediaUpload } from "../../types";
 import {

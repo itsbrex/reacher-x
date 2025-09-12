@@ -8,11 +8,11 @@ import {
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { EditorState, SerializedEditorState } from "lexical";
 
-import { editorTheme } from "@/components/editor/themes/editor-theme";
+import { editorTheme } from "@/shared/ui/components/editor/editorTheme";
 import { TooltipProvider } from "@/shared/ui/components/Tooltip";
 
 import { nodes } from "./nodes";
-import { Plugins } from "./plugins";
+import { Plugins } from "./Plugins";
 
 // Keep this module-level config stable.
 const editorConfig: InitialConfigType = {

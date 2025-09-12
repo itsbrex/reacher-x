@@ -15,7 +15,7 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import Link from "next/link";
-import { ComposerEditor } from "../../lib/composer-editor";
+import { ComposerEditor } from "../../lib/ComposerEditor";
 import {
   ComposerEditorAPI,
   FormattingState,

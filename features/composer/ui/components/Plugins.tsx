@@ -11,7 +11,7 @@ const URL_REGEX =
   /((https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-._~:?#\[\]@!$&'()*+,;=%]*)?)/i;
 const EMAIL_REGEX = /[^\s]+@[^\s]+\.[^\s]+/i;
 
-import { ContentEditable } from "@/components/editor/editor-ui/content-editable";
+import { ContentEditable } from "@/shared/ui/components/editor/ContentEditable";
 
 export function Plugins() {
   const floatingAnchorElemRef = useRef<HTMLDivElement | null>(null);

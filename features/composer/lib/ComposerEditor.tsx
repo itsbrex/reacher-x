@@ -3,7 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils/utils";
-import { Editor } from "@/components/blocks/editor-00/editor";
+import { Editor } from "@/features/composer/ui/components/Editor";
 import {
   ToolbarBridgePlugin,
   ComposerEditorAPI,

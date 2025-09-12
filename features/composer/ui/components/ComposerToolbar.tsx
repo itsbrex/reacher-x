@@ -17,7 +17,7 @@ import {
   EmojiPickerContent,
   EmojiPickerSearch,
   EmojiPickerFooter,
-} from "@/components/ui/emoji-picker";
+} from "@/shared/ui/components/EmojiPicker";
 
 import {
   ImageIcon,
