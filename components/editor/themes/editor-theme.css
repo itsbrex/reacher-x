@@ -1,6 +1,6 @@
 .EditorTheme__code {
   background-color: transparent;
-  font-family: Menlo, Consolas, Monaco, monospace;
+  font-family: var(--font-dm-mono), Menlo, Consolas, Monaco, monospace;
   display: block;
   padding: 8px 8px 8px 52px;
   line-height: 1.53;
@@ -13,6 +13,7 @@
   position: relative;
   border-radius: 8px;
   tab-size: 2;
+  letter-spacing: -0.04em;
 }
 .EditorTheme__code:before {
   content: attr(data-gutter);
@@ -92,9 +93,7 @@
 
 /* Mention Node Styling commented out because of design consistency with hashtags and links */
 /* .mention-node {
-  font-family:
-    ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo,
-    monospace;
+  font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
   color: hsl(var(--muted-foreground));
   background-color: hsl(var(--muted) / 0.5);
   padding: 0.125rem 0.25rem;
@@ -102,6 +101,7 @@
   display: inline-block;
   user-select: none;
   cursor: default;
+  letter-spacing: -0.04em;
 }
 
 .mention-node:hover {
