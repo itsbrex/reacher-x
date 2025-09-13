@@ -1,5 +1,4 @@
 // app/layout.tsx
-import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { PostHogProvider } from "./home/PostHogProvider";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
@@ -34,20 +33,18 @@ export default function RootLayout({
             `.trim(),
           }}
         />
-        <AuthKitProvider>
-          <PostHogProvider>
-            <ConvexClientProvider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                {children}
-              </ThemeProvider>
-            </ConvexClientProvider>
-          </PostHogProvider>
-        </AuthKitProvider>
+        <PostHogProvider>
+          <ConvexClientProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+            </ThemeProvider>
+          </ConvexClientProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

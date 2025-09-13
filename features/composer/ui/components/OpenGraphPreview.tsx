@@ -196,7 +196,7 @@ export function OpenGraphPreview({
         </div>
 
         {fromCache && (
-          <div className="text-xs text-muted-foreground/60">cached</div>
+          <div className="text-xs text-muted-foreground/60">· cached</div>
         )}
       </div>
     </div>

@@ -1,16 +1,17 @@
 import { authkitMiddleware } from "@workos-inc/authkit-nextjs";
 
-// Use basic middleware configuration
-export default authkitMiddleware();
+export default authkitMiddleware({
+  middlewareAuth: {
+    enabled: true,
+    unauthenticatedPaths: ["/", "/login", "/logout"],
+  },
+});
 
-// Match against pages that require authentication
 export const config = {
   matcher: [
-    "/((?!.*\\..*|_next).*)",
-    "/",
+    // Skip Next.js internals and all static files, unless found in search params
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes
     "/(api|trpc)(.*)",
-    "/callback",
-    "/login",
-    "/logout",
   ],
 };

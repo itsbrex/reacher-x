@@ -3,6 +3,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { useConvexAuth } from "convex/react";
 import { Separator } from "@/shared/ui/components/Separator";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { KeywordSuggestions } from "@/features/keywords/ui/components/KeywordSuggestions";
@@ -18,9 +20,37 @@ import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList"
 
 export default function WebAppPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: convexLoading } = useConvexAuth();
 
   const [currentQuery, setCurrentQuery] = useState("");
   const { history: historyKeywords, isLoaded } = useSearchHistory();
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log("🔐 Authentication Debug:", {
+      workosUser: user,
+      workosLoading: authLoading,
+      convexAuthenticated: isAuthenticated,
+      convexLoading: convexLoading,
+      userDetails: user
+        ? {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            profilePictureUrl: user.profilePictureUrl,
+          }
+        : null,
+    });
+
+    // Additional debugging for token issues
+    if (user && !isAuthenticated) {
+      console.warn(
+        "⚠️ WorkOS user exists but Convex auth failed - check JWT aud claim in WorkOS Dashboard"
+      );
+    }
+  }, [user, authLoading, isAuthenticated, convexLoading]);
 
   // Use the keyword suggestions hook
   const {
@@ -121,6 +151,38 @@ export default function WebAppPage() {
 
   return (
     <div className="mx-auto mt-12 max-w-lg px-4">
+      {/* Authentication Status Indicator */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/50">
+          <h3 className="mb-2 font-semibold text-blue-900 dark:text-blue-100">
+            🔐 Authentication Status
+          </h3>
+          <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+            <div>
+              WorkOS User:{" "}
+              {user ? `✅ ${user.firstName || user.email}` : "❌ Not signed in"}
+            </div>
+            <div>
+              Convex Auth:{" "}
+              {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
+            </div>
+            <div>
+              Loading: {authLoading || convexLoading ? "⏳ Yes" : "✅ No"}
+            </div>
+            {user && (
+              <div className="mt-2 space-y-1">
+                <div>
+                  Profile Picture:{" "}
+                  {user.profilePictureUrl ? "✅ Available" : "❌ Not available"}
+                </div>
+                <div>Email: {user.email}</div>
+                <div>ID: {user.id}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <h1 className="mb-4 text-center text-2xl font-medium">
         Who will you{" "}
         <span className="text-muted-foreground line-through">sell</span> help?

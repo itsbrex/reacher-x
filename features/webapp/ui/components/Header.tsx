@@ -109,24 +109,6 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
     // Allow overriding the rendered element (similar to Button)
     const Comp = asChild ? Slot : "header";
 
-    // Debug logging to help identify authentication state issues
-    React.useEffect(() => {
-      console.log("Header auth state:", {
-        user,
-        loading,
-        isAuthenticated: !!user,
-        userDetails: user
-          ? {
-              id: user.id,
-              email: user.email,
-              firstName: user.firstName,
-              lastName: user.lastName,
-              profilePictureUrl: user.profilePictureUrl,
-            }
-          : null,
-      });
-    }, [user, loading]);
-
     // Helper for avatar fallback
     const getInitials = (name?: string) => {
       if (!name) return "?";
@@ -281,20 +263,8 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
       </>
     );
 
-    // Temporary debug indicator
-    const debugIndicator = process.env.NODE_ENV === "development" && (
-      <div className="fixed right-4 top-16 z-50 rounded bg-red-500 p-2 text-xs text-white">
-        Auth Debug: {loading ? "Loading" : user ? "✅ User" : "❌ No User"}
-        {user && <div>Email: {user.email}</div>}
-        {user && (
-          <div>Profile Pic: {user.profilePictureUrl ? "Yes" : "No"}</div>
-        )}
-      </div>
-    );
-
     return (
       <>
-        {debugIndicator}
         <Comp
           className={cn(headerVariants({ size }), className)}
           ref={ref}
@@ -380,7 +350,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                             size="icon"
                             aria-label="User menu"
                           >
-                            <Avatar>
+                            <Avatar className="size-8">
                               <AvatarImage
                                 src={displayImage || ""}
                                 alt={displayName}
@@ -404,7 +374,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                         aria-label="User menu"
                         onClick={() => setIsDrawerOpen(true)}
                       >
-                        <Avatar>
+                        <Avatar className="size-8">
                           <AvatarImage
                             src={displayImage || ""}
                             alt={displayName}
