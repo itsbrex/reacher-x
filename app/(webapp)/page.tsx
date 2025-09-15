@@ -19,6 +19,11 @@ import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
 import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
 import { startNavigation } from "@/shared/lib/utils/performance";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
 
 export default function WebAppPage() {
   const router = useRouter();
@@ -179,45 +184,49 @@ export default function WebAppPage() {
     <div className="mx-auto mt-12 max-w-lg px-4">
       {/* Authentication Status Indicator */}
       {process.env.NODE_ENV === "development" && (
-        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/50">
-          <h3 className="mb-2 font-semibold text-blue-900 dark:text-blue-100">
-            🔐 Authentication Status
-          </h3>
-          <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-            <div>
-              WorkOS User:{" "}
-              {user ? `✅ ${user.firstName || user.email}` : "❌ Not signed in"}
-            </div>
-            <div>
-              Convex Auth:{" "}
-              {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
-            </div>
-            <div>
-              User Stored: {userStored ? "✅ Stored in DB" : "❌ Not stored"}
-            </div>
-            <div>
-              Loading:{" "}
-              {authLoading || convexLoading || userStorageLoading
-                ? "⏳ Yes"
-                : "✅ No"}
-            </div>
-            {userId && <div>User ID: {userId}</div>}
-            {user && (
-              <div className="mt-2 space-y-1">
-                <div>
-                  Profile Picture:{" "}
-                  {user.profilePictureUrl ? "✅ Available" : "❌ Not available"}
-                </div>
-                <div>Email: {user.email}</div>
-                <div>ID: {user.id}</div>
+        <Alert className="mb-6">
+          <AlertTitle>Authentication Status</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <div className="space-y-1">
+              <div>
+                WorkOS User:
+                {user
+                  ? `✅ ${user.firstName || user.email}`
+                  : "❌ Not signed in"}
               </div>
-            )}
-          </div>
-        </div>
+              <div>
+                Convex Auth:
+                {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
+              </div>
+              <div>
+                User Stored: {userStored ? "✅ Stored in DB" : "❌ Not stored"}
+              </div>
+              <div>
+                Loading:
+                {authLoading || convexLoading || userStorageLoading
+                  ? "⏳ Yes"
+                  : "✅ No"}
+              </div>
+              {userId && <div>User ID: {userId}</div>}
+              {user && (
+                <div className="mt-2 space-y-1">
+                  <div>
+                    Profile Picture:
+                    {user.profilePictureUrl
+                      ? "✅ Available"
+                      : "❌ Not available"}
+                  </div>
+                  <div>Email: {user.email}</div>
+                  <div>ID: {user.id}</div>
+                </div>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       <h1 className="mb-4 text-center text-2xl font-medium">
-        Who will you{" "}
+        Who will you
         <span className="text-muted-foreground line-through">sell</span> help?
       </h1>
 
@@ -230,109 +239,89 @@ export default function WebAppPage() {
 
       {/* Enhanced debug info for keyword suggestions */}
       {process.env.NODE_ENV === "development" && (
-        <div className="mb-4 space-y-4">
-          {/* Original debug section */}
-          <div className="space-y-1 rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-            <div className="font-medium">Keyword Suggestions Debug:</div>
-            <div>Current Query: &quot;{currentQuery}&quot;</div>
-            <div>Suggestions Count: {suggestions.length}</div>
-            <div>Loading: {suggestionsLoading ? "Yes" : "No"}</div>
-            <div>Is Re-prompting: {isRePrompting ? "Yes" : "No"}</div>
-            <div>
-              Has Valid Description: {hasValidDescription ? "Yes" : "No"}
-            </div>
-            <div>From Cache: {fromCache ? "Yes" : "No"}</div>
-            <div>
-              User Description:{" "}
-              {userDescription ? `${userDescription.length} chars` : "None"}
-            </div>
-            <div>History Loaded: {isLoaded ? "Yes" : "No"}</div>
-            <div>Recent Keywords: {recentKeywords.length}</div>
-            <div>Flagged Count: {flaggedCount}</div>
-            <div>Total Tracked: {totalTrackedKeywords}</div>
-            <div>High Value: {highValueKeywords}</div>
-
-            {generationMetadata.requestId && (
-              <div className="space-y-1 border-t pt-1">
-                <div>Generation Meta:</div>
-                <div>• Request ID: {generationMetadata.requestId}</div>
-                {generationMetadata.processingTimeMs && (
-                  <div>
-                    • Processing: {generationMetadata.processingTimeMs}ms
-                  </div>
-                )}
-                {generationMetadata.llmProcessingTimeMs && (
-                  <div>
-                    • LLM Time: {generationMetadata.llmProcessingTimeMs}ms
-                  </div>
-                )}
-                {generationMetadata.modelUsed && (
-                  <div>• Model: {generationMetadata.modelUsed}</div>
-                )}
-                {generationMetadata.usedFallback && (
-                  <div>• Used Fallback: Yes</div>
-                )}
-                {generationMetadata.confidenceStats && (
-                  <div>
-                    • Confidence:{" "}
-                    {generationMetadata.confidenceStats.min.toFixed(2)}-
-                    {generationMetadata.confidenceStats.max.toFixed(2)} (avg:{" "}
-                    {generationMetadata.confidenceStats.avg.toFixed(2)})
-                  </div>
-                )}
+        <Alert className="mb-4">
+          <AlertTitle>Keyword Suggestions Debug</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <div className="space-y-1">
+              <div>Current Query: &quot;{currentQuery}&quot;</div>
+              <div>Suggestions Count: {suggestions.length}</div>
+              <div>Loading: {suggestionsLoading ? "Yes" : "No"}</div>
+              <div>Is Re-prompting: {isRePrompting ? "Yes" : "No"}</div>
+              <div>
+                Has Valid Description: {hasValidDescription ? "Yes" : "No"}
               </div>
-            )}
+              <div>From Cache: {fromCache ? "Yes" : "No"}</div>
+              <div>
+                User Description:
+                {userDescription ? `${userDescription.length} chars` : "None"}
+              </div>
+              <div>History Loaded: {isLoaded ? "Yes" : "No"}</div>
+              <div>Recent Keywords: {recentKeywords.length}</div>
+              <div>Flagged Count: {flaggedCount}</div>
+              <div>Total Tracked: {totalTrackedKeywords}</div>
+              <div>High Value: {highValueKeywords}</div>
 
-            {insights && (
-              <div className="space-y-1 border-t pt-1">
-                <div>Performance Insights:</div>
-                {insights.highPerformingPatterns.length > 0 && (
+              {generationMetadata.requestId && (
+                <div className="space-y-1 border-t pt-1">
+                  <div>Generation Meta:</div>
+                  <div>• Request ID: {generationMetadata.requestId}</div>
+                  {generationMetadata.processingTimeMs && (
+                    <div>
+                      • Processing: {generationMetadata.processingTimeMs}ms
+                    </div>
+                  )}
+                  {generationMetadata.llmProcessingTimeMs && (
+                    <div>
+                      • LLM Time: {generationMetadata.llmProcessingTimeMs}ms
+                    </div>
+                  )}
+                  {generationMetadata.modelUsed && (
+                    <div>• Model: {generationMetadata.modelUsed}</div>
+                  )}
+                  {generationMetadata.usedFallback && (
+                    <div>• Used Fallback: Yes</div>
+                  )}
+                  {generationMetadata.confidenceStats && (
+                    <div>
+                      • Confidence:
+                      {generationMetadata.confidenceStats.min.toFixed(2)}-
+                      {generationMetadata.confidenceStats.max.toFixed(2)} (avg:
+                      {generationMetadata.confidenceStats.avg.toFixed(2)})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {insights && (
+                <div className="space-y-1 border-t pt-1">
+                  <div>Performance Insights:</div>
                   <div>
                     • High Performing:{" "}
                     {insights.highPerformingPatterns.join(", ")}
                   </div>
-                )}
-                {insights.recommendedAdjustments.length > 0 && (
-                  <div>
-                    • Adjustments: {insights.recommendedAdjustments.join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
+                  {insights.recommendedAdjustments.length > 0 && (
+                    <div>
+                      • Adjustments:{" "}
+                      {insights.recommendedAdjustments.join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {suggestionsError && (
-              <div className="text-destructive">Error: {suggestionsError}</div>
-            )}
+              {suggestionsError && (
+                <div className="text-destructive">
+                  Error: {suggestionsError}
+                </div>
+              )}
 
-            {cacheAge && (
-              <div>
-                Cache Age: {Math.round((Date.now() - cacheAge) / 1000)}s ago
-              </div>
-            )}
-          </div>
-
-          {/* NEW: Keyword History Verification Section */}
-          <div className="space-y-1 rounded-md border border-green-200 bg-green-50 p-3 text-xs text-green-800 dark:border-green-800 dark:bg-green-900/50 dark:text-green-200">
-            <div className="font-medium">
-              🔧 Keyword History Fix Verification:
+              {cacheAge && (
+                <div>
+                  Cache Age: {Math.round((Date.now() - cacheAge) / 1000)}s ago
+                </div>
+              )}
             </div>
-            <div>Total History Items: {historyKeywords.length}</div>
-            <div>
-              Recent Keywords:{" "}
-              {historyKeywords
-                .slice(0, 3)
-                .map((k) => k.keyword)
-                .join(", ") || "None"}
-            </div>
-            <div>
-              Timestamps (first 3):{" "}
-              {historyKeywords
-                .slice(0, 3)
-                .map((k) => k.timestamp)
-                .join(", ") || "None"}
-            </div>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="space-y-2">
@@ -345,15 +334,20 @@ export default function WebAppPage() {
 
         {/* Show error state if keyword generation failed */}
         {suggestionsError && !hasValidDescription && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
-            Complete your workspace setup to get AI-powered keyword suggestions.
-          </div>
+          <Alert>
+            <AlertTitle>Setup required</AlertTitle>
+            <AlertDescription>
+              Complete your workspace setup to get AI-powered keyword
+              suggestions.
+            </AlertDescription>
+          </Alert>
         )}
 
         {suggestionsError && hasValidDescription && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/50 dark:text-red-200">
-            {suggestionsError}
-          </div>
+          <Alert variant="destructive">
+            <AlertTitle>Request failed</AlertTitle>
+            <AlertDescription>{suggestionsError}</AlertDescription>
+          </Alert>
         )}
 
         <Separator />

@@ -27,6 +27,11 @@ import {
   storeWorkspaceName,
 } from "@/shared/lib/utils/localStorage";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
 
 // Character count constants
 const MIN_CHARS = DESCRIPTION_CONSTRAINTS.MIN_LENGTH;
@@ -143,17 +148,19 @@ export default function OnboardingPage() {
 
       {/* Authentication status indicator */}
       {process.env.NODE_ENV === "development" && (
-        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-          <div className="font-medium">Authentication Status:</div>
-          <div>
-            {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
-          </div>
-          <div className="text-xs text-blue-600 dark:text-blue-300">
-            {isAuthenticated
-              ? "Data will be saved to your account"
-              : "Data will be saved locally and synced when you sign up"}
-          </div>
-        </div>
+        <Alert className="mb-6">
+          <AlertTitle>Authentication Status</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <div>
+              {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
+            </div>
+            <div>
+              {isAuthenticated
+                ? "Data will be saved to your account"
+                : "Data will be saved locally and synced when you sign up"}
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Main form */}

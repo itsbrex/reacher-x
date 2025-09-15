@@ -31,6 +31,11 @@ import { EditIcon } from "@/shared/ui/components/icons";
 import { useEnsureWorkspace } from "@/shared/hooks/useEnsureWorkspace";
 import { useToast } from "@/shared/ui/hooks/useToast";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
+import {
   workspaceSchema,
   type WorkspaceFormValues,
 } from "@/shared/lib/schemas/validation";
@@ -188,23 +193,24 @@ export default function WorkspacePage() {
       <PageContent className="mx-4 mt-4">
         {/* Error message for workspace creation failures */}
         {workspaceError && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/50">
-            <p className="text-sm text-red-800 dark:text-red-200">
-              <strong>Error:</strong> Failed to create workspace.{" "}
-              {workspaceError}
-            </p>
-          </div>
+          <Alert variant="destructive" className="mb-6">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              Failed to create workspace. {workspaceError}
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Authentication message for unauthenticated users */}
         {!isAuthenticated && !authLoading && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/50">
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              <strong>Account required:</strong> To use the workspace feature
-              and save your data, please create an account or log in. Your
-              workspace data will be synced to your account.
-            </p>
-          </div>
+          <Alert className="mb-6">
+            <AlertTitle>Account required</AlertTitle>
+            <AlertDescription>
+              To use the workspace feature and save your data, please create an
+              account or log in. Your workspace data will be synced to your
+              account.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Only show workspace content for authenticated users */}
@@ -221,17 +227,14 @@ export default function WorkspacePage() {
             </div>
 
             {/* Note Section */}
-            <div className="rounded-lg border border-dashed border-foreground p-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Note</h3>
-                <p className="text-sm">
-                  If you want to find customers for a different project,
-                  it&apos;s better to create a new workspace. Changing the
-                  description here will modify how the system suggests keywords
-                  and finds posts.
-                </p>
-              </div>
-            </div>
+            <Alert>
+              <AlertTitle>Note</AlertTitle>
+              <AlertDescription>
+                If you want to find customers for a different project, it&apos;s
+                better to create a new workspace. Changing the description here
+                will modify how the system suggests keywords and finds posts.
+              </AlertDescription>
+            </Alert>
 
             {/* Workspace Details Form */}
             <Form {...form}>

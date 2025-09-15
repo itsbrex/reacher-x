@@ -29,6 +29,11 @@ import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
 import { startSearch, endSearch } from "@/shared/lib/utils/performance";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
@@ -577,48 +582,51 @@ export default function SearchResultsPage() {
 
       {/* Enhanced debug info with LLM filtering details */}
       {process.env.NODE_ENV === "development" && (
-        <div className="mx-4 mt-2 space-y-1 text-xs text-muted-foreground">
-          <div>Committed: &quot;{committedQuery}&quot;</div>
-          <div>Draft: &quot;{draftQuery}&quot;</div>
-          <div>Mode: {isSearchMode ? "Search" : "Results"}</div>
-          <div>Active Tab: {activeTab}</div>
-          <div>
-            User Description:{" "}
-            {userDescription ? `${userDescription.length} chars` : "None"}
-          </div>
-          {results?.meta && (
-            <div className="space-y-1 border-t pt-1">
-              <div>Search Results Meta:</div>
-              {results.meta.originalCount !== undefined && (
-                <div>• Original: {results.meta.originalCount}</div>
-              )}
-              {results.meta.filteredCount !== undefined && (
-                <div>• Filtered: {results.meta.filteredCount}</div>
-              )}
-              {results.meta.llmProcessedCount !== undefined && (
-                <div>• LLM Processed: {results.meta.llmProcessedCount}</div>
-              )}
-              {results.meta.processingTimeMs !== undefined && (
-                <div>• Total Time: {results.meta.processingTimeMs}ms</div>
-              )}
-              {results.meta.llmProcessingTimeMs !== undefined && (
-                <div>• LLM Time: {results.meta.llmProcessingTimeMs}ms</div>
-              )}
-              {results.meta.confidenceStats && (
-                <div>
-                  • Confidence: {results.meta.confidenceStats.min.toFixed(2)}-
-                  {results.meta.confidenceStats.max.toFixed(2)} (avg:{" "}
-                  {results.meta.confidenceStats.avg.toFixed(2)})
-                </div>
-              )}
-              {results.meta.requestId && (
-                <div>• Request ID: {results.meta.requestId}</div>
-              )}
+        <Alert className="mx-4 mt-2 w-auto">
+          <AlertTitle>Debug</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <div>Committed: &quot;{committedQuery}&quot;</div>
+            <div>Draft: &quot;{draftQuery}&quot;</div>
+            <div>Mode: {isSearchMode ? "Search" : "Results"}</div>
+            <div>Active Tab: {activeTab}</div>
+            <div>
+              User Description:{" "}
+              {userDescription ? `${userDescription.length} chars` : "None"}
             </div>
-          )}
-          {error && <div className="text-destructive">Error: {error}</div>}
-          {retryCount > 0 && <div>Retry count: {retryCount}</div>}
-        </div>
+            {results?.meta && (
+              <div className="space-y-1 border-t pt-1">
+                <div>Search Results Meta:</div>
+                {results.meta.originalCount !== undefined && (
+                  <div>• Original: {results.meta.originalCount}</div>
+                )}
+                {results.meta.filteredCount !== undefined && (
+                  <div>• Filtered: {results.meta.filteredCount}</div>
+                )}
+                {results.meta.llmProcessedCount !== undefined && (
+                  <div>• LLM Processed: {results.meta.llmProcessedCount}</div>
+                )}
+                {results.meta.processingTimeMs !== undefined && (
+                  <div>• Total Time: {results.meta.processingTimeMs}ms</div>
+                )}
+                {results.meta.llmProcessingTimeMs !== undefined && (
+                  <div>• LLM Time: {results.meta.llmProcessingTimeMs}ms</div>
+                )}
+                {results.meta.confidenceStats && (
+                  <div>
+                    • Confidence: {results.meta.confidenceStats.min.toFixed(2)}-
+                    {results.meta.confidenceStats.max.toFixed(2)} (avg:{" "}
+                    {results.meta.confidenceStats.avg.toFixed(2)})
+                  </div>
+                )}
+                {results.meta.requestId && (
+                  <div>• Request ID: {results.meta.requestId}</div>
+                )}
+              </div>
+            )}
+            {error && <div className="text-destructive">Error: {error}</div>}
+            {retryCount > 0 && <div>Retry count: {retryCount}</div>}
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Conditional content area */}

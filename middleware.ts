@@ -11,6 +11,7 @@ export default authkitMiddleware({
       "/home/threads",
       "/workspace",
       "/onboarding",
+      "/search",
     ],
   },
 });
