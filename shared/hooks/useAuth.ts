@@ -1,0 +1,106 @@
+import { useConvexAuth } from "convex/react";
+import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useMemo, useEffect, useRef } from "react";
+
+/**
+ * Simplified authentication hook that handles user storage and workspace creation
+ *
+ * This hook follows React best practices by:
+ * 1. Calculating derived state during rendering
+ * 2. Using a single Effect for side effects
+ * 3. Providing a clean, minimal API
+ *
+ * Usage:
+ * ```tsx
+ * const { isAuthenticated, isLoading, user, workspace } = useAuth();
+ * ```
+ */
+export function useAuth() {
+  const { isLoading: convexLoading, isAuthenticated: convexAuthenticated } =
+    useConvexAuth();
+  const { user: workosUser, loading: workosLoading } = useWorkosAuth();
+
+  // Get current user from database (only if Convex is authenticated)
+  const currentUser = useQuery(
+    api.users.getCurrentUser,
+    convexAuthenticated ? {} : "skip"
+  );
+
+  // Get workspace data (only if authenticated)
+  const workspace = useQuery(
+    api.workspaces.getDefaultWorkspace,
+    convexAuthenticated && currentUser ? {} : "skip"
+  );
+
+  // Mutations
+  const storeUser = useMutation(api.users.createOrUpdateUser);
+  const ensureWorkspace = useMutation(api.workspaces.ensureDefaultWorkspace);
+
+  // Calculate authentication state during rendering
+  const isAuthenticated = useMemo(() => {
+    return convexAuthenticated && !!workosUser && !!currentUser;
+  }, [convexAuthenticated, workosUser, currentUser]);
+
+  const isLoading = useMemo(() => {
+    return (
+      convexLoading || workosLoading || (convexAuthenticated && !currentUser)
+    );
+  }, [convexLoading, workosLoading, convexAuthenticated, currentUser]);
+
+  // Track initialization to prevent duplicate calls
+  const hasInitialized = useRef(false);
+
+  // Handle user storage and workspace creation
+  useEffect(() => {
+    const initializeUser = async () => {
+      if (!convexAuthenticated || !workosUser || hasInitialized.current) return;
+
+      hasInitialized.current = true;
+
+      try {
+        // Store user if not in database
+        if (!currentUser) {
+          await storeUser({
+            workosUserId: workosUser.id,
+            email: workosUser.email,
+            firstName: workosUser.firstName || undefined,
+            lastName: workosUser.lastName || undefined,
+            profileImageUrl: workosUser.profilePictureUrl || undefined,
+          });
+        }
+
+        // Ensure workspace exists
+        if (currentUser && workspace === null) {
+          await ensureWorkspace({});
+        }
+      } catch (error) {
+        console.error("❌ User initialization failed:", error);
+        hasInitialized.current = false; // Allow retry
+      }
+    };
+
+    initializeUser();
+
+    // Reset initialization flag when user logs out
+    if (!convexAuthenticated) {
+      hasInitialized.current = false;
+    }
+  }, [
+    convexAuthenticated,
+    workosUser,
+    currentUser,
+    workspace,
+    storeUser,
+    ensureWorkspace,
+  ]);
+
+  return {
+    isAuthenticated,
+    isLoading,
+    user: workosUser,
+    userId: currentUser?._id || null,
+    workspace,
+  };
+}

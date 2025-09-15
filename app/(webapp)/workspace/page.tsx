@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
-import { useConvexAuth } from "convex/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "@/convex/_generated/api";
@@ -28,7 +27,7 @@ import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Upload } from "lucide-react";
 import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
 import { EditIcon } from "@/shared/ui/components/icons";
-import { useEnsureWorkspace } from "@/shared/hooks/useEnsureWorkspace";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { useToast } from "@/shared/ui/hooks/useToast";
 import {
   Alert,
@@ -45,16 +44,9 @@ const MAX_CHARS = DESCRIPTION_CONSTRAINTS.MAX_LENGTH;
 
 export default function WorkspacePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { isAuthenticated, isLoading: authLoading, workspace } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
-
-  // Use the robust workspace hook that ensures workspace exists
-  const {
-    workspace,
-    isLoading: workspaceLoading,
-    error: workspaceError,
-  } = useEnsureWorkspace();
   const updateWorkspace = useMutation(api.workspaces.updateWorkspace);
 
   const form = useForm<WorkspaceFormValues>({
@@ -124,7 +116,7 @@ export default function WorkspacePage() {
 
   // Show loading skeleton until workspace data is ready to avoid empty flicker
   const isHydrating = isAuthenticated && workspace === undefined;
-  if (authLoading || workspaceLoading || isHydrating) {
+  if (authLoading || isHydrating) {
     return (
       <PageLayout>
         <PageHeader title="Workspace" onBack={() => router.back()} />
@@ -192,11 +184,11 @@ export default function WorkspacePage() {
 
       <PageContent className="mx-4 mt-4">
         {/* Error message for workspace creation failures */}
-        {workspaceError && (
+        {isAuthenticated && workspace === null && !authLoading && (
           <Alert variant="destructive" className="mb-6">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
-              Failed to create workspace. {workspaceError}
+              Failed to create workspace. Please try refreshing the page.
             </AlertDescription>
           </Alert>
         )}

@@ -3,9 +3,9 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components";
 import { useConvexAuth } from "convex/react";
-import { useStoreUserEffect } from "@/shared/hooks/useStoreUserEffect";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { useDataMigrationEffect } from "@/shared/hooks/useDataMigrationEffect";
 import { Separator } from "@/shared/ui/components/Separator";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
@@ -27,13 +27,14 @@ import {
 
 export default function WebAppPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useWorkosAuth();
   const { isAuthenticated, isLoading: convexLoading } = useConvexAuth();
   const {
-    isLoading: userStorageLoading,
-    isAuthenticated: userStored,
+    isAuthenticated: unifiedAuth,
+    isLoading: unifiedLoading,
+    user: unifiedUser,
     userId,
-  } = useStoreUserEffect();
+  } = useAuth();
 
   // Handle data migration from localStorage to Convex when user authenticates
   useDataMigrationEffect();
@@ -48,8 +49,9 @@ export default function WebAppPage() {
       workosLoading: authLoading,
       convexAuthenticated: isAuthenticated,
       convexLoading: convexLoading,
-      userStored: userStored,
-      userStorageLoading: userStorageLoading,
+      unifiedAuth: unifiedAuth,
+      unifiedLoading: unifiedLoading,
+      unifiedUser: unifiedUser,
       userId: userId,
       userDetails: user
         ? {
@@ -69,17 +71,18 @@ export default function WebAppPage() {
       );
     }
 
-    // Debug user storage
-    if (isAuthenticated && user && !userStored && !userStorageLoading) {
-      console.warn("⚠️ User authenticated but not stored in database yet");
+    // Debug unified auth state
+    if (isAuthenticated && !unifiedAuth && !unifiedLoading) {
+      console.warn("⚠️ Convex authenticated but unified auth not ready yet");
     }
   }, [
     user,
     authLoading,
     isAuthenticated,
     convexLoading,
-    userStored,
-    userStorageLoading,
+    unifiedAuth,
+    unifiedLoading,
+    unifiedUser,
     userId,
   ]);
 
@@ -199,11 +202,11 @@ export default function WebAppPage() {
                 {isAuthenticated ? "✅ Authenticated" : "❌ Not authenticated"}
               </div>
               <div>
-                User Stored: {userStored ? "✅ Stored in DB" : "❌ Not stored"}
+                User Stored: {unifiedAuth ? "✅ Stored in DB" : "❌ Not stored"}
               </div>
               <div>
                 Loading:
-                {authLoading || convexLoading || userStorageLoading
+                {authLoading || convexLoading || unifiedLoading
                   ? "⏳ Yes"
                   : "✅ No"}
               </div>

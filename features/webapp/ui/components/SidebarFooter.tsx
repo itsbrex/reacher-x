@@ -18,11 +18,11 @@ import {
 } from "@/shared/ui/components/Sidebar";
 import { FilledFolderIcon } from "@/shared/ui/components/icons";
 import Link from "next/link";
-import { useEnsureWorkspace } from "@/shared/hooks/useEnsureWorkspace";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { usePathname } from "next/navigation";
 
 export function SidebarFooter() {
-  const { workspace } = useEnsureWorkspace();
+  const { workspace } = useAuth();
   const pathname = usePathname();
   const isActive = pathname === "/workspace";
   const workspaceName = workspace?.name || "Workspace";
