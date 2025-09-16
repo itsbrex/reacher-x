@@ -9,6 +9,7 @@ import {
   togglePin,
   deleteKeyword,
   recordVote,
+  getKeywordById,
   findKeywordByTextAndExactMatch,
   UnifiedKeyword,
 } from "../lib/utils/unifiedKeywordStore";
@@ -49,13 +50,12 @@ export function useKeywordSync() {
   // Get keywords from appropriate source
   const getKeywordsData = useCallback(() => {
     if (isAuthenticated && userId) {
-      // For authenticated users, we'll use Convex queries
-      // This will be handled by the useSearchHistory hook
-      return getKeywords(); // Fallback to local for now
-    } else {
-      // For unauthenticated users, use localStorage
-      return getKeywords();
+      // Authenticated: UI should source from Convex via useUnifiedKeywords/useSearchHistory.
+      // Return empty to avoid transient local -> remote oscillation.
+      return [] as UnifiedKeyword[];
     }
+    // Unauthenticated: use localStorage
+    return getKeywords();
   }, [isAuthenticated, userId]);
 
   // Sync local changes to Convex
@@ -98,7 +98,7 @@ export function useKeywordSync() {
       syncInProgress.current = false;
       setIsSyncing(false);
     }
-  }, [isAuthenticated, userId, workspace, syncKeywords, getKeywords]);
+  }, [isAuthenticated, userId, workspace, syncKeywords]);
 
   // Sync changes from Convex to local
   const syncFromConvex = useCallback(async () => {
@@ -175,25 +175,56 @@ export function useKeywordSync() {
 
   const togglePinUnified = useCallback(
     async (id: string) => {
-      // Update local storage first
-      const success = togglePin(id);
-
-      if (success && isAuthenticated && userId) {
+      // Authenticated path: operate on Convex directly using the provided ID
+      if (isAuthenticated && userId && workspace) {
         try {
+          // First attempt: assume `id` is a Convex ID (as provided by useUnifiedKeywords)
           await togglePinRemote({
-            keywordId: id as Id<"keywords">, // Type assertion needed
+            keywordId: id as Id<"keywords">,
             syncSource: "local",
           });
-        } catch (error) {
-          console.error("Failed to sync pin toggle to Convex:", error);
-          // Revert local change on failure
-          togglePin(id);
+          return true;
+        } catch (primaryError) {
+          // Fallback: `id` may be a localStorage ID. Resolve via local keyword and upsert to get Convex ID
+          try {
+            const localKeyword = getKeywordById(id);
+            if (!localKeyword) {
+              throw primaryError;
+            }
+
+            const remoteId = await upsertKeyword({
+              keywordData: {
+                keyword: localKeyword.keyword,
+                exactMatch: localKeyword.exactMatch,
+                source: localKeyword.source,
+                metadata: localKeyword.metadata,
+              },
+              updateData: {
+                lastUsedAt: Date.now(),
+              },
+              workspaceId: workspace._id,
+              syncSource: "local",
+            });
+
+            await togglePinRemote({
+              keywordId: remoteId as Id<"keywords">,
+              syncSource: "local",
+            });
+            return true;
+          } catch (fallbackError) {
+            console.error(
+              "Failed to sync pin toggle to Convex:",
+              fallbackError
+            );
+            return false;
+          }
         }
       }
 
-      return success;
+      // Unauthenticated path: localStorage only
+      return togglePin(id);
     },
-    [isAuthenticated, userId, togglePinRemote]
+    [isAuthenticated, userId, workspace, upsertKeyword, togglePinRemote]
   );
 
   const deleteKeywordUnified = useCallback(

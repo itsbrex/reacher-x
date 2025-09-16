@@ -17,7 +17,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useAction } from "convex/react";
+import { useAction, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
@@ -122,6 +122,7 @@ export interface GenerationMetadata {
  * Hook for managing keyword suggestions with proper lifecycle management
  */
 export function useKeywordSuggestions(): KeywordSuggestionsState {
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   // State management
   const [suggestions, setSuggestions] = useState<KeywordItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -166,8 +167,10 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     }
   }, []);
 
-  // Load keywords from unified store and listen for changes
+  // Load keywords from unified store and listen for changes (unauthenticated only)
   useEffect(() => {
+    if (authLoading || isAuthenticated) return;
+
     const refreshAllKeywords = () => {
       setAllKeywords(getKeywords());
     };
@@ -177,7 +180,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     return () => {
       window.removeEventListener("onLocalStorageChange", refreshAllKeywords);
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   // Computed values
   const hasValidDescription = useMemo(() => {

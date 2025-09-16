@@ -19,16 +19,12 @@ import React, {
   useState,
   useCallback,
   useMemo,
-  useEffect,
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getKeywords as getUnifiedKeywords,
-  togglePin,
-  deleteKeyword as deleteUnifiedKeyword,
-  type UnifiedKeyword,
-} from "@/shared/lib/utils/unifiedKeywordStore";
+// No direct store mutations used here; handled via useKeywordSync
+import type { UnifiedKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
+import { useUnifiedKeywords } from "@/shared/hooks/useUnifiedKeywords";
 import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 import { groupKeywordsByTime } from "@/features/webapp/lib/keywordUtils";
@@ -75,32 +71,14 @@ export function SidebarProvider({
   activeKeyword,
 }: SidebarProviderProps) {
   const router = useRouter();
-  const { addOrUseKeyword } = useKeywordSync();
+  const {
+    addOrUseKeyword,
+    togglePin: togglePinUnified,
+    deleteKeyword: deleteKeywordUnified,
+  } = useKeywordSync();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ✅ Use a state trigger for localStorage changes to force re-render
-  const [storageVersion, setStorageVersion] = useState(0);
-
-  // ✅ Calculate keywords during render instead of using state + Effect
-  const allKeywords = useMemo(() => {
-    return getUnifiedKeywords();
-  }, [storageVersion]); // storageVersion needed for localStorage change detection
-
-  // Set up storage change listener
-  useEffect(() => {
-    const handleStorageChange = () => {
-      console.log(
-        "[SIDEBAR_CONTEXT] Detected storage change, refreshing keywords."
-      );
-      // Increment version to trigger re-render and recalculation
-      setStorageVersion((prev) => prev + 1);
-    };
-
-    window.addEventListener("onLocalStorageChange", handleStorageChange);
-    return () => {
-      window.removeEventListener("onLocalStorageChange", handleStorageChange);
-    };
-  }, []);
+  const { keywords: allKeywords } = useUnifiedKeywords();
 
   // Memoize timezone info as it rarely changes
   const timezoneInfo = useMemo(() => getUserTimezoneInfo(), []);
@@ -182,23 +160,25 @@ export function SidebarProvider({
 
   // --- ACTIONS ---
 
-  const handleTogglePin = useCallback((id: string) => {
-    const success = togglePin(id);
-    if (success) {
-      // ✅ Trigger re-render by updating storage version
-      setStorageVersion((prev) => prev + 1);
-      console.log(`[SIDEBAR_CONTEXT] Toggled pin status for ID: ${id}`);
-    }
-  }, []);
+  const handleTogglePin = useCallback(
+    async (id: string) => {
+      const success = await togglePinUnified(id);
+      if (success) {
+        console.log(`[SIDEBAR_CONTEXT] Toggled pin status for ID: ${id}`);
+      }
+    },
+    [togglePinUnified]
+  );
 
-  const handleDelete = useCallback((id: string) => {
-    const success = deleteUnifiedKeyword(id);
-    if (success) {
-      // ✅ Trigger re-render by updating storage version
-      setStorageVersion((prev) => prev + 1);
-      console.log(`[SIDEBAR_CONTEXT] Deleted keyword with ID: ${id}`);
-    }
-  }, []);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const success = await deleteKeywordUnified(id);
+      if (success) {
+        console.log(`[SIDEBAR_CONTEXT] Deleted keyword with ID: ${id}`);
+      }
+    },
+    [deleteKeywordUnified]
+  );
 
   const handleNewKeyword = useCallback(() => {
     router.push("/");
@@ -227,7 +207,7 @@ export function SidebarProvider({
       // Use replace for faster navigation
       router.replace(`/search?${params.toString()}`);
     },
-    [router, allKeywords]
+    [router, allKeywords, addOrUseKeyword]
   );
 
   const handleKeywordItemSelect = useCallback(
