@@ -34,6 +34,7 @@ import {
   useHighlight,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils/highlighting";
+import React from "react";
 
 // Keyword Item Component Props
 export interface KeywordItemComponentProps {
@@ -84,16 +85,44 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
       onSelect?.(keyword);
     }, [onSelect, keyword]);
 
+    // Detect text truncation to decide when to always show tooltip
+    const textRef = React.useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = React.useState(false);
+
+    const checkTruncation = React.useCallback(() => {
+      const el = textRef.current;
+      if (!el) return;
+      // Compare scrollWidth with clientWidth to know if it's visually truncated
+      const truncated = el.scrollWidth > el.clientWidth + 1; // +1 to avoid float rounding issues
+      setIsTruncated(truncated);
+    }, []);
+
+    React.useEffect(() => {
+      checkTruncation();
+    }, [checkTruncation, keyword, highlightQuery]);
+
+    React.useEffect(() => {
+      // Recalculate on window resize
+      const handler = () => checkTruncation();
+      window.addEventListener("resize", handler);
+      return () => window.removeEventListener("resize", handler);
+    }, [checkTruncation]);
+
+    // When truncated, force tooltip to be visible regardless of sidebar state
+    const tooltipProp = isTruncated
+      ? { children: keyword, hidden: false as boolean | undefined }
+      : keyword;
+
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
-          tooltip={keyword}
+          tooltip={tooltipProp}
           onClick={handleSelect}
           className="cursor-pointer"
           variant={isActive ? "secondary" : "ghost"}
         >
           <YoutubeSearchedForIcon className="fill-sidebar-foreground" />
-          <span className="truncate text-sm">
+          <span ref={textRef} className="truncate text-sm">
             {highlightQuery ? highlightedText : keyword}
             {exactMatch && (
               <span
