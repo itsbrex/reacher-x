@@ -43,6 +43,8 @@ export function useKeywordSync() {
   // Local state
   const [isSyncing, setIsSyncing] = useState(false);
   const syncInProgress = useRef(false);
+  // Track in-flight upserts to dedupe rapid identical submissions
+  const inflightUpsertsRef = useRef<Map<string, Promise<unknown>>>(new Map());
 
   // Get keywords from appropriate source
   const getKeywordsData = useCallback(() => {
@@ -131,7 +133,15 @@ export function useKeywordSync() {
       // If authenticated, sync to Convex
       if (isAuthenticated && userId && workspace) {
         try {
-          await upsertKeyword({
+          const normalized = keyword.trim().toLowerCase();
+          const inflightKey = `${workspace._id}:${normalized}:${exactMatch ? 1 : 0}`;
+
+          // If an identical upsert is already in-flight, skip starting another
+          if (inflightUpsertsRef.current.has(inflightKey)) {
+            return keywordId;
+          }
+
+          const promise = upsertKeyword({
             keywordData: {
               keyword,
               exactMatch,
@@ -143,9 +153,18 @@ export function useKeywordSync() {
             },
             workspaceId: workspace._id,
             syncSource: "local",
-          });
+          })
+            .catch((error) => {
+              console.error("Failed to sync keyword to Convex:", error);
+            })
+            .finally(() => {
+              inflightUpsertsRef.current.delete(inflightKey);
+            });
+
+          inflightUpsertsRef.current.set(inflightKey, promise);
+          // Fire-and-forget to keep UI responsive; local ID is already returned
         } catch (error) {
-          console.error("Failed to sync keyword to Convex:", error);
+          console.error("Failed to schedule Convex upsert:", error);
         }
       }
 
