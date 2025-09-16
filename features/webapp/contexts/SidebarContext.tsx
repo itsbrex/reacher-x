@@ -27,9 +27,9 @@ import {
   getKeywords as getUnifiedKeywords,
   togglePin,
   deleteKeyword as deleteUnifiedKeyword,
-  addOrUseKeyword,
   type UnifiedKeyword,
 } from "@/shared/lib/utils/unifiedKeywordStore";
+import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
 import { groupKeywordsByTime } from "@/features/webapp/lib/keywordUtils";
 import { getUserTimezoneInfo } from "@/shared/lib/utils/timeUtils";
@@ -75,6 +75,7 @@ export function SidebarProvider({
   activeKeyword,
 }: SidebarProviderProps) {
   const router = useRouter();
+  const { addOrUseKeyword } = useKeywordSync();
   const [searchQuery, setSearchQuery] = useState("");
 
   // ✅ Use a state trigger for localStorage changes to force re-render
@@ -204,14 +205,14 @@ export function SidebarProvider({
   }, [router]);
 
   const handleKeywordSelect = useCallback(
-    (keyword: string) => {
+    async (keyword: string) => {
       // Find the keyword in our store to get its exact match setting
       const existingKeyword = allKeywords.find(
         (k) => k.keyword.toLowerCase() === keyword.toLowerCase()
       );
 
-      // Add keyword to unified store and get the ID
-      const keywordId = addOrUseKeyword(
+      // Add keyword to store (local + Convex if authenticated) and get the ID
+      const keywordId = await addOrUseKeyword(
         keyword,
         "user_created",
         existingKeyword?.exactMatch ?? false
@@ -230,10 +231,10 @@ export function SidebarProvider({
   );
 
   const handleKeywordItemSelect = useCallback(
-    (item: KeywordItem | KeywordItemWithRawTimestamp) => {
+    async (item: KeywordItem | KeywordItemWithRawTimestamp) => {
       // If the item has exactMatch property, use it directly
       if ("exactMatch" in item && item.exactMatch !== undefined) {
-        const keywordId = addOrUseKeyword(
+        const keywordId = await addOrUseKeyword(
           item.keyword,
           "user_created",
           item.exactMatch
@@ -251,7 +252,7 @@ export function SidebarProvider({
         handleKeywordSelect(item.keyword);
       }
     },
-    [handleKeywordSelect, router]
+    [handleKeywordSelect, router, addOrUseKeyword]
   );
 
   // Computed values

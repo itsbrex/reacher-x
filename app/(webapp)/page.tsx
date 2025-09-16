@@ -15,7 +15,8 @@ import { SimilarKeywords } from "@/features/keywords/ui/components/SimilarKeywor
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
-import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
+// Local store still used inside hook; no direct import needed here
+import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
 import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
 import { startNavigation } from "@/shared/lib/utils/performance";
 import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList";
@@ -108,6 +109,9 @@ export default function WebAppPage() {
   // Use optimistic search for instant results
   const { startOptimisticSearch } = useOptimisticSearch();
 
+  // Unified keyword sync (local first, Convex when authenticated)
+  const { addOrUseKeyword } = useKeywordSync();
+
   // Get flagged keywords count for status display
   const flaggedCount = getFlaggedKeywordsCount();
 
@@ -117,7 +121,7 @@ export default function WebAppPage() {
   }, [router]);
 
   const handleSearch = useCallback(
-    (query: string, exactMatch: boolean) => {
+    async (query: string, exactMatch: boolean) => {
       const trimmedQuery = query.trim();
       if (!trimmedQuery) return;
 
@@ -127,8 +131,8 @@ export default function WebAppPage() {
       // Start optimistic search immediately
       startOptimisticSearch(trimmedQuery, exactMatch);
 
-      // Add keyword to unified store and get the ID
-      const keywordId = addOrUseKeyword(
+      // Add keyword to store (local + Convex if authenticated) and get the ID
+      const keywordId = await addOrUseKeyword(
         trimmedQuery,
         "user_created",
         exactMatch
@@ -143,19 +147,19 @@ export default function WebAppPage() {
       // This avoids adding to browser history for search operations
       router.replace(`/search?${params.toString()}`);
     },
-    [router, startOptimisticSearch]
+    [router, startOptimisticSearch, addOrUseKeyword]
   );
 
   const handleKeywordClick = useCallback(
-    (item: KeywordItem) => {
+    async (item: KeywordItem) => {
       // Start performance monitoring
       startNavigation(item.keyword);
 
       // Start optimistic search immediately with the stored exact match setting
       startOptimisticSearch(item.keyword, item.exactMatch ?? false);
 
-      // Add keyword to unified store and get the ID
-      const keywordId = addOrUseKeyword(
+      // Add keyword to store (local + Convex if authenticated) and get the ID
+      const keywordId = await addOrUseKeyword(
         item.keyword,
         "ai_suggestion",
         item.exactMatch ?? false, // Use the stored exact match setting
@@ -173,7 +177,7 @@ export default function WebAppPage() {
       // Use replace for faster navigation
       router.replace(`/search?${params.toString()}`);
     },
-    [router, recordKeywordUsage, startOptimisticSearch]
+    [router, recordKeywordUsage, startOptimisticSearch, addOrUseKeyword]
   );
 
   const handleQueryChange = useCallback((query: string) => {

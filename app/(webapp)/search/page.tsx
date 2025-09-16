@@ -27,7 +27,8 @@ import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSugge
 import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
 import { Tweet } from "@/features/threads/types";
 import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
-import { addOrUseKeyword } from "@/shared/lib/utils/unifiedKeywordStore";
+// Keyword storage is handled via useKeywordSync
+import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
 import { startSearch, endSearch } from "@/shared/lib/utils/performance";
 import {
   Alert,
@@ -42,6 +43,8 @@ type ValidTab = (typeof validTabs)[number];
 // Note: Keyword data is now managed by individual components using real search history
 
 export default function SearchResultsPage() {
+  // Unified keyword sync (local first, Convex when authenticated)
+  const { addOrUseKeyword } = useKeywordSync();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { openFilter, isFilterMode, hasActiveFilters, activeFilterCount } =
@@ -190,33 +193,45 @@ export default function SearchResultsPage() {
         // by the useTwitterSearch hook's cache mechanism
       }
 
-      // Add keyword to unified store when search is performed
-      // This handles both manual searches and keyword suggestion clicks
-      const keywordId = addOrUseKeyword(
-        committedQuery,
-        "user_created",
-        committedExactMatch
-      );
+      // Run async side-effects (Convex upsert + URL update) safely
+      let cancelled = false;
+      const run = async () => {
+        try {
+          // Load filters/sort for this keyword (local only)
+          loadFiltersForKeyword(committedQuery);
+          loadSortForKeyword(committedQuery);
 
-      // Load filters for this keyword (if any)
-      loadFiltersForKeyword(committedQuery);
+          let keywordId = currentKeywordId;
+          if (!keywordId) {
+            keywordId = await addOrUseKeyword(
+              committedQuery,
+              "user_created",
+              committedExactMatch
+            );
+            if (cancelled) return;
+          }
 
-      // Load sort preferences for this keyword (if any)
-      loadSortForKeyword(committedQuery);
+          const params = new URLSearchParams();
+          params.set("q", committedQuery);
+          if (committedExactMatch) {
+            params.set("exact", "true");
+          }
+          params.set("keywordId", keywordId);
 
-      // Update URL to include the keywordId for voting context
-      const params = new URLSearchParams();
-      params.set("q", committedQuery);
-      if (committedExactMatch) {
-        params.set("exact", "true");
-      }
-      params.set("keywordId", keywordId);
+          router.replace(`/search?${params.toString()}`, { scroll: false });
 
-      // Update URL without triggering a navigation
-      router.replace(`/search?${params.toString()}`, { scroll: false });
+          searchTweets(committedQuery, committedExactMatch);
+          isInitialSearchDone.current = true;
+        } catch (err) {
+          console.error("[SEARCH_PAGE] Failed to commit search:", err);
+        }
+      };
 
-      searchTweets(committedQuery, committedExactMatch);
-      isInitialSearchDone.current = true;
+      run();
+
+      return () => {
+        cancelled = true;
+      };
     } else {
       console.log("[SEARCH_PAGE] Clearing results - no query");
       clearResults();
@@ -233,6 +248,8 @@ export default function SearchResultsPage() {
     clearOptimisticCache,
     loadFiltersForKeyword,
     loadSortForKeyword,
+    addOrUseKeyword,
+    currentKeywordId,
   ]);
 
   // Handle load more
@@ -426,7 +443,7 @@ export default function SearchResultsPage() {
 
   // Commit draft state (search execution)
   const handleSearch = useCallback(
-    (searchQuery: string, isExactMatch: boolean) => {
+    async (searchQuery: string, isExactMatch: boolean) => {
       const trimmedQuery = searchQuery.trim();
       if (!trimmedQuery) return;
 
@@ -438,8 +455,8 @@ export default function SearchResultsPage() {
       isCommittingRef.current = true;
       setIsSearchMode(false);
 
-      // Add keyword to unified store and get the ID
-      const keywordId = addOrUseKeyword(
+      // Add keyword to store (local + Convex if authenticated) and get the ID
+      const keywordId = await addOrUseKeyword(
         trimmedQuery,
         "user_created",
         isExactMatch
@@ -454,19 +471,19 @@ export default function SearchResultsPage() {
 
       router.push(`/search?${params.toString()}`);
     },
-    [router]
+    [router, addOrUseKeyword]
   );
 
   // Handle keyword selection from suggestions
   const handleKeywordClick = useCallback(
-    (item: KeywordItem) => {
+    async (item: KeywordItem) => {
       console.log("[SEARCH_PAGE] Keyword selected from suggestions:", {
         keyword: item.keyword,
         exactMatch: item.exactMatch,
       });
 
-      // Add keyword to unified store and get the ID
-      const keywordId = addOrUseKeyword(
+      // Add keyword to store (local + Convex if authenticated) and get the ID
+      const keywordId = await addOrUseKeyword(
         item.keyword,
         "ai_suggestion",
         item.exactMatch ?? false, // Use the stored exact match setting
@@ -486,7 +503,7 @@ export default function SearchResultsPage() {
 
       router.push(`/search?${params.toString()}`);
     },
-    [router, recordKeywordUsage]
+    [router, recordKeywordUsage, addOrUseKeyword]
   );
 
   // Update draft state
