@@ -69,6 +69,8 @@ export function SidebarContentWrapper({
                       item.keyword.toLowerCase() === activeKeyword.toLowerCase()
                     }
                     exactMatch={item.exactMatch}
+                    timestamp={item.timestamp}
+                    rawTimestamp={item.rawTimestamp}
                     onTogglePin={handleTogglePin}
                     onDelete={handleDelete}
                     onSelect={handleKeywordSelect}

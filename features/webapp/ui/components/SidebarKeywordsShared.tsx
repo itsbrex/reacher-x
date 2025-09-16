@@ -34,6 +34,7 @@ import {
   useHighlight,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils/highlighting";
+import { formatRelativeTime } from "@/shared/lib/utils/format";
 import React from "react";
 
 // Keyword Item Component Props
@@ -44,6 +45,8 @@ export interface KeywordItemComponentProps {
   isPinned?: boolean;
   isActive?: boolean;
   exactMatch?: boolean;
+  timestamp?: string;
+  rawTimestamp?: number;
   onTogglePin?: (id: string) => void;
   onDelete?: (id: string) => void;
   onSelect?: (keyword: string) => void;
@@ -62,6 +65,8 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
     isPinned = false,
     isActive = false,
     exactMatch = false,
+    timestamp,
+    rawTimestamp,
     onTogglePin,
     onDelete,
     onSelect,
@@ -85,44 +90,82 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
       onSelect?.(keyword);
     }, [onSelect, keyword]);
 
-    // Detect text truncation to decide when to always show tooltip
-    const textRef = React.useRef<HTMLSpanElement>(null);
-    const [isTruncated, setIsTruncated] = React.useState(false);
+    // Create comprehensive tooltip content with timestamp and exact match info
+    const tooltipContent = React.useMemo(() => {
+      if (!keyword) return ""; // Safety check
 
-    const checkTruncation = React.useCallback(() => {
-      const el = textRef.current;
-      if (!el) return;
-      // Compare scrollWidth with clientWidth to know if it's visually truncated
-      const truncated = el.scrollWidth > el.clientWidth + 1; // +1 to avoid float rounding issues
-      setIsTruncated(truncated);
-    }, []);
+      const metadata = [];
 
-    React.useEffect(() => {
-      checkTruncation();
-    }, [checkTruncation, keyword, highlightQuery]);
+      if (isPinned) {
+        metadata.push(
+          <span key="pinned" className="text-muted-foreground">
+            𖥣 Pinned
+          </span>
+        );
+      }
 
-    React.useEffect(() => {
-      // Recalculate on window resize
-      const handler = () => checkTruncation();
-      window.addEventListener("resize", handler);
-      return () => window.removeEventListener("resize", handler);
-    }, [checkTruncation]);
+      if (exactMatch) {
+        metadata.push(
+          <span key="exact" className="text-muted-foreground">
+            {" "}
+            · Exact Phrase
+          </span>
+        );
+      }
 
-    // When truncated, force tooltip to be visible regardless of sidebar state
-    const tooltipProp = isTruncated
-      ? { children: keyword, hidden: false as boolean | undefined }
-      : keyword;
+      if (rawTimestamp || timestamp) {
+        const timeValue = rawTimestamp
+          ? (() => {
+              try {
+                return formatRelativeTime(new Date(rawTimestamp).toISOString());
+              } catch (error) {
+                console.warn("Error formatting timestamp:", error);
+                return timestamp || "";
+              }
+            })()
+          : timestamp;
+
+        metadata.push(
+          <time
+            key="timestamp"
+            className="text-muted-foreground"
+            dateTime={
+              rawTimestamp ? new Date(rawTimestamp).toISOString() : undefined
+            }
+          >
+            {" "}
+            · {timeValue}
+          </time>
+        );
+      }
+
+      return (
+        <div className="flex items-center gap-2 text-sm">
+          {keyword}
+          {metadata.length > 0 && (
+            <span className="text-xs text-muted-foreground">{metadata}</span>
+          )}
+        </div>
+      );
+    }, [keyword, isPinned, exactMatch, rawTimestamp, timestamp]);
 
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
-          tooltip={tooltipProp}
+          tooltip={
+            tooltipContent
+              ? {
+                  children: tooltipContent,
+                  hidden: false, // Override the default hidden logic to always show tooltips
+                }
+              : undefined
+          }
           onClick={handleSelect}
           className="cursor-pointer"
           variant={isActive ? "secondary" : "ghost"}
         >
           <YoutubeSearchedForIcon className="fill-sidebar-foreground" />
-          <span ref={textRef} className="truncate text-sm">
+          <span className="truncate text-sm">
             {highlightQuery ? highlightedText : keyword}
             {exactMatch && (
               <span

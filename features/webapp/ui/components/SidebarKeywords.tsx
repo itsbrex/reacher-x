@@ -120,6 +120,8 @@ function Tree({
                 isPinned={isPinnedItems}
                 isActive={isActive(item)}
                 exactMatch={item.exactMatch}
+                timestamp={item.timestamp}
+                rawTimestamp={item.rawTimestamp}
                 onTogglePin={onTogglePin}
                 onDelete={onDelete}
                 onSelect={onSelect}
