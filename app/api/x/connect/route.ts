@@ -38,14 +38,7 @@ export async function GET() {
     process.env.X_REDIRECT_URI ||
     `${process.env.NEXT_PUBLIC_SITE_URL}/api/x/callback`;
 
-  console.log("OAuth Configuration:", {
-    clientId: clientId ? "present" : "missing",
-    redirectUri,
-    authorizeUrl,
-  });
-
   if (!clientId || !redirectUri) {
-    console.log("Missing required OAuth configuration");
     return NextResponse.json(
       { error: "Server is not configured for X OAuth" },
       { status: 500 }
@@ -61,12 +54,6 @@ export async function GET() {
   const maxAge = 10 * 60; // 10 minutes
   const isDevelopment = process.env.NODE_ENV === "development";
 
-  console.log("=== X OAuth Connect Route ===");
-  console.log("Generated state:", state);
-  console.log("Generated codeVerifier:", codeVerifier ? "present" : "missing");
-  console.log("Is development:", isDevelopment);
-  console.log("Cookie secure setting:", !isDevelopment);
-
   cookieStore.set("x_oauth_state", state, {
     httpOnly: true,
     secure: !isDevelopment, // Only secure in production
@@ -81,8 +68,6 @@ export async function GET() {
     path: "/",
     maxAge,
   });
-
-  console.log("Cookies set successfully");
 
   // Scopes required for reply with media (subject to app access level)
   const scopes = [
@@ -104,6 +89,5 @@ export async function GET() {
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
 
-  console.log("Redirecting to X OAuth URL:", url.toString());
   return NextResponse.redirect(url.toString());
 }

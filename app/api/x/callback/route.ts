@@ -1,44 +1,22 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { createSession } from "../../../../shared/lib/utils/sessionStorage";
 
 // Exchange code for tokens and persist via Convex
 export async function GET(request: Request) {
-  console.log("=== X OAuth Callback Route Hit ===");
-  console.log("Request URL:", request.url);
-
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
 
-  console.log("URL Params:", {
-    code: code ? "present" : "missing",
-    state: state ? "present" : "missing",
-  });
-
   const cookieStore = await cookies();
   const expectedState = cookieStore.get("x_oauth_state")?.value;
   const codeVerifier = cookieStore.get("x_code_verifier")?.value;
-
-  // Debug logging
-  console.log("OAuth Callback Debug:", {
-    code: code ? "present" : "missing",
-    state: state ? "present" : "missing",
-    expectedState: expectedState ? "present" : "missing",
-    codeVerifier: codeVerifier ? "present" : "missing",
-    stateMatch: state === expectedState,
-  });
 
   // Clear cookies early
   cookieStore.delete("x_oauth_state");
   cookieStore.delete("x_code_verifier");
 
   if (!code || !state || !expectedState || state !== expectedState) {
-    console.log("State validation failed:", {
-      code: !!code,
-      state: !!state,
-      expectedState: !!expectedState,
-      stateMatch: state === expectedState,
-    });
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_SITE_URL}/settings/linked-accounts?x_status=error_state`
     );
@@ -75,20 +53,6 @@ export async function GET(request: Request) {
       code_verifier: codeVerifier,
     };
 
-    console.log("Token exchange request:", {
-      tokenUrl,
-      clientId: clientId ? clientId.substring(0, 10) + "..." : "missing",
-      clientSecret: clientSecret
-        ? clientSecret.substring(0, 10) + "..."
-        : "missing",
-      code: code ? code.substring(0, 20) + "..." : "missing",
-      redirectUri,
-      codeVerifier: codeVerifier
-        ? codeVerifier.substring(0, 10) + "..."
-        : "missing",
-      basicAuth: basicAuth.substring(0, 20) + "...",
-    });
-
     const tokenResp = await fetch(tokenUrl, {
       method: "POST",
       headers: {
@@ -99,19 +63,7 @@ export async function GET(request: Request) {
       cache: "no-store",
     });
 
-    console.log("Token response status:", tokenResp.status);
-    console.log(
-      "Token response headers:",
-      Object.fromEntries(tokenResp.headers.entries())
-    );
-
     if (!tokenResp.ok) {
-      const errorText = await tokenResp.text();
-      console.log("Token exchange failed:", {
-        status: tokenResp.status,
-        statusText: tokenResp.statusText,
-        errorBody: errorText,
-      });
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_SITE_URL}/settings/linked-accounts?x_status=token_error`
       );
@@ -144,8 +96,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Instead of linking here, redirect back to client with tokens
-    // The client will handle the linking with proper authentication context
+    // Store tokens in secure session instead of URL
     const tokenData = {
       accessToken,
       refreshToken,
@@ -156,15 +107,11 @@ export async function GET(request: Request) {
       screenName,
     };
 
-    // Encode the token data as base64 to pass in URL
-    const encodedTokens = Buffer.from(JSON.stringify(tokenData)).toString(
-      "base64"
-    );
-
-    console.log("Redirecting to client with tokens for user:", xUserId);
+    // Create secure session with token data
+    const sessionId = await createSession(tokenData);
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/settings/linked-accounts?x_status=success&tokens=${encodedTokens}`
+      `${process.env.NEXT_PUBLIC_SITE_URL}/settings/linked-accounts?x_status=success&session=${sessionId}`
     );
   } catch (err) {
     console.error("X OAuth callback error:", err);

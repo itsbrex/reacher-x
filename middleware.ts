@@ -16,6 +16,10 @@ export default authkitMiddleware({
       "/settings/linked-accounts",
       "/customers",
       "/replies",
+      "/api/x/connect",
+      "/api/x/callback",
+      "/api/x/session",
+      "/api/x/encrypt",
     ],
   },
 });

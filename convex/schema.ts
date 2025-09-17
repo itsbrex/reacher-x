@@ -17,9 +17,11 @@ export default defineSchema({
     provider: v.string(),
     providerAccountId: v.string(),
     screenName: v.optional(v.string()), // Twitter handle (e.g., @username)
-    accessToken: v.string(),
-    refreshToken: v.optional(v.string()),
+    accessToken: v.string(), // Encrypted access token
+    refreshToken: v.optional(v.string()), // Encrypted refresh token
     expiresAt: v.optional(v.number()),
+    tokenType: v.optional(v.string()),
+    scope: v.optional(v.string()),
   }).index("by_user_provider", ["userId", "provider"]),
 
   waitlist: defineTable({

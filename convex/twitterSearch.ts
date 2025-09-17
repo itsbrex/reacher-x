@@ -5,13 +5,6 @@ import { searchTwitterArgsValidator } from "./validators";
 import type { Tweet, Entities, User } from "../features/threads/types";
 
 // Constants for API configuration
-// TEMPORARY: Using webhook.site to prevent credit usage during testing of quote tweet fixes
-// const TWITTER_API_BASE_URL =
-//   "https://webhook.site/b47a9d11-d1be-41e6-99f5-e49f6441c4a0";
-// Original URL (uncomment when ready for real API calls):
-// const TWITTER_API_BASE_URL =
-//   "https://webhook.site/b47a9d11-d1be-41e6-99f5-e49f6441c4a0";
-// Original URL (commented out to prevent credit usage):
 const TWITTER_API_BASE_URL =
   "https://api.twitterapi.io/twitter/tweet/advanced_search";
 const MAX_QUERY_LENGTH = 500;

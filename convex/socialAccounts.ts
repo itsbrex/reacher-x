@@ -5,6 +5,10 @@ import {
   postReplyArgsValidator,
   updateXTokensArgsValidator,
 } from "./validators";
+import {
+  validateTokenExpiration,
+  needsTokenRefresh,
+} from "../shared/lib/utils/tokenValidation";
 
 export const getUserSocialAccounts = query({
   handler: async (ctx) => {
@@ -59,13 +63,19 @@ export const linkXAccount = mutation({
       )
       .unique();
 
+    // Tokens are already encrypted by the client
+    const encryptedAccessToken = args.tokens.accessToken;
+    const encryptedRefreshToken = args.tokens.refreshToken;
+
     if (existing) {
       await ctx.db.patch(existing._id, {
         providerAccountId: args.providerAccountId,
         screenName: args.profile.screenName,
-        accessToken: args.tokens.accessToken,
-        refreshToken: args.tokens.refreshToken,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         expiresAt: args.tokens.expiresAt,
+        tokenType: args.tokens.tokenType,
+        scope: args.tokens.scope,
       });
       return existing._id;
     } else {
@@ -74,9 +84,11 @@ export const linkXAccount = mutation({
         provider: "x",
         providerAccountId: args.providerAccountId,
         screenName: args.profile.screenName,
-        accessToken: args.tokens.accessToken,
-        refreshToken: args.tokens.refreshToken,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         expiresAt: args.tokens.expiresAt,
+        tokenType: args.tokens.tokenType,
+        scope: args.tokens.scope,
       });
     }
   },
@@ -109,14 +121,26 @@ export const getXAccount = query({
 
 export const postReply = action({
   args: postReplyArgsValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const account = await ctx.runQuery(api.socialAccounts.getXAccount, {});
+    const account: any = await ctx.runQuery(api.socialAccounts.getXAccount, {});
     if (!account) throw new Error("X account not linked");
 
-    const accessToken = account.accessToken as string;
+    // Validate token expiration before using
+    const tokenValidation = validateTokenExpiration(account.expiresAt);
+    if (!tokenValidation.isValid) {
+      throw new Error(`Token has expired: ${tokenValidation.reason}`);
+    }
+
+    // Decrypt the access token before using it
+    const accessToken: string = await ctx.runAction(
+      api.cryptoActions.decryptToken,
+      {
+        encryptedToken: account.accessToken as string,
+      }
+    );
     const mediaIds: string[] = [];
 
     if (args.mediaUrls && args.mediaUrls.length > 0) {
@@ -206,7 +230,7 @@ export const postReply = action({
     };
     if (mediaIds.length > 0) payload.media = { media_ids: mediaIds };
 
-    const resp = await fetch("https://api.twitter.com/2/tweets", {
+    const resp: Response = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -233,11 +257,20 @@ export const refreshTokenIfNeeded = action({
     const account: any = await ctx.runQuery(api.socialAccounts.getXAccount, {});
     if (!account) return null;
 
-    if (account.expiresAt && account.expiresAt > Date.now() + 60_000) {
+    // Use token validation utility instead of manual check
+    if (!needsTokenRefresh(account.expiresAt)) {
       return account;
     }
 
     if (!account.refreshToken) return account;
+
+    // Decrypt the refresh token before using it
+    const decryptedRefreshToken = await ctx.runAction(
+      api.cryptoActions.decryptToken,
+      {
+        encryptedToken: account.refreshToken as string,
+      }
+    );
 
     const tokenUrl =
       process.env.X_OAUTH_TOKEN_URL || "https://api.twitter.com/2/oauth2/token";
@@ -245,7 +278,7 @@ export const refreshTokenIfNeeded = action({
     const clientSecret = process.env.X_CLIENT_SECRET as string;
     const params = new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: account.refreshToken,
+      refresh_token: decryptedRefreshToken,
       client_id: clientId,
       client_secret: clientSecret,
     });
@@ -297,9 +330,14 @@ export const updateXTokens = mutation({
       )
       .unique();
     if (!existing) return null;
+
+    // Tokens are already encrypted by the client
+    const encryptedAccessToken = args.accessToken;
+    const encryptedRefreshToken = args.refreshToken;
+
     await ctx.db.patch(existing._id, {
-      accessToken: args.accessToken,
-      refreshToken: args.refreshToken,
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
       expiresAt: args.expiresAt,
     });
     return existing._id;

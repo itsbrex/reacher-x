@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   PageHeader,
@@ -16,8 +16,6 @@ import { useToast } from "@/shared/ui/hooks/useToast";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
-// components moved to features/linked-accounts
-
 export default function LinkedAccountsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -26,66 +24,86 @@ export default function LinkedAccountsPage() {
     useLinkedAccounts();
   const linkXAccount = useMutation(api.socialAccounts.linkXAccount);
 
-  // Track if we've processed the OAuth status to prevent duplicate processing
+  // Track OAuth processing state to prevent flicker
   const hasProcessedOAuth = useRef(false);
+  const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
 
-  // Handle OAuth callback status - this IS appropriate use of useEffect
-  // because we're synchronizing with external system (URL parameters)
+  // ✅ This effect is appropriate because we're synchronizing with external system (URL parameters)
+  // This follows React best practices: "Code that runs because a component was displayed should be in Effects"
   useEffect(() => {
     const status = searchParams.get("x_status");
-    const tokensParam = searchParams.get("tokens");
+    const sessionId = searchParams.get("session");
 
-    // Only process once per mount
+    // Only process once per mount and only if we have a status
     if (!status || hasProcessedOAuth.current) return;
     hasProcessedOAuth.current = true;
 
-    // Clean up URL first
+    // Clean up URL immediately to prevent re-processing on re-renders
     router.replace("/settings/linked-accounts");
 
-    // Handle success with tokens
-    if (status === "success" && tokensParam) {
-      try {
-        const tokenData = JSON.parse(
-          Buffer.from(tokensParam, "base64").toString()
-        );
-        console.log("Received token data:", tokenData);
+    // Handle success with session
+    if (status === "success" && sessionId) {
+      setIsProcessingOAuth(true); // Start OAuth processing
 
-        // Link the account using the mutation
-        linkXAccount({
-          provider: "x",
-          providerAccountId: tokenData.xUserId,
-          profile: { screenName: tokenData.screenName },
-          tokens: {
-            accessToken: tokenData.accessToken,
-            refreshToken: tokenData.refreshToken,
-            expiresAt: tokenData.expiresAt,
-            tokenType: tokenData.tokenType,
-            scope: tokenData.scope,
-          },
+      // Fetch token data from secure session
+      fetch(`/api/x/session?sessionId=${sessionId}`)
+        .then((response) => response.json())
+        .then(async (result) => {
+          if (result.success && result.data) {
+            const tokenData = result.data;
+            console.log("Received token data from session");
+
+            // Encrypt tokens before sending to Convex
+            const encryptResponse = await fetch("/api/x/encrypt", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                accessToken: tokenData.accessToken,
+                refreshToken: tokenData.refreshToken,
+              }),
+            });
+
+            if (!encryptResponse.ok) {
+              throw new Error("Failed to encrypt tokens");
+            }
+
+            const { encryptedAccessToken, encryptedRefreshToken } =
+              await encryptResponse.json();
+
+            // Link the account using the mutation
+            return linkXAccount({
+              provider: "x",
+              providerAccountId: tokenData.xUserId,
+              profile: { screenName: tokenData.screenName },
+              tokens: {
+                accessToken: encryptedAccessToken,
+                refreshToken: encryptedRefreshToken,
+                expiresAt: tokenData.expiresAt,
+                tokenType: tokenData.tokenType,
+                scope: tokenData.scope,
+              },
+            });
+          } else {
+            throw new Error(result.error || "Failed to retrieve session data");
+          }
         })
-          .then(() => {
-            toast({
-              title: "Success",
-              description: "Twitter account connected successfully!",
-            });
-          })
-          .catch((error) => {
-            console.error("Failed to link X account:", error);
-            toast({
-              title: "Connection Failed",
-              description: "Failed to link Twitter account. Please try again.",
-              variant: "destructive",
-            });
+        .then(() => {
+          toast({
+            title: "Success",
+            description: "Twitter account connected successfully!",
           });
-      } catch (error) {
-        console.error("Failed to parse token data:", error);
-        toast({
-          title: "Connection Failed",
-          description:
-            "Failed to process Twitter account data. Please try again.",
-          variant: "destructive",
+        })
+        .catch((error) => {
+          console.error("Failed to link X account:", error);
+          toast({
+            title: "Connection Failed",
+            description: "Failed to link Twitter account. Please try again.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsProcessingOAuth(false); // End OAuth processing
         });
-      }
     } else if (status === "connected") {
       toast({
         title: "Success",
@@ -116,16 +134,14 @@ export default function LinkedAccountsPage() {
       <PageHeader title="Linked accounts" onBack={() => router.back()} />
       <PageContent className="mx-4 mt-4">
         <div className="space-y-4">
-          {/* Loading state */}
-          {isLoading && (
+          {/* Loading state - show skeletons while data is loading OR OAuth is processing */}
+          {isLoading || isProcessingOAuth ? (
             <>
               <AccountCardSkeleton />
               <AccountCardSkeleton />
             </>
-          )}
-
-          {/* Account cards */}
-          {!isLoading && accounts.length > 0 && (
+          ) : accounts.length > 0 ? (
+            /* Account cards - only render when we have data */
             <div className="space-y-4">
               {accounts.map((account) => (
                 <AccountCard
@@ -140,10 +156,8 @@ export default function LinkedAccountsPage() {
                 />
               ))}
             </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && accounts.length === 0 && (
+          ) : (
+            /* Empty state - only show when we have no data and not loading */
             <div className="py-8 text-center">
               <p className="text-muted-foreground">
                 No linked accounts found. Connect your social media accounts to

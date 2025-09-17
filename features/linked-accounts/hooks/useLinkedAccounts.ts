@@ -31,8 +31,9 @@ export function useLinkedAccounts() {
 
   const unlinkXAccount = useMutation(api.socialAccounts.unlinkXAccount);
 
+  // ✅ Calculate everything during rendering - no unnecessary state or effects
   const { accounts, isLoading, error } = useMemo(() => {
-    // While auth is hydrating, report loading to avoid unauthenticated mock flicker
+    // While auth is hydrating, show loading to avoid flicker
     if (authLoading) {
       return {
         accounts: [],
@@ -41,6 +42,7 @@ export function useLinkedAccounts() {
       };
     }
 
+    // For unauthenticated users, show minimal mock data
     if (!isAuthenticated) {
       return {
         accounts: [
@@ -57,6 +59,7 @@ export function useLinkedAccounts() {
       };
     }
 
+    // While social accounts are loading, show loading state
     if (socialAccounts === undefined) {
       return {
         accounts: [],
@@ -65,6 +68,7 @@ export function useLinkedAccounts() {
       };
     }
 
+    // Transform social accounts data during rendering
     const transformedAccounts: LinkedAccount[] = socialAccounts.map(
       (account: {
         _id: string;
@@ -93,6 +97,7 @@ export function useLinkedAccounts() {
       })
     );
 
+    // Add Google account if not present (since it's the auth provider)
     const hasGoogle = transformedAccounts.some(
       (acc) => acc.provider === "google"
     );
@@ -109,6 +114,8 @@ export function useLinkedAccounts() {
       });
     }
 
+    // Only add Twitter placeholder if no Twitter account exists
+    // This prevents the flicker from showing @Connect Twitter
     const hasTwitter = transformedAccounts.some(
       (acc) => acc.provider === "twitter"
     );
@@ -116,8 +123,8 @@ export function useLinkedAccounts() {
       transformedAccounts.push({
         id: "twitter-placeholder",
         provider: "twitter",
-        accountName: "Connect Twitter",
-        accountHandle: "@Connect Twitter",
+        accountName: "Twitter",
+        accountHandle: "@Connect",
         isConnected: false,
       });
     }

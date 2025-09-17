@@ -192,8 +192,8 @@ export const socialAccountProfileValidator = v.object({
 });
 
 export const socialAccountTokensValidator = v.object({
-  accessToken: v.string(),
-  refreshToken: v.optional(v.string()),
+  accessToken: v.string(), // This will be the encrypted token
+  refreshToken: v.optional(v.string()), // This will be the encrypted token
   expiresAt: v.optional(v.number()),
   tokenType: v.optional(v.string()),
   scope: v.optional(v.string()),

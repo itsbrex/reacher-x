@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as cryptoActions from "../cryptoActions.js";
 import type * as http from "../http.js";
 import type * as keywordMigration from "../keywordMigration.js";
 import type * as keywordRePrompt from "../keywordRePrompt.js";
@@ -38,6 +39,7 @@ import type * as workspaces from "../workspaces.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  cryptoActions: typeof cryptoActions;
   http: typeof http;
   keywordMigration: typeof keywordMigration;
   keywordRePrompt: typeof keywordRePrompt;

@@ -58,7 +58,7 @@ export function useUnifiedKeywords() {
             id: kw._id,
             keyword: kw.keyword,
             exactMatch: kw.exactMatch,
-            createdAt: kw.createdAt,
+            createdAt: kw._creationTime,
             lastUsedAt: kw.lastUsedAt,
             searchCount: kw.searchCount,
             isPinned: kw.isPinned,
