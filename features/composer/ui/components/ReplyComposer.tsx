@@ -76,7 +76,7 @@ export function ReplyComposer({
                 href={`https://x.com/${user.screenName}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-foreground hover:underline"
+                className="font-mono font-medium text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`View @${user.screenName}'s profile`}
               >

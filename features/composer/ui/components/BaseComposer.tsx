@@ -342,7 +342,7 @@ export function BaseComposer({
         <div className="min-w-0 flex-1">
           {/* Header Primary (left content + right actions) */}
           <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {headerPrimary ? (
                 headerPrimary
               ) : (
@@ -361,7 +361,7 @@ export function BaseComposer({
                     href={`https://x.com/${currentUser.screenName}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:underline"
+                    className="font-mono text-sm font-medium text-muted-foreground hover:underline"
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`View @${currentUser.screenName}'s profile`}
                   >
