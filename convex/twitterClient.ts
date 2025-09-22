@@ -30,8 +30,10 @@ function getMediaType(contentType: string): EUploadMimeType {
     case "video/mp4":
       return EUploadMimeType.Mp4;
     default:
-      // Default to JPEG for unknown types
-      return EUploadMimeType.Jpeg;
+      // Reject unsupported types to fail fast & clearly
+      throw new Error(
+        `Unsupported media type: ${contentType}. Allowed: image/jpeg, image/png, image/webp, image/gif, video/mp4.`
+      );
   }
 }
 
@@ -189,13 +191,21 @@ export async function uploadMediaFiles(
         response.headers.get("content-type") || "application/octet-stream";
 
       // Check media size limits (Twitter API v2 limits)
-      const maxImageSize = 5 * 1024 * 1024; // 5MB for images
+      const maxImageSize = 5 * 1024 * 1024; // 5MB for images (non-GIF)
+      const maxGifSize = 15 * 1024 * 1024; // 15MB for GIF
       const maxVideoSize = 512 * 1024 * 1024; // 512MB for videos
 
-      if (mediaType.startsWith("image/") && buffer.length > maxImageSize) {
-        throw new Error(
-          `Image too large: ${buffer.length} bytes (max: ${maxImageSize} bytes)`
-        );
+      if (mediaType.startsWith("image/")) {
+        if (mediaType === "image/gif" && buffer.length > maxGifSize) {
+          throw new Error(
+            `GIF too large: ${buffer.length} bytes (max: ${maxGifSize} bytes)`
+          );
+        }
+        if (mediaType !== "image/gif" && buffer.length > maxImageSize) {
+          throw new Error(
+            `Image too large: ${buffer.length} bytes (max: ${maxImageSize} bytes)`
+          );
+        }
       }
 
       if (mediaType.startsWith("video/") && buffer.length > maxVideoSize) {

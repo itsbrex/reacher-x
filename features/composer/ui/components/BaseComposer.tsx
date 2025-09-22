@@ -119,22 +119,136 @@ export function BaseComposer({
     setEditorAPI(api);
   }, []);
 
+  // Frontend media validation config aligned with X (Twitter) limits
+  const ALLOWED_IMAGE_TYPES = useMemo(
+    () =>
+      new Set([
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+      ]),
+    []
+  );
+  const ALLOWED_VIDEO_TYPES = useMemo(() => new Set(["video/mp4"]), []);
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_GIF_BYTES = 15 * 1024 * 1024; // 15 MB
+  const MAX_VIDEO_BYTES = 512 * 1024 * 1024; // 512 MB
+  const MAX_ATTACHMENTS = 4;
+
+  const validateFile = useCallback(
+    (
+      file: File
+    ): { ok: true; kind: "image" | "video" } | { ok: false; error: string } => {
+      const type = (file.type || "").toLowerCase();
+
+      // Type checks
+      if (ALLOWED_IMAGE_TYPES.has(type)) {
+        // Size checks for images
+        if (type === "image/gif") {
+          if (file.size > MAX_GIF_BYTES) {
+            return {
+              ok: false,
+              error: "GIF exceeds 15 MB.",
+            } as const;
+          }
+        } else {
+          if (file.size > MAX_IMAGE_BYTES) {
+            return {
+              ok: false,
+              error: "Image exceeds 5 MB.",
+            } as const;
+          }
+        }
+        return { ok: true, kind: "image" } as const;
+      }
+
+      if (ALLOWED_VIDEO_TYPES.has(type)) {
+        if (file.size > MAX_VIDEO_BYTES) {
+          return {
+            ok: false,
+            error: "Video exceeds 512 MB.",
+          } as const;
+        }
+        return { ok: true, kind: "video" } as const;
+      }
+
+      return {
+        ok: false,
+        error: "Invalid format. Allowed: JPG, PNG, WEBP, GIF; MP4.",
+      } as const;
+    },
+    [
+      ALLOWED_IMAGE_TYPES,
+      ALLOWED_VIDEO_TYPES,
+      MAX_GIF_BYTES,
+      MAX_IMAGE_BYTES,
+      MAX_VIDEO_BYTES,
+    ]
+  );
+
   const handleMediaUpload = useCallback(
     async (files: FileList | File[]) => {
       const fileArray = Array.isArray(files) ? files : Array.from(files);
-      const newUploads: MediaUpload[] = fileArray.map((file, index) => ({
-        id: `upload-${Date.now()}-${index}`,
-        file,
-        type: file.type.startsWith("image/") ? "image" : "video",
-        progress: 0,
-        status: "uploading" as const,
-        url: URL.createObjectURL(file), // Local preview URL
-      }));
 
-      setMediaUploads((prev) => [...prev, ...newUploads]);
+      // Count current active (non-error) attachments for the 4-item cap
+      const currentActiveCount = mediaUploads.filter(
+        (u) => u.status !== "error"
+      ).length;
+      let remainingSlots = Math.max(0, MAX_ATTACHMENTS - currentActiveCount);
 
-      // Upload each file to the server using the new pattern
-      for (const upload of newUploads) {
+      // Build upload entries (some can be error entries and won't be uploaded)
+      const prepared: MediaUpload[] = [];
+      for (let i = 0; i < fileArray.length; i++) {
+        const file: File = fileArray[i];
+        const id = `upload-${Date.now()}-${i}`;
+        const validation = validateFile(file);
+
+        if (!validation.ok) {
+          prepared.push({
+            id,
+            file,
+            type: file.type.startsWith("video/") ? "video" : "image",
+            progress: 0,
+            status: "error",
+            error: validation.error,
+          });
+          continue;
+        }
+
+        if (remainingSlots <= 0) {
+          prepared.push({
+            id,
+            file,
+            type: validation.kind,
+            progress: 0,
+            status: "error",
+            error: "Maximum 4 attachments are allowed.",
+          });
+          continue;
+        }
+
+        remainingSlots -= 1;
+        prepared.push({
+          id,
+          file,
+          type: validation.kind,
+          progress: 0,
+          status: "uploading",
+          url: URL.createObjectURL(file),
+        });
+      }
+
+      // Replace any previous error-only entries with the new selection
+      setMediaUploads((prev) => [
+        ...prev.filter((u) => u.status !== "error"),
+        ...prepared,
+      ]);
+
+      // Upload each valid file to the server
+      for (const upload of prepared) {
+        if (upload.status === "error") continue;
         let progressInterval: NodeJS.Timeout | null = null;
 
         try {
@@ -223,7 +337,7 @@ export function BaseComposer({
         }
       }
     },
-    [generateUploadUrl, processUploadedMedia]
+    [generateUploadUrl, processUploadedMedia, mediaUploads, validateFile]
   );
 
   const handleRemoveMedia = useCallback((id: string) => {
@@ -250,7 +364,13 @@ export function BaseComposer({
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!content || isSubmitting) return;
+    if (isSubmitting) return;
+
+    const hasCompletedMedia = mediaUploads.some(
+      (u) => u.status === "completed" && !!u.serverUrl
+    );
+    const hasContent = !!content;
+    if (!hasContent && !hasCompletedMedia) return;
 
     setIsSubmitting(true);
     try {
@@ -264,7 +384,9 @@ export function BaseComposer({
         (upload) => upload.description || ""
       );
 
-      await onSubmit?.(content, mediaUrls, mediaDescriptions);
+      // When posting media-only, pass an empty editor state object to satisfy typing
+      const contentForSubmit = content ?? ({} as SerializedEditorState);
+      await onSubmit?.(contentForSubmit, mediaUrls, mediaDescriptions);
       // Reset form
       setContent(undefined);
       setMediaUploads([]);
@@ -301,10 +423,16 @@ export function BaseComposer({
 
   const characterCount = getCharacterCount(content);
   const isOverLimit = characterCount > maxLength;
+  const hasText = !!content && characterCount > 0;
+  const hasCompletedMedia = mediaUploads.some(
+    (u) => u.status === "completed" && !!u.serverUrl
+  );
+  const isUploadingMedia = mediaUploads.some((u) => u.status === "uploading");
   const canSubmit =
-    ((content && characterCount > 0) || mediaUploads.length > 0) &&
+    (hasText || hasCompletedMedia) &&
     !isOverLimit &&
-    !isSubmitting;
+    !isSubmitting &&
+    !isUploadingMedia;
 
   const [formattingState, setFormattingState] = useState<FormattingState>({
     isBold: false,

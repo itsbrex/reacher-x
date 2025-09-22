@@ -89,7 +89,8 @@ export default function PostDetailPage() {
       mediaDescriptions?: string[]
     ) => {
       const text = extractTextFromEditorState(content).trim();
-      if (!text) return;
+      const hasMedia = Array.isArray(mediaUrls) && mediaUrls.length > 0;
+      if (!text && !hasMedia) return;
       try {
         // Refresh token if near expiry before posting
         await tryRefresh({});

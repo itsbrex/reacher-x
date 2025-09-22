@@ -17,9 +17,17 @@ export function MediaPastePlugin({ onMediaUpload }: MediaPastePluginProps) {
       if (!clipboardData) return;
 
       const files = Array.from(clipboardData.files);
-      const mediaFiles = files.filter(
-        (file) =>
-          file.type.startsWith("image/") || file.type.startsWith("video/")
+      // Restrict to allowed MIME types only
+      const allowed = new Set([
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "video/mp4",
+      ]);
+      const mediaFiles = files.filter((file) =>
+        allowed.has((file.type || "").toLowerCase())
       );
 
       if (mediaFiles.length === 0) return;

@@ -99,7 +99,7 @@ export function ComposerToolbar({
           <input
             type="file"
             id="image-upload"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
             multiple
             className="hidden"
             onChange={handleMediaUpload}
@@ -107,7 +107,7 @@ export function ComposerToolbar({
           <input
             type="file"
             id="video-upload"
-            accept="video/*"
+            accept="video/mp4"
             multiple
             className="hidden"
             onChange={handleMediaUpload}

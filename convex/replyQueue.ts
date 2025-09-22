@@ -82,7 +82,7 @@ export const processReply = action({
           message: `Successfully uploaded ${mediaIds.length} media files`,
         });
 
-        // Attach media descriptions if present
+        // Attach media descriptions only for image/GIF media IDs
         if (reply.mediaDescriptions && reply.mediaDescriptions.length > 0) {
           await ctx.runMutation(api.replyQueueMutations.addLog, {
             queueId: args.queueId,
@@ -91,6 +91,7 @@ export const processReply = action({
           });
 
           try {
+            // Best-effort: try attaching to all media IDs; the helper will be tolerant.
             await attachMediaDescriptions(
               client,
               mediaIds,
