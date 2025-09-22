@@ -4,7 +4,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components";
-import { useConvexAuth } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { useDataMigrationEffect } from "@/shared/hooks/useDataMigrationEffect";
 import { Separator } from "@/shared/ui/components/Separator";
@@ -114,6 +115,43 @@ export default function WebAppPage() {
 
   // Get flagged keywords count for status display
   const flaggedCount = getFlaggedKeywordsCount();
+
+  // Twitter/X account status (Convex)
+  const xAccount = useQuery(
+    api.socialAccountsMutations.getXAccount,
+    isAuthenticated ? {} : "skip"
+  );
+
+  const xLoading = isAuthenticated && xAccount === undefined;
+  const xConnected = !!xAccount;
+  const xHandle = xAccount?.screenName
+    ? `@${xAccount.screenName}`
+    : xAccount?.providerAccountId
+      ? `@${xAccount.providerAccountId}`
+      : "N/A";
+  const xExpiresAt = xAccount?.expiresAt as number | undefined;
+  const xExpiresDisplay = xExpiresAt
+    ? new Date(xExpiresAt).toLocaleString()
+    : "Unknown";
+  const xExpired = xExpiresAt !== undefined ? Date.now() >= xExpiresAt : false;
+  const xHasRefresh = Boolean(xAccount?.refreshToken);
+  const xScopesRaw = xAccount?.scope || "";
+  const xScopeSet = new Set(
+    xScopesRaw
+      .split(/\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+  const xHasTweetWrite = xScopeSet.has("tweet.write");
+  const xHasMediaWrite = xScopeSet.has("media.write");
+  const xHasUsersRead = xScopeSet.has("users.read");
+  const xHasOffline = xScopeSet.has("offline.access");
+  const xProfileHydrated = Boolean(
+    xAccount?.name || xAccount?.profileImageUrl || xAccount?.screenName
+  );
+  const xConnectedAtDisplay = xAccount?._creationTime
+    ? new Date(xAccount._creationTime).toLocaleString()
+    : undefined;
 
   // Prefetch the search route for instant navigation
   useEffect(() => {
@@ -228,6 +266,55 @@ export default function WebAppPage() {
                     Email: {user.email} | Name: {user.firstName} {user.lastName}
                   </div>
                 )}
+
+                {/* Twitter/X Account Status */}
+                <div className="mt-1 space-y-1">
+                  <div className="font-semibold text-sky-600">
+                    Twitter Account:
+                  </div>
+                  <div>
+                    Status:{" "}
+                    {xLoading
+                      ? "Loading"
+                      : xConnected
+                        ? "Connected"
+                        : "Not Connected"}
+                  </div>
+                  {xConnected && (
+                    <>
+                      <div>Handle: {xHandle}</div>
+                      <div>
+                        Token Expiry: {xExpiresDisplay}{" "}
+                        {xExpiresAt !== undefined && (
+                          <span
+                            className={
+                              xExpired ? "text-red-600" : "text-green-600"
+                            }
+                          >
+                            ({xExpired ? "Expired" : "Valid"})
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        Refresh Token Present: {xHasRefresh ? "Yes" : "No"}
+                      </div>
+                      <div>Scopes: {xScopesRaw || "None"}</div>
+                      <div>
+                        Required Scopes: tweet.write[
+                        {xHasTweetWrite ? "✓" : "✗"}], media.write[
+                        {xHasMediaWrite ? "✓" : "✗"}], users.read[
+                        {xHasUsersRead ? "✓" : "✗"}], offline.access[
+                        {xHasOffline ? "✓" : "✗"}]
+                      </div>
+                      <div>
+                        Profile Hydrated: {xProfileHydrated ? "Yes" : "No"}
+                      </div>
+                      {xConnectedAtDisplay && (
+                        <div>Connected At: {xConnectedAtDisplay}</div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Data Sync Status */}
