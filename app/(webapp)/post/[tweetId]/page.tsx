@@ -107,6 +107,9 @@ export default function PostDetailPage() {
     [postReply, tryRefresh, tweetId, tweet?.user?.screen_name]
   );
 
+  // Show the vertical thread/separator below the avatar only when authenticated and has an X account
+  const shouldShowThread = isAuthenticated && xAccount;
+
   return (
     <PageLayout>
       <PageHeader title="Post" onBack={() => router.back()} />
@@ -119,19 +122,21 @@ export default function PostDetailPage() {
           <TweetComponent
             tweet={tweet}
             showFullContent={true}
-            showThread={false}
+            showThread={!shouldShowThread}
           />
         )}
 
-        {isLoading ? null : !isAuthenticated ? (
-          <Alert>
-            <AlertTitle>Sign in required</AlertTitle>
-            <AlertDescription>
-              Please sign in and connect your X (Twitter) account to post
-              replies.
-            </AlertDescription>
-          </Alert>
-        ) : !xAccount ? (
+        {!isAuthenticated ? (
+          isLoading ? null : (
+            <Alert>
+              <AlertTitle>Log in required</AlertTitle>
+              <AlertDescription>
+                Please log in and connect your X (Twitter) account to post
+                replies.
+              </AlertDescription>
+            </Alert>
+          )
+        ) : xAccount === undefined ? null : xAccount === null ? (
           <Alert>
             <AlertTitle>X account not connected</AlertTitle>
             <AlertDescription>

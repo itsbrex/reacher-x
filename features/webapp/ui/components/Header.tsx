@@ -340,7 +340,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   {/* Login button */}
                   <li>
                     <Link href="/login">
-                      <Button size="xs" aria-label="Sign in">
+                      <Button size="xs" aria-label="Log in">
                         Log in
                       </Button>
                     </Link>
