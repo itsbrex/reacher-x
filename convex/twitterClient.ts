@@ -169,6 +169,25 @@ export async function getRateLimitStatus(endpoint: string) {
 }
 
 /**
+ * Resolve Content-Type headers for a list of media URLs using HEAD requests.
+ * Falls back to 'application/octet-stream' on failure.
+ */
+export async function getMediaTypesFromUrls(urls: string[]): Promise<string[]> {
+  const types: string[] = [];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { method: "HEAD" });
+      const ct = res.headers.get("content-type") || "application/octet-stream";
+      types.push(ct);
+    } catch (e) {
+      console.warn(`Could not determine content-type for ${url}:`, e);
+      types.push("application/octet-stream");
+    }
+  }
+  return types;
+}
+
+/**
  * Uploads media files to Twitter using the robust twitter-api-v2 media upload
  */
 export async function uploadMediaFiles(
@@ -294,7 +313,25 @@ export async function attachMediaDescriptions(
         `Successfully attached description to media ${mediaId}: "${description}"`
       );
     } catch (error) {
-      console.error(`Failed to attach description to media ${mediaId}:`, error);
+      // Improve diagnostics without stopping overall flow
+      if (error instanceof ApiResponseError) {
+        const msg =
+          error.errors
+            ?.map((e) => {
+              if ("detail" in e) return e.detail;
+              if ("message" in e) return e.message;
+              return "Unknown error";
+            })
+            .join(", ") || error.message;
+        console.warn(
+          `Alt text attachment failed for media ${mediaId} (HTTP ${error.code}). Message: ${msg}`
+        );
+      } else {
+        console.error(
+          `Failed to attach description to media ${mediaId}:`,
+          error
+        );
+      }
       // Don't throw here - continue with other media items
       // The tweet will still be posted, just without this description
     }

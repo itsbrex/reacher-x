@@ -8,6 +8,7 @@ import {
   uploadMediaFiles,
   attachMediaDescriptions,
   handleTwitterError,
+  getMediaTypesFromUrls,
 } from "./twitterClient";
 // import { getUserIdFromIdentity } from "./lib/userUtils";
 
@@ -87,21 +88,51 @@ export const processReply = action({
           await ctx.runMutation(api.replyQueueMutations.addLog, {
             queueId: args.queueId,
             level: "info",
-            message: `Attaching descriptions to ${mediaIds.length} media files`,
+            message: `Preparing to attach descriptions to supported media`,
           });
 
           try {
-            // Best-effort: try attaching to all media IDs; the helper will be tolerant.
-            await attachMediaDescriptions(
-              client,
-              mediaIds,
-              reply.mediaDescriptions
-            );
+            // Determine content types for uploaded URLs to filter out videos
+            const contentTypes = await getMediaTypesFromUrls(reply.mediaUrls);
+
+            // Align mediaIds with mediaUrls one-to-one; filter to images/GIFs
+            const supportedIds: string[] = [];
+            const supportedDescriptions: string[] = [];
+
+            for (
+              let i = 0;
+              i < mediaIds.length && i < contentTypes.length;
+              i++
+            ) {
+              const ct = contentTypes[i] || "application/octet-stream";
+              const desc = reply.mediaDescriptions[i] || "";
+              const isVideo = ct.startsWith("video/");
+
+              if (!isVideo) {
+                supportedIds.push(mediaIds[i]);
+                supportedDescriptions.push(desc);
+              } else if (desc && desc.trim().length > 0) {
+                // Log that a video description was intentionally skipped
+                await ctx.runMutation(api.replyQueueMutations.addLog, {
+                  queueId: args.queueId,
+                  level: "info",
+                  message: `Skipping description for video media index ${i}`,
+                });
+              }
+            }
+
+            if (supportedIds.length > 0) {
+              await attachMediaDescriptions(
+                client,
+                supportedIds,
+                supportedDescriptions
+              );
+            }
 
             await ctx.runMutation(api.replyQueueMutations.addLog, {
               queueId: args.queueId,
               level: "info",
-              message: `Successfully attached descriptions to media files`,
+              message: `Descriptions attached where supported (images/GIFs)`,
             });
           } catch (error) {
             await ctx.runMutation(api.replyQueueMutations.addLog, {
