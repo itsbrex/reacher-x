@@ -49,7 +49,14 @@ export default function AnimatedPercent({
       aria-live="polite"
       className={cn("inline-flex items-baseline", className)}
     >
-      <AnimatedNumber value={rounded} suffix="%" />
+      <AnimatedNumber
+        value={rounded}
+        suffix="%"
+        format={{
+          // Match CharacterCounter: no grouping separators
+          useGrouping: false,
+        }}
+      />
     </span>
   );
 }

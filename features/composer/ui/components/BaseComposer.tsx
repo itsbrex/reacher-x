@@ -28,6 +28,7 @@ import { MediaPastePlugin } from "./MediaPastePlugin";
 import { ComposerBaseProps, MediaUpload, ToolbarConfig } from "../../types";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 interface BaseComposerProps extends ComposerBaseProps {
   currentUser: {
@@ -249,50 +250,88 @@ export function BaseComposer({
       // Upload each valid file to the server
       for (const upload of prepared) {
         if (upload.status === "error") continue;
-        let progressInterval: NodeJS.Timeout | null = null;
 
         try {
-          // Start progress simulation
-          progressInterval = setInterval(() => {
-            setMediaUploads((prev) =>
-              prev.map((u) =>
-                u.id === upload.id
-                  ? { ...u, progress: Math.min(u.progress + 10, 90) }
-                  : u
-              )
-            );
-          }, 200);
-
           // Step 1: Generate upload URL
-          setMediaUploads((prev) =>
-            prev.map((u) => (u.id === upload.id ? { ...u, progress: 20 } : u))
-          );
-
           const uploadUrl = await generateUploadUrl();
 
-          // Step 2: Upload file directly to Convex storage
-          setMediaUploads((prev) =>
-            prev.map((u) => (u.id === upload.id ? { ...u, progress: 50 } : u))
+          // Step 2: Upload file with XHR to get real progress events
+          const storageIdString = await new Promise<string>(
+            (resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open("POST", uploadUrl);
+              xhr.setRequestHeader("Content-Type", upload.file.type);
+
+              let lastEmit = 0;
+              let lastPct = -1;
+              xhr.upload.onprogress = (e) => {
+                if (!e.lengthComputable) return;
+                const pct = Math.max(
+                  1,
+                  Math.min(95, Math.round((e.loaded / e.total) * 95))
+                );
+                const now =
+                  typeof performance !== "undefined" && performance.now
+                    ? performance.now()
+                    : Date.now();
+                if (pct === lastPct) return;
+                if (now - lastEmit < 120) return; // ~8fps throttle to match counter feel
+                lastEmit = now;
+                lastPct = pct;
+                setMediaUploads((prev) =>
+                  prev.map((u) =>
+                    u.id === upload.id ? { ...u, progress: pct } : u
+                  )
+                );
+              };
+
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const parsed = JSON.parse(xhr.responseText || "{}") as {
+                      storageId?: string;
+                    };
+                    if (typeof parsed.storageId === "string") {
+                      resolve(parsed.storageId);
+                    } else {
+                      reject(new Error("Invalid JSON from upload"));
+                    }
+                  } catch (err) {
+                    reject(
+                      err instanceof Error
+                        ? err
+                        : new Error("Invalid JSON from upload")
+                    );
+                  }
+                } else {
+                  reject(
+                    new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`)
+                  );
+                }
+              };
+              xhr.onerror = () => {
+                reject(new Error("Network error during upload"));
+              };
+
+              xhr.send(upload.file);
+            }
           );
 
-          const response = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": upload.file.type },
-            body: upload.file, // Direct file upload - supports large files!
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              `Upload failed: ${response.status} ${response.statusText}`
+          // Step 3: While server processes metadata, gently advance 95 -> 99
+          const storageId = storageIdString as Id<"_storage">;
+          let localProgress = 95;
+          let processingTimer: NodeJS.Timeout | null = setInterval(() => {
+            localProgress = Math.min(99, localProgress + 1);
+            setMediaUploads((prev) =>
+              prev.map((u) =>
+                u.id === upload.id ? { ...u, progress: localProgress } : u
+              )
             );
-          }
-
-          const { storageId } = await response.json();
-
-          // Step 3: Process the uploaded media (store metadata)
-          setMediaUploads((prev) =>
-            prev.map((u) => (u.id === upload.id ? { ...u, progress: 80 } : u))
-          );
+            if (localProgress >= 99 && processingTimer) {
+              clearInterval(processingTimer);
+              processingTimer = null;
+            }
+          }, 120);
 
           const result = await processUploadedMedia({
             storageId,
@@ -301,10 +340,9 @@ export function BaseComposer({
             size: upload.file.size,
           });
 
-          // Clear progress interval
-          if (progressInterval) clearInterval(progressInterval);
+          if (processingTimer) clearInterval(processingTimer);
 
-          // Update with server URL
+          // Done: mark completed
           setMediaUploads((prev) =>
             prev.map((u) =>
               u.id === upload.id
@@ -320,8 +358,6 @@ export function BaseComposer({
           );
         } catch (error) {
           console.error("Media upload failed:", error);
-          if (progressInterval) clearInterval(progressInterval);
-
           setMediaUploads((prev) =>
             prev.map((u) =>
               u.id === upload.id
