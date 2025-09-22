@@ -5,7 +5,7 @@ import { useState, useCallback, useRef } from "react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Tweet } from "@/features/threads/types";
-import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
+import { useWorkspaceProfile } from "@/shared/hooks/useWorkspaceProfile";
 import { generateRequestId } from "@/shared/lib/utils/request";
 import { isLlmFilterDisabled } from "@/shared/lib/utils/featureFlags";
 import {
@@ -41,6 +41,7 @@ export interface SearchResult {
 }
 
 export function useTwitterSearch() {
+  const { description: unifiedDescription } = useWorkspaceProfile();
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,27 +123,7 @@ export function useTwitterSearch() {
         return;
       }
 
-      // Access user description from localStorage with error handling
-      let userDescription: string | null = null;
-      try {
-        userDescription = getWorkspaceDescription();
-        console.log(
-          `[TWITTER_SEARCH] ${searchRequestId} - Retrieved user description from localStorage:`,
-          {
-            hasDescription: !!userDescription,
-            descriptionLength: userDescription?.length || 0,
-            descriptionPreview: userDescription
-              ? userDescription.substring(0, 50) + "..."
-              : null,
-          }
-        );
-      } catch (localStorageError) {
-        console.error(
-          `[TWITTER_SEARCH] ${searchRequestId} - Failed to access localStorage:`,
-          localStorageError
-        );
-        // Continue without description rather than failing
-      }
+      const userDescription: string | null = unifiedDescription || null;
 
       // Request deduplication - prevent duplicate requests
       const now = Date.now();
@@ -573,7 +554,7 @@ export function useTwitterSearch() {
         pendingRequestRef.current = null;
       }
     },
-    [searchTwitterAction, filterTweetsAction] // Stable dependencies
+    [searchTwitterAction, filterTweetsAction, unifiedDescription] // Stable dependencies
   );
 
   // Enhanced clear function with logging

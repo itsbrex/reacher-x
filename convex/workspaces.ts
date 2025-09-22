@@ -40,10 +40,9 @@ export const createDefaultWorkspace = mutation({
       .first();
 
     if (existingDefault) {
-      // Update existing default workspace
+      // Update existing default workspace (do not overwrite name here)
       await ctx.db.patch(existingDefault._id, {
         description: args.description,
-        name: args.name || existingDefault.name,
         updatedAt: Date.now(),
       });
       return existingDefault._id;
@@ -107,7 +106,12 @@ export const migrateLocalStorageData = mutation({
         updateData.description = args.workspaceDescription;
       }
 
-      if (args.workspaceName) {
+      // Only update the name if the current name is the default and a custom name is provided
+      if (
+        args.workspaceName &&
+        args.workspaceName !== "Default workspace" &&
+        existingDefault.name === "Default workspace"
+      ) {
         updateData.name = args.workspaceName;
       }
 

@@ -7,6 +7,7 @@
 export const STORAGE_KEYS = {
   WORKSPACE_DESCRIPTION: "workspace_description",
   WORKSPACE_NAME: "workspace_name",
+  ONBOARDING_COMPLETED: "RX_ONBOARDING_COMPLETED",
 } as const;
 
 /**
@@ -117,6 +118,18 @@ export function clearWorkspaceData(): boolean {
   return descriptionRemoved && nameRemoved;
 }
 
+export function markOnboardingCompleted(): boolean {
+  return setLocalStorage(STORAGE_KEYS.ONBOARDING_COMPLETED, String(Date.now()));
+}
+
+export function hasOnboardingCompletedLocally(): boolean {
+  return !!getLocalStorage(STORAGE_KEYS.ONBOARDING_COMPLETED);
+}
+
+export function clearOnboardingCompleted(): boolean {
+  return removeLocalStorage(STORAGE_KEYS.ONBOARDING_COMPLETED);
+}
+
 /**
  * Clear all application-specific localStorage data.
  * This deliberately preserves unrelated keys (e.g., from other apps) by
@@ -130,6 +143,7 @@ export function clearAllLocalAppData(): void {
     const explicitKeys = [
       STORAGE_KEYS.WORKSPACE_DESCRIPTION,
       STORAGE_KEYS.WORKSPACE_NAME,
+      STORAGE_KEYS.ONBOARDING_COMPLETED,
       // Common feature storage keys
       "RX_SORT_SETTINGS",
       "RX_FILTER_SETTINGS",

@@ -75,3 +75,28 @@ export const getCurrentUser = query({
       .first();
   },
 });
+
+// Marks onboarding as completed for the current user
+export const setOnboardingCompleted = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_user_id", (q) =>
+        q.eq("workosUserId", identity.subject)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, { onboardingCompletedAt: Date.now() });
+    return user._id;
+  },
+});

@@ -10,6 +10,7 @@ export default defineSchema({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     profileImageUrl: v.optional(v.string()),
+    onboardingCompletedAt: v.optional(v.number()),
   }).index("by_workos_user_id", ["workosUserId"]),
 
   socialAccounts: defineTable({

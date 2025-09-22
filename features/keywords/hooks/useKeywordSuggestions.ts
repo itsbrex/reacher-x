@@ -19,7 +19,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAction, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
+import { useWorkspaceProfile } from "@/shared/hooks/useWorkspaceProfile";
 import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
 import {
   getKeywords,
@@ -123,6 +123,7 @@ export interface GenerationMetadata {
  */
 export function useKeywordSuggestions(): KeywordSuggestionsState {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { description: unifiedDescription } = useWorkspaceProfile();
   // State management
   const [suggestions, setSuggestions] = useState<KeywordItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -145,10 +146,10 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     api.keywordSuggestions.generateKeywords
   );
 
-  // Load user description and validate
+  // Load unified user description and validate
   useEffect(() => {
     try {
-      const description = getWorkspaceDescription();
+      const description = unifiedDescription || null;
       setUserDescription(description);
 
       console.log("[KEYWORD_SUGGESTIONS] Loaded user description:", {
@@ -165,7 +166,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       );
       setError("Failed to load workspace description");
     }
-  }, []);
+  }, [unifiedDescription]);
 
   // Load keywords from unified store and listen for changes (unauthenticated only)
   useEffect(() => {

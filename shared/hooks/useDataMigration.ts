@@ -9,6 +9,10 @@ import {
   createMigrationSummary,
   type MigrationResult,
 } from "@/shared/lib/utils/dataMigration";
+import {
+  hasOnboardingCompletedLocally,
+  clearOnboardingCompleted,
+} from "@/shared/lib/utils/localStorage";
 
 /**
  * Hook for handling data migration from localStorage to Convex
@@ -36,6 +40,7 @@ export function useDataMigration() {
   const migrateLocalStorageData = useMutation(
     api.workspaces.migrateLocalStorageData
   );
+  const setOnboardingCompleted = useMutation(api.users.setOnboardingCompleted);
 
   const migrateData = useCallback(async (): Promise<MigrationResult> => {
     if (isMigrating) {
@@ -77,6 +82,16 @@ export function useDataMigration() {
         keywords: localStorageData.keywords,
       });
 
+      // If onboarding was completed locally, mirror to server
+      if (hasOnboardingCompletedLocally()) {
+        try {
+          await setOnboardingCompleted({});
+          clearOnboardingCompleted();
+        } catch (e) {
+          console.warn("Failed to set onboarding completed on server:", e);
+        }
+      }
+
       // Clear localStorage data after successful migration
       const clearSuccess = clearMigratedData();
       if (!clearSuccess) {
@@ -105,7 +120,12 @@ export function useDataMigration() {
     } finally {
       setIsMigrating(false);
     }
-  }, [isMigrating, migrationResult, migrateLocalStorageData]);
+  }, [
+    isMigrating,
+    migrationResult,
+    migrateLocalStorageData,
+    setOnboardingCompleted,
+  ]);
 
   const resetMigration = useCallback(() => {
     setMigrationResult(null);

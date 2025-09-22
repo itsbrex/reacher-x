@@ -8,7 +8,7 @@ import {
   clearKeywordFlags,
 } from "@/shared/lib/utils/unifiedKeywordStore";
 import { storeNewSuggestions } from "@/shared/lib/utils/keywordSuggestionsStore";
-import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
+import { useWorkspaceProfile } from "@/shared/hooks/useWorkspaceProfile";
 
 export interface RePromptState {
   isRePrompting: boolean;
@@ -45,6 +45,7 @@ export interface RePromptResult {
  * Hook for managing keyword re-prompting based on performance thresholds
  */
 export function useKeywordRePrompt() {
+  const { description: unifiedDescription } = useWorkspaceProfile();
   const [state, setState] = useState<RePromptState>({
     isRePrompting: false,
     lastRePromptTime: null,
@@ -59,7 +60,7 @@ export function useKeywordRePrompt() {
     setState((prev) => ({ ...prev, isRePrompting: true, error: null }));
 
     try {
-      const userDescription = getWorkspaceDescription();
+      const userDescription = unifiedDescription || null;
       if (!userDescription) {
         throw new Error("User description not found");
       }
@@ -167,7 +168,7 @@ export function useKeywordRePrompt() {
         error: errorMessage,
       };
     }
-  }, [rePromptAction]);
+  }, [rePromptAction, unifiedDescription]);
 
   // Get current flagged keywords count
   const getFlaggedKeywordsCount = useCallback(() => {

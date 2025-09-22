@@ -11,6 +11,7 @@ export default authkitMiddleware({
       "/home/threads",
       "/workspace",
       "/onboarding",
+      "/api/onboarding/complete",
       "/search",
       "/settings",
       "/settings/linked-accounts",

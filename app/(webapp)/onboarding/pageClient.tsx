@@ -1,0 +1,214 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
+import CharacterCounter from "@/shared/ui/components/CharacterCounter";
+import { Button } from "@/shared/ui/components/Button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/shared/ui/components/Form";
+import { Textarea } from "@/shared/ui/components/TextArea";
+import { cn } from "@/shared/lib/utils/utils";
+import { useMutation } from "convex/react";
+import { useConvexAuth } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import {
+  onboardingSchema,
+  type OnboardingFormValues,
+} from "@/shared/lib/schemas/validation";
+import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
+import {
+  storeWorkspaceDescription,
+  storeWorkspaceName,
+} from "@/shared/lib/utils/localStorage";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
+
+const MIN_CHARS = DESCRIPTION_CONSTRAINTS.MIN_LENGTH;
+const MAX_CHARS = DESCRIPTION_CONSTRAINTS.MAX_LENGTH;
+
+function getHelpText(charCount: number): {
+  text: string;
+  variant: "default" | "warning" | "error";
+} {
+  if (charCount === 0) {
+    return {
+      text: "↳ Required for keyword suggestions and filtering.",
+      variant: "default",
+    };
+  }
+  if (charCount < MIN_CHARS) {
+    return { text: "↳ Describe more.", variant: "warning" };
+  }
+  if (charCount >= MAX_CHARS) {
+    return { text: "↳ Character limit reached.", variant: "error" };
+  }
+  return {
+    text: "↳ Keywords will be suggested based on this description.",
+    variant: "default",
+  };
+}
+
+export default function OnboardingClient() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const createDefaultWorkspace = useMutation(
+    api.workspaces.createDefaultWorkspace
+  );
+  const setOnboardingCompleted = useMutation(api.users.setOnboardingCompleted);
+
+  const form = useForm<OnboardingFormValues>({
+    resolver: zodResolver(onboardingSchema),
+    defaultValues: { description: "" },
+    mode: "onChange",
+  });
+
+  const description = form.watch("description");
+  const charCount = description.length;
+  const isFormValid = form.formState.isValid && charCount >= MIN_CHARS;
+  const helpText = getHelpText(charCount);
+
+  const onSubmit = async (data: OnboardingFormValues) => {
+    try {
+      if (isAuthenticated) {
+        await createDefaultWorkspace({
+          description: data.description,
+          name: "Default workspace",
+        });
+        await setOnboardingCompleted({});
+      } else {
+        storeWorkspaceDescription(data.description);
+        storeWorkspaceName("Default workspace");
+        // Mirror onboarding completion locally so migration can pick it up later
+        try {
+          window.localStorage.setItem(
+            "RX_ONBOARDING_COMPLETED",
+            String(Date.now())
+          );
+        } catch {}
+        // Set a cookie via API route to enable SSR redirect next time
+        await fetch("/api/onboarding/complete", { method: "POST" });
+      }
+      router.push("/");
+    } catch (error) {
+      console.error("Failed to submit onboarding:", error);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-12">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-lg px-4 py-12">
+      <h1 className="mb-4 text-center text-2xl font-medium tracking-tight">
+        How will you help?
+      </h1>
+
+      {process.env.NODE_ENV === "development" && (
+        <Alert className="mb-6">
+          <AlertTitle>Debug - Onboarding Status</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <div className="font-semibold text-blue-600">
+                  Authentication Status:
+                </div>
+                <div>
+                  Status:{" "}
+                  {isAuthenticated ? "Authenticated" : "Not Authenticated"}
+                </div>
+                <div>Loading: {authLoading ? "Yes" : "No"}</div>
+                <div>
+                  Data Strategy:{" "}
+                  {isAuthenticated
+                    ? "Save to Convex account"
+                    : "Save locally, sync on signup"}
+                </div>
+              </div>
+              <div className="space-y-1 border-t pt-1">
+                <div className="font-semibold text-green-600">Form State:</div>
+                <div>Character Count: {charCount}</div>
+                <div>Min Required: {MIN_CHARS}</div>
+                <div>Max Allowed: {MAX_CHARS}</div>
+                <div>Form Valid: {isFormValid ? "Yes" : "No"}</div>
+                <div>
+                  Submitting: {form.formState.isSubmitting ? "Yes" : "No"}
+                </div>
+                <div>Help Text: {helpText.text}</div>
+                <div>Help Variant: {helpText.variant}</div>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="description" className="sr-only">
+                  Description
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    id="description"
+                    placeholder="Briefly describe your product, service, or skill in 'English'..."
+                    className={cn(
+                      "max-h-fit min-h-[120px] resize-y",
+                      charCount > MAX_CHARS && "border-destructive"
+                    )}
+                    {...field}
+                    maxLength={MAX_CHARS + 50}
+                    aria-required="true"
+                  />
+                </FormControl>
+                <div
+                  className={cn(
+                    "text-sm transition-colors",
+                    helpText.variant === "error"
+                      ? "text-red-500 focus-visible:ring-red-500"
+                      : helpText.variant === "warning"
+                        ? "text-primary dark:text-primary"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {helpText.text}
+                </div>
+                <div className="flex items-center justify-between">
+                  <CharacterCounter current={charCount} max={MAX_CHARS} />
+                  <Button
+                    type="submit"
+                    size="xs"
+                    disabled={!isFormValid || form.formState.isSubmitting}
+                  >
+                    {form.formState.isSubmitting ? "..." : "Continue"}
+                  </Button>
+                </div>
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
+    </div>
+  );
+}
