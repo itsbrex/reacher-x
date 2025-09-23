@@ -1,6 +1,8 @@
 import { authkitMiddleware } from "@workos-inc/authkit-nextjs";
+import type { NextFetchEvent, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-export default authkitMiddleware({
+const workosMiddleware = authkitMiddleware({
   middlewareAuth: {
     enabled: true,
     unauthenticatedPaths: [
@@ -12,6 +14,7 @@ export default authkitMiddleware({
       "/workspace",
       "/onboarding",
       "/api/onboarding/complete",
+      "/api/onboarding/status",
       "/search",
       "/settings",
       "/settings/linked-accounts",
@@ -25,6 +28,69 @@ export default authkitMiddleware({
     ],
   },
 });
+
+export default async function middleware(req: NextRequest, ev: NextFetchEvent) {
+  const { pathname } = req.nextUrl;
+
+  // Skip gating for any API routes
+  if (pathname.startsWith("/api")) {
+    const workosRes = await workosMiddleware(req, ev);
+    return workosRes ?? NextResponse.next();
+  }
+
+  // Allow onboarding route itself
+  const isOnboardingRoute =
+    pathname === "/onboarding" || pathname.startsWith("/onboarding/");
+  if (isOnboardingRoute) {
+    const workosRes = await workosMiddleware(req, ev);
+    return workosRes ?? NextResponse.next();
+  }
+
+  // Allow public landing pages (e.g., /home and its subroutes)
+  const isLandingRoute = pathname === "/home" || pathname.startsWith("/home/");
+  if (isLandingRoute) {
+    const workosRes = await workosMiddleware(req, ev);
+    return workosRes ?? NextResponse.next();
+  }
+
+  // If cookie set, allow through (but still run WorkOS and preserve result)
+  const cookieDone = req.cookies.get("rx_onb")?.value === "1";
+  if (!cookieDone) {
+    // Check server onboarding status for authenticated users; if done, set cookie and allow
+    try {
+      const statusUrl = new URL("/api/onboarding/status", req.url);
+      const statusRes = await fetch(statusUrl, {
+        headers: { cookie: req.headers.get("cookie") || "" },
+      });
+      if (statusRes.ok) {
+        const data = (await statusRes.json()) as { done?: boolean };
+        if (!data?.done) {
+          // Redirect to onboarding
+          const url = req.nextUrl.clone();
+          url.pathname = "/onboarding";
+          url.search = "";
+          return NextResponse.redirect(url);
+        }
+      } else {
+        // If status check fails, err on the side of gating
+        const url = req.nextUrl.clone();
+        url.pathname = "/onboarding";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
+    } catch {
+      // Network/edge error: gate to onboarding
+      const url = req.nextUrl.clone();
+      url.pathname = "/onboarding";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Allowed: run WorkOS middleware and return its response (preserving cookie if needed)
+  const workosRes = await workosMiddleware(req, ev);
+  return workosRes ?? NextResponse.next();
+}
 
 export const config = {
   matcher: [
