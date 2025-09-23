@@ -296,27 +296,66 @@ export function useKeywordSync() {
       vote: "up" | "down",
       metadata?: { tweetId?: string }
     ) => {
-      // Update local storage first
-      const success = recordVote(keywordId, vote, metadata);
+      const isAuthed = isAuthenticated && !!userId && !!workspace;
 
-      if (success && isAuthenticated && userId) {
-        try {
-          await recordVoteRemote({
-            keywordId: keywordId as Id<"keywords">, // Type assertion needed
-            vote,
-            tweetId: metadata?.tweetId,
-            syncSource: "local",
-          });
-        } catch (error) {
-          console.error("Failed to sync vote to Convex:", error);
-          // Revert local change on failure
-          recordVote(keywordId, vote === "up" ? "down" : "up", metadata);
-        }
+      // Unauthenticated: local only
+      if (!isAuthed) {
+        return recordVote(keywordId, vote, metadata);
       }
 
-      return success;
+      // Authenticated: remote only with pre-resolved Convex ID
+      try {
+        let remoteId: Id<"keywords">;
+
+        // If keywordId looks like a localStorage ID (e.g., "kw_..."), upsert to get Convex ID
+        if (keywordId.startsWith("kw_")) {
+          const localKeyword = getKeywordById(keywordId);
+          if (!localKeyword) {
+            // As a fallback, try remote upsert with minimal info (will create if missing)
+            const createdId = await upsertKeyword({
+              keywordData: {
+                keyword: keywordId, // best-effort; should rarely happen
+                exactMatch: false,
+                source: "user_created",
+              },
+              updateData: { lastUsedAt: Date.now() },
+              workspaceId: workspace!._id,
+              syncSource: "local",
+            });
+            remoteId = createdId as Id<"keywords">;
+          } else {
+            const createdId = await upsertKeyword({
+              keywordData: {
+                keyword: localKeyword.keyword,
+                exactMatch: localKeyword.exactMatch,
+                source: localKeyword.source,
+                metadata: localKeyword.metadata,
+              },
+              updateData: { lastUsedAt: Date.now() },
+              workspaceId: workspace!._id,
+              syncSource: "local",
+            });
+            remoteId = createdId as Id<"keywords">;
+          }
+        } else {
+          // Assume it's already a Convex Id
+          remoteId = keywordId as Id<"keywords">;
+        }
+
+        await recordVoteRemote({
+          keywordId: remoteId,
+          vote,
+          tweetId: metadata?.tweetId,
+          syncSource: "local",
+        });
+
+        return true;
+      } catch (error) {
+        console.error("Failed to sync vote to Convex:", error);
+        return false;
+      }
     },
-    [isAuthenticated, userId, recordVoteRemote]
+    [isAuthenticated, userId, workspace, recordVoteRemote, upsertKeyword]
   );
 
   // Auto-sync when authentication state changes

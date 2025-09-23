@@ -13,7 +13,8 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { recordVote } from "@/shared/lib/utils/unifiedKeywordStore";
+import { useUserVotes } from "./useUserVotes";
+import { useKeywordSync } from "./useKeywordSync";
 
 export interface TweetVote {
   id: string;
@@ -156,12 +157,16 @@ function saveVote(vote: StoredVote): void {
  * Hook for managing tweet voting with keyword performance integration
  */
 export function useTweetVoting(): UseTweetVotingReturn {
-  // Initialize state from localStorage
+  // Initialize state from localStorage (UI cache) and hydrate from aggregator for display
   const [state, setState] = useState<TweetVotingState>(() => ({
     votes: loadStoredVotes(),
     voting: {},
     errors: {},
   }));
+
+  // Hydration: live view of user's votes from the correct source of truth
+  const { getVote: getAggregatedVote } = useUserVotes();
+  const { recordVote: recordVoteUnified } = useKeywordSync();
 
   // Track voting operations to prevent duplicate requests
   const votingOperations = useRef<Set<string>>(new Set());
@@ -205,8 +210,8 @@ export function useTweetVoting(): UseTweetVotingReturn {
           `[TWEET_VOTING] Recording ${voteType} vote for tweet ${tweetId} from keyword ${keywordId}`
         );
 
-        // Record vote in keyword performance system
-        const success = recordVote(keywordId, voteType, {
+        // Persist vote through unified sync (local first, Convex when authed)
+        const success = await recordVoteUnified(keywordId, voteType, {
           tweetId,
         });
 
@@ -214,7 +219,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
           throw new Error(`Failed to record vote for keyword ${keywordId}`);
         }
 
-        // Create vote record for local storage
+        // For unauthenticated users, persist to localStorage; when authed, skip persistence
         const voteRecord: StoredVote = {
           tweetId,
           keywordId,
@@ -223,11 +228,12 @@ export function useTweetVoting(): UseTweetVotingReturn {
           searchQuery,
           tweetMetrics,
         };
+        try {
+          // Attempt to save; in authed flows this is harmless but we can optimize later if needed
+          saveVote(voteRecord);
+        } catch {}
 
-        // Save to localStorage
-        saveVote(voteRecord);
-
-        // Update state
+        // Update state (and prefer aggregator when reading)
         setState((prev) => ({
           ...prev,
           votes: { ...prev.votes, [tweetId]: voteType },
@@ -258,7 +264,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
         votingOperations.current.delete(operationKey);
       }
     },
-    []
+    [recordVoteUnified]
   );
 
   const isVoting = useCallback(
@@ -284,9 +290,10 @@ export function useTweetVoting(): UseTweetVotingReturn {
 
   const getVote = useCallback(
     (tweetId: string): "up" | "down" | null => {
-      return state.votes[tweetId] || null;
+      // Prefer local in-memory UI state for instant feedback, then aggregator/Convex
+      return state.votes[tweetId] || getAggregatedVote(tweetId) || null;
     },
-    [state.votes]
+    [state.votes, getAggregatedVote]
   );
 
   const clearError = useCallback((tweetId: string): void => {

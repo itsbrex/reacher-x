@@ -408,7 +408,11 @@ export default function SearchResultsPage() {
                 packed = btoa(JSON.stringify(tweet));
               } catch {}
               const id = tweet.id_str || String(tweet.id);
-              router.push(`/post/${id}?t=${packed}`);
+              const params = new URLSearchParams();
+              if (packed) params.set("t", packed);
+              if (currentKeywordId) params.set("keywordId", currentKeywordId);
+              if (committedQuery) params.set("q", committedQuery);
+              router.push(`/post/${id}?${params.toString()}`);
             }}
           >
             <TweetComponent

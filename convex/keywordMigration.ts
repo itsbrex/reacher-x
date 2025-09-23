@@ -88,9 +88,23 @@ export const migrateKeywordsFromLocalStorage = mutation({
               existing.decayedScore,
               keywordData.decayedScore
             ),
-            votes: [...existing.votes, ...keywordData.votes].sort(
-              (a, b) => a.timestamp - b.timestamp
-            ),
+            // Dedupe by tweetId with last-write-wins semantics
+            votes: (() => {
+              const map = new Map<
+                string,
+                { vote: "up" | "down"; timestamp: number; tweetId?: string }
+              >();
+              for (const v of [...existing.votes, ...keywordData.votes]) {
+                const key = v.tweetId || `legacy_${v.timestamp}`;
+                const prev = map.get(key);
+                if (!prev || v.timestamp >= prev.timestamp) {
+                  map.set(key, v);
+                }
+              }
+              return Array.from(map.values()).sort(
+                (a, b) => a.timestamp - b.timestamp
+              );
+            })(),
             metadata: { ...existing.metadata, ...keywordData.metadata },
             syncVersion: existing.syncVersion + 1,
             lastSyncedAt: now,
@@ -379,12 +393,23 @@ export const syncKeywordsWithLocalStorage = mutation({
                 existing.decayedScore,
                 localKeyword.decayedScore
               ),
-              votes: [...existing.votes, ...localKeyword.votes]
-                .sort((a, b) => a.timestamp - b.timestamp)
-                .filter(
-                  (vote, index, arr) =>
-                    index === 0 || vote.timestamp !== arr[index - 1].timestamp
-                ), // Remove duplicates
+              // Dedupe by tweetId with last-write-wins semantics
+              votes: (() => {
+                const map = new Map<
+                  string,
+                  { vote: "up" | "down"; timestamp: number; tweetId?: string }
+                >();
+                for (const v of [...existing.votes, ...localKeyword.votes]) {
+                  const key = v.tweetId || `legacy_${v.timestamp}`;
+                  const prev = map.get(key);
+                  if (!prev || v.timestamp >= prev.timestamp) {
+                    map.set(key, v);
+                  }
+                }
+                return Array.from(map.values()).sort(
+                  (a, b) => a.timestamp - b.timestamp
+                );
+              })(),
               metadata: { ...existing.metadata, ...localKeyword.metadata },
               syncVersion: existing.syncVersion + 1,
               lastSyncedAt: now,

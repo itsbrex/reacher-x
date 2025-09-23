@@ -327,11 +327,17 @@ export function recordVote(
     return false;
   }
 
-  // Add the new vote
+  // Overwrite semantics: one vote per tweetId (last write wins)
+  const now = getCurrentUTCTimestamp();
+  const tweetId = metadata?.tweetId;
+  if (tweetId) {
+    // Remove existing entry for this tweetId if present
+    keyword.votes = keyword.votes.filter((v) => v.tweetId !== tweetId);
+  }
   keyword.votes.push({
     vote,
-    timestamp: getCurrentUTCTimestamp(),
-    tweetId: metadata?.tweetId,
+    timestamp: now,
+    tweetId,
   });
 
   // Recalculate score and update status

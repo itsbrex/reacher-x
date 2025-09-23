@@ -462,7 +462,14 @@ export const recordKeywordVote = mutation({
       tweetId: args.tweetId,
     };
 
-    const updatedVotes = [...(keyword.votes || []), newVote];
+    // Overwrite semantics: keep one entry per tweetId (last write wins)
+    const existingVotes = keyword.votes || [];
+    const filtered = existingVotes.filter((v) => {
+      // If no tweetId on existing record, keep it (legacy); otherwise filter by same tweetId
+      if (!v.tweetId) return true;
+      return v.tweetId !== args.tweetId;
+    });
+    const updatedVotes = [...filtered, newVote];
 
     // Calculate new decayed score
     const VOTE_WEIGHTS = { up: 1, down: -1.5 };

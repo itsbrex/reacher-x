@@ -42,6 +42,8 @@ export default function PostDetailPage() {
 
   const cachedTweet = useMemo(() => getCachedTweet(tweetId), [tweetId]);
   const tweet = navTweet || cachedTweet;
+  const keywordIdParam = searchParams.get("keywordId") || "";
+  const queryParam = searchParams.get("q") || "";
 
   const { isAuthenticated, isLoading, user } = useAuth();
   const xAccount = useQuery(
@@ -123,6 +125,10 @@ export default function PostDetailPage() {
             tweet={tweet}
             showFullContent={true}
             showThread={!shouldShowThread}
+            votingContext={{
+              keywordId: keywordIdParam || "",
+              searchQuery: queryParam || "",
+            }}
           />
         )}
 
