@@ -530,6 +530,30 @@ export const rePromptKeywordsArgsValidator = v.object({
 // Keyword Suggestions validators
 export const generateKeywordsArgsValidator = v.object({
   userDescription: v.string(),
+  workspaceId: v.optional(v.id("workspaces")),
+});
+
+// Keyword Suggestions (storage) validators
+export const storeSuggestionsArgsValidator = v.object({
+  workspaceId: v.id("workspaces"),
+  userDescription: v.optional(v.string()),
+  batchRequestId: v.optional(v.string()),
+  suggestions: v.array(
+    v.object({
+      keyword: v.string(),
+      metadata: v.optional(v.any()),
+      generatedAt: v.optional(v.number()),
+    })
+  ),
+});
+
+export const getSuggestionsArgsValidator = v.object({
+  workspaceId: v.id("workspaces"),
+  limit: v.optional(v.number()),
+});
+
+export const markSuggestionAsUsedArgsValidator = v.object({
+  suggestionId: v.id("keywordSuggestions"),
 });
 
 // LLM Filter validators

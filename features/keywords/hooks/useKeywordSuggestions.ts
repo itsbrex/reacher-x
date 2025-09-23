@@ -17,16 +17,18 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useAction, useConvexAuth } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useWorkspaceProfile } from "@/shared/hooks/useWorkspaceProfile";
+import { useAuth } from "@/shared/hooks/useAuth";
 import { DESCRIPTION_CONSTRAINTS } from "@/shared/lib/utils/validation";
 import {
   getKeywords,
   type UnifiedKeyword,
 } from "@/shared/lib/utils/unifiedKeywordStore";
 import {
-  getUnusedSuggestions,
+  getAllUnusedSuggestions,
   markSuggestionAsUsed,
   shouldRegenerateSuggestions,
   storeNewSuggestions,
@@ -74,6 +76,7 @@ const HOOK_CONFIG = {
   MAX_FALLBACK_KEYWORDS: 5,
   MIN_DESCRIPTION_LENGTH: DESCRIPTION_CONSTRAINTS.MIN_LENGTH,
   REQUEST_DEDUPE_TIME_MS: 1000, // Prevent requests within 1 second of each other
+  AUTH_POOL_LIMIT: 50, // Fetch up to 50 unused suggestions from Convex
 } as const;
 
 export interface KeywordSuggestionsState {
@@ -124,6 +127,7 @@ export interface GenerationMetadata {
 export function useKeywordSuggestions(): KeywordSuggestionsState {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { description: unifiedDescription } = useWorkspaceProfile();
+  const { workspace } = useAuth();
   // State management
   const [suggestions, setSuggestions] = useState<KeywordItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -141,9 +145,18 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const hasAttemptedInitialFetch = useRef<boolean>(false);
   const isLoadingRef = useRef<boolean>(false);
 
-  // Convex actions
+  // Convex actions & queries
   const generateKeywordsAction = useAction(
     api.keywordSuggestions.generateKeywords
+  );
+  const markSuggestionAsUsedMutation = useMutation(
+    api.keywordSuggestions.markSuggestionAsUsed
+  );
+  const convexSuggestions = useQuery(
+    api.keywordSuggestions.getSuggestions,
+    isAuthenticated && workspace
+      ? { workspaceId: workspace._id, limit: HOOK_CONFIG.AUTH_POOL_LIMIT }
+      : "skip"
   );
 
   // Load unified user description and validate
@@ -207,36 +220,46 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     };
   }, [allKeywords]);
 
-  // Load suggestions from store
+  // Load suggestions either from Convex (authenticated) or from local store
   const loadSuggestionsFromStore = useCallback(() => {
-    if (!userDescription) return false;
+    if (isAuthenticated) {
+      // Wait for query to resolve
+      if (convexSuggestions === undefined) return false;
+      const filtered = (convexSuggestions || [])
+        .filter((s) =>
+          userDescription ? s.userDescription === userDescription : true
+        )
+        .sort((a, b) => a.generatedAt - b.generatedAt); // oldest first for stable window
 
-    const unusedSuggestions = getUnusedSuggestions();
-
-    if (unusedSuggestions.length > 0) {
-      const keywordItems: KeywordItem[] = unusedSuggestions.map(
-        (suggestion) => ({
-          id: suggestion.id,
-          keyword: suggestion.keyword,
-          timestamp: new Date(suggestion.generatedAt).toISOString(),
-          isPinned: false,
-          metadata: suggestion.metadata,
-        })
+      const items: KeywordItem[] = filtered.map((s) => ({
+        id: s._id,
+        keyword: s.keyword,
+        timestamp: new Date(s.generatedAt).toISOString(),
+        isPinned: false,
+        metadata: s.metadata,
+      }));
+      setSuggestions(items);
+      setFromCache(false);
+      setCacheAge(
+        items[0] ? new Date(items[0].timestamp || "").getTime() : undefined
       );
-
-      setSuggestions(keywordItems);
-      setFromCache(true);
-      setCacheAge(unusedSuggestions[0]?.generatedAt);
-
-      console.log("[KEYWORD_SUGGESTIONS] Loaded suggestions from store:", {
-        count: unusedSuggestions.length,
-        stats: getSuggestionsStats(),
-      });
       return true;
     }
 
-    return false;
-  }, [userDescription]);
+    // Unauthenticated: use full unused pool (no slicing)
+    const allUnused = getAllUnusedSuggestions();
+    const keywordItems: KeywordItem[] = allUnused.map((suggestion) => ({
+      id: suggestion.id,
+      keyword: suggestion.keyword,
+      timestamp: new Date(suggestion.generatedAt).toISOString(),
+      isPinned: false,
+      metadata: suggestion.metadata,
+    }));
+    setSuggestions(keywordItems);
+    setFromCache(true);
+    setCacheAge(allUnused[0]?.generatedAt);
+    return keywordItems.length > 0;
+  }, [isAuthenticated, convexSuggestions, userDescription]);
 
   // Check if we should use re-prompt service
   // Note: Re-prompting is now handled by the separate useKeywordRePrompt hook
@@ -289,47 +312,48 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       // Use simple generation (re-prompting is handled by useKeywordRePrompt hook)
       const result = await generateKeywordsAction({
         userDescription,
+        workspaceId: workspace?._id,
       });
 
       if (!result.success || !result.data) {
         throw new Error(result.error || "Failed to generate keywords");
       }
 
-      // Handle simple generation response
+      // Handle response
       const genData = result.data as KeywordGenerationResponse;
-      const keywords = genData.keywords.map((kw) => ({
-        keyword: kw.keyword,
-        metadata: {
-          ...kw.metadata,
-          source: "ai_generation",
-        },
-      }));
       const metadata = genData.metadata;
 
-      // Store new suggestions in the store
-      const storeSuccess = storeNewSuggestions(
-        keywords.map((kw) => ({
+      if (!isAuthenticated) {
+        // Unauthenticated: store locally
+        const keywords = genData.keywords.map((kw) => ({
           keyword: kw.keyword,
-          metadata: kw.metadata,
-        })),
-        userDescription
-      );
-
-      if (!storeSuccess) {
-        throw new Error("Failed to store new suggestions");
+          metadata: {
+            ...kw.metadata,
+            source: "ai_generation",
+          },
+        }));
+        const storeSuccess = storeNewSuggestions(
+          keywords.map((kw) => ({
+            keyword: kw.keyword,
+            metadata: kw.metadata,
+          })),
+          userDescription
+        );
+        if (!storeSuccess) {
+          throw new Error("Failed to store new suggestions");
+        }
+        // Refresh from local store
+        window.dispatchEvent(
+          new CustomEvent("keywordSuggestionsUpdated", {
+            detail: { source: "generation", count: keywords.length },
+          })
+        );
+        loadSuggestionsFromStore();
+      } else {
+        // Authenticated: server persisted; query will update reactively
+        loadSuggestionsFromStore();
       }
 
-      // Trigger a refresh of suggestions UI
-      window.dispatchEvent(
-        new CustomEvent("keywordSuggestionsUpdated", {
-          detail: { source: "generation", count: keywords.length },
-        })
-      );
-
-      // Load the updated suggestions
-      loadSuggestionsFromStore();
-
-      // Set generation metadata
       setGenerationMetadata({
         requestId: metadata.requestId,
         processingTimeMs: metadata.processingTimeMs,
@@ -342,7 +366,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
       const endTime = Date.now();
       console.log("[KEYWORD_SUGGESTIONS] Generation completed successfully:", {
-        keywordCount: keywords.length,
         totalTimeMs: endTime - startTime,
         useRePrompt: shouldUseRePrompt(),
       });
@@ -366,22 +389,29 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     generateKeywordsAction,
     shouldUseRePrompt,
     loadSuggestionsFromStore,
+    isAuthenticated,
+    workspace?._id,
   ]);
 
-  // Record keyword usage and mark as used in store
+  // Record keyword usage and mark as used
   const recordKeywordUsage = useCallback(
-    (keywordId: string, keyword: string) => {
+    async (keywordId: string, keyword: string) => {
       try {
         console.log("[KEYWORD_SUGGESTIONS] Recording keyword usage:", {
           keywordId,
           keyword,
         });
 
-        // Mark the suggestion as used in the store
-        const success = markSuggestionAsUsed(keyword);
-        if (success) {
-          // Reload suggestions to show new ones
-          loadSuggestionsFromStore();
+        if (isAuthenticated) {
+          await markSuggestionAsUsedMutation({
+            suggestionId: keywordId as Id<"keywordSuggestions">,
+          });
+          // reactive query will refresh
+        } else {
+          const success = markSuggestionAsUsed(keyword);
+          if (success) {
+            loadSuggestionsFromStore();
+          }
         }
       } catch (error) {
         console.warn(
@@ -390,7 +420,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         );
       }
     },
-    [loadSuggestionsFromStore]
+    [isAuthenticated, markSuggestionAsUsedMutation, loadSuggestionsFromStore]
   );
 
   // Refresh suggestions
@@ -400,47 +430,72 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       return;
     }
 
-    console.log("[KEYWORD_SUGGESTIONS] Refreshing suggestions:", {
-      hasValidDescription,
+    // Authenticated path
+    if (isAuthenticated) {
+      // Wait for query to resolve
+      if (convexSuggestions === undefined) return;
+
+      // Filter pool to current description
+      const filtered = (convexSuggestions || [])
+        .filter((s) =>
+          userDescription ? s.userDescription === userDescription : true
+        )
+        .sort((a, b) => a.generatedAt - b.generatedAt);
+
+      const hasCurrentDesc = filtered.length > 0;
+
+      console.log("[KEYWORD_SUGGESTIONS] Refresh (auth):", {
+        serverUnused: convexSuggestions.length,
+        filteredUnused: filtered.length,
+        userDescription,
+        hasCurrentDesc,
+      });
+
+      if (!hasCurrentDesc) {
+        await generateKeywords();
+        return;
+      }
+
+      // Try to display what we have
+      loadSuggestionsFromStore();
+
+      if (filtered.length <= 2) {
+        await generateKeywords();
+      }
+      return;
+    }
+
+    // Unauthenticated path: local store rule (<= 2) and description change via local state
+    const localDescChanged = hasUserDescriptionChanged(userDescription || "");
+    console.log("[KEYWORD_SUGGESTIONS] Refresh (unauth):", {
+      localDescChanged,
       shouldRegenerate: shouldRegenerateSuggestions(),
-      descriptionChanged: hasUserDescriptionChanged(userDescription || ""),
     });
 
-    // Check if user description changed (needs regeneration)
-    if (hasUserDescriptionChanged(userDescription || "")) {
-      console.log(
-        "[KEYWORD_SUGGESTIONS] User description changed, regenerating"
-      );
+    if (localDescChanged) {
       await generateKeywords();
       return;
     }
 
-    // Try loading from store first
-    if (loadSuggestionsFromStore()) {
-      return;
-    }
-
-    // Check if regeneration is needed
+    if (loadSuggestionsFromStore()) return;
     if (shouldRegenerateSuggestions()) {
-      console.log(
-        "[KEYWORD_SUGGESTIONS] Regeneration needed, generating new keywords"
-      );
-      await generateKeywords();
-      return;
-    }
-
-    // If we still have no suggestions, generate them
-    if (suggestions.length === 0) {
-      console.log("[KEYWORD_SUGGESTIONS] No suggestions available, generating");
       await generateKeywords();
     }
   }, [
     hasValidDescription,
+    isAuthenticated,
     userDescription,
+    convexSuggestions,
     loadSuggestionsFromStore,
     generateKeywords,
-    suggestions.length,
   ]);
+
+  // Reactively update UI when Convex suggestions arrive
+  useEffect(() => {
+    if (isAuthenticated && convexSuggestions !== undefined) {
+      loadSuggestionsFromStore();
+    }
+  }, [isAuthenticated, convexSuggestions, loadSuggestionsFromStore]);
 
   // Clear error state
   const clearError = useCallback(() => {

@@ -113,6 +113,34 @@ export default defineSchema({
     .index("by_user_status", ["userId", "status"])
     .index("by_sync_version", ["userId", "syncVersion"]),
 
+  // Keyword Suggestions Schema - persisted suggestions for authenticated users
+  keywordSuggestions: defineTable({
+    userId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    keyword: v.string(),
+    isUsed: v.boolean(),
+    generatedAt: v.number(),
+    usedAt: v.optional(v.number()),
+    userDescription: v.optional(v.string()),
+    batchRequestId: v.optional(v.string()),
+    metadata: v.optional(
+      v.object({
+        rationale: v.optional(v.string()),
+        searchIntent: v.optional(v.string()),
+        confidence: v.optional(v.number()),
+        source: v.optional(v.string()),
+        generatedAt: v.optional(v.number()),
+        usedFallback: v.optional(v.boolean()),
+      })
+    ),
+  })
+    .index("by_workspace_isUsed_generatedAt", [
+      "workspaceId",
+      "isUsed",
+      "generatedAt",
+    ])
+    .index("by_user", ["userId"]),
+
   // Sync operations log for debugging and conflict resolution
   syncOperations: defineTable({
     userId: v.id("users"),

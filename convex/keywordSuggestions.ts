@@ -1,8 +1,104 @@
+import { query, internalMutation, mutation } from "./_generated/server";
+import {
+  getSuggestionsArgsValidator,
+  markSuggestionAsUsedArgsValidator,
+  storeSuggestionsArgsValidator,
+} from "./validators";
+
+export const getSuggestions = query({
+  args: getSuggestionsArgsValidator,
+  handler: async (ctx, { workspaceId, limit }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const suggestions = await ctx.db
+      .query("keywordSuggestions")
+      .withIndex("by_workspace_isUsed_generatedAt", (q) =>
+        q.eq("workspaceId", workspaceId).eq("isUsed", false)
+      )
+      .order("desc")
+      .take(limit ?? 5);
+
+    return suggestions;
+  },
+});
+
+export const storeSuggestions = internalMutation({
+  args: storeSuggestionsArgsValidator,
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_user_id", (q) =>
+        q.eq("workosUserId", identity.subject)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const now = Date.now();
+    for (let i = 0; i < args.suggestions.length; i++) {
+      const s = args.suggestions[i];
+      await ctx.db.insert("keywordSuggestions", {
+        userId: user._id,
+        workspaceId: args.workspaceId,
+        keyword: s.keyword.trim().toLowerCase(),
+        isUsed: false,
+        generatedAt: s.generatedAt ?? now + i,
+        userDescription: args.userDescription,
+        batchRequestId: args.batchRequestId,
+        metadata: s.metadata,
+      });
+    }
+  },
+});
+
+export const markSuggestionAsUsed = mutation({
+  args: markSuggestionAsUsedArgsValidator,
+  handler: async (ctx, { suggestionId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_user_id", (q) =>
+        q.eq("workosUserId", identity.subject)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const suggestion = await ctx.db.get(suggestionId);
+    if (!suggestion || suggestion.userId !== user._id) {
+      throw new Error("Suggestion not found or not authorized");
+    }
+
+    if (!suggestion.isUsed) {
+      await ctx.db.patch(suggestionId, { isUsed: true, usedAt: Date.now() });
+    }
+
+    return true;
+  },
+});
+
 import { action } from "./_generated/server";
 import { generateKeywordsArgsValidator } from "./validators";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLLMModel } from "./lib/llmConfig";
+import { internal, api } from "./_generated/api";
 
 // =============================================================================
 // KEYWORD GENERATION SYSTEM
@@ -76,7 +172,7 @@ const KeywordGenerationSchema = z
 
 export const generateKeywords = action({
   args: generateKeywordsArgsValidator,
-  handler: async (ctx, { userDescription }) => {
+  handler: async (ctx, { userDescription, workspaceId }) => {
     const startTime = Date.now();
     const requestId = generateRequestId("keyword_gen");
 
@@ -257,6 +353,32 @@ Output ONLY valid JSON matching the schema (no additional text):
       }));
 
       const endTime = Date.now();
+
+      // Persist suggestions to Convex for authenticated users
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity) {
+        let targetWorkspaceId = workspaceId ?? null;
+        if (!targetWorkspaceId) {
+          const defaultWorkspace = await ctx.runQuery(
+            api.workspaces.getDefaultWorkspace,
+            {}
+          );
+          if (defaultWorkspace) {
+            targetWorkspaceId = defaultWorkspace._id;
+          }
+        }
+        if (targetWorkspaceId) {
+          await ctx.runMutation(internal.keywordSuggestions.storeSuggestions, {
+            workspaceId: targetWorkspaceId,
+            userDescription,
+            batchRequestId: requestId,
+            suggestions: frontendKeywords.map((k) => ({
+              keyword: k.keyword,
+              metadata: k.metadata,
+            })),
+          });
+        }
+      }
       console.log(
         `[KEYWORD_GEN] ${requestId} - Request completed successfully:`,
         {

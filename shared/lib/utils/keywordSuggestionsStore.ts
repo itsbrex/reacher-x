@@ -120,6 +120,19 @@ export function getUnusedSuggestions(): KeywordSuggestion[] {
 }
 
 /**
+ * Get all unused keyword suggestions (no slicing)
+ * Sorted ascending so older suggestions appear first, ensuring stable UI window
+ */
+export function getAllUnusedSuggestions(): KeywordSuggestion[] {
+  const state = loadSuggestions();
+  if (!state) return [];
+
+  return state.suggestions
+    .filter((s) => !s.isUsed)
+    .sort((a, b) => a.generatedAt - b.generatedAt);
+}
+
+/**
  * Mark a keyword suggestion as used
  */
 export function markSuggestionAsUsed(keyword: string): boolean {
@@ -178,11 +191,18 @@ export function storeNewSuggestions(
     metadata: kw.metadata,
   }));
 
-  // If we have existing state, keep some unused suggestions
-  let finalSuggestions = newSuggestions;
+  let finalSuggestions: KeywordSuggestion[] = newSuggestions;
+
   if (state) {
-    const unusedExisting = state.suggestions.filter((s) => !s.isUsed);
-    finalSuggestions = [...newSuggestions, ...unusedExisting]; // New suggestions first
+    const isDescriptionChanged = state.userDescription !== userDescription;
+    if (isDescriptionChanged) {
+      // Replace on description change so old suggestions are no longer shown
+      finalSuggestions = newSuggestions;
+    } else {
+      // Append new suggestions after existing unused ones to preserve stable visible window
+      const unusedExisting = state.suggestions.filter((s) => !s.isUsed);
+      finalSuggestions = [...unusedExisting, ...newSuggestions];
+    }
   }
 
   const newState: KeywordSuggestionsState = {
