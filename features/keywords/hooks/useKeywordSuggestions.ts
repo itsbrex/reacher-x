@@ -551,17 +551,18 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     setError(null);
   }, []);
 
-  // Auto-fetch on mount with proper controls
+  // Auto-fetch once when a valid description becomes available
   useEffect(() => {
     if (
-      !isInitialized.current &&
       !hasAttemptedInitialFetch.current &&
       HOOK_CONFIG.AUTO_FETCH_ON_MOUNT &&
       hasValidDescription
     ) {
       hasAttemptedInitialFetch.current = true;
 
-      console.log("[KEYWORD_SUGGESTIONS] Auto-fetching suggestions on mount");
+      console.log(
+        "[KEYWORD_SUGGESTIONS] Auto-fetching suggestions (first valid description)"
+      );
 
       // Kick off immediately to avoid flicker; refresh handles dedupe
       void refreshSuggestions();
@@ -573,12 +574,12 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     if (
       !isAuthenticated &&
       !isInitialized.current &&
-      (!hasValidDescription || hasAttemptedInitialFetch.current)
+      hasAttemptedInitialFetch.current
     ) {
       // Either suggestions loaded (handled above) or none exist; mark initialized to stop loaders
       isInitialized.current = true;
     }
-  }, [isAuthenticated, hasValidDescription]);
+  }, [isAuthenticated]);
 
   // Listen for suggestions updates from reprompt hook
   useEffect(() => {
