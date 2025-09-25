@@ -31,7 +31,7 @@ export function RecentThreads({
         const firstTweet = thread.tweets[0];
         return (
           <LinkWrapper
-            href={`/threads/${thread.threadId}`}
+            href={`/home/threads/${thread.threadId}`}
             key={thread.threadId}
           >
             <TweetCard

@@ -5,9 +5,12 @@ import { Thread } from "@/features/threads/types";
 export const getRecentThreads = async (count: number) => {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
   try {
-    const rawThreads = await convex.query(api.socialdata.getRecentThreads, {
-      count,
-    });
+    const rawThreads = await convex.query(
+      api.socialdataMutations.getRecentThreads,
+      {
+        count,
+      }
+    );
     const recentThreads: Thread[] = rawThreads.map((thread) => ({
       ...thread,
       tweets: thread.tweets.map((tweet) => ({

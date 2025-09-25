@@ -8,10 +8,10 @@ const BASE_URL = "https://reacherx.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const threadIds = (await convex.query(
-    api.socialdata.getThreadIds
+    api.socialdataMutations.getThreadIds
   )) as string[];
   const threadUrls = threadIds.map((id) => ({
-    url: `${BASE_URL}/threads/${id}`,
+    url: `${BASE_URL}/home/threads/${id}`,
     lastModified: new Date(),
     changeFrequency: "weekly" as const,
     priority: 0.5,
@@ -25,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: `${BASE_URL}/threads`,
+      url: `${BASE_URL}/home/threads`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.8,

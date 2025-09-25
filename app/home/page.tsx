@@ -82,7 +82,7 @@ export default async function Home() {
             Recent threads.
           </h2>
           <Link
-            href="/threads"
+            href="/home/threads"
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             View all

@@ -21,7 +21,7 @@ export async function generateMetadata({
   params: Promise<{ threadId: string }>;
 }) {
   const { threadId } = await params; // Await the params Promise
-  const thread = (await convex.query(api.socialdata.getThreadById, {
+  const thread = (await convex.query(api.socialdataMutations.getThreadById, {
     threadId,
   })) as Thread | null;
 
@@ -68,11 +68,11 @@ export default async function ThreadDetailPage(props: {
     .slice(0, 3);
 
   // Fetch thread data and thread IDs on the server
-  const thread = (await convex.query(api.socialdata.getThreadById, {
+  const thread = (await convex.query(api.socialdataMutations.getThreadById, {
     threadId,
   })) as Thread | null;
   const threadIds = (await convex.query(
-    api.socialdata.getThreadIds
+    api.socialdataMutations.getThreadIds
   )) as string[];
 
   // Handle thread not found
@@ -90,7 +90,7 @@ export default async function ThreadDetailPage(props: {
   return (
     <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 duration-300 md:mt-12">
       <Link
-        href="/threads"
+        href="/home/threads"
         className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-28"
       >
         <h1 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-3xl font-medium duration-300 md:text-5xl">

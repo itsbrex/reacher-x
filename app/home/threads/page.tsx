@@ -19,7 +19,7 @@ export const metadata = {
     title: "🆁 | Threads",
     description: "Browse recent threads to stay updated on ReacherX.",
     images: ["/og-default.jpg"],
-    url: "https://reacherx.com/threads",
+    url: "https://reacherx.com/home/threads",
     type: "website",
   },
   twitter: {
@@ -36,7 +36,7 @@ export default async function ThreadsPage() {
   let staticThreads: Thread[] = [];
   try {
     staticThreads = (await convex.query(
-      api.socialdata.getStaticThreads
+      api.socialdataMutations.getStaticThreads
     )) as Thread[];
   } catch (error) {
     console.error("Error fetching threads:", error);
@@ -72,7 +72,7 @@ export default async function ThreadsPage() {
           ) : (
             staticThreads.map((thread) => (
               <LinkWrapper
-                href={`/threads/${thread.threadId}`}
+                href={`/home/threads/${thread.threadId}`}
                 key={thread.threadId}
               >
                 <TweetCard

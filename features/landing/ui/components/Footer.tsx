@@ -67,7 +67,7 @@ export const Footer = React.forwardRef<HTMLElement, FooterProps>(
             </small>
             <menu>
               <li>
-                <NavLink href="/threads" activeClassName="underline">
+                <NavLink href="/home/threads" activeClassName="underline">
                   Threads
                 </NavLink>
               </li>

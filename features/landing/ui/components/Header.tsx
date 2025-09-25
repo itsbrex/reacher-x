@@ -150,7 +150,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
             aria-label="Desktop navigation menu"
           >
             <li>
-              <NavLink href="/threads" activeClassName="underline">
+              <NavLink href="/home/threads" activeClassName="underline">
                 Threads
               </NavLink>
             </li>
@@ -213,7 +213,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                 <li>
                   <DrawerClose asChild>
                     <NavLink
-                      href="/threads"
+                      href="/home/threads"
                       activeClassName="underline text-primary font-medium"
                       className="px-4 py-2 font-normal text-muted-foreground"
                       size="lg"
