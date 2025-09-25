@@ -27,7 +27,12 @@ import { validateDescriptionForKeywords } from "../shared/lib/utils/validation";
 import { generateRequestId } from "../shared/lib/utils/request";
 import { createPromptSection } from "../shared/lib/utils/prompt";
 
-// Enhanced schema for re-prompt results
+// Configuration constants for re-prompt
+const KEYWORD_REPROMPT_CONFIG = {
+  TARGET_KEYWORD_COUNT: 15,
+} as const;
+
+// Simplified schema for re-prompt results (MVP)
 const KeywordRePromptSchema = z
   .object({
     improvedKeywords: z
@@ -35,47 +40,22 @@ const KeywordRePromptSchema = z
         z.object({
           keyword: z
             .string()
-            .min(3)
+            .min(1)
             .max(100)
-            .describe("An improved keyword based on performance analysis"),
-          improvementReason: z
-            .string()
-            .max(200)
-            .describe(
-              "Explanation of how this keyword improves on previous performance"
-            ),
-          searchIntent: z
-            .enum([
-              "pain_point",
-              "solution_seeking",
-              "comparison",
-              "urgent_need",
-              "budget_indication",
-            ])
-            .describe("The type of buying intent this keyword targets"),
-          confidence: z
-            .number()
-            .min(0)
-            .max(1)
-            .describe(
-              "Confidence score for keyword effectiveness (0.0 to 1.0)"
-            ),
+            .describe("Improved keyword based on performance analysis"),
+          exactMatch: z.boolean().describe("Whether to search as exact phrase"),
         })
       )
-      .length(15)
-      .describe("Array of 15 improved keywords based on performance feedback"),
+      .length(KEYWORD_REPROMPT_CONFIG.TARGET_KEYWORD_COUNT)
+      .describe(
+        `Array of ${KEYWORD_REPROMPT_CONFIG.TARGET_KEYWORD_COUNT} improved keywords`
+      ),
 
     analysisInsights: z
       .object({
-        highPerformingPatterns: z
-          .array(z.string())
-          .describe("Patterns found in high-performing keywords"),
-        lowPerformingPatterns: z
-          .array(z.string())
-          .describe("Patterns found in low-performing keywords"),
-        recommendedAdjustments: z
-          .array(z.string())
-          .describe("Specific adjustments to improve keyword performance"),
+        highPerformingPatterns: z.array(z.string()),
+        lowPerformingPatterns: z.array(z.string()),
+        recommendedAdjustments: z.array(z.string()),
       })
       .describe("Analysis insights from keyword performance"),
   })
@@ -135,9 +115,9 @@ export const rePromptKeywords = action({
       );
 
       // Enhanced prompt for performance-based keyword improvement
-      const prompt = `You are an expert keyword optimization specialist for ReacherX, tasked with improving keyword suggestions based on user voting performance data.
+      const prompt = `You are an expert keyword optimization AI agent for ReacherX, tasked with improving keyword suggestions based on user voting performance data. Build on the core expertise of crafting creative, emotionally resonant queries that surface genuine buyer intent on Twitter/X—using personal, human language (e.g., frustration like 'I suck at', humor like 'lol this sucks') to filter out promotional noise.
 
-${createPromptSection("User's Business Description", userDescription)}
+${createPromptSection("Description provided by user:", userDescription)}
 
 PERFORMANCE ANALYSIS:
 
@@ -165,7 +145,7 @@ ${
     : "- None identified yet"
 }
 
-TASK: Generate 15 IMPROVED keywords based on this performance feedback. These keywords will be shown to the user in batches of 5, so ensure variety and quality across all 15 keywords.
+TASK: Generate exactly ${KEYWORD_REPROMPT_CONFIG.TARGET_KEYWORD_COUNT} IMPROVED keywords as creative evolutions based on this performance feedback and the user's description. These will replace or augment existing ones, shown in batches of 5, so ensure diversity in emotional tone, phrasing, and specificity. Each must tie directly to pains/features from the user description and use organic buyer language (2-4 words max). Mentally simulate searching each on Twitter/X: Only include if it likely yields 70%+ buyer-intent results (personal vents/questions) over promotions.
 
 ANALYSIS STRATEGY:
 1. If high-performing keywords exist: Identify what makes them successful (word choices, intent types, specificity levels) and create similar variations
@@ -186,15 +166,13 @@ Output ONLY valid JSON matching the schema (no additional text):
   "improvedKeywords": [
     {
       "keyword": "string",
-      "improvementReason": "string explaining how this improves on previous performance",
-      "searchIntent": "pain_point|solution_seeking|comparison|urgent_need|budget_indication",
-      "confidence": 0.0-1.0
+      "exactMatch": true
     }
   ],
   "analysisInsights": {
-    "highPerformingPatterns": ["pattern1", "pattern2"],
-    "lowPerformingPatterns": ["pattern1", "pattern2"], 
-    "recommendedAdjustments": ["adjustment1", "adjustment2"]
+    "highPerformingPatterns": ["e.g., emotional self-deprecation drove upvotes like 'I suck at...'"] ,
+    "lowPerformingPatterns": ["e.g., generic terms attracted seller noise; lacked personal touch"],
+    "recommendedAdjustments": ["e.g., Add 50% more 'I/my' phrasing for relatability", "Inject humor in 20% of future keywords", "Tie every keyword to specific user description pains like [example from description]"]
   }
 }`;
 
@@ -250,19 +228,17 @@ Output ONLY valid JSON matching the schema (no additional text):
         recommendedAdjustments: insights.recommendedAdjustments,
       });
 
-      // Transform to frontend-compatible format
+      // Transform to frontend-compatible format (core fields only)
       const improvedKeywords = keywords.map((kw, index) => ({
         id: `reprompt_${requestId}_${index}`,
         keyword: kw.keyword,
         timestamp: new Date().toISOString(),
         metadata: {
-          improvementReason: kw.improvementReason,
-          searchIntent: kw.searchIntent,
-          confidence: kw.confidence,
           generatedAt: Date.now(),
           source: `${modelConfig.modelName}_reprompt`,
           isRePrompt: true,
           basedOnPerformance: true,
+          exactMatch: kw.exactMatch,
         },
       }));
 
