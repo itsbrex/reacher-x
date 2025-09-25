@@ -125,9 +125,6 @@ export default defineSchema({
     batchRequestId: v.optional(v.string()),
     metadata: v.optional(
       v.object({
-        rationale: v.optional(v.string()),
-        searchIntent: v.optional(v.string()),
-        confidence: v.optional(v.number()),
         source: v.optional(v.string()),
         generatedAt: v.optional(v.number()),
         usedFallback: v.optional(v.boolean()),

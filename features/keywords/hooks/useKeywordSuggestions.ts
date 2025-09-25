@@ -44,12 +44,11 @@ interface KeywordGenerationResponse {
     keyword: string;
     timestamp: string;
     metadata: {
-      rationale: string;
-      searchIntent: string;
-      confidence: number;
       generatedAt: number;
       source: string;
       usedFallback: boolean;
+      exactMatch?: boolean;
+      [key: string]: unknown;
     };
   }>;
   metadata: {
@@ -57,12 +56,6 @@ interface KeywordGenerationResponse {
     generatedAt: number;
     processingTimeMs: number;
     llmProcessingTimeMs: number;
-    confidenceStats: {
-      min: number;
-      max: number;
-      avg: number;
-    };
-    intentDistribution: Record<string, number>;
     userDescriptionLength: number;
     modelUsed: string;
     usedFallback: boolean;
@@ -406,8 +399,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         requestId: metadata.requestId,
         processingTimeMs: metadata.processingTimeMs,
         llmProcessingTimeMs: metadata.llmProcessingTimeMs,
-        confidenceStats: metadata.confidenceStats,
-        intentDistribution: metadata.intentDistribution,
         modelUsed: metadata.modelUsed,
         usedFallback: metadata.usedFallback,
       });

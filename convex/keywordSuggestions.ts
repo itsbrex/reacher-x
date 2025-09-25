@@ -126,7 +126,7 @@ const KEYWORD_GENERATION_CONFIG = {
   TARGET_KEYWORD_COUNT: 15, // Generate 15 keywords at a time
 } as const;
 
-// Enhanced schema for keyword generation results (strict)
+// Simplified schema for keyword generation results (MVP)
 const KeywordGenerationSchema = z
   .object({
     keywords: z
@@ -134,33 +134,9 @@ const KeywordGenerationSchema = z
         z.object({
           keyword: z
             .string()
-            .min(3)
+            .min(1)
             .max(100)
-            .describe(
-              "A search keyword or phrase optimized for finding potential customers"
-            ),
-          rationale: z
-            .string()
-            .max(200)
-            .describe(
-              "Brief explanation of why this keyword targets potential customers"
-            ),
-          searchIntent: z
-            .enum([
-              "pain_point",
-              "solution_seeking",
-              "comparison",
-              "urgent_need",
-              "budget_indication",
-            ])
-            .describe("The type of buying intent this keyword targets"),
-          confidence: z
-            .number()
-            .min(0)
-            .max(1)
-            .describe(
-              "Confidence score for keyword effectiveness (0.0 to 1.0)"
-            ),
+            .describe("Keyword or phrase for searching potential customers"),
           exactMatch: z
             .boolean()
             .describe(
@@ -170,7 +146,7 @@ const KeywordGenerationSchema = z
       )
       .length(KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT)
       .describe(
-        `Array of ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} optimized keywords for lead generation`
+        `Array of ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} creative buyer-intent keywords`
       ),
   })
   .describe("Keyword generation results for lead qualification");
@@ -209,46 +185,45 @@ export const generateKeywords = action({
         }
       );
 
-      // Updated prompt with adjusted keyword length for platform constraints
-      const prompt = `You are an expert potential customer finding AI agent for ReacherX, a platform that helps anyone find potential customers on social media. Your expertise lies in crafting search queries that surface genuine buyer intent while filtering out promotional noise from sellers, affiliates, and spammers.
+      // Enhanced prompt with creativity and personal touch emphasis
+      const prompt = `You are an expert potential customer finding AI agent for ReacherX, a platform that helps anyone find potential customers on social media. Your expertise lies in crafting inventive, emotionally resonant search queries that surface genuine buyer intent on Twitter/X, using creative language to mimic real people's frustrations, humor, and vulnerabilities—while filtering out promotional noise from sellers, affiliates, and spammers.
 
 The following is the description that the user has provided:
 "${userDescription}"
 
-Your task: Generate exactly ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} precise, high-intent search queries (as keywords/phrases) that will help this user discover potential customers on Twitter/X who are actively expressing buying needs for the described product/service/skill. These queries should be designed to minimize results from sellers hijacking popular terms—focus on organic user language that reveals unmet needs. Queries will be shown to the user in batches of 5, so ensure diversity in phrasing, intent, and specificity across all ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} items. Make sure you first test each keyword/phrase by searching it; if it really gives better results, only then add it so that it's battle-tested and proven
+Your task: Generate exactly ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} creative, precise search queries (as keywords/phrases) to discover potential customers actively expressing buying needs for the described product/service/skill. Focus on organic, personal language that reveals unmet needs through emotions like frustration, self-doubt, or light humor (e.g., "I suck at [pain point]", "lol this [issue] sucks"). These queries should minimize seller hijacks by sounding like everyday user vents. Ensure diversity in phrasing, emotional tone, and specificity across all items—shown in batches of 5. Mentally simulate searching each on Twitter/X: Only include if it likely yields 70%+ buyer-intent results (e.g., personal stories/questions) over promotions.
 
-Core Focus: Target phrases capturing authentic buyer signals related to the user's offering, such as:
-• Frustrations or pain points
-• Active solution hunting
-• Research and comparison queries
-• Budget or readiness cues
-• Time-sensitive or urgent appeals
-• Emotional or casual expressions of need
+Sort by quality:
+(1) Emotional resonance/personal touch (high)
+(2) Relevance to user description,
+(3) Low competition/high conversion.
 
 Guidelines to Avoid Hijacked Keywords:
-1. Craft 2-4 word phrases (keep concise for platform query limits) using question formats, complaints, or direct asks—avoid generic product names alone.
-2. Incorporate buyer-oriented modifiers like "recommend", "help", "fix", "alternative to", "suggestions for" to steer toward seekers, not pitchers.
-3. Build in natural exclusions via phrasing (e.g., imply non-commercial intent); suggest query tweaks like adding "-ad -sponsored -buy now" if relevant, but keep the core phrase clean.
-4. Blend formal industry terms with everyday slang, typos, or abbreviations (e.g., "CRM recs" vs. "customer relationship management software").
-5. Diversify across intent types.
-6. Prioritize low-competition, high-conversion signals: queries likely from individuals or small teams, not marketers.
+1. Keep concise: 2-4 words max (for platform limits), blending specificity from user description with creative flair.
+2. Buyer-oriented modifiers: Use words like 'help me', 'stuck on', 'recommend something', but make them personal/emotional.
+3. Natural exclusions: Imply individual struggles (e.g., 'my [pain] is embarrassing' to avoid commercial pitches).
+4. Blend formal/industry terms with slang, typos, abbreviations, and creative twists (e.g., 'lead managment fail' or 'CRM nightmare vibes').
+5. Diversify intent/emotion: 40% frustration (e.g., "sucks"), 30% questions/seeking (e.g., "what's good for?"), 20% humor/self-deprecation (e.g., "lol I suck at"), 10% urgency (e.g., "desperately need").
+6. Prioritize low-competition signals: Target small user vibes (individuals/teams), not marketer lingo.
+7. Include typos sparingly (10-20% of keywords) for realism, like common misspellings in emotional rants.
+8. Creativity Mandate: Infuse personal touch in at least 50%—use first-person ("I", "my team"), emojis in phrasing if natural (e.g., "customer tracking hell 😩"), or casual exclamations to evoke relatability.
+
+Examples tailored to user description (adapt these creatively):
+- If user description is "CRM for small businesses": "I suck at lead tracking lol" (frustration, exactMatch: true)
+- "Why is customer management so hard? 😩" (question, exactMatch: false)
+- "Small team CRM disaster stories" (personal vent, exactMatch: false)
+- Avoid generic: No "buy CRM" or "best tool"—focus on pains like "losing deals to bad follow-ups".
 
 For each query, provide:
-- The exact keyword/phrase to search for (Do not add quotes if exact match recommended)
-- Brief rationale: How this targets buyers while dodging seller spam (1-2 sentences)
-- Search intent category
-- Confidence score (0.0-1.0): Based on buyer intent strength and low spam risk (aim for 0.7+)
-- exactMatch: boolean (true if the keyword should be searched as an exact phrase match, false for loose matching)
+- The exact keyword/phrase to search for (Do not add quotes).
+- exactMatch: boolean (true for precise emotional phrases/questions to catch exact vents; false for broader emotional themes).
 
 Output ONLY valid JSON matching the schema (no additional text):
 
 {
   "keywords": [
     {
-      "keyword": "string",
-      "rationale": "string", 
-      "searchIntent": "pain_point|solution_seeking|comparison|urgent_need|budget_indication",
-      "confidence": 0.0-1.0,
+      "keyword": "string", 
       "exactMatch": true
     }
   ]
@@ -306,7 +281,7 @@ Output ONLY valid JSON matching the schema (no additional text):
 
       const keywords = result.object.keywords;
 
-      // Validate keyword quality (log-only if count mismatch; proceed with what we have)
+      // Validate keyword count (log-only if mismatch; proceed with what we have)
       if (keywords.length !== KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT) {
         console.warn(`[KEYWORD_GEN] ${requestId} - Keyword count mismatch`, {
           expected: KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT,
@@ -315,31 +290,9 @@ Output ONLY valid JSON matching the schema (no additional text):
         });
       }
 
-      // Log keyword analysis for debugging
-      const confidenceStats = {
-        min: Math.min(...keywords.map((k) => k.confidence)),
-        max: Math.max(...keywords.map((k) => k.confidence)),
-        avg:
-          keywords.reduce((sum, k) => sum + k.confidence, 0) / keywords.length,
-      };
-
-      const intentDistribution = keywords.reduce(
-        (acc, k) => {
-          acc[k.searchIntent] = (acc[k.searchIntent] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>
-      );
-
-      console.log(`[KEYWORD_GEN] ${requestId} - Generated keywords analysis:`, {
+      console.log(`[KEYWORD_GEN] ${requestId} - Generated keywords summary:`, {
         keywordCount: keywords.length,
-        confidenceStats,
-        intentDistribution,
-        keywordSample: keywords.slice(0, 3).map((k) => ({
-          keyword: k.keyword,
-          intent: k.searchIntent,
-          confidence: k.confidence,
-        })),
+        sample: keywords.slice(0, 3),
       });
 
       // Transform to frontend-compatible format
@@ -348,9 +301,6 @@ Output ONLY valid JSON matching the schema (no additional text):
         keyword: kw.keyword,
         timestamp: new Date().toISOString(),
         metadata: {
-          rationale: kw.rationale,
-          searchIntent: kw.searchIntent,
-          confidence: kw.confidence,
           generatedAt: Date.now(),
           source: modelConfig.modelName,
           usedFallback: modelConfig.usedFallback,
@@ -392,7 +342,6 @@ Output ONLY valid JSON matching the schema (no additional text):
           totalProcessingTimeMs: endTime - startTime,
           llmProcessingTimeMs: llmEndTime - llmStartTime,
           finalKeywordCount: frontendKeywords.length,
-          avgConfidence: confidenceStats.avg.toFixed(3),
           modelUsed: modelConfig.modelName,
           usedFallback: modelConfig.usedFallback,
         }
@@ -407,8 +356,6 @@ Output ONLY valid JSON matching the schema (no additional text):
             generatedAt: Date.now(),
             processingTimeMs: endTime - startTime,
             llmProcessingTimeMs: llmEndTime - llmStartTime,
-            confidenceStats,
-            intentDistribution,
             userDescriptionLength: userDescription.length,
             modelUsed: modelConfig.modelName,
             usedFallback: modelConfig.usedFallback,

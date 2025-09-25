@@ -397,14 +397,7 @@ export default function WebAppPage() {
                   {generationMetadata.usedFallback && (
                     <div>• Used Fallback: Yes</div>
                   )}
-                  {generationMetadata.confidenceStats && (
-                    <div>
-                      • Confidence:{" "}
-                      {generationMetadata.confidenceStats.min.toFixed(2)}-
-                      {generationMetadata.confidenceStats.max.toFixed(2)} (avg:{" "}
-                      {generationMetadata.confidenceStats.avg.toFixed(2)})
-                    </div>
-                  )}
+                  {/* Confidence stats removed in simplified MVP schema */}
                 </div>
               )}
 
