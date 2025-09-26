@@ -100,7 +100,12 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
                 · {formatRelativeTime(tweet?.tweet_created_at)}
               </time>
             </TweetHeader>
-            <TweetMenu tweetUrl={tweetUrl} profileUrl={profileUrl} />
+            <TweetMenu
+              tweetUrl={tweetUrl}
+              profileUrl={profileUrl}
+              screenName={tweet?.user?.screen_name || ""}
+              fullText={tweet?.full_text || tweet?.text || ""}
+            />
           </div>
         </header>
 

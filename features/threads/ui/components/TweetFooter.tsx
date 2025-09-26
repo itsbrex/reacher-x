@@ -78,7 +78,7 @@ export function TweetFooter({
   votingContext,
   className,
 }: TweetFooterProps) {
-  const getDynamicThreadData = useAction(api.socialdata.getDynamicThreadData);
+  const getDynamicThreadData = useAction(api.socialapi.getDynamicThreadData);
   const [metrics, setMetrics] = useState<Tweet | null>(staticTweet || null);
   const [loading, setLoading] = useState(!staticTweet);
 
