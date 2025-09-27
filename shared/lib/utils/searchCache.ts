@@ -11,6 +11,7 @@
  */
 
 import { getLocalStorage, setLocalStorage } from "./localStorage";
+import { base64UrlEncodeUtf8 } from "./encoding";
 import type { SearchResult } from "@/features/search/hooks/useTwitterSearch";
 
 // Storage key for search cache
@@ -46,7 +47,8 @@ export interface SearchCache {
 function generateCacheKey(query: string, exactMatch: boolean): string {
   const normalized = query.trim().toLowerCase();
   const matchType = exactMatch ? "exact" : "fuzzy";
-  return `search_${btoa(normalized)}_${matchType}`;
+  const encoded = base64UrlEncodeUtf8(normalized);
+  return `search_${encoded}_${matchType}`;
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useMemo, useCallback, useEffect, useState } from "react";
+import { base64UrlDecodeUtf8 } from "@/shared/lib/utils/encoding";
 import {
   PageHeader,
   PageLayout,
@@ -38,7 +39,7 @@ function PostDetailInner() {
     const packed = searchParams.get("t");
     if (!packed) return null;
     try {
-      const json = atob(packed);
+      const json = base64UrlDecodeUtf8(packed);
       return JSON.parse(json) as Tweet;
     } catch {
       return null;

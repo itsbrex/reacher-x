@@ -31,6 +31,7 @@ import { getWorkspaceDescription } from "@/shared/lib/utils/localStorage";
 import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
 import { startSearch, endSearch } from "@/shared/lib/utils/performance";
 import { cacheTweet } from "@/shared/lib/utils/tweetCache";
+import { base64UrlEncodeUtf8 } from "@/shared/lib/utils/encoding";
 import {
   Alert,
   AlertDescription,
@@ -403,7 +404,7 @@ export default function SearchResultsPage() {
               // Pack minimal tweet payload in URL param (base64) to avoid effects on target page
               let packed = "";
               try {
-                packed = btoa(JSON.stringify(tweet));
+                packed = base64UrlEncodeUtf8(JSON.stringify(tweet));
               } catch {}
               const id = tweet.id_str || String(tweet.id);
               const params = new URLSearchParams();
