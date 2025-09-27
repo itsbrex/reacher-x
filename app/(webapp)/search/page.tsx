@@ -234,7 +234,12 @@ export default function SearchResultsPage() {
           }
           params.set("keywordId", keywordId);
 
-          router.replace(`/search?${params.toString()}`, { scroll: false });
+          const nextSearch = `?${params.toString()}`;
+          const currentSearch =
+            typeof window !== "undefined" ? window.location.search : "";
+          if (nextSearch !== currentSearch) {
+            router.replace(`/search${nextSearch}`, { scroll: false });
+          }
 
           searchTweets(committedQuery, committedExactMatch);
           isInitialSearchDone.current = true;
@@ -524,7 +529,12 @@ export default function SearchResultsPage() {
       }
       params.set("keywordId", keywordId);
 
-      router.push(`/search?${params.toString()}`);
+      const nextSearch = `?${params.toString()}`;
+      const currentSearch =
+        typeof window !== "undefined" ? window.location.search : "";
+      if (nextSearch !== currentSearch) {
+        router.push(`/search${nextSearch}`);
+      }
     },
     [router, addOrUseKeyword]
   );
@@ -556,7 +566,12 @@ export default function SearchResultsPage() {
       }
       params.set("keywordId", keywordId);
 
-      router.push(`/search?${params.toString()}`);
+      const nextSearch = `?${params.toString()}`;
+      const currentSearch =
+        typeof window !== "undefined" ? window.location.search : "";
+      if (nextSearch !== currentSearch) {
+        router.push(`/search${nextSearch}`);
+      }
     },
     [router, recordKeywordUsage, addOrUseKeyword]
   );

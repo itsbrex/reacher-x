@@ -277,7 +277,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       if (
         !isInitialized.current &&
         Array.isArray(convexSuggestions) &&
-        convexSuggestions.length === 0
+        (convexSuggestions?.length ?? 0) === 0
       ) {
         return true;
       }
@@ -488,7 +488,9 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       const hasCurrentDesc = filtered.length > 0;
 
       console.log("[KEYWORD_SUGGESTIONS] Refresh (auth):", {
-        serverUnused: convexSuggestions.length,
+        serverUnused: Array.isArray(convexSuggestions)
+          ? convexSuggestions.length
+          : 0,
         filteredUnused: filtered.length,
         userDescription,
         hasCurrentDesc,

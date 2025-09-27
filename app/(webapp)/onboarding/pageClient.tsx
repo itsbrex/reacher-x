@@ -86,6 +86,7 @@ export default function OnboardingClient() {
           name: "Default workspace",
         });
         await setOnboardingCompleted({});
+        router.replace("/");
       } else {
         storeWorkspaceDescription(data.description);
         storeWorkspaceName("Default workspace");
@@ -96,25 +97,10 @@ export default function OnboardingClient() {
             String(Date.now())
           );
         } catch {}
-        // Set a cookie via API route to enable SSR redirect next time
-        await fetch("/api/onboarding/complete", {
-          method: "POST",
-          credentials: "same-origin",
-        });
-        // Also set a client-visible cookie immediately to avoid race with middleware
-        try {
-          document.cookie = [
-            "rx_onb=1",
-            "Path=/",
-            `Max-Age=${60 * 60 * 24 * 365}`,
-            "SameSite=Lax",
-            process.env.NODE_ENV === "production" ? "Secure" : "",
-          ]
-            .filter(Boolean)
-            .join("; ");
-        } catch {}
+        // Navigate to API route that sets cookie and redirects to home (server-side)
+        window.location.assign("/api/onboarding/complete");
+        return;
       }
-      router.replace("/");
     } catch (error) {
       console.error("Failed to submit onboarding:", error);
     }
