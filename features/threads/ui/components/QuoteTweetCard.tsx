@@ -2,8 +2,8 @@ import * as React from "react";
 import type { Tweet as TweetType } from "../../types";
 import { cn } from "@/shared/lib/utils/utils";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
-import { TweetHeader } from "./TweetHeader";
-import { TweetBody } from "./TweetBody";
+import { TweetHeader } from "../../../webapp/ui/components/TweetHeader";
+import { TweetBody } from "../../../webapp/ui/components/TweetBody";
 import { TweetMedia } from "./TweetMedia";
 import {
   Avatar,
@@ -11,7 +11,7 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { LinkWrapper } from "@/features/landing/ui/components/LinkWrapper";
-import { TweetMenu } from "./TweetMenu";
+import { TweetMenu } from "../../../webapp/ui/components/TweetMenu";
 
 export interface QuoteTweetCardProps {
   tweet: TweetType;
@@ -19,6 +19,7 @@ export interface QuoteTweetCardProps {
   showFullContent?: boolean;
   highlightQuery?: string;
   className?: string;
+  loading?: boolean;
 }
 
 export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
@@ -27,12 +28,11 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   showFullContent = false,
   highlightQuery,
   className,
+  loading = false,
 }) => {
   const media = tweet?.entities?.media;
   const tweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
   const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
-  const tweetId = tweet.id_str || tweet.id?.toString() || "";
-  const threadId = tweet.conversation_id_str || tweetId;
 
   // Extract tweet source (e.g., Twitter for iPhone)
   let tweetSource: React.ReactNode = null;
@@ -58,6 +58,36 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
         );
       }
     }
+  }
+
+  if (loading) {
+    return (
+      <div
+        className={cn(
+          "group block w-full cursor-pointer rounded-xl border p-2 transition-colors",
+          className
+        )}
+        aria-label="Loading quoted tweet"
+      >
+        <div className="flex flex-col">
+          <header className="mb-1 flex items-center gap-2">
+            <div className="h-6 w-6 rounded-full bg-muted ring-1 ring-border" />
+            <div className="flex flex-1 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-24 rounded-md bg-muted" />
+                <div className="h-4 w-16 rounded-md bg-muted" />
+              </div>
+              <div className="h-4 w-6 rounded-md bg-muted" />
+            </div>
+          </header>
+          <div className="mb-1 space-y-2">
+            <div className="h-4 w-5/6 rounded-md bg-muted" />
+            <div className="h-4 w-4/6 rounded-md bg-muted" />
+          </div>
+          <div className="mt-2 h-32 w-full rounded-md bg-muted" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -87,12 +117,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
           </LinkWrapper>
 
           <div className="flex flex-1 items-center justify-between">
-            <TweetHeader
-              threadId={threadId}
-              tweetId={tweetId}
-              size="sm"
-              staticUser={tweet?.user}
-            >
+            <TweetHeader staticUser={tweet?.user}>
               <time
                 className="truncate text-sm text-muted-foreground"
                 dateTime={tweet?.tweet_created_at}

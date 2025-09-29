@@ -1,4 +1,4 @@
-// features/landing/ui/components/TweetCard.tsx
+// features/landing/ui/components/ThreadCard.tsx
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
@@ -7,8 +7,8 @@ import { Separator } from "@/shared/ui/components/Separator";
 import { TweetMedia } from "@/features/threads/ui/components/TweetMedia";
 import { parseText } from "@/shared/lib/utils/parseText";
 import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
-import { TweetHeader } from "./TweetHeader";
-import { TweetFooter } from "./TweetFooter";
+import { ThreadHeader } from "./ThreadHeader";
+import { ThreadFooter } from "./ThreadFooter";
 import { ThreadMenu } from "./ThreadMenu";
 import { Tweet } from "@/features/threads/types";
 import Link from "next/link";
@@ -17,9 +17,9 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
-import { LinkWrapper } from "../../../landing/ui/components/LinkWrapper";
+// Removed LinkWrapper in favor of next/link for external profile links
 
-const tweetCardVariants = cva(
+const ThreadCardVariants = cva(
   "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
   {
     variants: {
@@ -34,11 +34,10 @@ const tweetCardVariants = cva(
   }
 );
 
-export interface TweetCardProps
+export interface ThreadCardProps
   extends Omit<React.HTMLAttributes<HTMLElement>, "children">,
-    VariantProps<typeof tweetCardVariants> {
+    VariantProps<typeof ThreadCardVariants> {
   size?: "sm" | "md" | "lg";
-  threadId: string;
   staticTweet: Tweet;
   bordered?: boolean;
   className?: string;
@@ -52,10 +51,9 @@ export interface TweetCardProps
   };
 }
 
-export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
+export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
   (
     {
-      threadId,
       staticTweet,
       size = "md",
       bordered = false,
@@ -124,13 +122,14 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
     return (
       <article ref={ref} {...props}>
         <div
-          className={cn(tweetCardVariants({ bordered }), className, "group")}
+          className={cn(ThreadCardVariants({ bordered }), className, "group")}
           aria-label={`View post by ${staticTweet?.user?.name ?? staticTweet?.user?.screen_name ?? "user"}`}
         >
           <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
-            <LinkWrapper
+            <Link
               href={`https://x.com/${staticTweet?.user?.screen_name}`}
-              isExternal={true}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <Avatar className={cn(avatarClass, "ring-1 ring-border")}>
                 <AvatarImage
@@ -141,7 +140,7 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                   {staticTweet?.user?.name?.charAt(0).toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>
-            </LinkWrapper>
+            </Link>
 
             {!showThread && bordered === false && (
               <Separator orientation="vertical" className="w-[2px]" />
@@ -158,22 +157,23 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
           >
             <section className={cn(rightColumnClass, "flex flex-col gap-4")}>
               <header className="mt-1 flex items-center justify-between gap-4">
-                <TweetHeader
-                  threadId={threadId}
-                  tweetId={staticTweet?.id_str}
+                <ThreadHeader
                   size="lg"
-                  staticUser={staticTweet?.user}
+                  name={staticTweet?.user?.name}
+                  screenName={staticTweet?.user?.screen_name}
+                  verified={Boolean(staticTweet?.user?.verified)}
+                  className={undefined}
                 >
                   <time
                     className={cn(
                       timeClass,
-                      "ease-[cubic-bezier(0.25, 1, 0.5, 1)] truncate text-muted-foreground duration-300"
+                      "ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-muted-foreground duration-300"
                     )}
                     dateTime={staticTweet?.tweet_created_at}
                   >
                     · {formatRelativeTime(staticTweet?.tweet_created_at)}
                   </time>
-                </TweetHeader>
+                </ThreadHeader>
 
                 <ThreadMenu tweetUrl={tweetUrl} profileUrl={profileUrl} />
               </header>
@@ -211,12 +211,16 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
                 </div>
               )}
 
-              <TweetFooter
-                threadId={threadId}
+              <ThreadFooter
+                replies={staticTweet?.reply_count}
+                repeats={
+                  Number(staticTweet?.quote_count ?? 0) +
+                    Number(staticTweet?.retweet_count ?? 0) || 0
+                }
+                likes={staticTweet?.favorite_count}
+                views={staticTweet?.views_count}
+                screenName={staticTweet?.user?.screen_name}
                 tweetId={staticTweet?.id_str}
-                tweetUrl={tweetUrl}
-                staticTweet={staticTweet}
-                votingContext={votingContext}
               />
             </section>
 
@@ -232,4 +236,4 @@ export const TweetCard = React.forwardRef<HTMLElement, TweetCardProps>(
   }
 );
 
-TweetCard.displayName = "TweetCard";
+ThreadCard.displayName = "ThreadCard";

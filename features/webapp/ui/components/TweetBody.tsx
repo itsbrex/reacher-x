@@ -4,7 +4,7 @@ import { useProfile } from "@/features/profile/contexts/ProfileContext";
 import { cn } from "@/shared/lib/utils/utils";
 import { parseText } from "@/shared/lib/utils/parseText";
 import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
-import { Tweet as TweetType } from "../../types";
+import { Tweet as TweetType } from "../../../threads/types";
 
 export interface TweetBodyProps {
   tweet: TweetType;

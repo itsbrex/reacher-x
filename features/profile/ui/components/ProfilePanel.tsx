@@ -27,7 +27,7 @@ import {
   OpenInNewIcon,
 } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils/utils";
-import { Tweet } from "@/features/threads/ui/components/Tweet";
+import { Tweet } from "@/features/webapp/ui/components/Tweet";
 import {
   PageContent,
   PageHeader,

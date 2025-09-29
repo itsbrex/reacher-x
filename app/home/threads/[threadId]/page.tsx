@@ -1,7 +1,7 @@
 // app/(landing)/threads/[threadId]/page.tsx
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { TweetCard as ThreadCard } from "@/features/threads/ui/components/TweetCard";
+import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
 import { WaitlistUsers } from "@/features/waitlist/ui/components/WaitlistUsers";
@@ -106,7 +106,6 @@ export default async function ThreadDetailPage(props: {
             <ThreadCard
               className="pt-2"
               key={tweet.id_str}
-              threadId={threadId}
               staticTweet={tweet}
               size="lg"
               showFullContent={true}

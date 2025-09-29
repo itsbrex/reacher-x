@@ -1,14 +1,14 @@
 import * as React from "react";
-import type { Tweet as TweetType } from "../../types";
+import type { Tweet as TweetType } from "../../../threads/types";
 import { cn } from "@/shared/lib/utils/utils";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
 import { useProfile } from "@/features/profile/contexts/ProfileContext";
-import { TweetMedia } from "./TweetMedia";
+import { TweetMedia } from "../../../threads/ui/components/TweetMedia";
 import { TweetBody } from "./TweetBody";
-import { QuoteTweetCard } from "./QuoteTweetCard";
+import { QuoteTweetCard } from "../../../threads/ui/components/QuoteTweetCard";
 import {
   Avatar,
   AvatarFallback,
@@ -22,6 +22,7 @@ export interface TweetProps {
   characterLimit?: number;
   showFullContent?: boolean;
   showThread?: boolean;
+  loading?: boolean;
   votingContext?: {
     keywordId: string;
     searchQuery: string;
@@ -38,6 +39,7 @@ export const Tweet: React.FC<TweetProps> = ({
   characterLimit = 280,
   showFullContent = false,
   showThread = false,
+  loading = false,
   votingContext,
   isInReplyLaterList = false,
   onReplyLater,
@@ -82,6 +84,47 @@ export const Tweet: React.FC<TweetProps> = ({
     }
   }
 
+  if (loading) {
+    // Baked-in skeleton for Tweet
+    return (
+      <article
+        className={cn(
+          "group flex w-full cursor-pointer gap-2 overflow-hidden",
+          className
+        )}
+        aria-label="Loading tweet"
+      >
+        <div className="flex flex-col items-center gap-2">
+          <div className="mt-1 h-8 w-8 rounded-full bg-muted" />
+          {!showThread && <div className="w-[2px] flex-1 bg-muted" />}
+        </div>
+        <div className="flex flex-1 flex-col">
+          <header className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-24 rounded-md bg-muted" />
+              <div className="h-4 w-16 rounded-md bg-muted" />
+            </div>
+            <div className="h-4 w-6 rounded-md bg-muted" />
+          </header>
+          <div className="my-2 space-y-2">
+            <div className="h-4 w-5/6 rounded-md bg-muted" />
+            <div className="h-4 w-4/6 rounded-md bg-muted" />
+            <div className="h-4 w-3/6 rounded-md bg-muted" />
+          </div>
+          <div className="mt-2">
+            <div className="h-6 w-24 rounded-md bg-muted" />
+          </div>
+          <div className="mt-2 flex items-center gap-4">
+            <div className="h-6 w-12 rounded-md bg-muted" />
+            <div className="h-6 w-12 rounded-md bg-muted" />
+            <div className="h-6 w-12 rounded-md bg-muted" />
+            <div className="h-6 w-12 rounded-md bg-muted" />
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article
       className={cn(
@@ -122,14 +165,9 @@ export const Tweet: React.FC<TweetProps> = ({
       <div className="flex flex-1 flex-col">
         {/* Header */}
         <header className="flex items-center justify-between gap-4">
-          <TweetHeader
-            threadId={threadId}
-            tweetId={tweetId}
-            size="sm"
-            staticUser={tweet?.user}
-          >
+          <TweetHeader staticUser={tweet?.user}>
             <time
-              className="truncate text-sm text-muted-foreground"
+              className="text-sm text-muted-foreground"
               dateTime={tweet?.tweet_created_at}
             >
               · {formatRelativeTime(tweet?.tweet_created_at)}

@@ -2,11 +2,11 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
-import { TweetCard as ThreadCard } from "@/features/threads/ui/components/TweetCard";
+import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { Badge } from "@/shared/ui/components/Badge";
 import { Separator } from "@/shared/ui/components/Separator";
 import { Thread } from "@/features/threads/types";
-import { LinkWrapper } from "@/features/landing/ui/components/LinkWrapper";
+// Use next/link directly in server component to avoid client boundary wrapping
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { WaitlistSection } from "@/features/waitlist/ui/components/WaitlistSection";
 import { WaitlistFormWrapper } from "@/features/waitlist/ui/components/WaitlistFormWrapper";
@@ -55,7 +55,7 @@ export default async function ThreadsPage() {
 
   return (
     <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 duration-300 md:mt-12">
-      <Link href="/" className="ml-4 block w-fit md:ml-28">
+      <Link href="/home" className="ml-4 block w-fit md:ml-28">
         <h1 className="text-3xl font-medium md:text-5xl">
           <span className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] inline-block rotate-180 transform-gpu duration-300 hover:translate-x-1">
             ➞
@@ -71,19 +71,18 @@ export default async function ThreadsPage() {
             </p>
           ) : (
             staticThreads.map((thread) => (
-              <LinkWrapper
+              <Link
                 href={`/home/threads/${thread.threadId}`}
                 key={thread.threadId}
               >
                 <ThreadCard
                   className="px-4 py-4 md:px-0 md:py-6"
-                  threadId={thread.threadId}
                   staticTweet={thread.tweets[0]}
                   size="lg"
                   bordered={true}
                   showThread={false}
                 />
-              </LinkWrapper>
+              </Link>
             ))
           )}
         </section>

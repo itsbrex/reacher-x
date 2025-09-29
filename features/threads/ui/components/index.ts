@@ -1,12 +1,12 @@
-export { Tweet } from "./Tweet";
-export { TweetBody } from "./TweetBody";
+export { Tweet } from "../../../webapp/ui/components/Tweet";
+export { TweetBody } from "../../../webapp/ui/components/TweetBody";
 export { QuoteTweetCard } from "./QuoteTweetCard";
-export { TweetCard as ThreadCard } from "./TweetCard";
+export { ThreadCard } from "./ThreadCard";
 export { ThreadMenu } from "./ThreadMenu";
-export { TweetFooter } from "./TweetFooter";
-export { TweetHeader } from "./TweetHeader";
+export { TweetFooter } from "../../../webapp/ui/components/TweetFooter";
+export { TweetHeader } from "../../../webapp/ui/components/TweetHeader";
 export { TweetMedia } from "./TweetMedia";
 export { TweetMediaThumbnails } from "./TweetMediaThumbnails";
-export { TweetMenu } from "./TweetMenu";
+export { TweetMenu } from "../../../webapp/ui/components/TweetMenu";
 export { RecentThreads } from "./RecentThreads";
 export { default as MediaViewerDrawer } from "./MediaViewerDrawer";

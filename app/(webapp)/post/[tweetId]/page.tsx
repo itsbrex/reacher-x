@@ -8,7 +8,7 @@ import {
   PageLayout,
   PageContent,
 } from "@/features/webapp/ui/components";
-import { Tweet as TweetComponent } from "@/features/threads/ui/components/Tweet";
+import { Tweet as TweetComponent } from "@/features/webapp/ui/components/Tweet";
 import type { Tweet } from "@/features/threads/types";
 import { getCachedTweet } from "@/shared/lib/utils/tweetCache";
 import { ReplyComposer } from "@/features/composer/ui/components/ReplyComposer";

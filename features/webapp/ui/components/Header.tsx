@@ -141,7 +141,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
               🆁
             </Link>
 
-            <span className="mr-2 inline-block border-l border-r border-border px-2 py-[0.969rem] text-xs font-bold">
+            <span className="mr-2 inline-block border-l border-r border-border px-2 py-[0.969rem] font-mono text-xs font-bold">
               v3 Beta
             </span>
 
@@ -336,7 +336,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
               🆁
             </Link>
 
-            <span className="mr-2 inline-block border-l border-r border-border px-2 py-[0.969rem] text-xs font-bold">
+            <span className="mr-2 inline-block border-l border-r border-border px-2 py-[0.969rem] font-mono text-xs font-bold">
               v3 Beta
             </span>
 

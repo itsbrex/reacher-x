@@ -21,7 +21,8 @@ import {
   FilterAltIcon,
   SwapVertIcon,
 } from "@/shared/ui/components/icons";
-import { Tweet as TweetComponent } from "@/features/threads/ui/components/Tweet";
+import { Tweet as TweetComponent } from "@/features/webapp/ui/components/Tweet";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { useTwitterSearch } from "@/features/search/hooks/useTwitterSearch";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
@@ -403,7 +404,49 @@ export default function SearchResultsPage() {
   // Render tweet list component
   const renderTweetList = (tweets: Tweet[]) => (
     <div className="divide-y">
-      {tweets.length > 0 ? (
+      {/* Loading state: only show placeholders if there are no items yet */}
+      {loading && tweets.length === 0 ? (
+        <div className="space-y-0">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="px-4 py-2">
+              <article
+                className="group flex w-full cursor-pointer gap-2 overflow-hidden"
+                aria-label="Loading tweet"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="mt-1 h-8 w-8 rounded-full bg-muted" />
+                  <div className="w-[2px] flex-1 bg-muted" />
+                </div>
+                <div className="flex flex-1 flex-col">
+                  <header className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-4 w-6" />
+                  </header>
+                  <div className="my-2 space-y-2">
+                    <Skeleton className="h-4 w-5/6" />
+                    <Skeleton className="h-4 w-4/6" />
+                    <Skeleton className="h-4 w-3/6" />
+                  </div>
+                  {i === 2 && (
+                    <div className="mt-2">
+                      <Skeleton className="h-6 w-24" />
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-4">
+                    <Skeleton className="h-6 w-12" />
+                    <Skeleton className="h-6 w-12" />
+                    <Skeleton className="h-6 w-12" />
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                </div>
+              </article>
+            </div>
+          ))}
+        </div>
+      ) : tweets.length > 0 ? (
         tweets.map((tweet) => (
           <div
             key={tweet.id_str}
@@ -444,6 +487,7 @@ export default function SearchResultsPage() {
           </div>
         ))
       ) : (
+        // Empty state (only when not loading)
         <div className="p-8 text-center">
           <p className="text-sm font-medium text-muted-foreground">
             No results found
