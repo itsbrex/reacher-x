@@ -184,6 +184,7 @@ export default function WebAppPage() {
       // Use replace instead of push for faster navigation
       // This avoids adding to browser history for search operations
       router.replace(`/search?${params.toString()}`);
+      // Fire optimistic progress for this keyword (queued) via URL-bound flow
     },
     [router, startOptimisticSearch, addOrUseKeyword]
   );

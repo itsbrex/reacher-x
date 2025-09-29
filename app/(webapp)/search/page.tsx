@@ -241,7 +241,13 @@ export default function SearchResultsPage() {
             router.replace(`/search${nextSearch}`, { scroll: false });
           }
 
-          searchTweets(committedQuery, committedExactMatch);
+          searchTweets(
+            committedQuery,
+            committedExactMatch,
+            false,
+            undefined,
+            keywordId // use as keywordKey
+          );
           isInitialSearchDone.current = true;
         } catch (err) {
           console.error("[SEARCH_PAGE] Failed to commit search:", err);
@@ -284,7 +290,8 @@ export default function SearchResultsPage() {
         committedQuery,
         committedExactMatch,
         false, // Keep automatic filtering enabled for pagination
-        results.meta.next_cursor
+        results.meta.next_cursor,
+        currentKeywordId || undefined
       );
     }
   }, [
@@ -294,6 +301,7 @@ export default function SearchResultsPage() {
     loading,
     searchTweets,
     results?.tweets.length,
+    currentKeywordId,
   ]);
 
   // Revert draft state whenever search mode exits without commit

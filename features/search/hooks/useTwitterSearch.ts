@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Tweet } from "@/features/threads/types";
 import { useWorkspaceProfile } from "@/shared/hooks/useWorkspaceProfile";
@@ -40,6 +40,14 @@ type AutoAdvanceState = "idle" | "chaining" | "stopped";
 type AutoAdvanceStopReason = "foundKept" | "noMorePages" | "cap" | "error";
 
 export function useTwitterSearch() {
+  type ProgressOperation = "initial" | "loadMore";
+  type ProgressPhase =
+    | "queued"
+    | "searching"
+    | "filtering"
+    | "finalizing"
+    | "complete";
+
   const { description: unifiedDescription } = useWorkspaceProfile();
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,6 +81,8 @@ export function useTwitterSearch() {
 
   const searchTwitterAction = useAction(api.twitterSearch.searchTwitter);
   const filterTweetsAction = useAction(api.llmFilter.filterTweetsWithLLM);
+  const upsertProgress = useMutation(api.searchProgress.upsertProgress);
+  const completeProgress = useMutation(api.searchProgress.completeProgress);
 
   // Initialize cache maintenance
   useState(() => {
@@ -110,7 +120,8 @@ export function useTwitterSearch() {
       query: string,
       exactMatch: boolean,
       forceNoFilter = false, // New parameter to opt out of filtering if needed
-      cursor?: string
+      cursor?: string,
+      keywordKey?: string
     ) => {
       const searchStartTime = Date.now();
       const searchRequestId = generateRequestId("search");
@@ -197,6 +208,24 @@ export function useTwitterSearch() {
       const executeSearch = async () => {
         setLoading(true);
         setError(null);
+        const operation: ProgressOperation = cursor ? "loadMore" : "initial";
+        // Optimistic progress: queued -> searching
+        if (keywordKey) {
+          try {
+            await upsertProgress({
+              keywordKey,
+              operation,
+              phase: "queued" satisfies ProgressPhase,
+              value: 5,
+            });
+            await upsertProgress({
+              keywordKey,
+              operation,
+              phase: "searching" satisfies ProgressPhase,
+              value: 30,
+            });
+          } catch {}
+        }
 
         let attempts = 0;
         let lastError: unknown = null;
@@ -287,6 +316,16 @@ export function useTwitterSearch() {
               transformedResults.tweets.length > 0;
 
             if (shouldApplyFilter) {
+              if (keywordKey) {
+                try {
+                  await upsertProgress({
+                    keywordKey,
+                    operation,
+                    phase: "filtering" satisfies ProgressPhase,
+                    value: 70,
+                  });
+                } catch {}
+              }
               console.log(
                 `[TWITTER_SEARCH] ${searchRequestId} - Applying ${isPagination ? "incremental" : "initial"} LLM filtering:`,
                 {
@@ -804,6 +843,23 @@ export function useTwitterSearch() {
             );
 
             setLoading(false);
+            if (keywordKey) {
+              try {
+                const lastOperation: ProgressOperation = cursor
+                  ? "loadMore"
+                  : "initial";
+                await upsertProgress({
+                  keywordKey,
+                  operation: lastOperation,
+                  phase: "finalizing" satisfies ProgressPhase,
+                  value: 95,
+                });
+                await completeProgress({
+                  keywordKey,
+                  operation: lastOperation,
+                });
+              } catch {}
+            }
             return;
           } catch (err: unknown) {
             lastError = err;
@@ -867,6 +923,23 @@ export function useTwitterSearch() {
         setError(errorMessage);
         setRetryCount((prev) => prev + 1);
         setLoading(false);
+        if (keywordKey) {
+          try {
+            const lastOperation: ProgressOperation = cursor
+              ? "loadMore"
+              : "initial";
+            await upsertProgress({
+              keywordKey,
+              operation: lastOperation,
+              phase: "finalizing" satisfies ProgressPhase,
+              value: 95,
+            });
+            await completeProgress({
+              keywordKey,
+              operation: lastOperation,
+            });
+          } catch {}
+        }
       };
 
       // Store the pending request promise
@@ -883,6 +956,8 @@ export function useTwitterSearch() {
       filterTweetsAction,
       unifiedDescription,
       autoAdvanceState,
+      upsertProgress,
+      completeProgress,
     ] // Stable dependencies
   );
 

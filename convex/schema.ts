@@ -113,6 +113,30 @@ export default defineSchema({
     .index("by_user_status", ["userId", "status"])
     .index("by_sync_version", ["userId", "syncVersion"]),
 
+  // Per-keyword search progress (reactive, ephemeral)
+  search_progress: defineTable({
+    // String key to support local-first keywords before a Convex Id exists
+    keywordKey: v.string(),
+    // Operation type: initial search vs pagination
+    operation: v.union(v.literal("initial"), v.literal("loadMore")),
+    // Lifecycle phase for UX mapping
+    phase: v.union(
+      v.literal("queued"),
+      v.literal("searching"),
+      v.literal("filtering"),
+      v.literal("finalizing"),
+      v.literal("complete")
+    ),
+    // 0-100 progress value
+    value: v.number(),
+    // Whether the progress is complete (used to hide in UI)
+    isComplete: v.boolean(),
+    // Updated timestamp for picking the freshest progress when multiple exist
+    updatedAt: v.number(),
+  })
+    .index("by_keyword", ["keywordKey"])
+    .index("by_keyword_operation", ["keywordKey", "operation"]),
+
   // Keyword Suggestions Schema - persisted suggestions for authenticated users
   keywordSuggestions: defineTable({
     userId: v.id("users"),

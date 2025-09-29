@@ -1,7 +1,11 @@
 // app/(webapp)/search/components/SearchLayout.tsx
 "use client";
 
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Progress } from "@/shared/ui/components/Progress";
 import { FilterContent } from "@/features/search/ui/components/FilterContent";
 import { SortContent } from "@/features/search/ui/components/SortContent";
 import { useFilter } from "@/features/search/contexts/FilterContext";
@@ -26,40 +30,16 @@ function Inner({ children }: { children: React.ReactNode }) {
     resetFilters,
     closeFilter,
   } = useFilter();
-
   const { isSortMode, currentSort, updateSort, resetSort, closeSort } =
     useSort();
-  const { isOpen: isProfileOpen, closeProfile } = useProfile();
+  const { isOpen: isProfileOpen } = useProfile();
 
-  // Track previous values to detect open events
-  const prevProfileOpen = useRef(isProfileOpen);
-  const prevFilterMode = useRef(isFilterMode);
-  const prevSortMode = useRef(isSortMode);
-
-  useEffect(() => {
-    // Profile just opened -> close existing filter/sort
-    if (!prevProfileOpen.current && isProfileOpen) {
-      if (isSortMode) closeSort();
-      if (isFilterMode) closeFilter();
-    }
-    prevProfileOpen.current = isProfileOpen;
-  }, [isProfileOpen, isFilterMode, isSortMode, closeFilter, closeSort]);
-
-  useEffect(() => {
-    // Filter just opened -> close profile
-    if (!prevFilterMode.current && isFilterMode) {
-      if (isProfileOpen) closeProfile();
-    }
-    prevFilterMode.current = isFilterMode;
-  }, [isFilterMode, isProfileOpen, closeProfile]);
-
-  useEffect(() => {
-    // Sort just opened -> close profile
-    if (!prevSortMode.current && isSortMode) {
-      if (isProfileOpen) closeProfile();
-    }
-    prevSortMode.current = isSortMode;
-  }, [isSortMode, isProfileOpen, closeProfile]);
+  const searchParams = useSearchParams();
+  const keywordId = searchParams.get("keywordId");
+  const progressDoc = useQuery(
+    api.searchProgress.getActiveByKeyword,
+    keywordId ? { keywordKey: keywordId } : "skip"
+  );
 
   // Determine which panel is active
   const isPanelOpen = isFilterMode || isSortMode || isProfileOpen;
@@ -106,6 +86,16 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-full min-h-0 max-w-full justify-start overflow-hidden">
+      {/* Progress under main header only on /search */}
+      {keywordId && progressDoc && !progressDoc.isComplete && (
+        <div className="fixed left-0 right-0 top-12 z-30">
+          <Progress
+            className="h-0.5"
+            value={Math.min(100, Math.max(0, progressDoc.value || 0))}
+          />
+        </div>
+      )}
+
       {/* Main Content - SearchResultsPage */}
       <div
         className={cn(
@@ -128,12 +118,12 @@ function Inner({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const SearchLayout = memo<SearchLayoutProps>(function SearchLayout({
-  children,
-}) {
+export const SearchLayout = memo<SearchLayoutProps>(({ children }) => {
   return (
     <ProfileProvider>
       <Inner>{children}</Inner>
     </ProfileProvider>
   );
 });
+
+SearchLayout.displayName = "SearchLayout";
