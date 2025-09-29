@@ -8,7 +8,7 @@ import { TweetMenu } from "./TweetMenu";
 import { useProfile } from "@/features/profile/contexts/ProfileContext";
 import { TweetMedia } from "../../../threads/ui/components/TweetMedia";
 import { TweetBody } from "./TweetBody";
-import { QuoteTweetCard } from "../../../threads/ui/components/QuoteTweetCard";
+import { QuoteTweetCard } from "./QuoteTweetCard";
 import {
   Avatar,
   AvatarFallback,

@@ -136,7 +136,7 @@ const USER_FIELD_MAPPINGS = {
   id_str: (value: string) => value,
   name: (value: string) => value,
   screen_name: (value: string) => value, // API: userName -> Internal: screen_name
-  verified: (value: boolean) => value, // API: isVerified -> Internal: verified
+  verified: (value: boolean) => value, // API: primary flag
   profile_image_url_https: (value: string) => value, // API: profilePicture
   protected: () => false, // Default value as API doesn't provide this
   followers_count: (value: number) => value, // API: followers
@@ -158,12 +158,16 @@ function transformUser(
   if (!apiUser) return undefined;
 
   try {
+    // Normalize verification across fields per twitterapi.io docs
+    const isVerifiedAggregate = Boolean(
+      apiUser.isVerified || apiUser.isBlueVerified || apiUser.verifiedType
+    );
     return {
       id: USER_FIELD_MAPPINGS.id(apiUser.id),
       id_str: USER_FIELD_MAPPINGS.id_str(apiUser.id),
       name: USER_FIELD_MAPPINGS.name(apiUser.name),
       screen_name: USER_FIELD_MAPPINGS.screen_name(apiUser.userName),
-      verified: USER_FIELD_MAPPINGS.verified(apiUser.isVerified),
+      verified: USER_FIELD_MAPPINGS.verified(isVerifiedAggregate),
       profile_image_url_https: USER_FIELD_MAPPINGS.profile_image_url_https(
         apiUser.profilePicture
       ),

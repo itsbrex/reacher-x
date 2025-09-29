@@ -8,20 +8,15 @@ import { NewReleasesIcon } from "@/shared/ui/components/icons";
 import { User } from "@/features/threads/types";
 
 interface TweetHeaderProps {
-  avatarClass?: string;
   children?: React.ReactNode;
   staticUser?: User;
 }
 
-export function TweetHeader({
-  avatarClass,
-  children,
-  staticUser,
-}: TweetHeaderProps) {
+export function TweetHeader({ children, staticUser }: TweetHeaderProps) {
   const { openProfile, prefetchProfile } = useProfile();
-  const nameClass = cn("text-base");
+  const nameClass = cn("text-sm");
 
-  const newReleasesIconClass = cn("w-[12px] h-[12px]", "md:w-4 md:h-4");
+  const newReleasesIconClass = cn("size-3");
 
   const screenNameClass = cn("text-sm");
 
@@ -49,41 +44,43 @@ export function TweetHeader({
 
   return (
     <>
-      {!avatarClass && user && (
+      {user && (
         <div className="flex min-w-0 items-center gap-1">
           <address className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden not-italic">
-            {user.name && (
-              <button
-                className={cn(
-                  nameClass,
-                  "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 inline-block max-w-full truncate font-medium duration-300 hover:underline"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (user.screen_name)
-                    openProfile({
-                      username: user.screen_name,
-                      seedProfile: user,
-                    });
-                }}
-                onMouseEnter={() => schedulePrefetch(user.screen_name)}
-                onMouseLeave={cancelPrefetch}
-                onFocus={() => schedulePrefetch(user.screen_name)}
-                aria-label={`View ${user.name}'s profile`}
-              >
-                {user.name}
-              </button>
-            )}
-            {user.verified && (
-              <NewReleasesIcon
-                className={cn(
-                  newReleasesIconClass,
-                  "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 fill-current duration-300"
-                )}
-                aria-hidden="true"
-                data-testid="verified-badge"
-              />
-            )}
+            <div className="flex items-center gap-0.5">
+              {user.name && (
+                <button
+                  className={cn(
+                    nameClass,
+                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 inline-block max-w-full truncate font-medium duration-300 hover:underline"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (user.screen_name)
+                      openProfile({
+                        username: user.screen_name,
+                        seedProfile: user,
+                      });
+                  }}
+                  onMouseEnter={() => schedulePrefetch(user.screen_name)}
+                  onMouseLeave={cancelPrefetch}
+                  onFocus={() => schedulePrefetch(user.screen_name)}
+                  aria-label={`View ${user.name}'s profile`}
+                >
+                  {user.name}
+                </button>
+              )}
+              {user.verified && (
+                <NewReleasesIcon
+                  className={cn(
+                    newReleasesIconClass,
+                    "ease-[cubic-bezier(0.25, 1, 0.5, 1)] mr-1 fill-current duration-300"
+                  )}
+                  aria-hidden="true"
+                  data-testid="verified-badge"
+                />
+              )}
+            </div>
             {user.screen_name && (
               <button
                 className={cn(

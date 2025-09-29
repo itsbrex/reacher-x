@@ -60,7 +60,7 @@ export function AccountCard({
     <Card className="border-none shadow-none">
       <CardContent className="p-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <div className="rounded-md bg-muted p-2">{getProviderIcon()}</div>
             <div className="flex min-w-0 flex-col">
               <h3 className="truncate text-sm font-medium text-foreground">

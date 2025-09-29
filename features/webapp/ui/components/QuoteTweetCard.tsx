@@ -1,17 +1,20 @@
 import * as React from "react";
-import type { Tweet as TweetType } from "../../types";
+import type { Tweet as TweetType } from "../../../threads/types";
 import { cn } from "@/shared/lib/utils/utils";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
-import { TweetHeader } from "../../../webapp/ui/components/TweetHeader";
-import { TweetBody } from "../../../webapp/ui/components/TweetBody";
-import { TweetMedia } from "./TweetMedia";
+import { TweetHeader } from "./TweetHeader";
+import { TweetBody } from "./TweetBody";
+import { TweetMedia } from "../../../threads/ui/components/TweetMedia";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
-import { LinkWrapper } from "@/features/landing/ui/components/LinkWrapper";
-import { TweetMenu } from "../../../webapp/ui/components/TweetMenu";
+import { TweetMenu } from "./TweetMenu";
+import { useProfile } from "@/features/profile/contexts/ProfileContext";
+import { useRouter, useSearchParams } from "next/navigation";
+import { base64UrlEncodeUtf8 } from "@/shared/lib/utils/encoding";
+import { cacheTweet } from "@/shared/lib/utils/tweetCache";
 
 export interface QuoteTweetCardProps {
   tweet: TweetType;
@@ -31,8 +34,47 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   loading = false,
 }) => {
   const media = tweet?.entities?.media;
-  const tweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
-  const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
+  const externalTweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
+  const externalProfileUrl = `https://x.com/${tweet?.user?.screen_name}`;
+  const screenName = tweet?.user?.screen_name || "";
+  const { openProfile, prefetchProfile } = useProfile();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const handleCardNavigate = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    // Ignore clicks on interactive elements EXCEPT the card container itself
+    const interactive = target.closest(
+      "a,button,[role=button],video,media-chrome"
+    ) as HTMLElement | null;
+    if (interactive && interactive !== e.currentTarget) return;
+    e.stopPropagation();
+
+    // Cache quoted tweet for instant hydration
+    try {
+      cacheTweet(tweet);
+    } catch {}
+
+    // Pack tweet as base64url param
+    let packed = "";
+    try {
+      packed = base64UrlEncodeUtf8(JSON.stringify(tweet));
+    } catch {}
+
+    const id = tweet?.id_str || String(tweet?.id || "");
+    if (!id) return;
+
+    const params = new URLSearchParams();
+    if (packed) params.set("t", packed);
+    // Preserve search context when available
+    const keywordId = searchParams?.get("keywordId");
+    const q = searchParams?.get("q");
+    if (keywordId) params.set("keywordId", keywordId);
+    if (q) params.set("q", q);
+
+    router.push(`/post/${id}?${params.toString()}`);
+  };
 
   // Extract tweet source (e.g., Twitter for iPhone)
   let tweetSource: React.ReactNode = null;
@@ -91,20 +133,42 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   }
 
   return (
-    <LinkWrapper
-      href={tweetUrl}
-      isExternal={true}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleCardNavigate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const synthetic = {
+            ...e,
+            target: e.target as EventTarget & HTMLElement,
+            currentTarget: e.currentTarget as EventTarget & HTMLDivElement,
+            stopPropagation: () => {},
+          } as unknown as React.MouseEvent<HTMLDivElement>;
+          handleCardNavigate(synthetic);
+        }
+      }}
       className={cn(
         "group block w-full cursor-pointer rounded-xl border p-2 transition-colors hover:bg-muted/50",
         className
       )}
-      aria-label={`View quoted tweet by ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}`}
+      aria-label={`View post by ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}`}
     >
       {/* Single column layout with avatar in header */}
       <div className="flex flex-col">
         {/* Header with integrated avatar */}
         <header className="mb-1 flex items-center gap-2">
-          <LinkWrapper href={profileUrl} isExternal={true}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (screenName)
+                openProfile({ username: screenName, seedProfile: tweet.user });
+            }}
+            onMouseEnter={() => screenName && prefetchProfile(screenName)}
+            onFocus={() => screenName && prefetchProfile(screenName)}
+            aria-label={`View ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}'s profile`}
+          >
             <Avatar className="h-6 w-6 ring-1 ring-border">
               <AvatarImage
                 src={tweet?.user?.profile_image_url_https}
@@ -114,7 +178,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
                 {tweet?.user?.name?.charAt(0).toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
-          </LinkWrapper>
+          </button>
 
           <div className="flex flex-1 items-center justify-between">
             <TweetHeader staticUser={tweet?.user}>
@@ -126,9 +190,9 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
               </time>
             </TweetHeader>
             <TweetMenu
-              tweetUrl={tweetUrl}
-              profileUrl={profileUrl}
-              screenName={tweet?.user?.screen_name || ""}
+              tweetUrl={externalTweetUrl}
+              profileUrl={externalProfileUrl}
+              screenName={screenName}
               fullText={tweet?.full_text || tweet?.text || ""}
             />
           </div>
@@ -153,7 +217,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
         {/* Tweet source */}
         {tweetSource && <div className="mt-1">{tweetSource}</div>}
       </div>
-    </LinkWrapper>
+    </div>
   );
 };
 

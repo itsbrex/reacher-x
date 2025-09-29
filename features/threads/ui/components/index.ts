@@ -1,6 +1,6 @@
 export { Tweet } from "../../../webapp/ui/components/Tweet";
 export { TweetBody } from "../../../webapp/ui/components/TweetBody";
-export { QuoteTweetCard } from "./QuoteTweetCard";
+export { QuoteTweetCard } from "../../../webapp/ui/components/QuoteTweetCard";
 export { ThreadCard } from "./ThreadCard";
 export { ThreadMenu } from "./ThreadMenu";
 export { TweetFooter } from "../../../webapp/ui/components/TweetFooter";

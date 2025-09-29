@@ -415,7 +415,7 @@ export default function SearchResultsPage() {
               >
                 <div className="flex flex-col items-center gap-2">
                   <div className="mt-1 h-8 w-8 rounded-full bg-muted" />
-                  <div className="w-[2px] flex-1 bg-muted" />
+                  {/* No vertical separator in search skeletons */}
                 </div>
                 <div className="flex flex-1 flex-col">
                   <header className="flex items-center justify-between gap-4">
