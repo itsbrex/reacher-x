@@ -9,6 +9,7 @@ import {
 } from "twitter-api-v2";
 import { TwitterApiRateLimitPlugin } from "@twitter-api-v2/plugin-rate-limit";
 import { TwitterApiAutoTokenRefresher } from "@twitter-api-v2/plugin-token-refresher";
+import { logger } from "../shared/lib/logger";
 
 // Global rate limit plugin instance
 const rateLimitPlugin = new TwitterApiRateLimitPlugin();
@@ -89,10 +90,10 @@ export function createTwitterClient(
           try {
             void options.onTokenUpdate(newTokens);
           } catch (e) {
-            console.warn("onTokenUpdate handler failed:", e);
+            logger.warn("onTokenUpdate handler failed:", e);
           }
         } else {
-          console.log("Tokens refreshed:", newTokens);
+          logger.info("Tokens refreshed:", newTokens);
         }
       },
     });
@@ -103,8 +104,8 @@ export function createTwitterClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = new TwitterApi(accessToken, { plugins: plugins as any });
 
-  console.log(`Created Twitter client with OAuth 2.0 user context`);
-  console.log(`Client plugins:`, plugins.length);
+  logger.info(`Created Twitter client with OAuth 2.0 user context`);
+  logger.info(`Client plugins:`, plugins.length);
 
   // Return the read-write client for posting
   return client.readWrite;
@@ -195,7 +196,7 @@ export async function getMediaTypesFromUrls(urls: string[]): Promise<string[]> {
       const ct = res.headers.get("content-type") || "application/octet-stream";
       types.push(ct);
     } catch (e) {
-      console.warn(`Could not determine content-type for ${url}:`, e);
+      logger.warn(`Could not determine content-type for ${url}:`, e);
       types.push("application/octet-stream");
     }
   }
@@ -248,7 +249,7 @@ export async function uploadMediaFiles(
         );
       }
 
-      console.log(`Media size: ${buffer.length} bytes, type: ${mediaType}`);
+      logger.info(`Media size: ${buffer.length} bytes, type: ${mediaType}`);
 
       // Use twitter-api-v2's v2 media upload (v1.1 endpoints deprecated June 2025)
       const uploadOptions = {
@@ -256,23 +257,23 @@ export async function uploadMediaFiles(
         media_category: getMediaCategory(mediaType), // Dynamic media category based on content type
       };
 
-      console.log(`Uploading media with options:`, uploadOptions);
+      logger.info(`Uploading media with options:`, uploadOptions);
       const mediaId = await client.v2.uploadMedia(buffer, uploadOptions);
 
       mediaIds.push(mediaId);
-      console.log(`Successfully uploaded media ${url} with ID: ${mediaId}`);
+      logger.info(`Successfully uploaded media ${url} with ID: ${mediaId}`);
     } catch (error) {
-      console.error(`Failed to upload media ${url}:`, error);
+      logger.error(`Failed to upload media ${url}:`, error);
 
       // Log additional details for debugging
       if (error instanceof ApiResponseError) {
-        console.error(
+        logger.error(
           `API Response Error - Code: ${error.code}, Headers:`,
           error.headers
         );
-        console.error(`Rate Limit Info:`, error.rateLimit);
-        console.error(`Is Auth Error:`, error.isAuthError);
-        console.error(`Is Rate Limit Error:`, error.rateLimitError);
+        logger.error(`Rate Limit Info:`, error.rateLimit);
+        logger.error(`Is Auth Error:`, error.isAuthError);
+        logger.error(`Is Rate Limit Error:`, error.rateLimitError);
       }
 
       // Use enhanced error handling for Twitter API errors
@@ -314,7 +315,7 @@ export async function attachMediaDescriptions(
 
     // Skip if description is empty or just whitespace
     if (!description || description.trim().length === 0) {
-      console.log(`Skipping empty description for media ${mediaId}`);
+      logger.info(`Skipping empty description for media ${mediaId}`);
       continue;
     }
 
@@ -324,7 +325,7 @@ export async function attachMediaDescriptions(
         alt_text: { text: description.trim() },
       });
 
-      console.log(
+      logger.info(
         `Successfully attached description to media ${mediaId}: "${description}"`
       );
     } catch (error) {
@@ -338,11 +339,11 @@ export async function attachMediaDescriptions(
               return "Unknown error";
             })
             .join(", ") || error.message;
-        console.warn(
+        logger.warn(
           `Alt text attachment failed for media ${mediaId} (HTTP ${error.code}). Message: ${msg}`
         );
       } else {
-        console.error(
+        logger.error(
           `Failed to attach description to media ${mediaId}:`,
           error
         );

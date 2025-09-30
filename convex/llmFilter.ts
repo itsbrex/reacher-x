@@ -4,6 +4,7 @@ import { filterTweetsWithLLMArgsValidator } from "./validators";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLLMModel } from "./lib/llmConfig";
+import { logger } from "../shared/lib/logger";
 
 // Enhanced Tweet interface for better type safety
 interface ProcessedTweet {
@@ -28,7 +29,7 @@ export const filterTweetsWithLLM = action({
     const startTime = Date.now();
     const requestId = generateRequestId("llm_filter");
 
-    console.log(`[LLM_FILTER] Starting request ${requestId}`, {
+    logger.info(`[LLM_FILTER] Starting request ${requestId}`, {
       originalQuery,
       hasDescription: !!userDescription,
       descriptionLength: userDescription?.length || 0,
@@ -41,7 +42,7 @@ export const filterTweetsWithLLM = action({
         validateDescriptionForFiltering(userDescription);
       // Enforce required description for filtering (64-512)
       if (!userDescription || (userDescription?.trim().length || 0) < 64) {
-        console.warn(
+        logger.warn(
           `[LLM_FILTER] ${requestId} - Missing or too short description; returning unfiltered tweets`
         );
         return {
@@ -59,7 +60,7 @@ export const filterTweetsWithLLM = action({
         };
       }
       if (!descriptionValidation.isValid) {
-        console.error(
+        logger.error(
           `[LLM_FILTER] ${requestId} - Description validation failed:`,
           {
             error: descriptionValidation.error,
@@ -69,14 +70,14 @@ export const filterTweetsWithLLM = action({
         throw new Error(`Invalid description: ${descriptionValidation.error}`);
       }
 
-      console.log(`[LLM_FILTER] ${requestId} - Description validation passed`, {
+      logger.info(`[LLM_FILTER] ${requestId} - Description validation passed`, {
         descriptionLength: userDescription?.length || 0,
         hasDescription: !!userDescription,
       });
 
       // Validate tweets data structure
       if (!tweets?.tweets || !Array.isArray(tweets.tweets)) {
-        console.error(
+        logger.error(
           `[LLM_FILTER] ${requestId} - Invalid tweets data structure:`,
           {
             hasTweets: !!tweets,
@@ -91,7 +92,7 @@ export const filterTweetsWithLLM = action({
       }
 
       if (tweets.tweets.length === 0) {
-        console.log(
+        logger.info(
           `[LLM_FILTER] ${requestId} - No tweets to filter, returning empty result`
         );
         return {
@@ -109,7 +110,7 @@ export const filterTweetsWithLLM = action({
         };
       }
 
-      console.log(
+      logger.info(
         `[LLM_FILTER] ${requestId} - Processing ${tweets.tweets.length} tweets`,
         {
           totalTweets: tweets.tweets.length,
@@ -118,7 +119,7 @@ export const filterTweetsWithLLM = action({
       );
 
       // AI SDK dependencies are now statically imported for better performance
-      console.log(
+      logger.info(
         `[LLM_FILTER] ${requestId} - Using statically imported AI SDK dependencies`
       );
 
@@ -151,7 +152,7 @@ export const filterTweetsWithLLM = action({
           name: tweet.user?.name || "",
         }));
 
-      console.log(`[LLM_FILTER] ${requestId} - Prepared tweets for analysis:`, {
+      logger.info(`[LLM_FILTER] ${requestId} - Prepared tweets for analysis:`, {
         count: tweetsForAnalysis.length,
         firstTweetPreview: {
           id: tweetsForAnalysis[0]?.id,
@@ -200,7 +201,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
       // Get the model configuration using centralized system
       const modelConfig = createLLMModel("filtering");
 
-      console.log(`[LLM_FILTER] ${requestId} - Calling LLM with prompt:`, {
+      logger.info(`[LLM_FILTER] ${requestId} - Calling LLM with prompt:`, {
         promptLength: prompt.length,
         model: modelConfig.modelName,
         temperature: modelConfig.temperature,
@@ -220,7 +221,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
       });
       const llmEndTime = Date.now();
 
-      console.log(`[LLM_FILTER] ${requestId} - LLM call completed:`, {
+      logger.info(`[LLM_FILTER] ${requestId} - LLM call completed:`, {
         processingTimeMs: llmEndTime - llmStartTime,
         resultCount: result.object?.results?.length || 0,
         usage: result.usage,
@@ -228,7 +229,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
 
       // Validate LLM response
       if (!result.object?.results || !Array.isArray(result.object.results)) {
-        console.error(
+        logger.error(
           `[LLM_FILTER] ${requestId} - Invalid LLM response format:`,
           {
             responseType: typeof result.object,
@@ -262,7 +263,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
           .map((item) => item.id)
       );
 
-      console.log(`[LLM_FILTER] ${requestId} - LLM filtering results:`, {
+      logger.info(`[LLM_FILTER] ${requestId} - LLM filtering results:`, {
         totalAnalyzed: llmResults.length,
         keptCount: keptTweetIds.size,
         filteredOutCount: llmResults.length - keptTweetIds.size,
@@ -296,7 +297,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
       };
 
       const endTime = Date.now();
-      console.log(
+      logger.info(
         `[LLM_FILTER] ${requestId} - Request completed successfully:`,
         {
           totalProcessingTimeMs: endTime - startTime,
@@ -322,7 +323,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
       };
     } catch (error) {
       const endTime = Date.now();
-      console.error(`[LLM_FILTER] ${requestId} - Request failed:`, {
+      logger.error(`[LLM_FILTER] ${requestId} - Request failed:`, {
         error: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
         processingTimeMs: endTime - startTime,

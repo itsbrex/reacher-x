@@ -8,6 +8,7 @@ import {
   NoteComposer,
 } from "@/features/composer/ui/components";
 import { Tweet } from "@/features/threads/types";
+import { logger } from "@/shared/lib/logger";
 
 // Mock data for demo
 const mockTweet: Tweet = {
@@ -50,19 +51,19 @@ export default function ComposerDemoPage() {
   );
 
   const handleReplySubmit = async (content: SerializedEditorState) => {
-    console.log("Reply submitted:", content);
+    logger.info("Reply submitted:", content);
     // Here you would typically send the reply to your backend
     alert("Reply submitted successfully!");
   };
 
   const handleNoteSubmit = async (content: SerializedEditorState) => {
-    console.log("Note submitted:", content);
+    logger.info("Note submitted:", content);
     // Here you would typically save the note to your backend
     alert("Note added successfully!");
   };
 
   const handleBaseSubmit = async (content: SerializedEditorState) => {
-    console.log("Post submitted:", content);
+    logger.info("Post submitted:", content);
     // Here you would typically post to your backend
     alert("Post submitted successfully!");
   };

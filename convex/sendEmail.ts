@@ -2,6 +2,7 @@
 
 import { action } from "./_generated/server";
 import { sendWelcomeEmailArgsValidator } from "./validators";
+import { logger } from "../shared/lib/logger";
 import { Resend } from "resend";
 import { WaitlistConfirmationEmail } from "../emails/WaitlistConfirmationEmail";
 import { render } from "@react-email/render";
@@ -16,7 +17,7 @@ export const sendWelcomeEmail = action({
 
     try {
       const html = await render(WaitlistConfirmationEmail());
-      console.log(html);
+      logger.info("[EMAIL] Rendered WaitlistConfirmationEmail HTML");
 
       await resend.emails.send({
         from: "ReacherX <noreply@transactional.reacherx.com>",
@@ -24,9 +25,9 @@ export const sendWelcomeEmail = action({
         subject: "You're on the wait-list!",
         html: html,
       });
-      console.log(`Email sent successfully to ${email}`);
+      logger.info(`[EMAIL] Email sent successfully to ${email}`);
     } catch (error) {
-      console.error("Failed to send email:", error);
+      logger.error("Failed to send email:", error);
     }
   },
 });

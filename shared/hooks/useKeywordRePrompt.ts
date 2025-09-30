@@ -3,6 +3,7 @@
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useCallback, useState, useEffect } from "react";
+import { logger } from "@/shared/lib/logger";
 import {
   getFlaggedKeywords,
   clearKeywordFlags,
@@ -68,7 +69,7 @@ export function useKeywordRePrompt() {
       const flaggedKeywords = getFlaggedKeywords();
 
       if (flaggedKeywords.length === 0) {
-        console.log("[KEYWORD_REPROMPT] No flagged keywords found");
+        logger.info("[KEYWORD_REPROMPT] No flagged keywords found");
         setState((prev) => ({
           ...prev,
           isRePrompting: false,
@@ -85,7 +86,7 @@ export function useKeywordRePrompt() {
         downVotes: kw.votes.filter((v) => v.vote === "down").length,
       }));
 
-      console.log("[KEYWORD_REPROMPT] Processing flagged keywords:", {
+      logger.info("[KEYWORD_REPROMPT] Processing flagged keywords:", {
         count: flaggedKeywords.length,
         keywords: flaggedKeywords.map((k) => k.keyword),
       });
@@ -117,7 +118,7 @@ export function useKeywordRePrompt() {
       );
 
       if (!success) {
-        console.warn("[KEYWORD_REPROMPT] Failed to store new suggestions");
+        logger.warn("[KEYWORD_REPROMPT] Failed to store new suggestions");
       } else {
         // Trigger a refresh of suggestions UI by dispatching a custom event
         window.dispatchEvent(
@@ -130,7 +131,7 @@ export function useKeywordRePrompt() {
       // Clear flags for processed keywords
       clearKeywordFlags(flaggedKeywords.map((k) => k.id));
 
-      console.log(
+      logger.info(
         "[KEYWORD_REPROMPT] Successfully generated improved keywords:",
         {
           count: improvedKeywords.length,
@@ -155,7 +156,7 @@ export function useKeywordRePrompt() {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      console.error("[KEYWORD_REPROMPT] Re-prompt failed:", error);
+      logger.error("[KEYWORD_REPROMPT] Re-prompt failed:", error);
 
       setState((prev) => ({
         ...prev,
@@ -212,7 +213,7 @@ export function useKeywordRePrompt() {
           !state.isRePrompting &&
           document.visibilityState === "visible"
         ) {
-          console.log("[KEYWORD_REPROMPT] Auto-triggering re-prompt check");
+          logger.info("[KEYWORD_REPROMPT] Auto-triggering re-prompt check");
           checkAndRePrompt();
         }
       }, 30000);

@@ -25,6 +25,8 @@ class PerformanceMonitor {
       navigationTime: 0,
     });
 
+    // Dev-only performance insight
+    // eslint-disable-next-line no-console
     console.log(`[PERFORMANCE] Navigation started for: "${query}"`, {
       timestamp: new Date().toISOString(),
       startTime,
@@ -35,6 +37,7 @@ class PerformanceMonitor {
     const metrics = this.metrics.get(query);
     if (metrics) {
       metrics.searchStart = performance.now();
+      // eslint-disable-next-line no-console
       console.log(`[PERFORMANCE] Search started for: "${query}"`, {
         timestamp: new Date().toISOString(),
         searchStart: metrics.searchStart,
@@ -52,6 +55,7 @@ class PerformanceMonitor {
       metrics.totalTime = metrics.searchEnd - metrics.navigationStart;
       metrics.navigationTime = metrics.searchStart - metrics.navigationStart;
 
+      // eslint-disable-next-line no-console
       console.log(`[PERFORMANCE] Search completed for: "${query}"`, {
         timestamp: new Date().toISOString(),
         resultCount,
@@ -92,6 +96,7 @@ class PerformanceMonitor {
       insights.push("❌ Poor overall performance");
     }
 
+    // eslint-disable-next-line no-console
     console.log(`[PERFORMANCE] Insights: ${insights.join(", ")}`);
   }
 

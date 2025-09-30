@@ -1,4 +1,5 @@
 import { openai, createOpenAI } from "@ai-sdk/openai";
+import { logger } from "../../shared/lib/logger";
 import type { LanguageModel } from "ai";
 
 // =============================================================================
@@ -187,7 +188,7 @@ function resolveModelForUseCase(useCase: UseCase): {
         configSource: `env:${preference.envVar}`,
       };
     } else {
-      console.warn(
+      logger.warn(
         `[LLM_CONFIG] Model "${envModel}" from ${preference.envVar} is not available, checking fallbacks`
       );
     }
@@ -221,7 +222,7 @@ function resolveModelForUseCase(useCase: UseCase): {
 
   for (const modelType of availableModels) {
     if (isModelAvailable(modelType)) {
-      console.warn(
+      logger.warn(
         `[LLM_CONFIG] Using emergency fallback model: ${modelType} for use case: ${useCase}`
       );
       return {
@@ -250,7 +251,7 @@ export function createLLMModel(useCase: UseCase = "general"): LLMModelResult {
   try {
     const model = createModelInstance(resolution.modelType);
 
-    console.log(`[LLM_CONFIG] Created model for ${useCase}:`, {
+    logger.info(`[LLM_CONFIG] Created model for ${useCase}:`, {
       modelName: config.modelName,
       description: config.description,
       usedFallback: resolution.usedFallback,
@@ -266,7 +267,7 @@ export function createLLMModel(useCase: UseCase = "general"): LLMModelResult {
       configSource: resolution.configSource,
     };
   } catch (error) {
-    console.error(
+    logger.error(
       `[LLM_CONFIG] Failed to create model ${config.modelName}:`,
       error
     );

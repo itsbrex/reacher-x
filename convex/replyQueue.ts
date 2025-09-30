@@ -1,6 +1,7 @@
 "use node";
 
 import { action } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
 import {
@@ -23,7 +24,7 @@ export const processReply = action({
     });
 
     if (!reply || reply.status !== "pending") {
-      console.log(`Reply ${args.queueId} is not pending, skipping processing`);
+      logger.info(`Reply ${args.queueId} is not pending, skipping processing`);
       return;
     }
 
@@ -232,7 +233,7 @@ export const processReply = action({
       try {
         handleTwitterError(error);
       } catch (handledError) {
-        console.error("Twitter API error in reply processing:", handledError);
+        logger.error("Twitter API error in reply processing:", handledError);
       }
 
       // Create notification state for failure

@@ -27,6 +27,7 @@ import {
   OpenInNewIcon,
 } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils/utils";
+import { logger } from "@/shared/lib/logger";
 import { Tweet } from "@/features/webapp/ui/components/Tweet";
 import {
   PageContent,
@@ -75,7 +76,7 @@ export function ProfilePanel({
     profile?.banner_url || profile?.profile_banner_url;
   if (bannerUrl !== undefined) {
     // Log once when panel opens to help diagnose banner rendering
-    console.log("ProfilePanel.banner_url:", bannerUrl);
+    logger.info("ProfilePanel.banner_url:", bannerUrl);
   }
 
   // Animate stats on open and when profile/counts change

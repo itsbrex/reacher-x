@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useConvexAuth } from "convex/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { logger } from "../lib/logger";
 
 /**
  * Hook that ensures a user has a default workspace, creating one if it doesn't exist
@@ -42,9 +43,9 @@ export function useEnsureWorkspace() {
 
         try {
           await ensureDefaultWorkspace({});
-          console.log("✅ Default workspace ensured for user");
+          logger.info("✅ Default workspace ensured for user");
         } catch (err) {
-          console.error("❌ Failed to ensure default workspace:", err);
+          logger.error("❌ Failed to ensure default workspace:", err);
           setError(
             err instanceof Error ? err.message : "Failed to create workspace"
           );

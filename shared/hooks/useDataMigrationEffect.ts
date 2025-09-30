@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { logger } from "@/shared/lib/logger";
 import { useConvexAuth } from "convex/react";
 import { useDataMigration } from "./useDataMigration";
 
@@ -42,16 +43,16 @@ export function useDataMigrationEffect() {
       migrateData()
         .then((result) => {
           if (result.success) {
-            console.log(
+            logger.info(
               "✅ Data migration completed successfully:",
               result.migratedData
             );
           } else {
-            console.warn("⚠️ Data migration failed:", result.errors);
+            logger.warn("⚠️ Data migration failed:", result.errors);
           }
         })
         .catch((error) => {
-          console.error("❌ Data migration error:", error);
+          logger.error("❌ Data migration error:", error);
         });
     }
 

@@ -14,6 +14,7 @@
  */
 
 import { getLocalStorage, setLocalStorage } from "./localStorage";
+import { logger } from "../logger";
 import { generateUniqueId } from "./request";
 import { getCurrentUTCTimestamp } from "./timeUtils";
 
@@ -68,7 +69,7 @@ function loadSuggestions(): KeywordSuggestionsState | null {
 
     // Basic validation
     if (!state.suggestions || !Array.isArray(state.suggestions)) {
-      console.warn(
+      logger.warn(
         "[KEYWORD_SUGGESTIONS_STORE] Invalid suggestions data, resetting"
       );
       return null;
@@ -76,7 +77,7 @@ function loadSuggestions(): KeywordSuggestionsState | null {
 
     return state;
   } catch (error) {
-    console.warn(
+    logger.warn(
       "[KEYWORD_SUGGESTIONS_STORE] Failed to load suggestions:",
       error
     );
@@ -91,7 +92,7 @@ function saveSuggestions(state: KeywordSuggestionsState): boolean {
   try {
     return setLocalStorage(KEYWORD_SUGGESTIONS_KEY, JSON.stringify(state));
   } catch (error) {
-    console.error(
+    logger.error(
       "[KEYWORD_SUGGESTIONS_STORE] Failed to save suggestions:",
       error
     );
@@ -150,7 +151,7 @@ export function markSuggestionAsUsed(keyword: string): boolean {
 
   const success = saveSuggestions(state);
   if (success) {
-    console.log(
+    logger.info(
       "[KEYWORD_SUGGESTIONS_STORE] Marked suggestion as used:",
       keyword
     );
@@ -215,7 +216,7 @@ export function storeNewSuggestions(
 
   const success = saveSuggestions(newState);
   if (success) {
-    console.log("[KEYWORD_SUGGESTIONS_STORE] Stored new suggestions:", {
+    logger.info("[KEYWORD_SUGGESTIONS_STORE] Stored new suggestions:", {
       count: newSuggestions.length,
       totalSuggestions: finalSuggestions.length,
       unusedCount: finalSuggestions.filter((s) => !s.isUsed).length,
@@ -232,7 +233,7 @@ export function clearSuggestions(): boolean {
   try {
     return setLocalStorage(KEYWORD_SUGGESTIONS_KEY, "");
   } catch (error) {
-    console.error(
+    logger.error(
       "[KEYWORD_SUGGESTIONS_STORE] Failed to clear suggestions:",
       error
     );

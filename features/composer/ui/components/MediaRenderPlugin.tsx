@@ -12,6 +12,7 @@ import {
 import { $isMediaNode, MediaNode } from "./MediaNode";
 import { MediaUploadSection } from "./MediaUploadSection";
 import { MediaUpload } from "../../types";
+import { logger } from "@/shared/lib/logger";
 
 interface MediaRenderPluginProps {
   onMediaChange?: (mediaUploads: MediaUpload[]) => void;
@@ -99,7 +100,7 @@ export function MediaRenderPlugin({
   const handleAddDescription = useCallback(
     (mediaId: string, description: string) => {
       // This could be extended to store descriptions in the node or a separate store
-      console.log(`Description for ${mediaId}:`, description);
+      logger.info(`Description for ${mediaId}:`, description);
     },
     []
   );

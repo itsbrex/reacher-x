@@ -29,6 +29,7 @@ import { ComposerBaseProps, MediaUpload, ToolbarConfig } from "../../types";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { logger } from "@/shared/lib/logger";
 
 interface BaseComposerProps extends ComposerBaseProps {
   currentUser: {
@@ -357,7 +358,7 @@ export function BaseComposer({
             )
           );
         } catch (error) {
-          console.error("Media upload failed:", error);
+          logger.error("Media upload failed:", error);
           setMediaUploads((prev) =>
             prev.map((u) =>
               u.id === upload.id
@@ -431,7 +432,7 @@ export function BaseComposer({
         editorAPI?.clearContent();
       } catch {}
     } catch (error) {
-      console.error("Submit error:", error);
+      logger.error("Submit error:", error);
     } finally {
       setIsSubmitting(false);
     }

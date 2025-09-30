@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import { Id } from "./_generated/dataModel";
 import {
   migrateKeywordsFromLocalStorageArgsValidator,
@@ -174,7 +175,7 @@ export const migrateKeywordsFromLocalStorage = mutation({
       } catch (error) {
         const errorMsg = `Failed to migrate keyword "${keywordData.keyword}": ${error instanceof Error ? error.message : "Unknown error"}`;
         errors.push(errorMsg);
-        console.error(errorMsg, error);
+        logger.error(errorMsg, error);
 
         // Log failed operation
         await ctx.db.insert("syncOperations", {
@@ -435,7 +436,7 @@ export const syncKeywordsWithLocalStorage = mutation({
         }
       } catch (error) {
         syncResults.errors++;
-        console.error(
+        logger.error(
           `Failed to sync keyword "${localKeyword.keyword}":`,
           error
         );

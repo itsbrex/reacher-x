@@ -4,6 +4,7 @@ import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils/utils";
 import { BaseComposer } from "./BaseComposer";
 import { NoteComposerProps } from "../../types";
+import { logger } from "@/shared/lib/logger";
 
 export function NoteComposer({
   noteId,
@@ -23,7 +24,7 @@ export function NoteComposer({
     try {
       await onSubmit?.(content);
     } catch (error) {
-      console.error("Note submit error:", error);
+      logger.error("Note submit error:", error);
     }
   };
 

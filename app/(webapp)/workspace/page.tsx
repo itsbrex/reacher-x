@@ -34,6 +34,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/shared/ui/components/Alert";
+import { logger } from "@/shared/lib/logger";
 import {
   workspaceSchema,
   type WorkspaceFormValues,
@@ -91,7 +92,7 @@ export default function WorkspacePage() {
         form.reset(data); // Reset dirty state
       }
     } catch (error) {
-      console.error("Failed to save workspace:", error);
+      logger.error("Failed to save workspace:", error);
       toast({
         variant: "destructive",
         title: "☒ Error!",

@@ -1,6 +1,7 @@
 "use node";
 
 import { action } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import { api } from "./_generated/api";
 import { postReplyArgsValidator } from "./validators";
 import { needsTokenRefresh } from "../shared/lib/utils/tokenValidation";
@@ -99,11 +100,11 @@ export const getXAccountAction = action({
   handler: async (ctx): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      console.log("No identity found in getXAccountAction");
+      logger.info("No identity found in getXAccountAction");
       return null;
     }
     const workosUserId = identity.subject;
-    console.log("Looking for user with workosUserId:", workosUserId);
+    logger.info("Looking for user with workosUserId:", workosUserId);
 
     // Look up the user by workosUserId
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,11 +113,11 @@ export const getXAccountAction = action({
     });
 
     if (!user) {
-      console.log("User not found for workosUserId:", workosUserId);
+      logger.info("User not found for workosUserId:", workosUserId);
       return null;
     }
 
-    console.log("Found user:", user._id);
+    logger.info("Found user:", user._id);
 
     // Get the social account by calling the action that can access the database
     const socialAccount = await ctx.runAction(
@@ -127,9 +128,9 @@ export const getXAccountAction = action({
     );
 
     if (!socialAccount) {
-      console.log("No X social account found for user:", user._id);
+      logger.info("No X social account found for user:", user._id);
     } else {
-      console.log("Found X social account:", socialAccount._id);
+      logger.info("Found X social account:", socialAccount._id);
     }
 
     return socialAccount;
@@ -218,7 +219,7 @@ export const refreshTokenIfNeeded = action({
           });
         }
       } catch (profileError) {
-        console.warn("Failed to refresh profile data:", profileError);
+        logger.warn("Failed to refresh profile data:", profileError);
         // ignore profile update failure
       }
 
@@ -229,13 +230,13 @@ export const refreshTokenIfNeeded = action({
         }
       );
     } catch (error) {
-      console.error("Token refresh failed:", error);
+      logger.error("Token refresh failed:", error);
 
       // Use enhanced error handling
       try {
         handleTwitterError(error);
       } catch (handledError) {
-        console.error("Twitter API error during token refresh:", handledError);
+        logger.error("Twitter API error during token refresh:", handledError);
       }
 
       // Return original account if refresh fails
@@ -278,13 +279,13 @@ export const hydrateXProfileFromEncryptedToken = action({
 
       return { success: true };
     } catch (error) {
-      console.error("Profile hydration failed:", error);
+      logger.error("Profile hydration failed:", error);
 
       // Use enhanced error handling
       try {
         handleTwitterError(error);
       } catch (handledError) {
-        console.error(
+        logger.error(
           "Twitter API error during profile hydration:",
           handledError
         );

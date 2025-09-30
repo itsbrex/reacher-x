@@ -36,6 +36,7 @@ import {
 } from "@/shared/lib/utils/highlighting";
 import { formatRelativeTime } from "@/shared/lib/utils/format";
 import React from "react";
+import { logger } from "@/shared/lib/logger";
 
 // Keyword Item Component Props
 export interface KeywordItemComponentProps {
@@ -119,7 +120,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
               try {
                 return formatRelativeTime(new Date(rawTimestamp).toISOString());
               } catch (error) {
-                console.warn("Error formatting timestamp:", error);
+                logger.warn("Error formatting timestamp:", error);
                 return timestamp || "";
               }
             })()

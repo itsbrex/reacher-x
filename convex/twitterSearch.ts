@@ -1,5 +1,6 @@
 // convex/twitterSearch.ts
 import { action } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import { searchTwitterArgsValidator } from "./validators";
 // @Web Best practice: keep all X API calls on the server; do not expose tokens to clients.
 import type { Tweet, Entities, User } from "../features/threads/types";
@@ -183,7 +184,7 @@ function transformUser(
       can_dm: USER_FIELD_MAPPINGS.can_dm(apiUser.canDm),
     };
   } catch (error) {
-    console.error("Error transforming user data:", error, apiUser);
+    logger.error("Error transforming user data:", error, apiUser);
     return undefined;
   }
 }
@@ -262,7 +263,7 @@ function transformTweet(apiTweet: TwitterApiTweet): Tweet {
 
     return baseTweet;
   } catch (error) {
-    console.error("Error transforming tweet:", error, apiTweet);
+    logger.error("Error transforming tweet:", error, apiTweet);
     // Return a minimal valid tweet to prevent complete failure
     return {
       id: parseInt(apiTweet.id, 10),
@@ -284,7 +285,7 @@ function transformTwitterResponse(response: TwitterApiResponse): {
   next_cursor: string;
 } {
   if (!response?.tweets) {
-    console.warn("No tweets in API response");
+    logger.warn("No tweets in API response");
     return {
       tweets: [],
       has_next_page: false,
@@ -297,7 +298,7 @@ function transformTwitterResponse(response: TwitterApiResponse): {
     .filter((tweet): tweet is Tweet => tweet !== null); // Remove any failed transformations
 
   // Log transformation stats for debugging
-  console.log(
+  logger.info(
     `Transformed ${transformedTweets.length}/${response.tweets.length} tweets successfully`
   );
 
@@ -308,14 +309,14 @@ function transformTwitterResponse(response: TwitterApiResponse): {
   const replyTweets = transformedTweets.filter(
     (tweet) => tweet.in_reply_to_status_id_str
   );
-  console.log(
+  logger.info(
     `Quote tweets: ${quoteTweets.length}, Reply tweets: ${replyTweets.length}`
   );
 
   // Validation: Ensure critical fields are properly set for quote tweets
   quoteTweets.forEach((tweet) => {
     if (!tweet.quoted_status_id_str || !tweet.is_quote_status) {
-      console.error("Invalid quote tweet transformation:", {
+      logger.error("Invalid quote tweet transformation:", {
         id: tweet.id_str,
         hasQuotedStatusIdStr: !!tweet.quoted_status_id_str,
         hasIsQuoteStatus: !!tweet.is_quote_status,
@@ -345,7 +346,7 @@ export const searchTwitter = action({
       // TEMPORARY: Return mock data when using webhook endpoint
       // Mock data includes comprehensive examples of posts, quotes, and replies for testing
       if (TWITTER_API_BASE_URL.includes("webhook.site")) {
-        console.log("Using enhanced mock data with quote and reply examples");
+        logger.info("Using enhanced mock data with quote and reply examples");
 
         // Simulate API delay
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -685,7 +686,7 @@ export const searchTwitter = action({
         throw new Error("An unexpected error occurred during the API call.");
       }
     } catch (error) {
-      console.error("Twitter search error:", error);
+      logger.error("Twitter search error:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Search failed",

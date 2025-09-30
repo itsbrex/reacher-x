@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { logger } from "@/shared/lib/logger";
 import { useConvexAuth } from "convex/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -90,10 +91,10 @@ export function useKeywordSync() {
           workspaceId: workspace._id,
         });
 
-        console.log("✅ Keywords synced to Convex:", result);
+        logger.info("✅ Keywords synced to Convex:", result);
       }
     } catch (error) {
-      console.error("❌ Failed to sync keywords to Convex:", error);
+      logger.error("❌ Failed to sync keywords to Convex:", error);
     } finally {
       syncInProgress.current = false;
       setIsSyncing(false);
@@ -112,10 +113,10 @@ export function useKeywordSync() {
       if (remoteKeywords && remoteKeywords.length > 0) {
         // Update local storage with remote changes
         // This would require updating the unifiedKeywordStore
-        console.log("📥 Syncing keywords from Convex:", remoteKeywords.length);
+        logger.info("📥 Syncing keywords from Convex:", remoteKeywords.length);
       }
     } catch (error) {
-      console.error("❌ Failed to sync keywords from Convex:", error);
+      logger.error("❌ Failed to sync keywords from Convex:", error);
     }
   }, [isAuthenticated, userId, getKeywordsForSync]);
 
@@ -155,7 +156,7 @@ export function useKeywordSync() {
             syncSource: "local",
           })
             .catch((error) => {
-              console.error("Failed to sync keyword to Convex:", error);
+              logger.error("Failed to sync keyword to Convex:", error);
             })
             .finally(() => {
               inflightUpsertsRef.current.delete(inflightKey);
@@ -164,7 +165,7 @@ export function useKeywordSync() {
           inflightUpsertsRef.current.set(inflightKey, promise);
           // Fire-and-forget to keep UI responsive; local ID is already returned
         } catch (error) {
-          console.error("Failed to schedule Convex upsert:", error);
+          logger.error("Failed to schedule Convex upsert:", error);
         }
       }
 
@@ -212,10 +213,7 @@ export function useKeywordSync() {
             });
             return true;
           } catch (fallbackError) {
-            console.error(
-              "Failed to sync pin toggle to Convex:",
-              fallbackError
-            );
+            logger.error("Failed to sync pin toggle to Convex:", fallbackError);
             return false;
           }
         }
@@ -275,7 +273,7 @@ export function useKeywordSync() {
             deleteKeyword(id);
             return true;
           } catch (fallbackError) {
-            console.error(
+            logger.error(
               "Failed to resolve and delete keyword in Convex:",
               fallbackError
             );
@@ -351,7 +349,7 @@ export function useKeywordSync() {
 
         return true;
       } catch (error) {
-        console.error("Failed to sync vote to Convex:", error);
+        logger.error("Failed to sync vote to Convex:", error);
         return false;
       }
     },

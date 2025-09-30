@@ -3,6 +3,7 @@ import { rePromptKeywordsArgsValidator } from "./validators";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLLMModel } from "./lib/llmConfig";
+import { logger } from "../shared/lib/logger";
 
 // =============================================================================
 // KEYWORD RE-PROMPT SYSTEM
@@ -67,7 +68,7 @@ export const rePromptKeywords = action({
     const startTime = Date.now();
     const requestId = generateRequestId("keyword_reprompt");
 
-    console.log(`[KEYWORD_REPROMPT] Starting request ${requestId}`, {
+    logger.info(`[KEYWORD_REPROMPT] Starting request ${requestId}`, {
       userDescription: userDescription.substring(0, 100) + "...",
       flaggedKeywordsCount: flaggedKeywords.length,
       timestamp: new Date().toISOString(),
@@ -78,7 +79,7 @@ export const rePromptKeywords = action({
       const descriptionValidation =
         validateDescriptionForKeywords(userDescription);
       if (!descriptionValidation.isValid) {
-        console.error(
+        logger.error(
           `[KEYWORD_REPROMPT] ${requestId} - Description validation failed:`,
           {
             error: descriptionValidation.error,
@@ -88,7 +89,7 @@ export const rePromptKeywords = action({
       }
 
       if (flaggedKeywords.length === 0) {
-        console.log(
+        logger.info(
           `[KEYWORD_REPROMPT] ${requestId} - No flagged keywords to process`
         );
         return {
@@ -106,7 +107,7 @@ export const rePromptKeywords = action({
         (k) => k.status === "discarded"
       );
 
-      console.log(
+      logger.info(
         `[KEYWORD_REPROMPT] ${requestId} - Analyzing keyword performance:`,
         {
           highPerformingCount: highPerformingKeywords.length,
@@ -179,7 +180,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       // Get the model configuration
       const modelConfig = createLLMModel("keyword_generation");
 
-      console.log(
+      logger.info(
         `[KEYWORD_REPROMPT] ${requestId} - Calling LLM for keyword re-prompting:`,
         {
           promptLength: prompt.length,
@@ -198,7 +199,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       });
       const llmEndTime = Date.now();
 
-      console.log(`[KEYWORD_REPROMPT] ${requestId} - LLM call completed:`, {
+      logger.info(`[KEYWORD_REPROMPT] ${requestId} - LLM call completed:`, {
         processingTimeMs: llmEndTime - llmStartTime,
         keywordCount: result.object?.improvedKeywords?.length || 0,
         usage: result.usage,
@@ -209,7 +210,7 @@ Output ONLY valid JSON matching the schema (no additional text):
         !result.object?.improvedKeywords ||
         !Array.isArray(result.object.improvedKeywords)
       ) {
-        console.error(
+        logger.error(
           `[KEYWORD_REPROMPT] ${requestId} - Invalid LLM response format:`,
           {
             response: result.object,
@@ -222,7 +223,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       const insights = result.object.analysisInsights;
 
       // Log insights for debugging
-      console.log(`[KEYWORD_REPROMPT] ${requestId} - Generated insights:`, {
+      logger.info(`[KEYWORD_REPROMPT] ${requestId} - Generated insights:`, {
         highPerformingPatterns: insights.highPerformingPatterns,
         lowPerformingPatterns: insights.lowPerformingPatterns,
         recommendedAdjustments: insights.recommendedAdjustments,
@@ -243,7 +244,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       }));
 
       const endTime = Date.now();
-      console.log(
+      logger.info(
         `[KEYWORD_REPROMPT] ${requestId} - Request completed successfully:`,
         {
           totalProcessingTimeMs: endTime - startTime,
@@ -272,7 +273,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       };
     } catch (error) {
       const endTime = Date.now();
-      console.error(`[KEYWORD_REPROMPT] ${requestId} - Request failed:`, {
+      logger.error(`[KEYWORD_REPROMPT] ${requestId} - Request failed:`, {
         error: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
         processingTimeMs: endTime - startTime,

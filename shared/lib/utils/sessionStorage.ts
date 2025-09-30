@@ -18,6 +18,7 @@
 
 import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { cookies } from "next/headers";
+import { logger } from "../logger";
 
 interface SessionData {
   data: Record<string, unknown>;
@@ -155,7 +156,7 @@ export async function getSession(): Promise<Record<string, unknown> | null> {
 
     return sessionData.data;
   } catch (error) {
-    console.error("Failed to decrypt session data:", error);
+    logger.error("Failed to decrypt session data:", error);
     // Clear the corrupted session
     await deleteSession();
     return null;
@@ -171,7 +172,7 @@ export async function deleteSession(): Promise<void> {
     const cookieStore = await cookies();
     cookieStore.delete(SESSION_COOKIE_NAME);
   } catch (error) {
-    console.error("Failed to delete session:", error);
+    logger.error("Failed to delete session:", error);
   }
 }
 
@@ -202,7 +203,7 @@ export async function getSessionStats(): Promise<{
       sessionExpiresAt: sessionData.expiresAt,
     };
   } catch (error) {
-    console.error("Failed to get session stats:", error);
+    logger.error("Failed to get session stats:", error);
     return {
       hasActiveSession: false,
       sessionExpiresAt: null,

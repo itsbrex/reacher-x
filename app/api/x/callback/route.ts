@@ -5,6 +5,7 @@ import {
   createOAuthClient,
   handleTwitterError,
 } from "../../../../convex/twitterClient";
+import { logger } from "../../../../shared/lib/logger";
 
 // Exchange code for tokens and persist via Convex
 export async function GET(request: Request) {
@@ -95,13 +96,13 @@ export async function GET(request: Request) {
       `${nextUrl}${sep}x_status=success&session=${sessionId}`
     );
   } catch (err) {
-    console.error("X OAuth callback error:", err);
+    logger.error("X OAuth callback error:", err);
 
     // Use enhanced error handling
     try {
       handleTwitterError(err);
     } catch (error) {
-      console.error("Twitter API error:", error);
+      logger.error("Twitter API error:", error);
     }
 
     return NextResponse.redirect(

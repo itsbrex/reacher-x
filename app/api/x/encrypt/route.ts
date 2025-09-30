@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
+import { logger } from "../../../../shared/lib/logger";
 
 /**
  * Encrypt OAuth tokens before storing in Convex
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       encryptedRefreshToken,
     });
   } catch (error) {
-    console.error("Token encryption error:", error);
+    logger.error("Token encryption error:", error);
     return NextResponse.json(
       { error: "Failed to encrypt tokens" },
       { status: 500 }

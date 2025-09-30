@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/shared/ui/hooks/useToast";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { logger } from "@/shared/lib/logger";
 
 export default function LinkedAccountsPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function LinkedAccountsPage() {
         .then(async (result) => {
           if (result.success && result.data) {
             const tokenData = result.data;
-            console.log("Received token data from session");
+            logger.info("Received token data from session");
 
             // Encrypt tokens before sending to Convex
             const encryptResponse = await fetch("/api/x/encrypt", {
@@ -94,7 +95,7 @@ export default function LinkedAccountsPage() {
           });
         })
         .catch((error) => {
-          console.error("Failed to link X account:", error);
+          logger.error("Failed to link X account:", error);
           toast({
             title: "Connection Failed",
             description: "Failed to link Twitter account. Please try again.",

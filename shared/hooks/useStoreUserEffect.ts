@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { logger } from "../lib/logger";
 
 export function useStoreUserEffect() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -38,14 +39,14 @@ export function useStoreUserEffect() {
 
       if (id) {
         setUserId(id);
-        console.log("✅ User stored in Convex database with ID:", id);
+        logger.info("✅ User stored in Convex database with ID:", id);
       } else {
-        console.error(
+        logger.error(
           "❌ User storage returned null ID - this should not happen"
         );
       }
     } catch (error) {
-      console.error("❌ Failed to store user in Convex:", error);
+      logger.error("❌ Failed to store user in Convex:", error);
     } finally {
       isProcessingRef.current = false;
     }
@@ -55,7 +56,7 @@ export function useStoreUserEffect() {
   useEffect(() => {
     if (currentUser && currentUser._id !== userId) {
       setUserId(currentUser._id);
-      console.log("✅ User ID synced from database:", currentUser._id);
+      logger.info("✅ User ID synced from database:", currentUser._id);
     }
   }, [currentUser, userId]);
 

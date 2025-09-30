@@ -19,5 +19,21 @@ export default defineConfig([
       "next/typescript",
       "plugin:prettier/recommended"
     ),
+    rules: {
+      "no-console": [
+        "error",
+        {
+          allow: [],
+        },
+      ],
+    },
+    overrides: [
+      {
+        files: ["shared/lib/logger.ts"],
+        rules: {
+          "no-console": "off",
+        },
+      },
+    ],
   },
 ]);

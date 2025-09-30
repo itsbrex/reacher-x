@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { logger } from "@/shared/lib/logger";
 
 // Event name for cross-hook communication within the same window
 const STORAGE_CHANGE_EVENT = "onLocalStorageChange";
@@ -24,7 +25,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         setStoredValue(initialValue);
       }
     } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
+      logger.error(`Error reading localStorage key "${key}":`, error);
       setStoredValue(initialValue);
     }
   }, [key, initialValue]);
@@ -41,7 +42,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.storageArea === window.localStorage && event.key === key) {
-        console.log(`[useLocalStorage] Storage event received for key: ${key}`);
+        logger.info(`[useLocalStorage] Storage event received for key: ${key}`);
         readStorage();
       }
     };
@@ -53,7 +54,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   useEffect(() => {
     const handleCustomEvent = (event: CustomEvent) => {
       if (event.detail.key === key) {
-        console.log(
+        logger.info(
           `[useLocalStorage] Custom storage event received for key: ${key}`
         );
         setStoredValue(event.detail.newValue);
@@ -97,7 +98,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
           );
         }
       } catch (error) {
-        console.error(`Error setting localStorage key "${key}":`, error);
+        logger.error(`Error setting localStorage key "${key}":`, error);
       }
     },
     [key]

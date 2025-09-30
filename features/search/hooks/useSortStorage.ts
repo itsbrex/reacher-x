@@ -3,6 +3,7 @@
 
 import { useCallback } from "react";
 import type { SortState } from "../types";
+import { logger } from "@/shared/lib/logger";
 
 const SORT_STORAGE_KEY = "reacher_x_sort_settings";
 
@@ -22,7 +23,7 @@ export function useSortStorage() {
       const stored = localStorage.getItem(SORT_STORAGE_KEY);
       return stored ? JSON.parse(stored) : {};
     } catch (error) {
-      console.warn("[SORT_STORAGE] Failed to parse stored settings:", error);
+      logger.warn("[SORT_STORAGE] Failed to parse stored settings:", error);
       return {};
     }
   }, []);
@@ -57,9 +58,9 @@ export function useSortStorage() {
           localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(settings));
         }
 
-        console.log("[SORT_STORAGE] Saved sort settings for keyword:", keyword);
+        logger.info("[SORT_STORAGE] Saved sort settings for keyword:", keyword);
       } catch (error) {
-        console.error("[SORT_STORAGE] Failed to save sort settings:", error);
+        logger.error("[SORT_STORAGE] Failed to save sort settings:", error);
       }
     },
     [getStoredSettings]
@@ -75,7 +76,7 @@ export function useSortStorage() {
         const keywordSettings = settings[keyword];
 
         if (keywordSettings) {
-          console.log(
+          logger.info(
             "[SORT_STORAGE] Found stored sort settings for keyword:",
             keyword
           );
@@ -84,7 +85,7 @@ export function useSortStorage() {
 
         return null;
       } catch (error) {
-        console.warn("[SORT_STORAGE] Failed to get sort settings:", error);
+        logger.warn("[SORT_STORAGE] Failed to get sort settings:", error);
         return null;
       }
     },
@@ -100,12 +101,12 @@ export function useSortStorage() {
         const settings = getStoredSettings();
         delete settings[keyword];
         localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(settings));
-        console.log(
+        logger.info(
           "[SORT_STORAGE] Cleared sort settings for keyword:",
           keyword
         );
       } catch (error) {
-        console.error("[SORT_STORAGE] Failed to clear sort settings:", error);
+        logger.error("[SORT_STORAGE] Failed to clear sort settings:", error);
       }
     },
     [getStoredSettings]

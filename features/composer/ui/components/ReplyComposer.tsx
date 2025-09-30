@@ -13,6 +13,7 @@ import { MoreHorizIcon } from "@/shared/ui/components/icons";
 import Link from "next/link";
 import { BaseComposer } from "./BaseComposer";
 import { ReplyComposerProps } from "../../types";
+import { logger } from "@/shared/lib/logger";
 
 export function ReplyComposer({
   replyTo,
@@ -36,7 +37,7 @@ export function ReplyComposer({
     try {
       await onSubmit?.(content, mediaUrls, mediaDescriptions);
     } catch (error) {
-      console.error("Reply submit error:", error);
+      logger.error("Reply submit error:", error);
     }
   };
 

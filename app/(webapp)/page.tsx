@@ -14,6 +14,7 @@ import { KeywordSuggestions } from "@/features/keywords/ui/components/KeywordSug
 import { RecentKeywords } from "@/features/keywords/ui/components/RecentKeywords";
 import { SimilarKeywords } from "@/features/keywords/ui/components/SimilarKeywords";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
+import { logger } from "@/shared/lib/logger";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useKeywordRePrompt } from "@/shared/hooks/useKeywordRePrompt";
 // Local store still used inside hook; no direct import needed here
@@ -46,7 +47,7 @@ export default function WebAppPage() {
 
   // Debug authentication state
   useEffect(() => {
-    console.log("Authentication Debug:", {
+    logger.info("Authentication Debug:", {
       workosUser: user,
       workosLoading: authLoading,
       convexAuthenticated: isAuthenticated,
@@ -68,14 +69,14 @@ export default function WebAppPage() {
 
     // Additional debugging for token issues
     if (user && !isAuthenticated) {
-      console.warn(
+      logger.warn(
         "WorkOS user exists but Convex auth failed - check JWT aud claim in WorkOS Dashboard"
       );
     }
 
     // Debug unified auth state
     if (isAuthenticated && !unifiedAuth && !unifiedLoading) {
-      console.warn("Convex authenticated but unified auth not ready yet");
+      logger.warn("Convex authenticated but unified auth not ready yet");
     }
   }, [
     user,

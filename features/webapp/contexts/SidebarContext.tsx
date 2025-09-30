@@ -30,6 +30,7 @@ import type { KeywordItem } from "@/features/keywords/ui/components/KeywordList"
 import { groupKeywordsByTime } from "@/features/webapp/lib/keywordUtils";
 import { getUserTimezoneInfo } from "@/shared/lib/utils/timeUtils";
 import type { KeywordItemWithRawTimestamp } from "@/features/search/hooks/useSearchHistory"; // This type is still useful
+import { logger } from "@/shared/lib/logger";
 
 interface SidebarContextType {
   // Search state
@@ -167,7 +168,7 @@ export function SidebarProvider({
     async (id: string) => {
       const success = await togglePinUnified(id);
       if (success) {
-        console.log(`[SIDEBAR_CONTEXT] Toggled pin status for ID: ${id}`);
+        logger.info(`[SIDEBAR_CONTEXT] Toggled pin status for ID: ${id}`);
       }
     },
     [togglePinUnified]
@@ -177,7 +178,7 @@ export function SidebarProvider({
     async (id: string) => {
       const success = await deleteKeywordUnified(id);
       if (success) {
-        console.log(`[SIDEBAR_CONTEXT] Deleted keyword with ID: ${id}`);
+        logger.info(`[SIDEBAR_CONTEXT] Deleted keyword with ID: ${id}`);
       }
     },
     [deleteKeywordUnified]

@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { useMemo } from "react";
+import { logger } from "@/shared/lib/logger";
 import { useRouter } from "next/navigation";
 
 export interface LinkedAccount {
@@ -168,7 +169,7 @@ export function useLinkedAccounts() {
       }
       await unlinkXAccount();
     } catch (error) {
-      console.error("Failed to disconnect account:", error);
+      logger.error("Failed to disconnect account:", error);
     }
   };
 

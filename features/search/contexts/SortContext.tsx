@@ -17,6 +17,7 @@ import { getDefaultSortState } from "../lib/utils";
 import { useSortStorage } from "../hooks/useSortStorage";
 import { sortTweets } from "../lib/sortUtils";
 import type { Tweet } from "@/features/threads/types";
+import { logger } from "@/shared/lib/logger";
 
 interface SortContextType {
   isSortMode: boolean;
@@ -68,7 +69,7 @@ export function SortProvider({ children }: { children: ReactNode }) {
   const updateSort = useCallback(
     (sort: SortOption) => {
       setSortState({ sortBy: sort });
-      console.log("Applying sort:", sort);
+      logger.info("Applying sort:", sort);
 
       // Save sort preferences for the current keyword if we have one
       if (typeof window !== "undefined") {
@@ -77,7 +78,7 @@ export function SortProvider({ children }: { children: ReactNode }) {
         const currentQuery = urlParams.get("q");
         if (currentQuery) {
           saveSortSettings(currentQuery, { sortBy: sort });
-          console.log(
+          logger.info(
             "[SORT_CONTEXT] Saved sort settings for keyword:",
             currentQuery
           );
@@ -90,7 +91,7 @@ export function SortProvider({ children }: { children: ReactNode }) {
   const resetSort = useCallback(() => {
     const defaultSort = getDefaultSortState();
     setSortState(defaultSort);
-    console.log("Resetting sort to:", defaultSort.sortBy);
+    logger.info("Resetting sort to:", defaultSort.sortBy);
 
     // Clear stored sort settings for the current keyword
     if (typeof window !== "undefined") {
@@ -99,11 +100,11 @@ export function SortProvider({ children }: { children: ReactNode }) {
       if (currentQuery) {
         try {
           clearSortSettings(currentQuery);
-          console.log(
+          logger.info(
             "[SORT_CONTEXT] Cleared stored sort settings after reset"
           );
         } catch (error) {
-          console.warn(
+          logger.warn(
             "[SORT_CONTEXT] Failed to clear stored sort settings:",
             error
           );
@@ -118,12 +119,12 @@ export function SortProvider({ children }: { children: ReactNode }) {
       const storedSort = getSortSettings(keyword);
       if (storedSort) {
         setSortState(storedSort);
-        console.log("[SORT_CONTEXT] Loaded sort for keyword:", keyword);
+        logger.info("[SORT_CONTEXT] Loaded sort for keyword:", keyword);
       } else {
         // Reset to defaults if no stored sort
         const defaultSort = getDefaultSortState();
         setSortState(defaultSort);
-        console.log("[SORT_CONTEXT] No stored sort for keyword:", keyword);
+        logger.info("[SORT_CONTEXT] No stored sort for keyword:", keyword);
       }
     },
     [getSortSettings]
@@ -133,7 +134,7 @@ export function SortProvider({ children }: { children: ReactNode }) {
   const saveSortForKeyword = useCallback(
     (keyword: string) => {
       saveSortSettings(keyword, sortState);
-      console.log("[SORT_CONTEXT] Saved sort for keyword:", keyword);
+      logger.info("[SORT_CONTEXT] Saved sort for keyword:", keyword);
     },
     [saveSortSettings, sortState]
   );

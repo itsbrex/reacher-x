@@ -99,6 +99,7 @@ export function useAsyncOperation<T, Args extends unknown[]>(
 
         // Log full error details for debugging
         if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
           console.error("useAsyncOperation error:", err);
         }
         return null;

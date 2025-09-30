@@ -2,6 +2,9 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  compiler: {
+    removeConsole: true,
+  },
   images: {
     // Allow images from any domain without configuring remotePatterns/domains
     // (uses plain <img> behavior under the hood)

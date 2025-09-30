@@ -3,6 +3,7 @@
 
 import { useCallback } from "react";
 import type { FilterState } from "../types";
+import { logger } from "@/shared/lib/logger";
 
 const FILTER_STORAGE_KEY = "reacher_x_filter_settings";
 
@@ -22,7 +23,7 @@ export function useFilterStorage() {
       const stored = localStorage.getItem(FILTER_STORAGE_KEY);
       return stored ? JSON.parse(stored) : {};
     } catch (error) {
-      console.warn("[FILTER_STORAGE] Failed to parse stored settings:", error);
+      logger.warn("[FILTER_STORAGE] Failed to parse stored settings:", error);
       return {};
     }
   }, []);
@@ -57,15 +58,12 @@ export function useFilterStorage() {
           localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(settings));
         }
 
-        console.log(
+        logger.info(
           "[FILTER_STORAGE] Saved filter settings for keyword:",
           keyword
         );
       } catch (error) {
-        console.error(
-          "[FILTER_STORAGE] Failed to save filter settings:",
-          error
-        );
+        logger.error("[FILTER_STORAGE] Failed to save filter settings:", error);
       }
     },
     [getStoredSettings]
@@ -81,7 +79,7 @@ export function useFilterStorage() {
         const keywordSettings = settings[keyword];
 
         if (keywordSettings) {
-          console.log(
+          logger.info(
             "[FILTER_STORAGE] Found stored filter settings for keyword:",
             keyword
           );
@@ -90,7 +88,7 @@ export function useFilterStorage() {
 
         return null;
       } catch (error) {
-        console.warn("[FILTER_STORAGE] Failed to get filter settings:", error);
+        logger.warn("[FILTER_STORAGE] Failed to get filter settings:", error);
         return null;
       }
     },
@@ -106,12 +104,12 @@ export function useFilterStorage() {
         const settings = getStoredSettings();
         delete settings[keyword];
         localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(settings));
-        console.log(
+        logger.info(
           "[FILTER_STORAGE] Cleared filter settings for keyword:",
           keyword
         );
       } catch (error) {
-        console.error(
+        logger.error(
           "[FILTER_STORAGE] Failed to clear filter settings:",
           error
         );

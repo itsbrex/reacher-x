@@ -16,6 +16,7 @@ import {
   clearSuggestions,
 } from "./keywordSuggestionsStore";
 import { getKeywords } from "./unifiedKeywordStore";
+import { logger } from "../logger";
 
 /**
  * Interface for localStorage data that can be migrated
@@ -102,7 +103,7 @@ export function collectLocalStorageData(): LocalStorageData {
       }));
     }
   } catch (error) {
-    console.warn("Failed to collect keyword data for migration:", error);
+    logger.warn("Failed to collect keyword data for migration:", error);
   }
 
   // Collect suggestions data (unused suggestions only) and the description linkage
@@ -118,7 +119,7 @@ export function collectLocalStorageData(): LocalStorageData {
       }));
     }
   } catch (error) {
-    console.warn("Failed to collect suggestions for migration:", error);
+    logger.warn("Failed to collect suggestions for migration:", error);
   }
 
   return data;

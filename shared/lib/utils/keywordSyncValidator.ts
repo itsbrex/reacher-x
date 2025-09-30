@@ -746,31 +746,43 @@ function generateVoteMergeData(): {
  * Logs validation results in a readable format
  */
 export function logValidationResults(result: ValidationResult): void {
+  // Developer diagnostics only; not included in production
+  if (process.env.NODE_ENV !== "development") return;
+  // eslint-disable-next-line no-console
   console.group("🔍 Keyword Sync Validation Results");
 
-  if (result.isValid) {
-    console.log("✅ All validations passed");
-  } else {
-    console.log("❌ Validation failed");
-  }
+  // eslint-disable-next-line no-console
+  console.log(
+    result.isValid ? "✅ All validations passed" : "❌ Validation failed"
+  );
 
   if (result.errors.length > 0) {
+    // eslint-disable-next-line no-console
     console.group("🚨 Errors");
+    // eslint-disable-next-line no-console
     result.errors.forEach((error) => console.error(error));
+    // eslint-disable-next-line no-console
     console.groupEnd();
   }
 
   if (result.warnings.length > 0) {
+    // eslint-disable-next-line no-console
     console.group("⚠️ Warnings");
+    // eslint-disable-next-line no-console
     result.warnings.forEach((warning) => console.warn(warning));
+    // eslint-disable-next-line no-console
     console.groupEnd();
   }
 
   if (result.suggestions.length > 0) {
+    // eslint-disable-next-line no-console
     console.group("💡 Suggestions");
+    // eslint-disable-next-line no-console
     result.suggestions.forEach((suggestion) => console.log(suggestion));
+    // eslint-disable-next-line no-console
     console.groupEnd();
   }
 
+  // eslint-disable-next-line no-console
   console.groupEnd();
 }

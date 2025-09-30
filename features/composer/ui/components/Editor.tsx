@@ -13,6 +13,7 @@ import { TooltipProvider } from "@/shared/ui/components/Tooltip";
 
 import { nodes } from "./nodes";
 import { Plugins } from "./Plugins";
+import { logger } from "@/shared/lib/logger";
 
 // Keep this module-level config stable.
 const editorConfig: InitialConfigType = {
@@ -20,7 +21,7 @@ const editorConfig: InitialConfigType = {
   theme: editorTheme,
   nodes,
   onError: (error: Error) => {
-    console.error(error);
+    logger.error(error);
   },
 };
 

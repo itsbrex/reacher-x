@@ -3,6 +3,7 @@
 import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState, useEffect } from "react";
+import { logger } from "@/shared/lib/logger";
 import { WaitlistUser } from "../types";
 
 export function useWaitlistUsers() {
@@ -23,7 +24,7 @@ export function useWaitlistUsers() {
       try {
         const profilePromises = twitterHandles.map((twitter) =>
           getTwitterProfile({ twitter }).catch((error) => {
-            console.error(`Error fetching ${twitter}:`, error);
+            logger.error(`Error fetching ${twitter}:`, error);
             return null;
           })
         );
@@ -38,7 +39,7 @@ export function useWaitlistUsers() {
           })) as WaitlistUser[];
         setProfiles(validProfiles);
       } catch (error) {
-        console.error("Unexpected error fetching profiles:", error);
+        logger.error("Unexpected error fetching profiles:", error);
       } finally {
         setLoading(false);
       }

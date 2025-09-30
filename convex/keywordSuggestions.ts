@@ -1,4 +1,5 @@
 import { query, internalMutation, mutation } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import {
   getSuggestionsArgsValidator,
   markSuggestionAsUsedArgsValidator,
@@ -157,7 +158,7 @@ export const generateKeywords = action({
     const startTime = Date.now();
     const requestId = generateRequestId("keyword_gen");
 
-    console.log(`[KEYWORD_GEN] Starting request ${requestId}`, {
+    logger.info(`[KEYWORD_GEN] Starting request ${requestId}`, {
       userDescription: userDescription.substring(0, 100) + "...",
       descriptionLength: userDescription.length,
       timestamp: new Date().toISOString(),
@@ -168,7 +169,7 @@ export const generateKeywords = action({
       const descriptionValidation =
         validateDescriptionForKeywords(userDescription);
       if (!descriptionValidation.isValid) {
-        console.error(
+        logger.error(
           `[KEYWORD_GEN] ${requestId} - Description validation failed:`,
           {
             error: descriptionValidation.error,
@@ -178,7 +179,7 @@ export const generateKeywords = action({
         throw new Error(`Invalid description: ${descriptionValidation.error}`);
       }
 
-      console.log(
+      logger.info(
         `[KEYWORD_GEN] ${requestId} - Description validation passed`,
         {
           descriptionLength: userDescription.length,
@@ -232,7 +233,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       // Get the model configuration using centralized system
       const modelConfig = createLLMModel("keyword_generation");
 
-      console.log(
+      logger.info(
         `[KEYWORD_GEN] ${requestId} - Calling LLM for keyword generation:`,
         {
           promptLength: prompt.length,
@@ -253,7 +254,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       });
       const llmEndTime = Date.now();
 
-      console.log(`[KEYWORD_GEN] ${requestId} - LLM call completed:`, {
+      logger.info(`[KEYWORD_GEN] ${requestId} - LLM call completed:`, {
         processingTimeMs: llmEndTime - llmStartTime,
         keywordCount: result.object?.keywords?.length || 0,
         modelUsed: modelConfig.modelName,
@@ -263,7 +264,7 @@ Output ONLY valid JSON matching the schema (no additional text):
 
       // Validate LLM response
       if (!result.object?.keywords || !Array.isArray(result.object.keywords)) {
-        console.error(
+        logger.error(
           `[KEYWORD_GEN] ${requestId} - Invalid LLM response format:`,
           {
             responseType: typeof result.object,
@@ -283,14 +284,14 @@ Output ONLY valid JSON matching the schema (no additional text):
 
       // Validate keyword count (log-only if mismatch; proceed with what we have)
       if (keywords.length !== KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT) {
-        console.warn(`[KEYWORD_GEN] ${requestId} - Keyword count mismatch`, {
+        logger.warn(`[KEYWORD_GEN] ${requestId} - Keyword count mismatch`, {
           expected: KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT,
           received: keywords.length,
           modelUsed: modelConfig.modelName,
         });
       }
 
-      console.log(`[KEYWORD_GEN] ${requestId} - Generated keywords summary:`, {
+      logger.info(`[KEYWORD_GEN] ${requestId} - Generated keywords summary:`, {
         keywordCount: keywords.length,
         sample: keywords.slice(0, 3),
       });
@@ -336,7 +337,7 @@ Output ONLY valid JSON matching the schema (no additional text):
           });
         }
       }
-      console.log(
+      logger.info(
         `[KEYWORD_GEN] ${requestId} - Request completed successfully:`,
         {
           totalProcessingTimeMs: endTime - startTime,
@@ -364,7 +365,7 @@ Output ONLY valid JSON matching the schema (no additional text):
       };
     } catch (error) {
       const endTime = Date.now();
-      console.error(`[KEYWORD_GEN] ${requestId} - Request failed:`, {
+      logger.error(`[KEYWORD_GEN] ${requestId} - Request failed:`, {
         error: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
         processingTimeMs: endTime - startTime,

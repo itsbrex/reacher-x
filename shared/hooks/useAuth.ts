@@ -3,6 +3,7 @@ import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components"
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useMemo, useEffect, useRef } from "react";
+import { logger } from "../lib/logger";
 
 /**
  * Simplified authentication hook that handles user storage and workspace creation
@@ -76,7 +77,7 @@ export function useAuth() {
           await ensureWorkspace({});
         }
       } catch (error) {
-        console.error("❌ User initialization failed:", error);
+        logger.error("❌ User initialization failed:", error);
         hasInitialized.current = false; // Allow retry
       }
     };

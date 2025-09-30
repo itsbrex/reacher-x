@@ -3,6 +3,7 @@ import {
   getSession,
   deleteSession,
 } from "../../../../shared/lib/utils/sessionStorage";
+import { logger } from "../../../../shared/lib/logger";
 
 /**
  * Secure session retrieval endpoint
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: tokenData });
   } catch (error) {
-    console.error("Session retrieval error:", error);
+    logger.error("Session retrieval error:", error);
     return NextResponse.json(
       { error: "Failed to retrieve session data" },
       { status: 500 }

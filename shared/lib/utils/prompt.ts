@@ -123,6 +123,8 @@ export function createPromptSection(
     process.env.NODE_ENV === "development" &&
     validation.warnings.length > 0
   ) {
+    // Avoid importing logger in lightweight util
+    // eslint-disable-next-line no-console
     console.warn(`[PROMPT_SAFETY] Warnings for ${label}:`, validation.warnings);
   }
 

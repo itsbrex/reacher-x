@@ -36,6 +36,7 @@ import {
   getSuggestionsStats,
 } from "@/shared/lib/utils/keywordSuggestionsStore";
 import type { KeywordItem } from "../ui/components/KeywordList";
+import { logger } from "@/shared/lib/logger";
 
 // Type definitions for API responses
 interface KeywordGenerationResponse {
@@ -161,7 +162,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       const description = unifiedDescription || null;
       setUserDescription(description);
 
-      console.log("[KEYWORD_SUGGESTIONS] Loaded user description:", {
+      logger.info("[KEYWORD_SUGGESTIONS] Loaded user description:", {
         hasDescription: !!description,
         descriptionLength: description?.length || 0,
         isValid:
@@ -169,7 +170,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           description.length >= HOOK_CONFIG.MIN_DESCRIPTION_LENGTH,
       });
     } catch (error) {
-      console.error(
+      logger.error(
         "[KEYWORD_SUGGESTIONS] Failed to load user description:",
         error
       );
@@ -322,14 +323,14 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       now - lastRequestTimestamp.current <
       HOOK_CONFIG.REQUEST_DEDUPE_TIME_MS
     ) {
-      console.log(
+      logger.info(
         "[KEYWORD_SUGGESTIONS] Request deduplicated - too soon after last request"
       );
       return;
     }
 
     if (isLoadingRef.current) {
-      console.log(
+      logger.info(
         "[KEYWORD_SUGGESTIONS] Generation already in progress, skipping"
       );
       return;
@@ -344,7 +345,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     const startTime = Date.now();
 
     try {
-      console.log("[KEYWORD_SUGGESTIONS] Starting keyword generation:", {
+      logger.info("[KEYWORD_SUGGESTIONS] Starting keyword generation:", {
         descriptionLength: userDescription.length,
         useRePrompt: shouldUseRePrompt(),
         stats: getSuggestionsStats(),
@@ -404,7 +405,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       });
 
       const endTime = Date.now();
-      console.log("[KEYWORD_SUGGESTIONS] Generation completed successfully:", {
+      logger.info("[KEYWORD_SUGGESTIONS] Generation completed successfully:", {
         totalTimeMs: endTime - startTime,
         useRePrompt: shouldUseRePrompt(),
       });
@@ -413,7 +414,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         err instanceof Error ? err.message : "Failed to generate keywords";
       setError(errorMessage);
 
-      console.error("[KEYWORD_SUGGESTIONS] Generation failed:", {
+      logger.error("[KEYWORD_SUGGESTIONS] Generation failed:", {
         error: errorMessage,
         stack: err instanceof Error ? err.stack : undefined,
         processingTimeMs: Date.now() - startTime,
@@ -436,7 +437,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const recordKeywordUsage = useCallback(
     async (keywordId: string, keyword: string) => {
       try {
-        console.log("[KEYWORD_SUGGESTIONS] Recording keyword usage:", {
+        logger.info("[KEYWORD_SUGGESTIONS] Recording keyword usage:", {
           keywordId,
           keyword,
         });
@@ -453,7 +454,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           }
         }
       } catch (error) {
-        console.warn(
+        logger.warn(
           "[KEYWORD_SUGGESTIONS] Failed to record keyword usage:",
           error
         );
@@ -487,7 +488,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
       const hasCurrentDesc = filtered.length > 0;
 
-      console.log("[KEYWORD_SUGGESTIONS] Refresh (auth):", {
+      logger.info("[KEYWORD_SUGGESTIONS] Refresh (auth):", {
         serverUnused: Array.isArray(convexSuggestions)
           ? convexSuggestions.length
           : 0,
@@ -512,7 +513,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
     // Unauthenticated path: local store rule (<= 2) and description change via local state
     const localDescChanged = hasUserDescriptionChanged(userDescription || "");
-    console.log("[KEYWORD_SUGGESTIONS] Refresh (unauth):", {
+    logger.info("[KEYWORD_SUGGESTIONS] Refresh (unauth):", {
       localDescChanged,
       shouldRegenerate: shouldRegenerateSuggestions(),
     });
@@ -556,7 +557,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     ) {
       hasAttemptedInitialFetch.current = true;
 
-      console.log(
+      logger.info(
         "[KEYWORD_SUGGESTIONS] Auto-fetching suggestions (first valid description)"
       );
 
@@ -580,7 +581,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   // Listen for suggestions updates from reprompt hook
   useEffect(() => {
     const handleSuggestionsUpdate = (event: CustomEvent) => {
-      console.log(
+      logger.info(
         "[KEYWORD_SUGGESTIONS] Received suggestions update event:",
         event.detail
       );

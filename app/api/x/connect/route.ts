@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createOAuthClient } from "../../../../convex/twitterClient";
+import { logger } from "../../../../shared/lib/logger";
 
 // Best practices (@Web Next.js + Convex):
 // - Keep OAuth secrets server-side only.
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(url);
   } catch (error) {
-    console.error("OAuth connect error:", error);
+    logger.error("OAuth connect error:", error);
     return NextResponse.json(
       { error: "Failed to initiate OAuth flow" },
       { status: 500 }

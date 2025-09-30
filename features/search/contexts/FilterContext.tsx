@@ -19,6 +19,7 @@ import {
   getUnimplementedFilters,
 } from "../lib/filterUtils";
 import type { Tweet } from "@/features/threads/types";
+import { logger } from "@/shared/lib/logger";
 
 interface FilterContextType {
   isFilterMode: boolean;
@@ -383,7 +384,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     setIsFormDirty(false);
     setIsFilterMode(false);
 
-    console.log("Applying filters:", currentDraft);
+    logger.info("Applying filters:", currentDraft);
 
     // Save filters for the current keyword if we have one
     // This will be called from the search page when filters are applied
@@ -393,7 +394,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       const currentQuery = urlParams.get("q");
       if (currentQuery) {
         saveFilterSettings(currentQuery, currentDraft);
-        console.log(
+        logger.info(
           "[FILTER_CONTEXT] Saved filter settings for keyword:",
           currentQuery
         );
@@ -417,11 +418,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         // This ensures that when user returns to this keyword, no filters are applied
         try {
           clearFilterSettings(currentQuery);
-          console.log(
+          logger.info(
             "[FILTER_CONTEXT] Cleared stored filter settings after reset"
           );
         } catch (error) {
-          console.warn(
+          logger.warn(
             "[FILTER_CONTEXT] Failed to clear stored filter settings:",
             error
           );
@@ -437,13 +438,13 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       if (storedFilters) {
         setAppliedFilters(storedFilters);
         setDraftFilters(storedFilters);
-        console.log("[FILTER_CONTEXT] Loaded filters for keyword:", keyword);
+        logger.info("[FILTER_CONTEXT] Loaded filters for keyword:", keyword);
       } else {
         // Reset to defaults if no stored filters
         const defaultFilters = getDefaultFilterState();
         setAppliedFilters(defaultFilters);
         setDraftFilters(defaultFilters);
-        console.log("[FILTER_CONTEXT] No stored filters for keyword:", keyword);
+        logger.info("[FILTER_CONTEXT] No stored filters for keyword:", keyword);
       }
     },
     [getFilterSettings]
@@ -453,7 +454,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const saveFiltersForKeyword = useCallback(
     (keyword: string) => {
       saveFilterSettings(keyword, appliedFilters);
-      console.log("[FILTER_CONTEXT] Saved filters for keyword:", keyword);
+      logger.info("[FILTER_CONTEXT] Saved filters for keyword:", keyword);
     },
     [saveFilterSettings, appliedFilters]
   );

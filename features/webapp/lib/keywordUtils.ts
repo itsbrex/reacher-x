@@ -23,6 +23,7 @@ import {
   type TimezoneInfo,
   type GroupingBoundaries,
 } from "@/shared/lib/utils/timeUtils";
+import { logger } from "@/shared/lib/logger";
 
 /**
  * Helper function to validate and group a single keyword
@@ -57,7 +58,7 @@ function validateAndGroupKeyword(
 
       // Log warning for relative timestamps that can't be accurately grouped
       if (validation.type === "relative") {
-        console.warn(
+        logger.warn(
           `[KEYWORD_UTILS] Relative timestamp detected for "${item.keyword}": "${item.timestamp}". ` +
             `This cannot be accurately grouped and will be placed in "Older". ` +
             `Consider storing UTC timestamps for accurate time grouping.`
@@ -69,7 +70,7 @@ function validateAndGroupKeyword(
         keyword: item.keyword,
         issue: `Invalid timestamp: ${validation.error}`,
       });
-      console.warn(
+      logger.warn(
         `[KEYWORD_UTILS] Cannot process keyword "${item.keyword}" with timestamp "${item.timestamp}": ${validation.error}`
       );
       return "Older";
@@ -147,11 +148,11 @@ export function groupKeywordsByTime(
 
   // Log validation issues in development
   if (process.env.NODE_ENV === "development" && validationIssues.length > 0) {
-    console.group("[KEYWORD_UTILS] Timestamp Validation Issues");
+    // Replace console.group with single dev log line using logger
+    logger.warn("[KEYWORD_UTILS] Timestamp Validation Issues");
     validationIssues.forEach((issue) => {
-      console.warn(`"${issue.keyword}": ${issue.issue}`);
+      logger.warn(`"${issue.keyword}": ${issue.issue}`);
     });
-    console.groupEnd();
   }
 
   // Debug timezone grouping in development

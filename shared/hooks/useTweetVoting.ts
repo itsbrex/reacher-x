@@ -15,6 +15,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useUserVotes } from "./useUserVotes";
 import { useKeywordSync } from "./useKeywordSync";
+import { logger } from "../lib/logger";
 
 export interface TweetVote {
   id: string;
@@ -115,7 +116,7 @@ function loadStoredVotes(): Record<string, "up" | "down"> {
 
     return voteMap;
   } catch (error) {
-    console.warn("Failed to load stored votes:", error);
+    logger.warn("Failed to load stored votes:", error);
     return {};
   }
 }
@@ -149,7 +150,7 @@ function saveVote(vote: StoredVote): void {
 
     localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify(cache));
   } catch (error) {
-    console.warn("Failed to save vote:", error);
+    logger.warn("Failed to save vote:", error);
   }
 }
 
@@ -190,7 +191,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
       // Prevent duplicate voting operations
       const operationKey = `${tweetId}_${voteType}`;
       if (votingOperations.current.has(operationKey)) {
-        console.log(
+        logger.info(
           `[TWEET_VOTING] Duplicate vote operation prevented for tweet ${tweetId}`
         );
         return false;
@@ -206,7 +207,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
           errors: { ...prev.errors, [tweetId]: "" },
         }));
 
-        console.log(
+        logger.info(
           `[TWEET_VOTING] Recording ${voteType} vote for tweet ${tweetId} from keyword ${keywordId}`
         );
 
@@ -240,7 +241,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
           voting: { ...prev.voting, [tweetId]: false },
         }));
 
-        console.log(
+        logger.info(
           `[TWEET_VOTING] Successfully recorded ${voteType} vote for tweet ${tweetId}`
         );
         return true;
@@ -248,7 +249,7 @@ export function useTweetVoting(): UseTweetVotingReturn {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to record vote";
 
-        console.error(
+        logger.error(
           `[TWEET_VOTING] Failed to record vote for tweet ${tweetId}:`,
           error
         );
@@ -367,7 +368,7 @@ export function getCachedVoteStatistics(): {
 
     return { totalVotes, upVotes, downVotes, recentVotes };
   } catch (error) {
-    console.warn("Failed to get cached vote statistics:", error);
+    logger.warn("Failed to get cached vote statistics:", error);
     return { totalVotes: 0, upVotes: 0, downVotes: 0, recentVotes: 0 };
   }
 }

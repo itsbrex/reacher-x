@@ -37,7 +37,7 @@ export function getLocalStorage(key: string): string | null {
     }
     return localStorage.getItem(key);
   } catch (error) {
-    console.warn(`Failed to get localStorage item '${key}':`, error);
+    // Keep console here minimal: this util is used very frequently; avoid noisy logs even in dev
     return null;
   }
 }
@@ -58,7 +58,7 @@ export function setLocalStorage(key: string, value: string): boolean {
     );
     return true;
   } catch (error) {
-    console.warn(`Failed to set localStorage item '${key}':`, error);
+    // Silent failure to avoid noise and PII; callers can handle missing values
     return false;
   }
 }
@@ -74,7 +74,7 @@ export function removeLocalStorage(key: string): boolean {
     localStorage.removeItem(key);
     return true;
   } catch (error) {
-    console.warn(`Failed to remove localStorage item '${key}':`, error);
+    // Silent failure to avoid noise and PII
     return false;
   }
 }
@@ -178,6 +178,6 @@ export function clearAllLocalAppData(): void {
       );
     } catch {}
   } catch (error) {
-    console.warn("Failed to clear local app data:", error);
+    // Silent failure in production; safe to ignore
   }
 }

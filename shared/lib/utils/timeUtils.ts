@@ -31,6 +31,7 @@ import {
   format,
 } from "date-fns";
 import { formatRelativeTime } from "./format";
+import { logger } from "../logger";
 
 export interface TimezoneInfo {
   /** IANA timezone identifier (e.g., 'America/New_York') */
@@ -95,7 +96,7 @@ export function getUserTimezoneInfo(): TimezoneInfo {
       isDST,
     };
   } catch (error) {
-    console.warn(
+    logger.warn(
       "[TIME_UTILS] Failed to detect timezone, falling back to UTC:",
       error
     );
@@ -145,7 +146,7 @@ export function calculateGroupingBoundaries(
       lastWeekStart,
     };
   } catch (error) {
-    console.warn(
+    logger.warn(
       "[TIME_UTILS] Failed to calculate timezone-aware boundaries, falling back to UTC:",
       error
     );
@@ -317,7 +318,7 @@ export function formatTimestampForDisplay(utcTimestamp: number): string {
 
     // Use date-fns to validate the date first
     if (!isValidDate(date)) {
-      console.warn(
+      logger.warn(
         "[TIME_UTILS] Invalid timestamp for display formatting:",
         utcTimestamp
       );
@@ -333,7 +334,7 @@ export function formatTimestampForDisplay(utcTimestamp: number): string {
     // Remove the "·" prefix if present (to match the expected format)
     return formatted.startsWith("·") ? formatted.substring(2) : formatted;
   } catch (error) {
-    console.warn("[TIME_UTILS] Failed to format timestamp for display:", error);
+    logger.warn("[TIME_UTILS] Failed to format timestamp for display:", error);
     return "unknown";
   }
 }
@@ -364,7 +365,7 @@ export function formatTimestampInTimezone(
     // Use date-fns format function
     return format(dateInUserTz, formatString);
   } catch (error) {
-    console.warn("[TIME_UTILS] Failed to format timestamp in timezone:", error);
+    logger.warn("[TIME_UTILS] Failed to format timestamp in timezone:", error);
     return "Unknown date";
   }
 }
@@ -408,7 +409,7 @@ export function isSameDay(
 
     // Validate both dates using date-fns
     if (!isValidDate(date1) || !isValidDate(date2)) {
-      console.warn("[TIME_UTILS] Invalid dates for comparison:", {
+      logger.warn("[TIME_UTILS] Invalid dates for comparison:", {
         timestamp1,
         timestamp2,
       });
@@ -426,7 +427,7 @@ export function isSameDay(
     // Use date-fns to check if they're the same day
     return differenceInDays(date1InUserTz, date2InUserTz) === 0;
   } catch (error) {
-    console.warn("[TIME_UTILS] Failed to compare days:", error);
+    logger.warn("[TIME_UTILS] Failed to compare days:", error);
     return false;
   }
 }
@@ -453,10 +454,7 @@ export function timeUntilMidnight(timezoneInfo?: TimezoneInfo): number {
 
     return Math.max(0, tomorrowStartUTC - now.getTime());
   } catch (error) {
-    console.warn(
-      "[TIME_UTILS] Failed to calculate time until midnight:",
-      error
-    );
+    logger.warn("[TIME_UTILS] Failed to calculate time until midnight:", error);
     // Default to 6 hours if calculation fails
     return 6 * 60 * 60 * 1000;
   }
@@ -474,9 +472,10 @@ export function debugTimezoneGrouping(
   const tz = getUserTimezoneInfo();
   const boundaries = calculateGroupingBoundaries(tz);
 
-  console.group("[TIME_UTILS] Timezone Grouping Debug");
-  console.log("Timezone Info:", tz);
-  console.log("Boundaries:", {
+  const scoped = logger.withScope("TIME_UTILS");
+  scoped.info("Timezone Grouping Debug");
+  scoped.info("Timezone Info:", tz);
+  scoped.info("Boundaries:", {
     todayStart: format(
       new Date(boundaries.todayStart),
       "yyyy-MM-dd HH:mm:ss 'UTC'"
@@ -493,7 +492,7 @@ export function debugTimezoneGrouping(
 
   keywords.forEach((item) => {
     if (!isValidDate(new Date(item.timestamp))) {
-      console.warn(`${item.keyword}: Invalid timestamp ${item.timestamp}`);
+      scoped.warn(`${item.keyword}: Invalid timestamp ${item.timestamp}`);
       return;
     }
 
@@ -510,8 +509,6 @@ export function debugTimezoneGrouping(
       new Date(item.timestamp),
       "yyyy-MM-dd HH:mm:ss 'UTC'"
     );
-    console.log(`${item.keyword}: ${formattedTime} -> ${group}`);
+    scoped.info(`${item.keyword}: ${formattedTime} -> ${group}`);
   });
-
-  console.groupEnd();
 }

@@ -8,6 +8,7 @@ import { Toggle } from "@/shared/ui/components/Toggle";
 import { CloseIcon, LinkIcon, BarcodeIcon } from "@/shared/ui/components/icons";
 import Image from "next/image";
 import { useOpenGraphPreview } from "@/shared/hooks/useOpenGraphPreview";
+import { logger } from "@/shared/lib/logger";
 
 interface OpenGraphPreviewProps {
   url: string;
@@ -43,7 +44,7 @@ export function OpenGraphPreview({
     imageUrl: string | null | undefined,
     error: React.SyntheticEvent<HTMLImageElement, Event>
   ) => {
-    console.warn("OpenGraph image failed to load:", imageUrl, error);
+    logger.warn("OpenGraph image failed to load:", imageUrl, error);
     setImageError(true);
   };
 
@@ -51,7 +52,7 @@ export function OpenGraphPreview({
     faviconUrl: string | null | undefined,
     error: React.SyntheticEvent<HTMLImageElement, Event>
   ) => {
-    console.warn("Favicon failed to load:", faviconUrl, error);
+    logger.warn("Favicon failed to load:", faviconUrl, error);
     setFaviconError(true);
   };
 

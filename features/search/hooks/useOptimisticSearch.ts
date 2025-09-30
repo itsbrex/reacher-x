@@ -12,6 +12,7 @@ import {
   cacheSearchResult,
 } from "@/shared/lib/utils/searchCache";
 import type { SearchResult } from "./useTwitterSearch";
+import { logger } from "@/shared/lib/logger";
 
 // Global cache for optimistic search results
 const optimisticSearchCache = new Map<string, SearchResult>();
@@ -45,7 +46,7 @@ export function useOptimisticSearch() {
         try {
           userDescription = getWorkspaceDescription();
         } catch (error) {
-          console.warn(
+          logger.warn(
             "[OPTIMISTIC_SEARCH] Failed to get user description:",
             error
           );
@@ -63,7 +64,7 @@ export function useOptimisticSearch() {
         });
 
         if (!searchResult?.success) {
-          console.warn(
+          logger.warn(
             "[OPTIMISTIC_SEARCH] Twitter search failed:",
             searchResult?.error
           );
@@ -115,7 +116,7 @@ export function useOptimisticSearch() {
               cacheSearchResult(query.trim(), exactMatch, transformedResults);
             }
           } catch (filterError) {
-            console.warn(
+            logger.warn(
               "[OPTIMISTIC_SEARCH] LLM filtering failed:",
               filterError
             );
@@ -128,7 +129,7 @@ export function useOptimisticSearch() {
           cacheSearchResult(query.trim(), exactMatch, transformedResults);
         }
       } catch (error) {
-        console.error("[OPTIMISTIC_SEARCH] Search failed:", error);
+        logger.error("[OPTIMISTIC_SEARCH] Search failed:", error);
       } finally {
         pendingSearches.current.delete(searchKey);
       }

@@ -2,6 +2,7 @@
 
 // convex/socialdata.ts
 import { action } from "./_generated/server";
+import { logger } from "../shared/lib/logger";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -160,7 +161,7 @@ export const getThreads = action({
       .map((result) => result.reason);
 
     if (errors.length > 0) {
-      console.error("Some threads failed to fetch:", errors);
+      logger.error("Some threads failed to fetch:", errors);
     }
 
     return threads;

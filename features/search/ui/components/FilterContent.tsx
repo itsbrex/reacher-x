@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useCallback } from "react";
 import { useForm, Controller, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/shared/ui/components/Button";
+import { logger } from "@/shared/lib/logger";
 import { Input } from "@/shared/ui/components/Input";
 import { Checkbox } from "@/shared/ui/components/Checkbox";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
@@ -152,7 +153,7 @@ export const FilterContent = memo<FilterContentProps>(function FilterContent({
 
   const handleSubmit = useCallback(
     (data: FilterFormData) => {
-      console.log("Form submitted with data:", data);
+      logger.info("Form submitted with data:", data);
       onApply();
     },
     [onApply]

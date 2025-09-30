@@ -20,6 +20,7 @@ import { Tweet } from "@/features/threads/types";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Button } from "@/shared/ui/components/Button";
 import { useTweetVoting } from "@/shared/hooks/useTweetVoting";
+import { logger } from "@/shared/lib/logger";
 
 interface TweetFooterProps {
   threadId: string;
@@ -102,14 +103,14 @@ export function TweetFooter({
             (t: Tweet) => t.id_str === tweetId
           );
           if (!tweetData) {
-            console.error(
+            logger.error(
               `Tweet with id ${tweetId} not found in thread ${threadId}`
             );
           }
           setMetrics(tweetData || null);
         })
         .catch((error) => {
-          console.error("Error fetching dynamic thread data:", error);
+          logger.error("Error fetching dynamic thread data:", error);
         })
         .finally(() => {
           setLoading(false);

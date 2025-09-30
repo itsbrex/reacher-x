@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { logger } from "@/shared/lib/logger";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -73,7 +74,7 @@ export function useDataMigration() {
       }
 
       // Log migration summary for debugging
-      console.log(createMigrationSummary(localStorageData));
+      logger.info(createMigrationSummary(localStorageData));
 
       // Migrate to Convex
       await migrateLocalStorageData({
@@ -90,14 +91,14 @@ export function useDataMigration() {
           await setOnboardingCompleted({});
           clearOnboardingCompleted();
         } catch (e) {
-          console.warn("Failed to set onboarding completed on server:", e);
+          logger.warn("Failed to set onboarding completed on server:", e);
         }
       }
 
       // Clear localStorage data after successful migration
       const clearSuccess = clearMigratedData();
       if (!clearSuccess) {
-        console.warn("Failed to clear some localStorage data after migration");
+        logger.warn("Failed to clear some localStorage data after migration");
       }
 
       const result: MigrationResult = {
@@ -109,7 +110,7 @@ export function useDataMigration() {
       setMigrationResult(result);
       return result;
     } catch (error) {
-      console.error("Data migration failed:", error);
+      logger.error("Data migration failed:", error);
       const result: MigrationResult = {
         success: false,
         migratedData: collectLocalStorageData(),

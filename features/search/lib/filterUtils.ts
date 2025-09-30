@@ -68,46 +68,38 @@ function applyUserFilters(
 
   // Verification status filters
   if (filters.verified !== undefined || filters.unverified !== undefined) {
-    console.log("[FILTER_UTILS] Applying verification filters:", {
+    // Dev-only insights handled elsewhere; avoid logs in production
+    // logger.info could be added if needed
+    // logger.info("[FILTER_UTILS] Applying verification filters:", {
       verified: filters.verified,
       unverified: filters.unverified,
       totalTweets: tweets.length,
       verifiedTweets: tweets.filter((t) => t.user?.verified === true).length,
       unverifiedTweets: tweets.filter((t) => t.user?.verified === false).length,
-    });
+    // });
 
     // If both are true, show all (default behavior)
     if (filters.verified === true && filters.unverified === true) {
       // No filtering needed - show all
-      console.log(
-        "[FILTER_UTILS] Showing all users (both verified and unverified)"
-      );
+      // no-op log in production
     }
     // If only verified is true, show only verified users
     else if (filters.verified === true && filters.unverified === false) {
       filtered = filtered.filter((tweet) => tweet.user?.verified === true);
       appliedFilters.push("Verified users only");
-      console.log(
-        "[FILTER_UTILS] Filtered to verified users only:",
-        filtered.length
-      );
+      
     }
     // If only unverified is true, show only unverified users
     else if (filters.verified === false && filters.unverified === true) {
       filtered = filtered.filter((tweet) => tweet.user?.verified === false);
       appliedFilters.push("Unverified users only");
-      console.log(
-        "[FILTER_UTILS] Filtered to unverified users only:",
-        filtered.length
-      );
+      
     }
     // If both are false, show none (edge case)
     else if (filters.verified === false && filters.unverified === false) {
       filtered = [];
       appliedFilters.push("No users (both verified and unverified disabled)");
-      console.log(
-        "[FILTER_UTILS] No users shown (both verified and unverified disabled)"
-      );
+      
     }
   }
 
@@ -160,12 +152,13 @@ function applyDateFilters(
   let filtered = tweets;
 
   if (filters.dateRange && filters.dateRange !== "all_time") {
-    console.log("[FILTER_UTILS] Applying date filter:", {
+    // Dev-only
+    // logger.info("[FILTER_UTILS] Applying date filter:", {
       dateRange: filters.dateRange,
       totalTweets: tweets.length,
       customRangeStart: filters.customRangeStart,
       customRangeEnd: filters.customRangeEnd,
-    });
+    // });
 
     const now = new Date();
     let cutoffDate: Date | undefined;
@@ -198,11 +191,7 @@ function applyDateFilters(
                   : 24 * 60 * 60 * 1000;
             cutoffDate = new Date(now.getTime() - value * multiplier);
             appliedFilters.push(`Last ${value} ${filters.lastXUnit}`);
-            console.log("[FILTER_UTILS] Last X filter applied:", {
-              value,
-              unit: filters.lastXUnit,
-              cutoffDate,
-            });
+            
           }
         }
         break; // Use break instead of return to continue to the filtering logic below
@@ -211,10 +200,7 @@ function applyDateFilters(
           const startDate = filters.customRangeStart;
           const endDate = filters.customRangeEnd;
 
-          console.log("[FILTER_UTILS] Custom date range:", {
-            startDate,
-            endDate,
-          });
+          
 
           filtered = filtered.filter((tweet) => {
             const tweetDate = new Date(tweet.tweet_created_at || "");
@@ -225,10 +211,7 @@ function applyDateFilters(
             return true;
           });
           appliedFilters.push("Custom date range");
-          console.log(
-            "[FILTER_UTILS] Custom date range applied:",
-            filtered.length
-          );
+          
         }
         return filtered;
       default:
@@ -237,24 +220,11 @@ function applyDateFilters(
 
     // Only apply cutoff date filtering if we have a valid cutoff date
     if (cutoffDate) {
-      console.log("[FILTER_UTILS] Applying cutoff date filter:", {
-        cutoffDate: cutoffDate.toISOString(),
-        now: now.toISOString(),
-        tweetsBeforeFilter: filtered.length,
-      });
+      
 
       // Debug: Show some tweet dates
       const sampleTweets = filtered.slice(0, 3);
-      sampleTweets.forEach((tweet, index) => {
-        const tweetDate = new Date(tweet.tweet_created_at || "");
-        console.log(`[FILTER_UTILS] Sample tweet ${index + 1}:`, {
-          tweetId: tweet.id_str,
-          tweetDate: tweet.tweet_created_at,
-          parsedDate: tweetDate.toISOString(),
-          isValid: !isNaN(tweetDate.getTime()),
-          isAfterCutoff: tweetDate >= cutoffDate,
-        });
-      });
+      
 
       filtered = filtered.filter((tweet) => {
         const tweetDate = new Date(tweet.tweet_created_at || "");
@@ -262,11 +232,7 @@ function applyDateFilters(
       });
 
       appliedFilters.push(filters.dateRange.replace(/_/g, " "));
-      console.log("[FILTER_UTILS] Date filter applied:", {
-        dateRange: filters.dateRange,
-        cutoffDate: cutoffDate.toISOString(),
-        filteredCount: filtered.length,
-      });
+      
     }
   }
 

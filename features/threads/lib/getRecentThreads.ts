@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { logger } from "@/shared/lib/logger";
 import { Thread } from "@/features/threads/types";
 
 export const getRecentThreads = async (count: number) => {
@@ -26,7 +27,7 @@ export const getRecentThreads = async (count: number) => {
     }));
     return recentThreads;
   } catch (error) {
-    console.error("Error fetching recent threads:", error);
+    logger.error("Error fetching recent threads:", error);
     return [];
   }
 };

@@ -60,7 +60,13 @@ export function finalizeRequestMetadata(
   startTime: number
 ): RequestMetadata {
   if (startTime <= 0 || startTime > Date.now()) {
-    console.warn("Invalid startTime provided to finalizeRequestMetadata");
+    // Dev-only log
+    try {
+      // Lazy import to avoid any potential cycles
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { logger } = require("../logger");
+      logger.warn("Invalid startTime provided to finalizeRequestMetadata");
+    } catch {}
   }
   return {
     ...metadata,

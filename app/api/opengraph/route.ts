@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchOpenGraphServer } from "@/shared/lib/utils/opengraphServer";
+import { logger } from "@/shared/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("Open Graph API error:", error);
+    logger.error("Open Graph API error:", error);
 
     // Handle specific error types
     if (error instanceof Error) {

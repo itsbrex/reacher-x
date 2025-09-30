@@ -20,6 +20,7 @@
 import { getLocalStorage, setLocalStorage } from "./localStorage";
 import { generateUniqueId } from "./request";
 import { getCurrentUTCTimestamp } from "./timeUtils";
+import { logger } from "../logger";
 
 // The single key for all keyword data in localStorage
 const UNIFIED_KEYWORDS_KEY = "reacherx_keywords_unified";
@@ -76,7 +77,7 @@ function loadKeywords(): UnifiedKeyword[] {
 
     // Basic validation to ensure we have an array
     if (!Array.isArray(keywords)) {
-      console.warn(
+      logger.warn(
         "[UnifiedKeywordStore] Stored data is not an array, resetting."
       );
       return [];
@@ -101,14 +102,14 @@ function loadKeywords(): UnifiedKeyword[] {
       )
     ) {
       saveKeywords(migratedKeywords);
-      console.log(
+      logger.info(
         "[UnifiedKeywordStore] Migrated existing keywords to include exactMatch property"
       );
     }
 
     return migratedKeywords;
   } catch (error) {
-    console.warn("[UnifiedKeywordStore] Failed to load keywords:", error);
+    logger.warn("[UnifiedKeywordStore] Failed to load keywords:", error);
     return [];
   }
 }
@@ -127,7 +128,7 @@ function saveKeywords(keywords: UnifiedKeyword[]): boolean {
       JSON.stringify(sortedKeywords)
     );
   } catch (error) {
-    console.error("[UnifiedKeywordStore] Failed to save keywords:", error);
+    logger.error("[UnifiedKeywordStore] Failed to save keywords:", error);
     return false;
   }
 }
@@ -240,7 +241,7 @@ export function togglePin(id: string): boolean {
   const keyword = keywords.find((k) => k.id === id);
 
   if (!keyword) {
-    console.warn(`[UnifiedKeywordStore] Keyword with ID "${id}" not found.`);
+    logger.warn(`[UnifiedKeywordStore] Keyword with ID "${id}" not found.`);
     return false;
   }
 
@@ -261,7 +262,7 @@ export function deleteKeyword(id: string): boolean {
   const filteredKeywords = keywords.filter((k) => k.id !== id);
 
   if (initialCount === filteredKeywords.length) {
-    console.warn(
+    logger.warn(
       `[UnifiedKeywordStore] Delete failed: Keyword with ID "${id}" not found.`
     );
     return false;
@@ -321,7 +322,7 @@ export function recordVote(
   const keyword = keywords.find((k) => k.id === keywordId);
 
   if (!keyword) {
-    console.warn(
+    logger.warn(
       `[UnifiedKeywordStore] Cannot vote: Keyword with ID "${keywordId}" not found.`
     );
     return false;
@@ -344,7 +345,7 @@ export function recordVote(
   keyword.decayedScore = calculateDecayedScore(keyword);
   keyword.status = getStatusFromScore(keyword.decayedScore);
 
-  console.log(
+  logger.info(
     `[UnifiedKeywordStore] Voted ${vote} on "${keyword.keyword}". New score: ${keyword.decayedScore.toFixed(
       2
     )}, Status: ${keyword.status}`

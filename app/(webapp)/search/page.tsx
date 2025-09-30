@@ -39,6 +39,7 @@ import {
   AlertTitle,
 } from "@/shared/ui/components/Alert";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
+import { logger } from "@/shared/lib/logger";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
@@ -122,12 +123,12 @@ export default function SearchResultsPage() {
     try {
       const description = getWorkspaceDescription();
       setUserDescription(description);
-      console.log("[SEARCH_PAGE] Loaded user description from localStorage:", {
+      logger.info("[SEARCH_PAGE] Loaded user description from localStorage:", {
         hasDescription: !!description,
         descriptionLength: description?.length || 0,
       });
     } catch (error) {
-      console.error("[SEARCH_PAGE] Failed to load user description:", error);
+      logger.error("[SEARCH_PAGE] Failed to load user description:", error);
     }
   }, []);
 
@@ -152,7 +153,7 @@ export default function SearchResultsPage() {
 
   // Sync draft state with committed state when URL changes
   useEffect(() => {
-    console.log("[SEARCH_PAGE] URL sync effect triggered:", {
+    logger.info("[SEARCH_PAGE] URL sync effect triggered:", {
       committedQuery,
       committedExactMatch,
       lastCommittedQuery: lastCommittedQuery.current,
@@ -165,7 +166,7 @@ export default function SearchResultsPage() {
       committedQuery === lastCommittedQuery.current &&
       committedExactMatch === lastCommittedExactMatch.current
     ) {
-      console.log(
+      logger.info(
         "[SEARCH_PAGE] No actual change in committed values, skipping search"
       );
       return;
@@ -184,7 +185,7 @@ export default function SearchResultsPage() {
 
     // Only trigger search if we have a query, and prevent duplicate initial searches
     if (committedQuery && committedQuery.trim()) {
-      console.log("[SEARCH_PAGE] Triggering search for:", {
+      logger.info("[SEARCH_PAGE] Triggering search for:", {
         query: committedQuery,
         exactMatch: committedExactMatch,
         hasUserDescription: !!userDescription,
@@ -199,7 +200,7 @@ export default function SearchResultsPage() {
         committedExactMatch
       );
       if (optimisticResult) {
-        console.log("[SEARCH_PAGE] Using optimistic result:", {
+        logger.info("[SEARCH_PAGE] Using optimistic result:", {
           tweetCount: optimisticResult.tweets.length,
         });
         // Clear optimistic cache after using it
@@ -251,7 +252,7 @@ export default function SearchResultsPage() {
           );
           isInitialSearchDone.current = true;
         } catch (err) {
-          console.error("[SEARCH_PAGE] Failed to commit search:", err);
+          logger.error("[SEARCH_PAGE] Failed to commit search:", err);
         }
       };
 
@@ -261,7 +262,7 @@ export default function SearchResultsPage() {
         cancelled = true;
       };
     } else {
-      console.log("[SEARCH_PAGE] Clearing results - no query");
+      logger.info("[SEARCH_PAGE] Clearing results - no query");
       clearResults();
       isInitialSearchDone.current = false;
     }
@@ -283,7 +284,7 @@ export default function SearchResultsPage() {
   // Handle load more
   const handleLoadMore = useCallback(() => {
     if (results?.meta?.next_cursor && committedQuery && !loading) {
-      console.log("[SEARCH_PAGE] Loading more results with cursor:", {
+      logger.info("[SEARCH_PAGE] Loading more results with cursor:", {
         cursor: results.meta.next_cursor,
         currentResultsCount: results.tweets.length,
       });
@@ -312,7 +313,7 @@ export default function SearchResultsPage() {
         draftQuery !== committedQuery ||
         draftExactMatch !== committedExactMatch
       ) {
-        console.log(
+        logger.info(
           "[SEARCH_PAGE] Reverting draft state to committed values:",
           {
             draftQuery,
@@ -362,7 +363,7 @@ export default function SearchResultsPage() {
     );
     const quotes = sortedTweets.filter((tweet) => tweet.quoted_status_id_str);
 
-    console.log("[SEARCH_PAGE] Filtered, sorted, and categorized tweets:", {
+    logger.info("[SEARCH_PAGE] Filtered, sorted, and categorized tweets:", {
       original: results.tweets.length,
       filtered: filteredTweets.length,
       sorted: sortedTweets.length,
@@ -559,7 +560,7 @@ export default function SearchResultsPage() {
       const trimmedQuery = searchQuery.trim();
       if (!trimmedQuery) return;
 
-      console.log("[SEARCH_PAGE] Committing search:", {
+      logger.info("[SEARCH_PAGE] Committing search:", {
         searchQuery: trimmedQuery,
         isExactMatch,
       });
@@ -594,7 +595,7 @@ export default function SearchResultsPage() {
   // Handle keyword selection from suggestions
   const handleKeywordClick = useCallback(
     async (item: KeywordItem) => {
-      console.log("[SEARCH_PAGE] Keyword selected from suggestions:", {
+      logger.info("[SEARCH_PAGE] Keyword selected from suggestions:", {
         keyword: item.keyword,
         exactMatch: item.exactMatch,
       });
@@ -630,13 +631,13 @@ export default function SearchResultsPage() {
 
   // Update draft state
   const handleQueryChange = useCallback((newQuery: string) => {
-    console.log("[SEARCH_PAGE] Draft query updated:", { newQuery });
+    logger.info("[SEARCH_PAGE] Draft query updated:", { newQuery });
     setDraftQuery(newQuery);
   }, []);
 
   // Handle search input focus
   const handleSearchFocus = useCallback(() => {
-    console.log("[SEARCH_PAGE] Search input focused - entering search mode");
+    logger.info("[SEARCH_PAGE] Search input focused - entering search mode");
     setIsSearchMode(true);
   }, []);
 
@@ -647,7 +648,7 @@ export default function SearchResultsPage() {
         containerRef.current &&
         !containerRef.current.contains(document.activeElement)
       ) {
-        console.log("[SEARCH_PAGE] Search input blurred - exiting search mode");
+        logger.info("[SEARCH_PAGE] Search input blurred - exiting search mode");
         setIsSearchMode(false);
       }
     }, 150);
@@ -655,13 +656,13 @@ export default function SearchResultsPage() {
 
   // Handle input start
   const handleInputStart = useCallback(() => {
-    console.log("[SEARCH_PAGE] User started typing - entering search mode");
+    logger.info("[SEARCH_PAGE] User started typing - entering search mode");
     setIsSearchMode(true);
   }, []);
 
   // Manual revert function
   const revertToCommittedState = useCallback(() => {
-    console.log("[SEARCH_PAGE] Manual revert to committed state triggered");
+    logger.info("[SEARCH_PAGE] Manual revert to committed state triggered");
     setDraftQuery(committedQuery);
     setDraftExactMatch(committedExactMatch);
     setIsSearchMode(false);
@@ -677,7 +678,7 @@ export default function SearchResultsPage() {
     (e: KeyboardEvent) => {
       if (e.key === "Escape" && isSearchMode) {
         e.preventDefault();
-        console.log(
+        logger.info(
           "[SEARCH_PAGE] Escape key pressed - reverting to committed state"
         );
         revertToCommittedState();
@@ -838,7 +839,7 @@ export default function SearchResultsPage() {
               <Tabs
                 value={activeTab}
                 onValueChange={(value) => {
-                  console.log("[SEARCH_PAGE] Tab changed:", {
+                  logger.info("[SEARCH_PAGE] Tab changed:", {
                     from: activeTab,
                     to: value,
                   });

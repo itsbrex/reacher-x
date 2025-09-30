@@ -13,6 +13,7 @@
 import { getLocalStorage, setLocalStorage } from "./localStorage";
 import { base64UrlEncodeUtf8 } from "./encoding";
 import type { SearchResult } from "@/features/search/hooks/useTwitterSearch";
+import { logger } from "../logger";
 
 // Storage key for search cache
 const SEARCH_CACHE_KEY = "reacherx_search_cache";
@@ -82,7 +83,7 @@ function loadSearchCache(): SearchCache {
 
     // Validate cache structure
     if (!cache.entries || typeof cache.entries !== "object") {
-      console.warn("[SEARCH_CACHE] Invalid cache structure, resetting");
+      logger.warn("[SEARCH_CACHE] Invalid cache structure, resetting");
       return {
         entries: {},
         totalSize: 0,
@@ -92,7 +93,7 @@ function loadSearchCache(): SearchCache {
 
     return cache;
   } catch (error) {
-    console.warn("[SEARCH_CACHE] Failed to load search cache:", error);
+    logger.warn("[SEARCH_CACHE] Failed to load search cache:", error);
     return {
       entries: {},
       totalSize: 0,
@@ -113,7 +114,7 @@ function saveSearchCache(cache: SearchCache): boolean {
       cache = evictLRUEntries(cache);
       serialized = JSON.stringify(cache);
       if (serialized.length > CACHE_CONFIG.MAX_STORAGE_SIZE) {
-        console.error(
+        logger.error(
           "[SEARCH_CACHE] Unable to save cache – size still exceeds limit after eviction"
         );
         return false;
@@ -122,7 +123,7 @@ function saveSearchCache(cache: SearchCache): boolean {
 
     return setLocalStorage(SEARCH_CACHE_KEY, serialized);
   } catch (error) {
-    console.warn("[SEARCH_CACHE] Failed to save search cache:", error);
+    logger.warn("[SEARCH_CACHE] Failed to save search cache:", error);
     return false;
   }
 }
@@ -149,7 +150,7 @@ function cleanExpiredEntries(cache: SearchCache): SearchCache {
   const removedCount =
     Object.keys(cache.entries).length - Object.keys(cleaned.entries).length;
   if (removedCount > 0) {
-    console.log(`[SEARCH_CACHE] Cleaned ${removedCount} expired entries`);
+    logger.info(`[SEARCH_CACHE] Cleaned ${removedCount} expired entries`);
   }
 
   return cleaned;
@@ -198,7 +199,7 @@ function evictLRUEntries(cache: SearchCache): SearchCache {
 
   const evictedCount = sorted.length - Object.keys(newCache.entries).length;
   if (evictedCount > 0) {
-    console.warn(
+    logger.warn(
       `[SEARCH_CACHE] Evicted ${evictedCount} entries to fit size limits`
     );
   }
@@ -224,7 +225,7 @@ export function getCachedSearchResult(
 
     // Check if entry is expired
     if (Date.now() - entry.cachedAt > CACHE_CONFIG.TTL_MS) {
-      console.log(`[SEARCH_CACHE] Cache entry expired for: "${query}"`);
+      logger.info(`[SEARCH_CACHE] Cache entry expired for: "${query}"`);
       return null;
     }
 
@@ -233,10 +234,10 @@ export function getCachedSearchResult(
     cache.entries[key] = entry;
     saveSearchCache(cache);
 
-    console.log(`[SEARCH_CACHE] Cache hit for: "${query}"`);
+    logger.info(`[SEARCH_CACHE] Cache hit for: "${query}"`);
     return entry.result;
   } catch (error) {
-    console.warn("[SEARCH_CACHE] Error retrieving cached result:", error);
+    logger.warn("[SEARCH_CACHE] Error retrieving cached result:", error);
     return null;
   }
 }
@@ -279,14 +280,14 @@ export function cacheSearchResult(
     const success = saveSearchCache(cache);
 
     if (success) {
-      console.log(
+      logger.info(
         `[SEARCH_CACHE] Cached result for: "${query}" (${size} bytes)`
       );
     }
 
     return success;
   } catch (error) {
-    console.error("[SEARCH_CACHE] Error caching search result:", error);
+    logger.error("[SEARCH_CACHE] Error caching search result:", error);
     return false;
   }
 }
@@ -313,14 +314,14 @@ export function clearCachedSearch(query: string, exactMatch: boolean): boolean {
 
       const success = saveSearchCache(cache);
       if (success) {
-        console.log(`[SEARCH_CACHE] Cleared cache for: "${query}"`);
+        logger.info(`[SEARCH_CACHE] Cleared cache for: "${query}"`);
       }
       return success;
     }
 
     return true; // Nothing to clear
   } catch (error) {
-    console.error("[SEARCH_CACHE] Error clearing cached search:", error);
+    logger.error("[SEARCH_CACHE] Error clearing cached search:", error);
     return false;
   }
 }
@@ -340,12 +341,12 @@ export function clearAllSearchCache(): boolean {
     );
 
     if (success) {
-      console.log("[SEARCH_CACHE] Cleared all cached searches");
+      logger.info("[SEARCH_CACHE] Cleared all cached searches");
     }
 
     return success;
   } catch (error) {
-    console.error("[SEARCH_CACHE] Error clearing search cache:", error);
+    logger.error("[SEARCH_CACHE] Error clearing search cache:", error);
     return false;
   }
 }
@@ -415,7 +416,7 @@ export function maintainSearchCache(): boolean {
       return true;
     }
 
-    console.log("[SEARCH_CACHE] Performing cache maintenance");
+    logger.info("[SEARCH_CACHE] Performing cache maintenance");
 
     // Clean expired entries
     cache = cleanExpiredEntries(cache);
@@ -425,7 +426,7 @@ export function maintainSearchCache(): boolean {
 
     return saveSearchCache(cache);
   } catch (error) {
-    console.error("[SEARCH_CACHE] Error during cache maintenance:", error);
+    logger.error("[SEARCH_CACHE] Error during cache maintenance:", error);
     return false;
   }
 }
@@ -445,7 +446,7 @@ export function updateCachedSearchResult(
     const existingEntry = cache.entries[key];
 
     if (!existingEntry) {
-      console.warn(
+      logger.warn(
         `[SEARCH_CACHE] No existing cache entry to update for: "${query}"`
       );
       return false;
@@ -476,14 +477,14 @@ export function updateCachedSearchResult(
     const success = saveSearchCache(cache);
 
     if (success) {
-      console.log(
+      logger.info(
         `[SEARCH_CACHE] Updated cached result for: "${query}" (${sizeDifference > 0 ? "+" : ""}${sizeDifference} bytes, total: ${newSize} bytes)`
       );
     }
 
     return success;
   } catch (error) {
-    console.error("[SEARCH_CACHE] Error updating cached search result:", error);
+    logger.error("[SEARCH_CACHE] Error updating cached search result:", error);
     return false;
   }
 }

@@ -33,6 +33,7 @@ import {
   AlertTitle,
 } from "@/shared/ui/components/Alert";
 import { PageLayout, PageContent } from "@/features/webapp/ui/components";
+import { logger } from "@/shared/lib/logger";
 
 const MIN_CHARS = DESCRIPTION_CONSTRAINTS.MIN_LENGTH;
 const MAX_CHARS = DESCRIPTION_CONSTRAINTS.MAX_LENGTH;
@@ -102,7 +103,7 @@ export default function OnboardingClient() {
         return;
       }
     } catch (error) {
-      console.error("Failed to submit onboarding:", error);
+      logger.error("Failed to submit onboarding:", error);
     }
   };
 

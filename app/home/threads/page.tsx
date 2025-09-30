@@ -11,6 +11,7 @@ import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCar
 import { WaitlistSection } from "@/features/waitlist/ui/components/WaitlistSection";
 import { WaitlistFormWrapper } from "@/features/waitlist/ui/components/WaitlistFormWrapper";
 import { WaitlistUsers } from "@/features/waitlist/ui/components/WaitlistUsers";
+import { logger } from "@/shared/lib/logger";
 
 export const metadata = {
   title: "Threads",
@@ -39,7 +40,7 @@ export default async function ThreadsPage() {
       api.socialdataMutations.getStaticThreads
     )) as Thread[];
   } catch (error) {
-    console.error("Error fetching threads:", error);
+    logger.error("Error fetching threads:", error);
   }
 
   if (staticThreads.length === 0) {
