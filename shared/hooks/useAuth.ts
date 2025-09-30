@@ -55,30 +55,32 @@ export function useAuth() {
 
   // Handle user storage and workspace creation
   useEffect(() => {
+    console.warn("useEffect", convexAuthenticated, workosUser, currentUser);
     const initializeUser = async () => {
       if (!convexAuthenticated || !workosUser || hasInitialized.current) return;
 
       hasInitialized.current = true;
 
       // logger.info("Initializing user", workosUser, currentUser);
-      console.log("Initializing user", workosUser, currentUser);
+      console.warn("Initializing user", workosUser, currentUser);
 
       try {
         // Store user if not in database
         if (!currentUser) {
           // logger.info("Storing user", workosUser, currentUser);
-          console.log("Storing user", workosUser, currentUser);
-          await storeUser({
+          console.warn("Storing user", workosUser, currentUser);
+          const res = await storeUser({
             workosUserId: workosUser.id,
             email: workosUser.email,
             firstName: workosUser.firstName || undefined,
             lastName: workosUser.lastName || undefined,
             profileImageUrl: workosUser.profilePictureUrl || undefined,
           });
+          console.warn("Stored user", res);
         }
 
         // logger.info("Storing user", workosUser, currentUser);
-        console.log("Storing user", workosUser, currentUser);
+        console.warn("Storing user", workosUser, currentUser);
 
         // Ensure workspace exists
         if (currentUser && workspace === null) {
