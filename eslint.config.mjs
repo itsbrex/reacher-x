@@ -27,13 +27,11 @@ export default defineConfig([
         },
       ],
     },
-    overrides: [
-      {
-        files: ["shared/lib/logger.ts"],
-        rules: {
-          "no-console": "off",
-        },
-      },
-    ],
+  },
+  {
+    files: ["shared/lib/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
   },
 ]);
