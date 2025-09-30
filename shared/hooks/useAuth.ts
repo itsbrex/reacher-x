@@ -60,9 +60,12 @@ export function useAuth() {
 
       hasInitialized.current = true;
 
+      logger.info("Initializing user", workosUser, currentUser);
+
       try {
         // Store user if not in database
         if (!currentUser) {
+          logger.info("Storing user", workosUser, currentUser);
           await storeUser({
             workosUserId: workosUser.id,
             email: workosUser.email,
@@ -71,6 +74,8 @@ export function useAuth() {
             profileImageUrl: workosUser.profilePictureUrl || undefined,
           });
         }
+
+        logger.info("Storing user", workosUser, currentUser);
 
         // Ensure workspace exists
         if (currentUser && workspace === null) {

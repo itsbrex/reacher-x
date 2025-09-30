@@ -16,12 +16,14 @@ export function useStoreUserEffect() {
 
   // Query to verify user exists in database
   const currentUser = useQuery(api.users.getCurrentUser);
+  logger.info("Current user", currentUser);
 
   // Use ref to track if we're already processing a user to prevent duplicate calls
   const isProcessingRef = useRef(false);
 
   // Memoize the createUser function to prevent unnecessary re-creations
   const createUser = useCallback(async () => {
+    logger.info("Creating user", user);
     if (!user || isProcessingRef.current) {
       return;
     }
@@ -29,6 +31,8 @@ export function useStoreUserEffect() {
     isProcessingRef.current = true;
 
     try {
+      logger.info("Storing user", user);
+      logger.info("Current user", currentUser);
       const id = await storeUser({
         workosUserId: user.id,
         email: user.email,
@@ -36,6 +40,8 @@ export function useStoreUserEffect() {
         lastName: user.lastName || undefined,
         profileImageUrl: user.profilePictureUrl || undefined,
       });
+
+      logger.info("Stored user", id);
 
       if (id) {
         setUserId(id);
@@ -73,6 +79,7 @@ export function useStoreUserEffect() {
     // Only create user if we haven't already stored this user and no current user exists
     if (userId === null && !currentUser && !isProcessingRef.current) {
       createUser();
+      logger.info("Creating user", user);
     }
 
     // Cleanup function
