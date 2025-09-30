@@ -44,8 +44,10 @@ function useAuthFromWorkos() {
   const fetchAccessToken = useCallback(async () => {
     try {
       const token = await getAccessToken();
+      console.warn("fetchAccessToken", token);
       return token ?? null;
     } catch {
+      console.warn("fetchAccessToken", tokenError);
       return null;
     }
   }, [getAccessToken]);
