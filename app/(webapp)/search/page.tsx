@@ -816,7 +816,8 @@ export default function SearchResultsPage() {
 
       {/* Conditional content area */}
       <div className="mt-4 min-h-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full overscroll-contain">
+        {/* Scoped fix: neutralize Radix ScrollArea internal wrapper on /search */}
+        <ScrollArea className="search-scrollarea h-full overscroll-contain">
           {isSearchMode ? (
             <SearchContent
               suggestions={keywordSuggestions}

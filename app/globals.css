@@ -135,3 +135,11 @@ h6 {
     text-wrap: balance;
   }
 }
+
+/* Scoped fix: neutralize Radix ScrollArea internal wrapper on /search */
+.search-scrollarea [style*="display: table"] {
+  display: block !important;
+}
+.search-scrollarea [style*="min-width: 100%"] {
+  min-width: auto !important;
+}
