@@ -1,4 +1,4 @@
-import { Id } from "@/convex/_generated/dataModel";
+import { Id } from "../../convex/_generated/dataModel";
 
 export interface User {
   id: number;
@@ -127,7 +127,7 @@ export interface Tweet {
 export interface Thread {
   _id: Id<"threads">;
   _creationTime: number;
-  createdAt: number;
+  postedAt: number;
   threadId: string;
   tweets: Tweet[];
 }

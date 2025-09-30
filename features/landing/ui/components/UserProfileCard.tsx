@@ -49,7 +49,7 @@ export function UserProfileCard({
   const formattedFriendsCount = formatLargeNumber(Number(friendsCount ?? 0));
 
   const parsedDescription = React.useMemo(() => {
-    if (!description) return ""; // Handle undefined or empty description
+    if (!description) return null; // Handle undefined or empty description
     const urlEntities = entities?.description?.urls || []; // Extract URL entities
     return parseText(description, { urls: urlEntities });
   }, [description, entities]);
@@ -66,11 +66,10 @@ export function UserProfileCard({
         verified={verified}
       />
 
-      {description && (
-        <p
-          className="whitespace-pre-line text-base [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
-          dangerouslySetInnerHTML={{ __html: parsedDescription }}
-        />
+      {description && parsedDescription && (
+        <p className="whitespace-pre-line text-base [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400">
+          {parsedDescription}
+        </p>
       )}
 
       <article

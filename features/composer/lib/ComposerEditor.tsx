@@ -1,0 +1,117 @@
+"use client";
+
+import React, { useCallback, useMemo, useState } from "react";
+import { SerializedEditorState } from "lexical";
+import { cn } from "@/shared/lib/utils/utils";
+import { Editor } from "@/features/composer/ui/components/Editor";
+import {
+  ToolbarBridgePlugin,
+  ComposerEditorAPI,
+  FormattingState,
+} from "./ToolbarBridgePlugin";
+import { ComposerBaseProps } from "../types";
+
+interface ComposerEditorProps extends ComposerBaseProps {
+  showToolbar?: boolean;
+  showCharacterCount?: boolean;
+  className?: string;
+  onBridgeReady?: (api: ComposerEditorAPI) => void;
+  onFormattingChange?: (state: FormattingState) => void;
+  extraPlugins?: React.ReactNode;
+}
+
+export function ComposerEditor({
+  maxLength = 280,
+  showCharacterCount = true,
+  className,
+  onContentChange,
+  onBridgeReady,
+  onFormattingChange,
+  extraPlugins,
+}: ComposerEditorProps) {
+  const [editorState, setEditorState] = useState<
+    SerializedEditorState | undefined
+  >(undefined);
+
+  const handleContentChange = useCallback(
+    (newState: SerializedEditorState) => {
+      setEditorState(newState);
+      onContentChange?.(newState);
+    },
+    [onContentChange]
+  );
+
+  // Calculate character count from editor state.
+  const characterCount = useMemo(() => {
+    if (!editorState) return 0;
+    let count = 0;
+    const traverse = (node: Record<string, unknown>) => {
+      if (typeof node.text === "string") {
+        count += node.text.length;
+      }
+      if (Array.isArray(node.children)) {
+        node.children.forEach(traverse);
+      }
+    };
+    traverse(editorState.root as unknown as Record<string, unknown>);
+    return count;
+  }, [editorState]);
+
+  const isOverLimit = characterCount > maxLength;
+
+  return (
+    <div
+      className={cn("relative", className)}
+      onPaste={(e) => {
+        const dt = e.clipboardData;
+        if (!dt) return;
+        const files = dt.files;
+        if (files && files.length > 0) {
+          // Handled upstream via BaseComposer media flow.
+        }
+      }}
+      onDrop={(e) => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+          // Handled upstream via BaseComposer media flow.
+          e.preventDefault();
+        }
+      }}
+    >
+      {/* Editor */}
+      <div className="relative">
+        <Editor
+          editorSerializedState={editorState}
+          onSerializedChange={handleContentChange}
+          extraPlugins={
+            <>
+              <ToolbarBridgePlugin
+                onReady={onBridgeReady}
+                onFormattingChange={onFormattingChange}
+              />
+              {extraPlugins}
+            </>
+          }
+        />
+        {/* Bridge plugin is mounted via Editor.extraPlugins */}
+      </div>
+
+      {/* Character Count */}
+      {showCharacterCount && (
+        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span className={cn(isOverLimit && "text-destructive")}>
+            {characterCount.toLocaleString("en-US", { useGrouping: false })}/
+            {maxLength}
+          </span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {isOverLimit && (
+        <div className="mt-1 text-xs text-red-500">
+          Character limit exceeded
+        </div>
+      )}
+    </div>
+  );
+}

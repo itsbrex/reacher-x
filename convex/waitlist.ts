@@ -1,12 +1,7 @@
 // convex/waitlist.ts
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
 import { api } from "./_generated/api";
-
-const waitlistEntryValidator = v.object({
-  email: v.string(),
-  twitter: v.optional(v.string()),
-});
+import { waitlistEntryValidator } from "./validators";
 
 export const joinWaitlist = mutation({
   args: waitlistEntryValidator,
@@ -21,11 +16,7 @@ export const joinWaitlist = mutation({
       await ctx.db.patch(existingEntry._id, { twitter });
     } else {
       // Insert a new entry
-      await ctx.db.insert("waitlist", {
-        email,
-        twitter,
-        createdAt: new Date().toISOString(),
-      });
+      await ctx.db.insert("waitlist", { email, twitter });
       // Schedule the email-sending action immediately
       await ctx.scheduler.runAfter(0, api.sendEmail.sendWelcomeEmail, {
         email,

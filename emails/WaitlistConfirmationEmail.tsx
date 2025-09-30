@@ -73,10 +73,10 @@ export const WaitlistConfirmationEmail = () => {
                 <strong>Read my threads:</strong> I’ve been writing about
                 ReacherX and why I think it’s important. ⇾{" "}
                 <Link
-                  href="#"
+                  href="/home/threads"
                   className="tracking-custom font-mono text-[1rem] leading-[150%] text-neutral-500 underline underline-offset-4"
                 >
-                  reacherx.com/threads
+                  reacherx.com/home/threads
                 </Link>
               </li>
             </ul>
