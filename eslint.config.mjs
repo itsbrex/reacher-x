@@ -20,12 +20,7 @@ export default defineConfig([
       "plugin:prettier/recommended"
     ),
     rules: {
-      "no-console": [
-        "error",
-        {
-          allow: [],
-        },
-      ],
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
   {

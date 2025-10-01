@@ -9,6 +9,7 @@ import {
   useAccessToken,
 } from "@workos-inc/authkit-nextjs/components";
 import { clearAllLocalAppData } from "@/shared/lib/utils/localStorage";
+import { logger } from "@/shared/lib/logger";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!, {
   verbose: true,
@@ -36,7 +37,7 @@ function useAuthFromWorkos() {
   // Consider the session authenticated based on stable user presence; token may
   // be rotating in the background. Convex will call fetchAccessToken for a fresh
   // token when (re)connecting.
-  console.warn("useAuthFromWorkos", user, tokenError);
+  logger.warn("useAuthFromWorkos", user, tokenError);
   const authenticated = !!user && !tokenError;
 
   const wasAuthenticated = useRef<boolean>(false);
@@ -44,10 +45,10 @@ function useAuthFromWorkos() {
   const fetchAccessToken = useCallback(async () => {
     try {
       const token = await getAccessToken();
-      console.warn("fetchAccessToken", token);
+      // console.warn("fetchAccessToken", token);
       return token ?? null;
     } catch {
-      console.warn("fetchAccessToken", tokenError);
+      // console.warn("fetchAccessToken", tokenError);
       return null;
     }
   }, [getAccessToken]);
@@ -63,7 +64,7 @@ function useAuthFromWorkos() {
     wasAuthenticated.current = !!user;
   }, [user]);
 
-  console.warn("useAuthFromWorkos", loading, authenticated);
+  // console.warn("useAuthFromWorkos", loading, authenticated);
   return {
     isLoading: loading,
     isAuthenticated: authenticated,

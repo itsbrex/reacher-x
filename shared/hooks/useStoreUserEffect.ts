@@ -17,7 +17,7 @@ export function useStoreUserEffect() {
   // Query to verify user exists in database
   const currentUser = useQuery(api.users.getCurrentUser);
   // logger.info("Current user", currentUser);
-  console.log("Current user", currentUser);
+  // logger.info("Current user", currentUser);
 
   // Use ref to track if we're already processing a user to prevent duplicate calls
   const isProcessingRef = useRef(false);
@@ -25,7 +25,7 @@ export function useStoreUserEffect() {
   // Memoize the createUser function to prevent unnecessary re-creations
   const createUser = useCallback(async () => {
     // logger.info("Creating user", user);
-    console.log("Creating user", user);
+    // logger.info("Creating user", user);
     if (!user || isProcessingRef.current) {
       return;
     }
@@ -34,9 +34,9 @@ export function useStoreUserEffect() {
 
     try {
       // logger.info("Storing user", user);
-      console.log("Storing user", user);
+      // logger.info("Storing user", user);
       // logger.info("Current user", currentUser);
-      console.log("Current user", currentUser);
+      // logger.info("Current user", currentUser);
       const id = await storeUser({
         workosUserId: user.id,
         email: user.email,
@@ -46,7 +46,7 @@ export function useStoreUserEffect() {
       });
 
       // logger.info("Stored user", id);
-      console.log("Stored user", id);
+      // logger.info("Stored user", id);
 
       if (id) {
         setUserId(id);
@@ -85,7 +85,7 @@ export function useStoreUserEffect() {
     if (userId === null && !currentUser && !isProcessingRef.current) {
       createUser();
       // logger.info("Creating user", user);
-      console.log("Creating user", user);
+      // logger.info("Creating user", user);
     }
 
     // Cleanup function
