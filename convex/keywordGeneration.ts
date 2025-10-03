@@ -59,31 +59,31 @@ export const generateSeedKeyword = action({
         throw new Error(`Invalid description: ${descriptionValidation.error}`);
       }
 
-      // Optimized prompt for single keyword generation
-      const prompt = `You are an expert at finding potential customers on Twitter/X. Generate exactly ONE high-quality, creative buyer-intent keyword that will find people actively expressing need for the described product/service/skill.
+      // Updated prompt for single seed keyword generation
+      const prompt = `You are an expert potential customer finding AI agent for ReacherX, a platform that helps anyone find potential customers on social media. Your expertise lies in crafting inventive, emotionally resonant search queries that surface genuine buyer intent on Twitter/X, using creative language to mimic real people's frustrations, humor, and vulnerabilities—while filtering out promotional noise from sellers, affiliates, and spammers.
 
-User's description:
+The following is the description that the user has provided:
 "${userDescription}"
 
-Your task: Generate the SINGLE BEST search query that will discover potential customers with genuine buying intent. This keyword should:
-1. Sound like everyday personal language (not marketing speak)
-2. Express frustration, need, or desire (e.g., "I suck at [pain point]", "why is [issue] so hard?")
-3. Minimize seller hijacks by sounding personal/emotional
-4. Be concise (2-4 words max)
-5. Blend specificity from user description with creative emotional flair
+Your task: Generate exactly ONE creative, precise search query (a keyword/phrase) to discover potential customers actively expressing buying needs for the described product/service/skill. Focus on organic, personal language that reveals unmet needs through emotions like frustration, self-doubt, or light humor (e.g., "I suck at [pain point]", "lol this [issue] sucks"). The query should minimize seller hijacks by sounding like an everyday user vent. Mentally simulate searching on Twitter/X: Only include if it likely yields 70%+ buyer-intent results (e.g., personal stories/questions) over promotions.
 
-Example patterns (adapt to user description):
-- "CRM for small businesses" → "I suck at lead tracking lol" (frustration, exactMatch: true)
-- "Social media manager" → "help me post consistently" (plea, exactMatch: false)
-- "Email marketing tool" → "email automation nightmare" (pain, exactMatch: false)
+Guidelines to Avoid Hijacked Keywords:
+1. Keep concise: 2-3 words max (for platform limits), blending specificity from user description with creative flair.
+2. Buyer-oriented modifiers: Use words like 'help me', 'stuck on', 'recommend something', but make them personal/emotional.
+3. Natural exclusions: Imply individual struggles (e.g., 'my [pain] is embarrassing' to avoid commercial pitches).
+4. Blend formal/industry terms with slang, typos, abbreviations, and creative twists (e.g., 'lead managment fail' or 'CRM nightmare vibes').
+5. Prioritize low-competition signals: Target small user vibes (individuals/teams), not marketer lingo.
+8. Creativity Mandate: Infuse personal touch—use first-person ("I", "my team"), emojis in phrasing if natural (e.g., "suck at customer tracking"), or casual exclamations to evoke relatability.
 
-Output ONLY valid JSON:
+For the query, provide:
+- The exact keyword/phrase to search for (Do not add quotes).
+- exactMatch: boolean (true for precise emotional phrases/questions to catch exact vents; false for broader emotional themes).
+
+Output ONLY valid JSON (no additional text):
 {
   "keyword": "string",
-  "exactMatch": true or false
-}
-
-This is the SEED keyword that will be searched immediately, so make it count!`;
+  "exactMatch": true
+}`;
 
       // Get model config - use a dedicated fast path for seed generation
       const modelConfig = createLLMModel("seed_generation");

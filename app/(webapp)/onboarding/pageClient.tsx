@@ -36,6 +36,8 @@ import { PageLayout, PageContent } from "@/features/webapp/ui/components";
 import { logger } from "@/shared/lib/logger";
 import { useKeywordSuggestions } from "@/features/keywords/hooks/useKeywordSuggestions";
 import { useState } from "react";
+import { useKeywordSync } from "@/shared/hooks/useKeywordSync";
+import { useOptimisticSearch } from "@/features/search/hooks/useOptimisticSearch";
 
 const MIN_CHARS = DESCRIPTION_CONSTRAINTS.MIN_LENGTH;
 const MAX_CHARS = DESCRIPTION_CONSTRAINTS.MAX_LENGTH;
@@ -70,6 +72,8 @@ export default function OnboardingClient() {
   );
   const setOnboardingCompleted = useMutation(api.users.setOnboardingCompleted);
   const { generateSeedKeyword } = useKeywordSuggestions();
+  const { addOrUseKeyword } = useKeywordSync();
+  const { startOptimisticSearch } = useOptimisticSearch();
 
   const [isGeneratingSeed, setIsGeneratingSeed] = useState(false);
 
@@ -88,23 +92,33 @@ export default function OnboardingClient() {
     try {
       setIsGeneratingSeed(true);
 
-      // Create workspace first (for both auth and unauth)
-      if (isAuthenticated) {
-        await createDefaultWorkspace({
-          description: data.description,
-          name: "Default workspace",
-        });
-        await setOnboardingCompleted({});
-      } else {
+      // Kick off lightweight tasks immediately and in parallel
+      // 1) Ensure local workspace data is saved for unauthenticated users
+      if (!isAuthenticated) {
         storeWorkspaceDescription(data.description);
         storeWorkspaceName("Default workspace");
-        // Mirror onboarding completion locally so migration can pick it up later
         try {
           window.localStorage.setItem(
             "RX_ONBOARDING_COMPLETED",
             String(Date.now())
           );
         } catch {}
+      }
+
+      // 2) Set onboarding cookie early to avoid middleware round-trip
+      const cookiePromise = fetch("/api/onboarding/complete", {
+        method: "POST",
+      }).catch(() => {});
+
+      // 3) Fire Convex mutations without blocking navigation
+      if (isAuthenticated) {
+        void Promise.allSettled([
+          createDefaultWorkspace({
+            description: data.description,
+            name: "Default workspace",
+          }),
+          setOnboardingCompleted({}),
+        ]);
       }
 
       logger.info("[ONBOARDING] Generating seed keyword for instant search");
@@ -125,15 +139,36 @@ export default function OnboardingClient() {
             }
           );
 
-          // Ensure onboarding cookie is set for middleware before leaving onboarding (unauth path)
+          // Ensure onboarding cookie exists before navigating to avoid middleware status fetch
           try {
-            await fetch("/api/onboarding/complete", { method: "POST" });
+            await Promise.race([
+              cookiePromise,
+              new Promise((resolve) => setTimeout(resolve, 400)),
+            ]);
+          } catch {}
+
+          // Warm optimistic results to mirror manual search UX
+          try {
+            startOptimisticSearch(seedResult.keyword, seedResult.exactMatch);
+          } catch {}
+
+          // Create/use keyword to obtain a stable keywordId for progress subscription
+          let keywordId = "";
+          try {
+            keywordId = await addOrUseKeyword(
+              seedResult.keyword,
+              "ai_suggestion",
+              seedResult.exactMatch
+            );
           } catch {}
 
           const searchParams = new URLSearchParams();
           searchParams.set("q", seedResult.keyword);
           if (seedResult.exactMatch) {
             searchParams.set("exact", "true");
+          }
+          if (keywordId) {
+            searchParams.set("keywordId", keywordId);
           }
           router.push(`/search?${searchParams.toString()}`);
         } else {

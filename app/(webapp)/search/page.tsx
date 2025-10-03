@@ -88,6 +88,9 @@ export default function SearchResultsPage() {
   // Track if we're in the middle of a commit operation to prevent revert
   const isCommittingRef = useRef(false);
 
+  // Track whether the first commit for current committed values has started
+  const hasInitialCommitStartedRef = useRef(false);
+
   // User description state for logging
   const [userDescription, setUserDescription] = useState<string | null>(null);
 
@@ -121,8 +124,12 @@ export default function SearchResultsPage() {
   const { sortTweets: sortTweetsForContext, loadSortForKeyword } = useSort();
 
   // Keyword suggestions hook
-  const { suggestions: keywordSuggestions, recordKeywordUsage } =
-    useKeywordSuggestions();
+  const {
+    suggestions: keywordSuggestions,
+    loading: suggestionsLoading,
+    isHydrating: suggestionsHydrating,
+    recordKeywordUsage,
+  } = useKeywordSuggestions();
 
   // Optimistic search hook
   const { getOptimisticResult, clearOptimisticCache } = useOptimisticSearch();
@@ -196,6 +203,7 @@ export default function SearchResultsPage() {
     // Only nudge the input when the values truly changed (we already guard at the top)
     setInputKey((prev) => prev + 1);
     isCommittingRef.current = false;
+    hasInitialCommitStartedRef.current = false;
 
     // Only trigger search if we have a query, and prevent duplicate initial searches
     if (committedQuery && committedQuery.trim()) {
@@ -256,6 +264,9 @@ export default function SearchResultsPage() {
           if (nextSearch !== currentSearch) {
             router.replace(`/search${nextSearch}`, { scroll: false });
           }
+
+          // Mark that the initial commit has started
+          hasInitialCommitStartedRef.current = true;
 
           searchTweets(
             committedQuery,
@@ -434,7 +445,8 @@ export default function SearchResultsPage() {
   const renderTweetList = (tweets: Tweet[]) => (
     <div className="divide-y">
       {/* Loading state: only show placeholders if there are no items yet */}
-      {loading && tweets.length === 0 ? (
+      {(loading || !hasInitialCommitStartedRef.current) &&
+      tweets.length === 0 ? (
         <div className="space-y-0">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="px-4 py-2">
@@ -887,7 +899,7 @@ export default function SearchResultsPage() {
               suggestions={keywordSuggestions}
               currentQuery={draftQuery}
               onKeywordClick={handleKeywordClick}
-              loading={loading}
+              loading={suggestionsLoading || !!suggestionsHydrating}
               className={cn(
                 "duration-200 animate-in fade-in-50 slide-in-from-top-2",
                 "space-y-2"

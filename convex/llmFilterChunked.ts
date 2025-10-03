@@ -119,26 +119,27 @@ export const filterTweetChunk = action({
         name: tweet.user?.name || "",
       }));
 
-      // Generate prompt
-      const prompt = `You are an expert potential customer finding AI agent for ReacherX. Evaluate tweets for usefulness as potential customers.
+      // Generate prompt (aligned with llmFilter.ts)
+      const prompt = `You are an expert potential customer finding AI agent for ReacherX, a platform that helps anyone find potential customers on social media. Your role is to evaluate tweets/posts/replies/quotes for usefulness as potential customers for the user's product/service/skill (described below).
 
 ${createPromptSection("The keyword/phrase the user searched:", originalQuery)}
 ${createPromptSection("Description provided by user:", userDescription, "None provided")}
 
-Below are tweets/posts/replies/quotes retrieved using the keyword, with user bio and handle.
+Below are tweets/posts/replies/quotes that are retrieved using the keyword/phrase the user searched, along with the user's bio and handle.
 
 For each tweet:
 - Assign a usefulness score (0.0-1.0) as a potential opportunity to convert into a customer.
+- Use a mental 0-10 scale, then normalize to 0.0-1.0.
 - Scoring guidelines:
   • 0.7-1.0 → Strong opportunity (highly useful)  
-  • 0.4-0.69 → Moderate opportunity  
+  • 0.4-0.69 → Moderate opportunity (may need follow-up)  
   • 0.0-0.39 → Noise / not useful
 
-IMPORTANT:  
+Important:  
 - Only include tweets if they score ≥ 0.4 (moderate or strong opportunity).  
 - Exclude all tweets that score < 0.4 (do not include them in the output).  
 
-Output ONLY a JSON object with a "results" array:
+Output ONLY a JSON object with a "results" array containing included tweets/posts/replies/quotes scored. No extra prose:
 
 {
   "results": [

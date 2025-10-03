@@ -107,8 +107,8 @@ const USE_CASE_PREFERENCES = {
   },
   seed_generation: {
     envVar: "SEED_GENERATION_MODEL",
-    preferred: "grok-4-fast" as LLMModelType,
-    fallback: "gpt-4o-mini" as LLMModelType,
+    preferred: "gpt-4o-mini" as LLMModelType,
+    fallback: "grok-4-fast" as LLMModelType,
     description:
       "Seed keyword generation prefers GPT-4o Mini for speed; falls back to Grok-4 Fast",
   },
