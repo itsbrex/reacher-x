@@ -662,18 +662,36 @@ const SidebarMenuBadge = React.forwardRef<
 ));
 SidebarMenuBadge.displayName = "SidebarMenuBadge";
 
+// Deterministic hash for consistent SSR/CSR values
+function hashStringToInt(str: string) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
 const SidebarMenuSkeleton = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     showIcon?: boolean;
+    width?: string | number;
   }
->(({ className, showIcon: _showIcon, ...props }, ref) => {
+>(({ className, showIcon: _showIcon, width, ...props }, ref) => {
   // consume _showIcon to avoid unused var warnings while keeping it out of the DOM
   void _showIcon;
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+
+  const reactId = React.useId();
+  const computedWidth = React.useMemo(() => {
+    if (width !== undefined) {
+      return typeof width === "number" ? `${width}%` : width;
+    }
+    // Deterministic pseudo-random between 50% and 89%
+    const n = hashStringToInt(reactId);
+    const pct = (n % 40) + 50; // 50..89
+    return `${pct}%`;
+  }, [reactId, width]);
 
   return (
     <div
@@ -685,7 +703,7 @@ const SidebarMenuSkeleton = React.forwardRef<
       <Skeleton
         className="h-7"
         data-sidebar="menu-skeleton-text"
-        style={{ width }}
+        style={{ width: computedWidth }}
       />
     </div>
   );
