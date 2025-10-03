@@ -82,7 +82,7 @@ For the query, provide:
 Output ONLY valid JSON (no additional text):
 {
   "keyword": "string",
-  "exactMatch": true
+  "exactMatch": true or false
 }`;
 
       // Get model config - use a dedicated fast path for seed generation

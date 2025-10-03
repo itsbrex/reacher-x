@@ -200,7 +200,7 @@ Sort by quality:
 (3) Low competition/high conversion.
 
 Guidelines to Avoid Hijacked Keywords:
-1. Keep concise: 2-4 words max (for platform limits), blending specificity from user description with creative flair.
+1. Keep concise: 2-3 words max (for platform limits), blending specificity from user description with creative flair.
 2. Buyer-oriented modifiers: Use words like 'help me', 'stuck on', 'recommend something', but make them personal/emotional.
 3. Natural exclusions: Imply individual struggles (e.g., 'my [pain] is embarrassing' to avoid commercial pitches).
 4. Blend formal/industry terms with slang, typos, abbreviations, and creative twists (e.g., 'lead managment fail' or 'CRM nightmare vibes').

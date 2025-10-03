@@ -21,6 +21,9 @@ import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Button } from "@/shared/ui/components/Button";
 import { useTweetVoting } from "@/shared/hooks/useTweetVoting";
 import { logger } from "@/shared/lib/logger";
+import Link from "next/link";
+import { base64UrlEncodeUtf8 } from "@/shared/lib/utils/encoding";
+import { cacheTweet } from "@/shared/lib/utils/tweetCache";
 
 interface TweetFooterProps {
   threadId: string;
@@ -42,11 +45,13 @@ function TweetActionButton({
   count,
   href,
   ariaLabel,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   count?: number | string;
   href: string;
   ariaLabel: string;
+  onClick?: (e: React.MouseEvent) => void;
 }) {
   const showLabel =
     typeof count === "number" ? count > 0 : !!count && count !== "0";
@@ -58,15 +63,10 @@ function TweetActionButton({
       aria-label={ariaLabel}
       className="gap-1 font-mono text-muted-foreground"
     >
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <Link href={href} onClick={onClick}>
         <Icon className="fill-current" aria-hidden="true" />
         {showLabel && `${count}`}
-      </a>
+      </Link>
     </Button>
   );
 }
@@ -177,6 +177,37 @@ export function TweetFooter({
   const currentVote = tweetId ? getVote(tweetId) : null;
   const isCurrentlyVoting = tweetId ? isVoting(tweetId) : false;
 
+  // Build internal post link that mirrors tweet card navigation
+  let postHref = tweetUrl;
+  if (tweetId) {
+    const params = new URLSearchParams();
+    if (staticTweet) {
+      try {
+        const packed = base64UrlEncodeUtf8(JSON.stringify(staticTweet));
+        if (packed) params.set("t", packed);
+      } catch {}
+    }
+    if (votingContext?.keywordId) {
+      params.set("keywordId", votingContext.keywordId);
+    }
+    if (votingContext?.searchQuery) {
+      params.set("q", votingContext.searchQuery);
+    }
+    const qs = params.toString();
+    postHref = `/post/${tweetId}${qs ? `?${qs}` : ""}`;
+  }
+
+  const handleNavigateClick = (e: React.MouseEvent) => {
+    // Prevent parent tweet row click handlers from firing
+    e.stopPropagation();
+    // Cache tweet for instant hydration on detail page
+    if (staticTweet) {
+      try {
+        cacheTweet(staticTweet);
+      } catch {}
+    }
+  };
+
   return (
     <footer
       className={cn(
@@ -189,26 +220,30 @@ export function TweetFooter({
         <TweetActionButton
           icon={QuickPhrasesIcon}
           count={formattedReplyCount}
-          href={tweetUrl}
+          href={postHref}
           ariaLabel={`View replies (${formattedReplyCount})`}
+          onClick={handleNavigateClick}
         />
         <TweetActionButton
           icon={RepeatIcon}
           count={formattedRepeatSum}
-          href={tweetUrl}
+          href={postHref}
           ariaLabel={`View retweets and quotes (${formattedRepeatSum})`}
+          onClick={handleNavigateClick}
         />
         <TweetActionButton
           icon={FavoriteIcon}
           count={formattedFavoriteCount}
-          href={tweetUrl}
+          href={postHref}
           ariaLabel={`View likes (${formattedFavoriteCount})`}
+          onClick={handleNavigateClick}
         />
         <TweetActionButton
           icon={InsertChartIcon}
           count={formattedViewsCount}
-          href={tweetUrl}
+          href={postHref}
           ariaLabel={`View impressions (${formattedViewsCount})`}
+          onClick={handleNavigateClick}
         />
       </div>
       {/* Simple Voting Buttons - only show when voting context is provided */}

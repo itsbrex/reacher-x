@@ -782,7 +782,7 @@ export default function SearchResultsPage() {
 
       {/* Comprehensive Search Debug Information */}
       {process.env.NODE_ENV === "development" && (
-        <Alert className="mx-4 mt-2 w-auto">
+        <Alert className="mx-4 mt-2 max-h-24 w-auto overflow-y-auto">
           <AlertTitle>Debug - Search & Results</AlertTitle>
           <AlertDescription className="font-mono text-xs">
             <div className="space-y-2">
