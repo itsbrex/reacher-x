@@ -83,7 +83,6 @@ export function useTwitterSearch() {
   const pendingRequestRef = useRef<Promise<void> | null>(null);
 
   const searchTwitterAction = useAction(api.twitterSearch.searchTwitter);
-  const filterTweetsAction = useAction(api.llmFilter.filterTweetsWithLLM);
   const upsertProgress = useMutation(api.searchProgress.upsertProgress);
   const completeProgress = useMutation(api.searchProgress.completeProgress);
 
@@ -109,15 +108,29 @@ export function useTwitterSearch() {
   ): SearchResult => {
     const existingMeta = existingResults.meta || {};
 
+    // Build a set of existing tweet keys to prevent duplicates across pages
+    const makeKey = (t: Tweet) =>
+      String(
+        t.id_str ||
+          t.id ||
+          `${t.user?.screen_name ?? "u"}-${t.tweet_created_at ?? "t"}`
+      );
+    const existingKeys = new Set(existingResults.tweets.map(makeKey));
+    const dedupedNewTweets = newTweets.filter(
+      (t) => !existingKeys.has(makeKey(t))
+    );
+
+    const mergedTweets = [...existingResults.tweets, ...dedupedNewTweets];
+
     return {
-      tweets: [...existingResults.tweets, ...newTweets],
+      tweets: mergedTweets,
       meta: {
         ...transformedResults.meta,
         originalCount:
           (existingMeta.originalCount || 0) + transformedResults.tweets.length,
         filteredCount:
           customFilteredCount ??
-          existingResults.tweets.length + newTweets.length,
+          existingResults.tweets.length + dedupedNewTweets.length,
         llmProcessedCount:
           (existingMeta.llmProcessedCount || 0) +
           (transformedResults.meta?.llmProcessedCount || 0),
@@ -855,7 +868,6 @@ export function useTwitterSearch() {
     },
     [
       searchTwitterAction,
-      filterTweetsAction,
       unifiedDescription,
       autoAdvanceState,
       upsertProgress,
@@ -897,17 +909,31 @@ export function useTwitterSearch() {
       return;
     }
 
+    // Deduplicate against existing tweets to prevent re-adding items
+    const makeKey = (t: Tweet) =>
+      String(
+        t.id_str ||
+          t.id ||
+          `${t.user?.screen_name ?? "u"}-${t.tweet_created_at ?? "t"}`
+      );
+    const existingKeys = new Set(resultsRef.current.tweets.map(makeKey));
+    const dedupedResolved = resolvedTweets.filter(
+      (t) => !existingKeys.has(makeKey(t))
+    );
+
     logger.info("[TWITTER_SEARCH] Merging resolved chunks into results:", {
       currentCount: resultsRef.current.tweets.length,
       newCount: resolvedTweets.length,
+      dedupedTo: dedupedResolved.length,
+      dropped: resolvedTweets.length - dedupedResolved.length,
     });
 
-    // Merge the new tweets with existing results
     const mergedResults: SearchResult = {
-      tweets: [...resultsRef.current.tweets, ...resolvedTweets],
+      tweets: [...resultsRef.current.tweets, ...dedupedResolved],
       meta: {
         ...resultsRef.current.meta,
-        filteredCount: resultsRef.current.tweets.length + resolvedTweets.length,
+        filteredCount:
+          resultsRef.current.tweets.length + dedupedResolved.length,
       },
     };
 

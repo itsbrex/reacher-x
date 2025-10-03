@@ -150,12 +150,28 @@ export function useChunkedFiltering() {
               chunkSetId,
             });
 
-            // Update resolved chunks
-            setResolvedChunks((prev) => {
-              const next = new Map(prev);
-              next.set(index, result.data);
-              return next;
-            });
+            // Determine if this is the FIRST non-empty chunk to display immediately
+            const isFirstNonEmpty =
+              !!resolveFirstChunk &&
+              !!result.success &&
+              (result.data?.tweets?.length || 0) > 0;
+
+            // Only cache resolved chunks that are NOT the first displayed chunk
+            if (!isFirstNonEmpty) {
+              setResolvedChunks((prev) => {
+                const next = new Map(prev);
+                next.set(index, result.data);
+                return next;
+              });
+            } else {
+              logger.info(
+                `[CHUNKED_FILTER] First non-empty chunk found: ${index} - WILL NOT CACHE (avoid duplication)`,
+                {
+                  tweetCount: result.data?.tweets?.length || 0,
+                  chunkSetId,
+                }
+              );
+            }
 
             // Remove from pending
             setPendingChunks((prev) => {
@@ -177,19 +193,8 @@ export function useChunkedFiltering() {
             });
 
             // Resolve first chunk promise if this chunk has tweets
-            if (
-              resolveFirstChunk &&
-              result.success &&
-              result.data?.tweets?.length > 0
-            ) {
-              logger.info(
-                `[CHUNKED_FILTER] First non-empty chunk found: ${index} - RESOLVING IMMEDIATELY!`,
-                {
-                  tweetCount: result.data.tweets.length,
-                  chunkSetId,
-                }
-              );
-              resolveFirstChunk(result.data.tweets);
+            if (isFirstNonEmpty && resolveFirstChunk) {
+              resolveFirstChunk(result.data!.tweets);
               resolveFirstChunk = null; // Prevent resolving again
             }
 
