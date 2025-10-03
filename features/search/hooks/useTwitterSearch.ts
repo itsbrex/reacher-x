@@ -301,6 +301,12 @@ export function useTwitterSearch() {
                 /4\d\d/.test(searchResult.error) &&
                 !/429/.test(searchResult.error)
               ) {
+                // Surface friendly toast message for query length violations
+                if (/512|Maximum/.test(searchResult.error)) {
+                  setError("Search is limited to 512 characters.");
+                  setLoading(false);
+                  return;
+                }
                 throw new Error(searchResult.error);
               }
 

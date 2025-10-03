@@ -14,6 +14,11 @@ import { Button } from "@/shared/ui/components/Button";
 import { MatchWordIcon, SearchIcon } from "@/shared/ui/components/icons";
 import { Toggle } from "@/shared/ui/components/Toggle";
 import { cn } from "@/shared/lib/utils/utils";
+import CharacterCounter from "@/shared/ui/components/CharacterCounter";
+import {
+  QUERY_CHAR_LIMIT,
+  computeEffectiveLength,
+} from "@/shared/lib/utils/queryLimit";
 
 interface SearchInputProps {
   onSearch?: (query: string, exactMatch: boolean) => void;
@@ -101,12 +106,19 @@ export const SearchInput = memo(
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
+          // Prevent submit when over limit or empty
+          const overLimit =
+            computeEffectiveLength(query, exactMatch) >= QUERY_CHAR_LIMIT;
+          if (overLimit || !query.trim()) {
+            e.preventDefault();
+            return;
+          }
           e.preventDefault();
           handleSearch();
         }
         // Let parent handle Escape key
       },
-      [handleSearch]
+      [handleSearch, query, exactMatch]
     );
 
     const handleFocus = useCallback(() => {
@@ -124,54 +136,88 @@ export const SearchInput = memo(
       setExactMatch(pressed);
     }, []);
 
+    // Derived: effective count and limit state
+    const effectiveLength = computeEffectiveLength(query, exactMatch);
+    const atLimit = effectiveLength >= QUERY_CHAR_LIMIT;
+
     return (
-      <div className={cn("relative", className)}>
-        <Input
-          ref={combinedRef}
-          size="sm"
-          type="text"
-          placeholder={placeholder}
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          disabled={disabled}
-          autoFocus={autoFocus}
-          className={cn(showExactMatch ? "pr-24" : "pr-12")}
-          aria-label="Search keywords"
-          aria-haspopup="listbox"
-          aria-expanded={ariaExpanded}
-        />
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-          {showExactMatch && (
-            <Toggle
-              size="xsIcon"
-              pressed={exactMatch}
-              onPressedChange={handleToggleExactMatch}
-              disabled={disabled}
-              aria-label={
-                exactMatch
-                  ? "Disable exact phrase match"
-                  : "Enable exact phrase match"
+      <div className={cn("space-y-1", className)}>
+        {/* Fixed-height wrapper so overlay stays vertically centered even when error message shows */}
+        <div className="relative">
+          <Input
+            ref={combinedRef}
+            size="sm"
+            type="text"
+            placeholder={placeholder}
+            value={query}
+            onChange={(e) => {
+              const next = e.target.value;
+              // Enforce hard cap: block typing/paste beyond limit considering exact-match quotes
+              const proposedLength = computeEffectiveLength(next, exactMatch);
+              if (proposedLength > QUERY_CHAR_LIMIT) {
+                // Soft-trim to fit budget (respecting caret position is not critical here)
+                const overBy = proposedLength - QUERY_CHAR_LIMIT;
+                const trimmed = next.slice(
+                  0,
+                  Math.max(0, next.length - overBy)
+                );
+                handleQueryChange(trimmed);
+                return;
               }
-              title="Toggle exact phrase match"
+              handleQueryChange(next);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            className={cn(showExactMatch ? "pr-36" : "pr-28")}
+            aria-label="Search keywords"
+            aria-haspopup="listbox"
+            aria-expanded={ariaExpanded}
+          />
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2">
+            {/* Divider between toggle and counter */}
+            <CharacterCounter
+              current={effectiveLength}
+              max={QUERY_CHAR_LIMIT}
+              className={cn("text-xs", atLimit ? "text-red-500" : undefined)}
+            />{" "}
+            <span className="px-0.5 text-muted-foreground">·</span>
+            {showExactMatch && (
+              <Toggle
+                size="xsIcon"
+                pressed={exactMatch}
+                onPressedChange={handleToggleExactMatch}
+                disabled={disabled}
+                aria-label={
+                  exactMatch
+                    ? "Disable exact phrase match"
+                    : "Enable exact phrase match"
+                }
+                title="Toggle exact phrase match"
+              >
+                <MatchWordIcon className="fill-current" />
+              </Toggle>
+            )}
+            <Button
+              type="button"
+              size="xsIcon"
+              variant="ghost"
+              onClick={handleSearch}
+              disabled={disabled || !query.trim() || atLimit}
+              aria-label="Search"
+              title="Search"
             >
-              <MatchWordIcon className="fill-current" />
-            </Toggle>
-          )}
-          <Button
-            type="button"
-            size="xsIcon"
-            variant="ghost"
-            onClick={handleSearch}
-            disabled={disabled || !query.trim()}
-            aria-label="Search"
-            title="Search"
-          >
-            <SearchIcon className="h-4 w-4 fill-current" />
-          </Button>
+              <SearchIcon className="h-4 w-4 fill-current" />
+            </Button>
+          </div>
         </div>
+        {atLimit && (
+          <div className="mt-1 text-xs text-red-500">
+            Max 512 characters. Please shorten your query.
+          </div>
+        )}
       </div>
     );
   })

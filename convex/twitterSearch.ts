@@ -2,13 +2,17 @@
 import { action } from "./_generated/server";
 import { logger } from "../shared/lib/logger";
 import { searchTwitterArgsValidator } from "./validators";
+import {
+  QUERY_CHAR_LIMIT,
+  normalizeQuery,
+} from "../shared/lib/utils/queryLimit";
 // @Web Best practice: keep all X API calls on the server; do not expose tokens to clients.
 import type { Tweet, Entities, User } from "../features/threads/types";
 
 // Constants for API configuration
 const TWITTER_API_BASE_URL =
   "https://api.twitterapi.io/twitter/tweet/advanced_search";
-const MAX_QUERY_LENGTH = 500;
+const MAX_QUERY_LENGTH = QUERY_CHAR_LIMIT; // 512 per X recent search docs
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 
 /**
@@ -336,8 +340,10 @@ export const searchTwitter = action({
   args: searchTwitterArgsValidator,
   handler: async (ctx, { query, exactMatch, cursor }) => {
     try {
-      // Validate query length
-      if (query.length > MAX_QUERY_LENGTH) {
+      // Validate query length (after normalization, plus quotes if exact)
+      const normalized = normalizeQuery(query);
+      const effectiveLength = normalized.length + (exactMatch ? 2 : 0);
+      if (effectiveLength > MAX_QUERY_LENGTH) {
         throw new Error(
           `Query too long. Maximum ${MAX_QUERY_LENGTH} characters allowed.`
         );
@@ -625,7 +631,7 @@ export const searchTwitter = action({
       }
 
       // Format query for Twitter search
-      let searchQuery = query.trim();
+      let searchQuery = normalized;
       if (exactMatch) {
         const alreadyQuoted =
           searchQuery.startsWith('"') &&
