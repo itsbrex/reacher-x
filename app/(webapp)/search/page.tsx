@@ -78,9 +78,52 @@ export default function SearchResultsPage() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Storage keys
+  const SCROLL_STORAGE_KEY_BASE = "searchScrollPosition";
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ValidTab>("all");
+
+  // Persist and sync tab with URL + per-query session storage
+  const updateActiveTab = useCallback(
+    (tab: ValidTab) => {
+      setActiveTab(tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({}, "", url.toString());
+      const q = url.searchParams.get("q") || "__noquery__";
+      sessionStorage.setItem(`activeTab::${q}`, tab);
+    },
+    [setActiveTab]
+  );
+
+  // Initialize tab from URL or sessionStorage (per query) on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get("tab");
+    if (tabParam && validTabs.includes(tabParam as ValidTab)) {
+      updateActiveTab(tabParam as ValidTab);
+      return;
+    }
+    const q = urlParams.get("q") || "__noquery__";
+    const stored = sessionStorage.getItem(`activeTab::${q}`);
+    if (stored && validTabs.includes(stored as ValidTab)) {
+      updateActiveTab(stored as ValidTab);
+    }
+  }, [updateActiveTab]);
+
+  // Helper function to safely get the current tab
+  const getCurrentTab = useCallback((): ValidTab => {
+    return validTabs.includes(activeTab) ? activeTab : "all";
+  }, [activeTab]);
+
+  const getScrollKey = useCallback(() => {
+    const q = committedQuery || "__noquery__";
+    const tab = validTabs.includes(activeTab) ? activeTab : "all";
+    return `${SCROLL_STORAGE_KEY_BASE}::${q}::${tab}`;
+  }, [committedQuery, activeTab]);
 
   // Avoid unnecessary forced re-keys; keep a stable key unless committed values actually change
   const [inputKey, setInputKey] = useState(0);
@@ -167,11 +210,37 @@ export default function SearchResultsPage() {
     }
   }, [results, loading, committedQuery]);
 
-  // Helper function to safely get the current tab
-  const getCurrentTab = useCallback((): ValidTab => {
-    return validTabs.includes(activeTab) ? activeTab : "all";
-  }, [activeTab]);
+  // Restore scroll position for the ScrollArea viewport
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLElement | null;
+    if (!viewport) return;
+    const key = getScrollKey();
+    const saved = sessionStorage.getItem(key);
+    if (!saved) return;
+    const pos = parseInt(saved, 10);
+    if (!Number.isNaN(pos)) {
+      const t = setTimeout(() => {
+        viewport.scrollTop = pos;
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [getScrollKey, activeTab, results]);
 
+  // Save scroll on unload/navigation
+  useEffect(() => {
+    const save = () => {
+      const viewport = scrollAreaRef.current?.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      ) as HTMLElement | null;
+      if (!viewport) return;
+      const key = getScrollKey();
+      sessionStorage.setItem(key, String(viewport.scrollTop));
+    };
+    window.addEventListener("beforeunload", save);
+    return () => window.removeEventListener("beforeunload", save);
+  }, [getScrollKey]);
   // Sync draft state with committed state when URL changes
   useEffect(() => {
     logger.info("[SEARCH_PAGE] URL sync effect triggered:", {
@@ -257,6 +326,8 @@ export default function SearchResultsPage() {
             params.set("exact", "true");
           }
           params.set("keywordId", keywordId);
+          // persist current tab in the URL
+          params.set("tab", getCurrentTab());
 
           const nextSearch = `?${params.toString()}`;
           const currentSearch =
@@ -304,6 +375,7 @@ export default function SearchResultsPage() {
     loadSortForKeyword,
     addOrUseKeyword,
     currentKeywordId,
+    getCurrentTab,
   ]);
 
   // Handle load more - intelligently decides between showing cached chunks or fetching next page
@@ -512,7 +584,18 @@ export default function SearchResultsPage() {
               if (packed) params.set("t", packed);
               if (currentKeywordId) params.set("keywordId", currentKeywordId);
               if (committedQuery) params.set("q", committedQuery);
-              router.push(`/post/${id}?${params.toString()}`);
+              params.set("tab", getCurrentTab());
+              // Save current scroll immediately before navigation
+              const viewport = scrollAreaRef.current?.querySelector(
+                "[data-radix-scroll-area-viewport]"
+              ) as HTMLElement | null;
+              if (viewport) {
+                const key = getScrollKey();
+                sessionStorage.setItem(key, String(viewport.scrollTop));
+              }
+              router.push(`/post/${id}?${params.toString()}`, {
+                scroll: false,
+              });
             }}
           >
             <TweetComponent
@@ -641,6 +724,7 @@ export default function SearchResultsPage() {
         params.set("exact", "true");
       }
       params.set("keywordId", keywordId);
+      params.set("tab", getCurrentTab());
 
       const nextSearch = `?${params.toString()}`;
       const currentSearch =
@@ -649,7 +733,7 @@ export default function SearchResultsPage() {
         router.push(`/search${nextSearch}`);
       }
     },
-    [router, addOrUseKeyword]
+    [router, addOrUseKeyword, getCurrentTab]
   );
 
   // Handle keyword selection from suggestions
@@ -678,6 +762,7 @@ export default function SearchResultsPage() {
         params.set("exact", "true");
       }
       params.set("keywordId", keywordId);
+      params.set("tab", getCurrentTab());
 
       const nextSearch = `?${params.toString()}`;
       const currentSearch =
@@ -686,7 +771,7 @@ export default function SearchResultsPage() {
         router.push(`/search${nextSearch}`);
       }
     },
-    [router, recordKeywordUsage, addOrUseKeyword]
+    [router, recordKeywordUsage, addOrUseKeyword, getCurrentTab]
   );
 
   // Update draft state
@@ -893,7 +978,18 @@ export default function SearchResultsPage() {
       {/* Conditional content area */}
       <div className="min-h-0 flex-1 overflow-hidden">
         {/* Scoped fix: neutralize Radix ScrollArea internal wrapper on /search */}
-        <ScrollArea className="search-scrollarea h-full overscroll-contain">
+        <ScrollArea
+          ref={scrollAreaRef}
+          className="search-scrollarea h-full overscroll-contain"
+          onScrollCapture={() => {
+            const viewport = scrollAreaRef.current?.querySelector(
+              "[data-radix-scroll-area-viewport]"
+            ) as HTMLElement | null;
+            if (!viewport) return;
+            const key = getScrollKey();
+            sessionStorage.setItem(key, String(viewport.scrollTop));
+          }}
+        >
           {isSearchMode ? (
             <SearchContent
               suggestions={keywordSuggestions}
@@ -920,7 +1016,7 @@ export default function SearchResultsPage() {
                     from: activeTab,
                     to: value,
                   });
-                  setActiveTab(value as ValidTab);
+                  updateActiveTab(value as ValidTab);
                 }}
               >
                 {/* Tabs Header with Filters and Sort */}

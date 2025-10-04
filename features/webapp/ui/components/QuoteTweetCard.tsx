@@ -73,7 +73,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
     if (keywordId) params.set("keywordId", keywordId);
     if (q) params.set("q", q);
 
-    router.push(`/post/${id}?${params.toString()}`);
+    router.push(`/post/${id}?${params.toString()}`, { scroll: false });
   };
 
   // Extract tweet source (e.g., Twitter for iPhone)
