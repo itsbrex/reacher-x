@@ -41,6 +41,7 @@ function Metric({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
+          className="relative z-20"
           onClick={(e) => e.stopPropagation()}
         >
           <Icon className="fill-muted-foreground" />
@@ -48,7 +49,11 @@ function Metric({
           <span className="font-mono text-muted-foreground">{count}</span>
         </Link>
       ) : (
-        <a href="#" onClick={(e) => e.preventDefault()}>
+        <a
+          href="#"
+          className="relative z-20"
+          onClick={(e) => e.preventDefault()}
+        >
           <Icon className="fill-muted-foreground" />
           <span className="sr-only">{ariaLabel}</span>
           <span className="font-mono text-muted-foreground">{count}</span>

@@ -1,3 +1,4 @@
+"use client";
 // features/landing/ui/components/ThreadCard.tsx
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -12,6 +13,7 @@ import { ThreadFooter } from "./ThreadFooter";
 import { ThreadMenu } from "./ThreadMenu";
 import { Tweet } from "@/features/threads/types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Avatar,
   AvatarFallback,
@@ -44,6 +46,8 @@ export interface ThreadCardProps
   characterLimit?: number;
   showFullContent?: boolean;
   showThread?: boolean;
+  // When provided, renders an overlay link to make the whole card clickable
+  clickHref?: string;
   // Voting context for tweet performance tracking
   votingContext?: {
     keywordId: string;
@@ -61,11 +65,13 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       characterLimit = 280,
       showFullContent = false,
       showThread = false,
+      clickHref,
       votingContext,
       ...props
     },
     ref
   ) => {
+    const router = useRouter();
     const fullText = staticTweet?.full_text || "Tweet text unavailable";
     const isTextLong = fullText.length > characterLimit;
     const visibleText =
@@ -119,10 +125,42 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
 
     const hasAdditionalContent = Boolean(media);
 
+    const handleCardActivate = (
+      event: React.MouseEvent | React.KeyboardEvent
+    ) => {
+      if (!clickHref) return;
+      const target = event.target as HTMLElement;
+      const root = event.currentTarget as HTMLElement;
+      const interactiveAncestor = target.closest(
+        "a, button, [role='button'], [role='link']"
+      ) as HTMLElement | null;
+      if (interactiveAncestor && interactiveAncestor !== root) return;
+      router.push(clickHref);
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+      if (!clickHref) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        router.push(clickHref);
+      }
+    };
+
     return (
-      <article ref={ref} {...props}>
+      <article
+        ref={ref}
+        {...props}
+        role={clickHref ? "link" : undefined}
+        tabIndex={clickHref ? 0 : undefined}
+        onClick={handleCardActivate}
+        onKeyDown={handleKeyDown}
+      >
         <div
-          className={cn(ThreadCardVariants({ bordered }), className, "group")}
+          className={cn(
+            ThreadCardVariants({ bordered }),
+            className,
+            "group relative"
+          )}
           aria-label={`View post by ${staticTweet?.user?.name ?? staticTweet?.user?.screen_name ?? "user"}`}
         >
           <div className="grid grid-rows-[auto_1fr] place-items-center gap-2">
@@ -130,6 +168,8 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
               href={`https://x.com/${staticTweet?.user?.screen_name}`}
               target="_blank"
               rel="noopener noreferrer"
+              className="relative z-20"
+              onClick={(e) => e.stopPropagation()}
             >
               <Avatar className={cn(avatarClass, "ring-1 ring-border")}>
                 <AvatarImage
@@ -187,7 +227,8 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 >
                   Replying to{" "}
                   <Link
-                    className="font-mono text-foreground hover:underline"
+                    className="relative z-20 font-mono text-foreground hover:underline"
+                    onClick={(e) => e.stopPropagation()}
                     href={`https://x.com/${staticTweet?.in_reply_to_screen_name}`}
                   >
                     @{staticTweet?.in_reply_to_screen_name}
@@ -201,6 +242,12 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   bodyClass,
                   "word-break hyphens-auto whitespace-pre-line [&_a]:text-muted-foreground hover:[&_a]:underline dark:[&_a]:text-neutral-400"
                 )}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (target.closest("a")) {
+                    e.stopPropagation();
+                  }
+                }}
               >
                 {highlightedBody}
               </p>

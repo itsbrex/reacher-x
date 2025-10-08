@@ -44,7 +44,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     >
       <video
         slot="media"
-        className="h-full w-full object-contain"
+        className="h-full w-full object-fill"
         aria-label={ariaLabel}
         playsInline
         crossOrigin="anonymous"

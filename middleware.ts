@@ -12,6 +12,7 @@ const workosMiddleware = authkitMiddleware({
       "/callback",
       "/home",
       "/home/threads",
+      "/home/threads/:threadId",
       "/workspace",
       "/onboarding",
       "/api/onboarding/complete",

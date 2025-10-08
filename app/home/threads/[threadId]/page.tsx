@@ -4,14 +4,16 @@ import { api } from "@/convex/_generated/api";
 import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
-import { WaitlistUsers } from "@/features/waitlist/ui/components/WaitlistUsers";
+
 import { Badge } from "@/shared/ui/components/Badge";
 import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
 import { Thread } from "../../../../features/threads/types";
 import Link from "next/link";
-import { WaitlistSection } from "@/features/waitlist/ui/components/WaitlistSection";
+
 import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
-import { WaitlistFormWrapper } from "@/features/waitlist/ui/components/WaitlistFormWrapper";
+
+import VideoPlayer from "@/features/landing/ui/components/VideoPlayer";
+import { Button } from "@/shared/ui/components/Button";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 
@@ -88,19 +90,22 @@ export default async function ThreadDetailPage(props: {
   const user = tweets[0].user;
 
   return (
-    <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 duration-300 md:mt-12">
+    <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mx-auto mt-4 w-full max-w-[1288px] duration-300 md:mt-12">
       <Link
         href="/home/threads"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-28"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-0"
       >
-        <h1 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-3xl font-medium duration-300 md:text-5xl">
-          <span className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] inline-block rotate-180 transform-gpu duration-300 hover:translate-x-1">
+        <h1 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-2xl font-medium duration-300 md:text-3xl">
+          <span className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] inline-block rotate-180 transform-gpu text-muted-foreground duration-300 hover:translate-x-1">
             ➞
           </span>{" "}
-          Thread #{threadNumber !== null ? threadNumber : ""}
+          Thread{" "}
+          <span className="font-mono text-muted-foreground">
+            #{threadNumber !== null ? threadNumber : ""}
+          </span>
         </h1>
       </Link>
-      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mt-6 grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12 md:px-28">
+      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 @container md:px-0">
           {tweets.map((tweet, index) => (
             <ThreadCard
@@ -113,28 +118,8 @@ export default async function ThreadDetailPage(props: {
             />
           ))}
         </section>
-
+        <Separator orientation="horizontal" className="block md:hidden" />
         <aside className="space-y-6">
-          <Separator orientation="horizontal" className="block md:hidden" />
-          <section
-            aria-labelledby="hero-heading"
-            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 md:px-0"
-          >
-            <Badge variant="outline">
-              Beta release · August 2025{" "}
-              <span className="rotating-symbol">&nbsp;&nbsp;⧖&nbsp;&nbsp;</span>{" "}
-              (worth waiting)
-            </Badge>
-            <hgroup className="mt-4 max-w-2xl space-y-4">
-              <h2 id="hero-heading" className="text-3xl font-medium">
-                The search engine—to find customers.
-              </h2>
-              <WaitlistUsers className="mt-4" />
-              <p>Join the wait-list for early access and updates!</p>
-            </hgroup>
-            <WaitlistFormWrapper className="mt-4" />
-          </section>
-          <Separator orientation="horizontal" />
           <section className="px-4 md:px-0">
             <h3 className="text-2xl font-medium">Author.</h3>
             <UserProfileCard
@@ -150,6 +135,37 @@ export default async function ThreadDetailPage(props: {
             />
           </section>
           <Separator orientation="horizontal" />
+          <section
+            id="hero"
+            aria-labelledby="hero-heading"
+            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 duration-300 md:px-0"
+          >
+            <div>
+              <Badge variant="outline">v3.0 beta</Badge>
+              <hgroup className="mt-4 space-y-2">
+                <h2 id="hero-heading" className="text-3xl font-medium">
+                  The search engine—to find customers on X/Twitter.
+                </h2>
+                <p className="text-base font-medium text-muted-foreground">
+                  ReacherX finds people who need your{" "}
+                  <span className="text-foreground">next big thing</span> right
+                  now. This is{" "}
+                  <span className="text-foreground">faster and cheaper</span>{" "}
+                  than ads to reach your audience.
+                </p>
+              </hgroup>
+              <Button className="mt-4">Get started for free!</Button>
+            </div>
+            <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+              <VideoPlayer
+                mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
+                ariaLabel="ReacherX video"
+                className="aspect-[1/1] h-full w-full rounded-none"
+              />
+            </figure>
+          </section>
+
+          <Separator orientation="horizontal" />
           <section>
             <h3 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 text-2xl font-medium duration-300 md:px-0">
               Recent threads.
@@ -158,7 +174,6 @@ export default async function ThreadDetailPage(props: {
           </section>
         </aside>
       </div>
-      <WaitlistSection />
     </div>
   );
 }
