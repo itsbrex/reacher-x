@@ -9,10 +9,11 @@ import React from "react";
  */
 export default function MediaChromeYTTemplate() {
   return (
-    <template
-      id="media-theme-yt"
-      dangerouslySetInnerHTML={{
-        __html: `
+    <>
+      <template
+        id="media-theme-yt"
+        dangerouslySetInnerHTML={{
+          __html: `
           <style>
             media-controller {
               font-size: 13px;
@@ -658,7 +659,51 @@ export default function MediaChromeYTTemplate() {
             </div>
           </media-controller>
         `,
-      }}
-    />
+        }}
+      />
+      {/* Minimal landing template: play/pause, progress/time-range, fullscreen */}
+      <template
+        id="media-theme-landing"
+        dangerouslySetInnerHTML={{
+          __html: `
+          <style>
+            media-controller {
+              font-family: Roboto, Arial, sans-serif;
+              --media-secondary-color: transparent;
+              --media-control-hover-background: var(--media-secondary-color);
+              --media-range-track-height: 4px;
+              --media-range-bar-color: var(--media-accent-color, #ffffff);
+            }
+            media-time-range {
+              position: absolute;
+              bottom: 36px;
+              width: 100%;
+              height: 4px;
+              --media-range-track-background: rgba(255, 255, 255, 0.25);
+              --media-time-range-buffered-color: rgba(255, 255, 255, 0.5);
+            }
+            media-control-bar {
+              position: absolute;
+              height: 36px;
+              line-height: 36px;
+              bottom: 0;
+              left: 12px;
+              right: 12px;
+            }
+            .spacer { flex: 1; }
+          </style>
+          <media-controller defaultstreamtype="on-demand">
+            <slot name="media" slot="media"></slot>
+            <media-time-range></media-time-range>
+            <media-control-bar>
+              <media-play-button></media-play-button>
+              <span class="spacer"></span>
+              <media-fullscreen-button></media-fullscreen-button>
+            </media-control-bar>
+          </media-controller>
+        `,
+        }}
+      />
+    </>
   );
 }
