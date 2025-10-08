@@ -38,7 +38,7 @@ export default async function Home() {
       <section
         id="hero"
         aria-labelledby="hero-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
         <div className="col-span-12 self-end lg:mb-12 portrait:md:col-span-12 landscape:md:col-span-3">
           <Badge variant="outline">v3.0 beta</Badge>
@@ -46,7 +46,7 @@ export default async function Home() {
             <h1 id="hero-heading" className="text-4xl font-medium md:text-5xl">
               The search engine—to find customers on X/Twitter.
             </h1>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               ReacherX finds people who need your{" "}
               <span className="text-foreground">next big thing</span> right now.
               This is{" "}
@@ -56,7 +56,7 @@ export default async function Home() {
           </hgroup>
           <Button className="mt-4">Get started for free!</Button>
         </div>
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -66,9 +66,9 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="who-is-it-for-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -83,7 +83,7 @@ export default async function Home() {
             >
               Who is it for?
             </h2>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               People who want to{" "}
               <span className="text-foreground">make a difference</span> with
               their products or services. People who{" "}
@@ -100,7 +100,7 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="keyword-suggestions-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
         <div className="col-span-12 self-end lg:mb-12 portrait:md:col-span-12 landscape:md:col-span-3">
           <hgroup className="mt-4 space-y-2">
@@ -110,7 +110,7 @@ export default async function Home() {
             >
               Keyword suggestions.
             </h2>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               Describe what you offer and who might need it today. Based on
               this, you get{" "}
               <span className="text-foreground">keyword suggestions</span> to
@@ -121,7 +121,7 @@ export default async function Home() {
             Get started for free!
           </Button>
         </div>
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -131,9 +131,9 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="exact-phrase-match-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -148,7 +148,7 @@ export default async function Home() {
             >
               Search with Exact Phrase Match.
             </h2>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               Toggle{" "}
               <span className="text-foreground">Exact Phrase Match ON</span> for
               precise, targeted results. Toggle it{" "}
@@ -163,7 +163,7 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="reach-out-to-customers-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
         <div className="col-span-12 self-end lg:mb-12 portrait:md:col-span-12 landscape:md:col-span-3">
           <hgroup className="mt-4 space-y-2">
@@ -173,7 +173,7 @@ export default async function Home() {
             >
               Reach out to customers.
             </h2>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               Reply{" "}
               <span className="text-foreground">directly with ReacherX</span> to
               reach people fast and offer solutions. Keep replying while earlier
@@ -185,7 +185,7 @@ export default async function Home() {
             Get started for free!
           </Button>
         </div>
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -195,9 +195,9 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="manage-workspace-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-8 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-28 portrait:md:grid-cols-1"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
-        <figure className="order-last col-span-12 md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
+        <figure className="order-last col-span-12 aspect-[1/1] md:order-none portrait:md:col-span-12 landscape:md:col-span-5">
           <VideoPlayer
             mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
             ariaLabel="ReacherX video"
@@ -212,7 +212,7 @@ export default async function Home() {
             >
               Manage workspace.
             </h2>
-            <p className="text-xl font-medium text-muted-foreground md:text-2xl">
+            <p className="text-base font-medium text-muted-foreground md:text-2xl">
               Organize your search for{" "}
               <span className="text-foreground">
                 different products or services
@@ -229,13 +229,13 @@ export default async function Home() {
       </section>
       <section
         aria-labelledby="more-features-heading"
-        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-12 px-4 pb-8 duration-300 @container md:pb-28 lg:grid-cols-3 portrait:md:grid-cols-1 landscape:md:grid-cols-2 landscape:lg:grid-cols-3"
+        className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-12 px-4 pb-12 duration-300 @container md:pb-56 lg:grid-cols-3 portrait:md:grid-cols-1 landscape:md:grid-cols-2 landscape:lg:grid-cols-3"
       >
         <h2 id="more-features-heading" className="sr-only">
           More features
         </h2>
-        <div className="flex flex-col">
-          <figure className="order-last mt-4 md:order-none md:mt-0">
+        <div>
+          <figure className="order-last mt-4 aspect-[1/1] md:order-none md:mt-0">
             <VideoPlayer
               mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
               ariaLabel="ReacherX video"
@@ -250,7 +250,7 @@ export default async function Home() {
               >
                 Pin best keywords.
               </h2>
-              <p className="text-xl font-medium text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 Pin any keyword that finds the{" "}
                 <span className="text-foreground">best results</span> for you.
                 Reuse pinned keywords to discover more people who{" "}
@@ -262,8 +262,8 @@ export default async function Home() {
             </Button>
           </div>
         </div>
-        <div className="flex flex-col">
-          <figure className="order-last mt-4 md:order-none md:mt-0">
+        <div>
+          <figure className="order-last mt-4 aspect-[1/1] md:order-none md:mt-0">
             <VideoPlayer
               mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
               ariaLabel="ReacherX video"
@@ -278,7 +278,7 @@ export default async function Home() {
               >
                 Filter and sort results.
               </h2>
-              <p className="text-xl font-medium text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 Choose what to see:{" "}
                 <span className="text-foreground">
                   Posts, Replies, or Quotes
@@ -293,8 +293,8 @@ export default async function Home() {
             </Button>
           </div>
         </div>
-        <div className="flex flex-col">
-          <figure className="order-last mt-4 md:order-none md:mt-0">
+        <div>
+          <figure className="order-last mt-4 aspect-[1/1] md:order-none md:mt-0">
             <VideoPlayer
               mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NaVuAA63rRHc8WV3PvTh1GiXQdbIY06BofFej"
               ariaLabel="ReacherX video"
@@ -309,7 +309,7 @@ export default async function Home() {
               >
                 Upvote and downvote results.
               </h2>
-              <p className="text-xl font-medium text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 Thumbs up <span className="text-foreground">good results</span>{" "}
                 to teach the system what works for you. Thumbs down{" "}
                 <span className="text-foreground">bad ones</span> to get better
