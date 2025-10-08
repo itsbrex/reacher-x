@@ -23,16 +23,16 @@ export function ThreadHeader({
   size = "md",
 }: ThreadHeaderProps) {
   const nameClass = cn(
-    "font-medium",
-    size === "sm" && "text-sm",
-    size === "md" && "text-base",
-    size === "lg" && "text-lg"
+    "font-medium text-sm",
+    size === "sm" && "md:text-sm",
+    size === "md" && "md:text-base",
+    size === "lg" && "md:text-lg"
   );
   const screenNameClass = cn(
-    "font-mono text-muted-foreground",
-    size === "sm" && "text-sm",
-    size === "md" && "text-sm",
-    size === "lg" && "text-base"
+    "font-mono text-muted-foreground text-sm",
+    size === "sm" && "md:text-sm",
+    size === "md" && "md:text-base",
+    size === "lg" && "md:text-lg"
   );
 
   const newReleasesIconClass = cn(

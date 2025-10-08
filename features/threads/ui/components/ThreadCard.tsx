@@ -11,15 +11,18 @@ import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadFooter } from "./ThreadFooter";
 import { ThreadMenu } from "./ThreadMenu";
-import { Tweet } from "@/features/threads/types";
+import { Tweet, Entities } from "@/features/threads/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 // Removed LinkWrapper in favor of next/link for external profile links
+import { QuoteThreadCard } from "./QuoteThreadCard";
+import { useQuotedTweets } from "@/features/threads/hooks/useQuotedTweets";
 
 const ThreadCardVariants = cva(
   "flex gap-4 w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background transition-colors",
@@ -62,7 +65,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       size = "md",
       bordered = false,
       className,
-      characterLimit = 280,
+      characterLimit = 168,
       showFullContent = false,
       showThread = false,
       clickHref,
@@ -78,7 +81,69 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
       showFullContent || !isTextLong
         ? fullText
         : fullText.substring(0, characterLimit) + ".... Read full ↗";
-    const parsedBody = parseText(visibleText, staticTweet?.entities);
+    // When this tweet quotes another tweet, suppress the quoted permalink URL from body
+    let textForParsing = visibleText;
+    let entitiesForParsing: Entities | undefined = staticTweet?.entities;
+    const hasQuoted = Boolean(
+      staticTweet?.is_quote_status && staticTweet?.quoted_status
+    );
+    type WithPermalink = { quoted_status_permalink?: { url?: string } };
+    const permalinkUrl =
+      (staticTweet as WithPermalink)?.quoted_status_permalink?.url || undefined;
+    if (hasQuoted && permalinkUrl) {
+      // Remove raw permalink text
+      textForParsing = textForParsing.replace(permalinkUrl, "").trim();
+      // Remove URL entity if present
+      if (entitiesForParsing?.urls?.length) {
+        entitiesForParsing = {
+          ...entitiesForParsing,
+          urls: entitiesForParsing.urls.filter((u) => u?.url !== permalinkUrl),
+        };
+      }
+    }
+
+    // Detect pasted status URLs (x.com/twitter.com) and strip them from text/entities
+    const STATUS_URL_RE =
+      /^(?:https?:\/\/)?(?:mobile\.)?(?:x\.com|twitter\.com)\/[^\/]+\/status\/(\d+)/i;
+
+    const statusUrlEntities = (entitiesForParsing?.urls || []).filter(
+      (u) => STATUS_URL_RE.test(u.expanded_url) || STATUS_URL_RE.test(u.url)
+    );
+
+    const statusIdsFromUrls = statusUrlEntities
+      .map((u) => {
+        const src = u.expanded_url || u.url;
+        const m = src.match(STATUS_URL_RE);
+        return m ? m[1] : null;
+      })
+      .filter((v): v is string => Boolean(v));
+
+    // Avoid double-render when the tweet already has a quoted_status
+    const quotedStatusId = staticTweet?.quoted_status?.id_str || null;
+    const statusIdsFiltered = quotedStatusId
+      ? statusIdsFromUrls.filter((id) => id !== quotedStatusId)
+      : statusIdsFromUrls;
+
+    if (statusUrlEntities.length > 0) {
+      // Remove the short URLs from text to avoid showing raw links
+      for (const u of statusUrlEntities) {
+        if (u.url) textForParsing = textForParsing.replace(u.url, "");
+        if (u.expanded_url)
+          textForParsing = textForParsing.replace(u.expanded_url, "");
+      }
+      textForParsing = textForParsing.trim();
+
+      // Filter out URL entities that point to status URLs
+      entitiesForParsing = {
+        ...entitiesForParsing,
+        urls: (entitiesForParsing?.urls || []).filter(
+          (u) =>
+            !(STATUS_URL_RE.test(u.expanded_url) || STATUS_URL_RE.test(u.url))
+        ),
+      };
+    }
+
+    const parsedBody = parseText(textForParsing, entitiesForParsing);
     const highlightedBody = highlightInReactTree(
       parsedBody,
       votingContext?.searchQuery
@@ -124,6 +189,15 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
     );
 
     const hasAdditionalContent = Boolean(media);
+
+    const uniqueStatusIdsKey = useMemo(
+      () =>
+        Array.from(new Set(statusIdsFiltered || []))
+          .filter(Boolean)
+          .join(","),
+      [statusIdsFiltered]
+    );
+    const resolvedUrlQuotes = useQuotedTweets(uniqueStatusIdsKey);
 
     const handleCardActivate = (
       event: React.MouseEvent | React.KeyboardEvent
@@ -256,6 +330,35 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                 <div className="block shrink-0 @[1100px]:hidden">
                   {media && <TweetMedia media={media} />}
                 </div>
+              )}
+
+              {/* Quoted Thread */}
+              {hasQuoted && staticTweet.quoted_status && (
+                <div className="mt-2">
+                  <QuoteThreadCard
+                    tweet={staticTweet.quoted_status}
+                    size={size}
+                    characterLimit={characterLimit}
+                    showFullContent={false}
+                    highlightQuery={votingContext?.searchQuery}
+                  />
+                </div>
+              )}
+
+              {/* Quoted threads resolved from pasted URLs */}
+              {resolvedUrlQuotes.length > 0 && (
+                <>
+                  {resolvedUrlQuotes.map((qt) => (
+                    <QuoteThreadCard
+                      key={qt.id_str}
+                      tweet={qt}
+                      size={size}
+                      characterLimit={characterLimit}
+                      showFullContent={false}
+                      highlightQuery={votingContext?.searchQuery}
+                    />
+                  ))}
+                </>
               )}
 
               <ThreadFooter
