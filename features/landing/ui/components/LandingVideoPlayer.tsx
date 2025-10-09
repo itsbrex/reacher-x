@@ -15,6 +15,8 @@ interface LandingVideoPlayerProps {
   className?: string;
   autoPlayOnVisible?: boolean;
   muted?: boolean;
+  posterUrl?: string;
+  initialPreload?: "none" | "metadata";
 }
 
 type MediaThemeElementLike = HTMLElement & { template?: HTMLTemplateElement };
@@ -26,10 +28,14 @@ const LandingVideoPlayer: React.FC<LandingVideoPlayerProps> = ({
   className,
   autoPlayOnVisible = true,
   muted = true,
+  posterUrl,
+  initialPreload = "none",
   ...props
 }) => {
   const [loaded, setLoaded] = React.useState(false);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [preloadValue, setPreloadValue] =
+    React.useState<HTMLVideoElement["preload"]>(initialPreload);
 
   const attachTemplate = React.useCallback((el: Element | null) => {
     if (!el) return;
@@ -46,9 +52,31 @@ const LandingVideoPlayer: React.FC<LandingVideoPlayerProps> = ({
 
   useAutoPlayOnVisible(videoRef, { enabled: autoPlayOnVisible });
 
+  // Upgrade preload to metadata when near viewport for faster first frame
+  React.useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (preloadValue === "metadata") return; // already set (e.g., hero)
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting || entry.intersectionRatio > 0) {
+          setPreloadValue("metadata");
+          io.disconnect();
+        }
+      },
+      { rootMargin: "400px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [preloadValue]);
+
   return (
     <div className={cn("relative h-full w-full", className)}>
-      {!loaded && <Skeleton className="absolute inset-0 h-full w-full" />}
+      {/* Keep minimal skeleton for dynamic import only; do not overlay after mount */}
+      {!loaded && initialPreload === "none" && (
+        <Skeleton className="absolute inset-0 h-full w-full" />
+      )}
       <MediaTheme
         ref={attachTemplate}
         className={cn("h-full w-full overflow-hidden", className)}
@@ -60,9 +88,10 @@ const LandingVideoPlayer: React.FC<LandingVideoPlayerProps> = ({
           className="h-full w-full object-contain"
           aria-label={ariaLabel}
           playsInline
-          preload="none"
+          preload={preloadValue}
           crossOrigin="anonymous"
           muted={muted}
+          poster={posterUrl}
           ref={videoRef}
           onLoadedMetadata={() => setLoaded(true)}
         >

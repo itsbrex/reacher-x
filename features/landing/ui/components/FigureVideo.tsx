@@ -2,12 +2,10 @@
 
 import React from "react";
 import dynamic from "next/dynamic";
-import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { cn } from "@/shared/lib/utils/utils";
 
 const LandingVideoPlayer = dynamic(() => import("./LandingVideoPlayer"), {
   ssr: false,
-  loading: () => <Skeleton className="h-full w-full" />,
 });
 
 interface FigureVideoProps {
@@ -16,6 +14,8 @@ interface FigureVideoProps {
   ariaLabel?: string;
   className?: string;
   figureClassName?: string;
+  posterUrl?: string;
+  initialPreload?: "none" | "metadata";
 }
 
 export const FigureVideo: React.FC<FigureVideoProps> = ({
@@ -24,11 +24,13 @@ export const FigureVideo: React.FC<FigureVideoProps> = ({
   ariaLabel,
   className,
   figureClassName,
+  posterUrl,
+  initialPreload,
 }) => {
   return (
     <figure
       className={cn(
-        "relative aspect-[1/1] overflow-hidden rounded-lg border border-border",
+        "relative aspect-[1/1] overflow-hidden rounded-lg",
         figureClassName
       )}
     >
@@ -37,6 +39,8 @@ export const FigureVideo: React.FC<FigureVideoProps> = ({
         mp4Url={mp4Url}
         ariaLabel={ariaLabel}
         className={cn("h-full w-full", className)}
+        posterUrl={posterUrl}
+        initialPreload={initialPreload}
       />
     </figure>
   );
