@@ -85,7 +85,7 @@ export default async function Home() {
         aria-labelledby="who-is-it-for-heading"
         className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 md:pb-56 portrait:md:grid-cols-1"
       >
-        <div className="order-last col-span-12 justify-self-stretch overflow-hidden rounded-xl portrait:md:col-span-12 landscape:md:col-span-5">
+        <div className="order-last col-span-12 justify-self-stretch overflow-hidden rounded-xl portrait:md:col-span-12 landscape:md:order-none landscape:md:col-span-5">
           <svg
             width="787"
             height="787"
