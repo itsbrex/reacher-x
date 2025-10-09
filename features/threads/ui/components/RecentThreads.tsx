@@ -1,7 +1,6 @@
 // features/landing/ui/components/RecentThreads.tsx
 import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { Thread } from "@/features/threads/types";
-import { LinkWrapper } from "../../../landing/ui/components/LinkWrapper";
 
 interface RecentThreadsProps {
   threads: Thread[]; // Changed to required prop
@@ -30,17 +29,15 @@ export function RecentThreads({
       {threads.map((thread) => {
         const firstTweet = thread.tweets[0];
         return (
-          <LinkWrapper
-            href={`/home/threads/${thread.threadId}`}
+          <ThreadCard
             key={thread.threadId}
-          >
-            <ThreadCard
-              className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 py-4 duration-300 md:px-0"
-              staticTweet={firstTweet}
-              size={size}
-              bordered={bordered}
-            />
-          </LinkWrapper>
+            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 py-4 duration-300 md:px-0"
+            characterLimit={168}
+            staticTweet={firstTweet}
+            size={size}
+            bordered={bordered}
+            clickHref={`/home/threads/${thread.threadId}`}
+          />
         );
       })}
     </div>
