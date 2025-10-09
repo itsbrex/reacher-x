@@ -10,6 +10,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/shared/ui/components/Button";
 
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
+import { PromoCounter } from "@/features/landing/ui/components/PromoCounter";
 import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 
 export const metadata = {
@@ -66,10 +67,8 @@ export default async function Home() {
           </Link>
           <br />
           <small className="mt-2 block text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">One year free</span>{" "}
-            for first{" "}
-            <span className="font-mono font-medium text-foreground">100</span>{" "}
-            users.
+            <span className="font-medium text-foreground">1 year free</span> for
+            first <PromoCounter className="inline" />
           </small>
         </div>
         <FigureVideo
@@ -440,9 +439,7 @@ export default async function Home() {
       <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 pb-12 duration-300 @container md:grid-cols-8 md:gap-x-12 portrait:md:grid-cols-1">
         <div className="col-span-12 self-end lg:mb-12 portrait:md:col-span-12 landscape:md:col-span-3">
           <h2 className="text-2xl font-medium md:text-3xl">
-            Yesterday you waited.
-            <br />
-            Today you can convert.
+            Spend time searching and converting, not on ads.
           </h2>
           <Link
             href="/onboarding"
@@ -453,10 +450,8 @@ export default async function Home() {
           </Link>
           <br />
           <small className="mt-2 block text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">One year free</span>{" "}
-            for first{" "}
-            <span className="font-mono font-medium text-foreground">100</span>{" "}
-            users.
+            <span className="font-medium text-foreground">1 year free</span> for
+            first <PromoCounter className="inline" />
           </small>
         </div>
       </section>

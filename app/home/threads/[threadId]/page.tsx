@@ -15,6 +15,7 @@ import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
 import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
+import { PromoCounter } from "@/features/landing/ui/components/PromoCounter";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 
@@ -164,14 +165,8 @@ export default async function ThreadDetailPage(props: {
               </Link>
               <br />
               <small className="mt-2 block text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  One year free
-                </span>{" "}
-                for first{" "}
-                <span className="font-mono font-medium text-foreground">
-                  100
-                </span>{" "}
-                users.
+                <span className="font-medium text-foreground">1 year free</span>{" "}
+                for first <PromoCounter className="inline" />
               </small>
             </div>
             <FigureVideo

@@ -29,6 +29,7 @@ import type * as llmFilterChunked from "../llmFilterChunked.js";
 import type * as mediaUpload from "../mediaUpload.js";
 import type * as mediaUploadMutations from "../mediaUploadMutations.js";
 import type * as notifications from "../notifications.js";
+import type * as promo from "../promo.js";
 import type * as replyQueue from "../replyQueue.js";
 import type * as replyQueueMutations from "../replyQueueMutations.js";
 import type * as searchProgress from "../searchProgress.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   mediaUpload: typeof mediaUpload;
   mediaUploadMutations: typeof mediaUploadMutations;
   notifications: typeof notifications;
+  promo: typeof promo;
   replyQueue: typeof replyQueue;
   replyQueueMutations: typeof replyQueueMutations;
   searchProgress: typeof searchProgress;

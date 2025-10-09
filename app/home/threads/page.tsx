@@ -13,6 +13,7 @@ import { logger } from "@/shared/lib/logger";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
 import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
+import { PromoCounter } from "@/features/landing/ui/components/PromoCounter";
 
 export const metadata = {
   title: "Threads",
@@ -133,14 +134,8 @@ export default async function ThreadsPage() {
               </Link>
               <br />
               <small className="mt-2 block text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  One year free
-                </span>{" "}
-                for first{" "}
-                <span className="font-mono font-medium text-foreground">
-                  100
-                </span>{" "}
-                users.
+                <span className="font-medium text-foreground">1 year free</span>{" "}
+                for first <PromoCounter className="inline" />
               </small>
             </div>
             <FigureVideo
