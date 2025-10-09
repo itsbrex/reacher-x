@@ -10,6 +10,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/shared/ui/components/Button";
 
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
+import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 
 export const metadata = {
   title: "ReacherX",
@@ -61,6 +62,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "default" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
           <br />
           <small className="mt-2 block text-sm text-muted-foreground">
@@ -110,6 +112,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "outline" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
         </div>
       </section>
@@ -137,6 +140,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "outline" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
         </div>
         <FigureVideo
@@ -177,6 +181,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "outline" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
         </div>
       </section>
@@ -205,6 +210,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "outline" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
         </div>
         <FigureVideo
@@ -247,6 +253,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "outline" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
         </div>
       </section>
@@ -278,6 +285,7 @@ export default async function Home() {
               className={`${buttonVariants({ variant: "outline" })} mt-4`}
             >
               Start finding customers
+              <ArrowOutwardIcon className="fill-current" />
             </Link>
           </div>
           <FigureVideo
@@ -311,6 +319,7 @@ export default async function Home() {
               className={`${buttonVariants({ variant: "outline" })} mt-4`}
             >
               Start finding customers
+              <ArrowOutwardIcon className="fill-current" />
             </Link>
           </div>
           <FigureVideo
@@ -341,6 +350,7 @@ export default async function Home() {
               className={`${buttonVariants({ variant: "outline" })} mt-4`}
             >
               Start finding customers
+              <ArrowOutwardIcon className="fill-current" />
             </Link>
           </div>
           <FigureVideo
@@ -375,6 +385,7 @@ export default async function Home() {
             className={`${buttonVariants({ variant: "default" })} mt-4`}
           >
             Start finding customers
+            <ArrowOutwardIcon className="fill-current" />
           </Link>
           <br />
           <small className="mt-2 block text-sm text-muted-foreground">

@@ -212,6 +212,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                     <NavLink
                       href="/home"
                       activeClassName="underline text-primary font-medium"
+                      exact
                       size="lg"
                       className="px-4 py-2 pt-0 font-normal text-muted-foreground"
                     >

@@ -14,6 +14,7 @@ import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
 
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
+import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 
@@ -105,7 +106,7 @@ export default async function ThreadDetailPage(props: {
           </span>
         </h1>
       </Link>
-      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12">
+      <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12 md:pb-56">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 @container md:px-0">
           {tweets.map((tweet, index) => (
             <ThreadCard
@@ -159,6 +160,7 @@ export default async function ThreadDetailPage(props: {
                 className={`${buttonVariants({ variant: "default" })} mt-4`}
               >
                 Start finding customers
+                <ArrowOutwardIcon className="fill-current" />
               </Link>
               <br />
               <small className="mt-2 block text-sm text-muted-foreground">
