@@ -576,6 +576,7 @@ export const storeSuggestionsArgsValidator = v.object({
 
 export const getSuggestionsArgsValidator = v.object({
   workspaceId: v.id("workspaces"),
+  userDescription: v.optional(v.string()),
   limit: v.optional(v.number()),
 });
 

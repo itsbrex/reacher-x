@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/shared/ui/components/Sidebar";
-import { FilledFolderIcon } from "@/shared/ui/components/icons";
+import { FolderIcon } from "@/shared/ui/components/icons";
 import Link from "next/link";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { usePathname } from "next/navigation";
@@ -36,7 +36,7 @@ export function SidebarFooter() {
             asChild
           >
             <Link href="/workspace">
-              <FilledFolderIcon className="fill-foreground" />
+              <FolderIcon className="fill-foreground" />
               <span className="truncate">{workspaceName}</span>
             </Link>
           </SidebarMenuButton>

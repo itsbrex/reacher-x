@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { logger } from "@/shared/lib/logger";
 import { useConvexAuth } from "convex/react";
 import { useDataMigration } from "./useDataMigration";
+import { useAuth } from "./useAuth";
 
 /**
  * Hook that automatically migrates localStorage data to Convex when a user first authenticates
@@ -19,6 +20,7 @@ import { useDataMigration } from "./useDataMigration";
  */
 export function useDataMigrationEffect() {
   const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isAuthenticated: unifiedAuth, isLoading: unifiedLoading } = useAuth();
   const { migrateData, hasDataToMigrate, isMigrating } = useDataMigration();
 
   // Track if we've already attempted migration for this session
@@ -31,9 +33,12 @@ export function useDataMigrationEffect() {
     // 3. Not already migrating
     // 4. Haven't attempted migration yet
     // 5. There's actually data to migrate
+    // Additionally ensure unified auth (which verifies Convex user record exists)
     if (
       isAuthenticated &&
       !isLoading &&
+      unifiedAuth &&
+      !unifiedLoading &&
       !isMigrating &&
       !hasAttemptedMigration.current &&
       hasDataToMigrate()
@@ -60,7 +65,15 @@ export function useDataMigrationEffect() {
     if (!isAuthenticated) {
       hasAttemptedMigration.current = false;
     }
-  }, [isAuthenticated, isLoading, isMigrating, migrateData, hasDataToMigrate]);
+  }, [
+    isAuthenticated,
+    isLoading,
+    unifiedAuth,
+    unifiedLoading,
+    isMigrating,
+    migrateData,
+    hasDataToMigrate,
+  ]);
 
   return {
     isMigrating,

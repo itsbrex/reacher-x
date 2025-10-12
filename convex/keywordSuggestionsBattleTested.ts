@@ -186,6 +186,7 @@ export const generateBattleTestedKeywords = action({
           api.keywordSuggestions.getSuggestions,
           {
             workspaceId,
+            userDescription,
             limit: 200,
           }
         );

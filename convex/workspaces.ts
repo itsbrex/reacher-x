@@ -7,6 +7,29 @@ import {
   getWorkspaceArgsValidator,
 } from "./validators";
 
+// Sanitize suggestion metadata to match validator schema
+function sanitizeSuggestionMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const allowedKeys = new Set([
+    "source",
+    "generatedAt",
+    "usedFallback",
+    "exactMatch",
+    "verificationScore",
+    "examplesCount",
+    "validatedAt",
+    "validationModel",
+    "resultCount",
+    "battleTested",
+  ]);
+  const input = metadata as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(input)) {
+    if (allowedKeys.has(key)) out[key] = input[key];
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * Creates a default workspace for a user during onboarding
  * Supports migration from localStorage data
@@ -157,7 +180,7 @@ export const migrateLocalStorageData = mutation({
             userDescription,
             suggestions: toInsert.map((s) => ({
               keyword: s.keyword,
-              metadata: s.metadata,
+              metadata: sanitizeSuggestionMetadata(s.metadata),
               generatedAt: s.generatedAt,
             })),
           });
@@ -213,7 +236,7 @@ export const migrateLocalStorageData = mutation({
           userDescription,
           suggestions: toInsert.map((s) => ({
             keyword: s.keyword,
-            metadata: s.metadata,
+            metadata: sanitizeSuggestionMetadata(s.metadata),
             generatedAt: s.generatedAt,
           })),
         });

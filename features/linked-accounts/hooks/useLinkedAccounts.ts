@@ -157,13 +157,27 @@ export function useLinkedAccounts() {
     };
   }, [authLoading, isAuthenticated, socialAccounts, user, currentUser]);
 
-  const reconnectAccount = () => {
-    // Redirect to X OAuth flow (works for placeholder and expired accounts)
-    router.push("/api/x/connect");
+  const connectAccount = (provider: "twitter" | "google") => {
+    // Route to the correct OAuth flow based on provider
+    if (provider === "google") {
+      // Use existing login route (WorkOS) – mirrors header "Sign in"
+      router.push("/login");
+      return;
+    }
+    // Twitter/X connect supports optional returnTo; default back to linked accounts
+    const returnTo = encodeURIComponent("/settings/linked-accounts");
+    router.push(`/api/x/connect?returnTo=${returnTo}`);
   };
 
-  const disconnectAccount = async (accountId: string) => {
+  const disconnectAccount = async (
+    accountId: string,
+    provider: "twitter" | "google"
+  ) => {
     try {
+      // Only Twitter/X unlink is supported from this screen.
+      if (provider !== "twitter") {
+        return;
+      }
       if (accountId === "twitter-placeholder") {
         return; // Can't disconnect placeholder
       }
@@ -177,7 +191,7 @@ export function useLinkedAccounts() {
     accounts,
     isLoading,
     error,
-    reconnectAccount,
+    connectAccount,
     disconnectAccount,
   };
 }

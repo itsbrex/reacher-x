@@ -170,6 +170,12 @@ export default defineSchema({
       "isUsed",
       "generatedAt",
     ])
+    .index("by_workspace_description_isUsed_generatedAt", [
+      "workspaceId",
+      "userDescription",
+      "isUsed",
+      "generatedAt",
+    ])
     .index("by_user", ["userId"]),
 
   // Sync operations log for debugging and conflict resolution

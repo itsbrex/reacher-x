@@ -78,9 +78,11 @@ export function AccountCard({
                 <span className="text-xs text-muted-foreground">
                   · {statusText ? statusText : getConnectionStatus()}
                 </span>
-                <Button variant="outline" size="xs" onClick={onDisconnect}>
-                  Disconnect
-                </Button>
+                {provider === "twitter" && (
+                  <Button variant="outline" size="xs" onClick={onDisconnect}>
+                    Disconnect
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2">

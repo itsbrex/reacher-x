@@ -21,7 +21,7 @@ import {
   ContrastIcon,
   DarkModeIcon,
   DataUsageIcon,
-  FilledFolderIcon,
+  FolderIcon,
   HomeIcon,
   LightModeIcon,
   LogoutIcon,
@@ -204,7 +204,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
         <DropdownMenuItem asChild>
           <Link href="/workspace">
             <span className="flex items-center gap-2">
-              <FilledFolderIcon className="fill-current" aria-hidden="true" />
+              <FolderIcon className="fill-current" aria-hidden="true" />
               Workspace
             </span>
           </Link>
@@ -270,7 +270,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
         <DropdownMenuItem asChild>
           <Link href="/workspace">
             <span className="flex items-center gap-2">
-              <FilledFolderIcon className="fill-current" aria-hidden="true" />
+              <FolderIcon className="fill-current" aria-hidden="true" />
               Workspace
             </span>
           </Link>
@@ -516,7 +516,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                             >
                               <Link href="/workspace">
                                 <span className="flex items-center gap-2">
-                                  <FilledFolderIcon
+                                  <FolderIcon
                                     className="fill-current"
                                     aria-hidden="true"
                                   />
@@ -641,7 +641,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                             >
                               <Link href="/workspace">
                                 <span className="flex items-center gap-2">
-                                  <FilledFolderIcon
+                                  <FolderIcon
                                     className="fill-current"
                                     aria-hidden="true"
                                   />

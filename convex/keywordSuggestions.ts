@@ -8,19 +8,40 @@ import {
 
 export const getSuggestions = query({
   args: getSuggestionsArgsValidator,
-  handler: async (ctx, { workspaceId, limit }) => {
+  handler: async (ctx, { workspaceId, userDescription, limit }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
     }
 
-    const suggestions = await ctx.db
-      .query("keywordSuggestions")
-      .withIndex("by_workspace_isUsed_generatedAt", (q) =>
-        q.eq("workspaceId", workspaceId).eq("isUsed", false)
-      )
-      .order("desc")
-      .take(limit ?? 5);
+    // Normalize description once (trim, collapse spaces, lowercase)
+    const normalizeDesc = (s?: string | null) =>
+      s ? s.trim().toLowerCase().replace(/\s+/g, " ") : undefined;
+    const normDesc = normalizeDesc(userDescription);
+
+    let suggestions;
+    if (userDescription) {
+      suggestions = await ctx.db
+        .query("keywordSuggestions")
+        .withIndex("by_workspace_description_isUsed_generatedAt", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("userDescription", normDesc)
+            .eq("isUsed", false)
+        )
+        // Oldest first to ensure new ones append in the UI window
+        .order("asc")
+        .take(limit ?? 5);
+    } else {
+      suggestions = await ctx.db
+        .query("keywordSuggestions")
+        .withIndex("by_workspace_isUsed_generatedAt", (q) =>
+          q.eq("workspaceId", workspaceId).eq("isUsed", false)
+        )
+        // Oldest first to ensure new ones append in the UI window
+        .order("asc")
+        .take(limit ?? 5);
+    }
 
     return suggestions;
   },
@@ -46,6 +67,10 @@ export const storeSuggestions = internalMutation({
     }
 
     const now = Date.now();
+    // Normalize description for storage
+    const normalizeDesc = (s?: string | null) =>
+      s ? s.trim().toLowerCase().replace(/\s+/g, " ") : undefined;
+    const normDesc = normalizeDesc(args.userDescription);
     // Load existing unused suggestions for dedupe
     const existing = await ctx.db
       .query("keywordSuggestions")
@@ -94,7 +119,7 @@ export const storeSuggestions = internalMutation({
         keyword: s.keyword.trim().toLowerCase(),
         isUsed: false,
         generatedAt: s.generatedAt ?? now + i,
-        userDescription: args.userDescription,
+        userDescription: normDesc,
         batchRequestId: args.batchRequestId,
         metadata: sanitizedMetadata,
       });
@@ -222,13 +247,27 @@ export const generateKeywords = action({
         );
         if (defaultWorkspace) {
           resolvedWorkspaceId = defaultWorkspace._id;
+        } else {
+          // Fallback: ensure workspace on-demand for first-time flows
+          try {
+            const ensured = await ctx.runMutation(
+              api.workspaces.ensureDefaultWorkspace,
+              {}
+            );
+            resolvedWorkspaceId = ensured;
+          } catch {}
         }
       } catch {}
     }
 
+    // Normalize description consistently across read/write paths
+    const normalizeDesc = (s: string) =>
+      s.trim().toLowerCase().replace(/\s+/g, " ");
+    const normalizedDescription = normalizeDesc(userDescription);
+
     const progressKey = makeKeywordGenProgressKey(
       (resolvedWorkspaceId as unknown as string) || null,
-      userDescription
+      normalizedDescription
     );
 
     logger.info(`[KEYWORD_GEN] Starting request ${requestId}`, {
@@ -286,12 +325,16 @@ export const generateKeywords = action({
         try {
           const existing = (await ctx.runQuery(
             api.keywordSuggestions.getSuggestions,
-            { workspaceId: targetWorkspaceId, limit: 200 }
+            {
+              workspaceId: targetWorkspaceId,
+              userDescription: normalizedDescription,
+              limit: 200,
+            }
           )) as KeywordSuggestionDoc[];
           const freshForDesc = (existing || [])
             .filter(
               (s: KeywordSuggestionDoc) =>
-                s.userDescription === userDescription && !s.isUsed
+                s.userDescription === normalizedDescription && !s.isUsed
             )
             .filter(
               (s: KeywordSuggestionDoc) => Date.now() - s.generatedAt < FRESH_MS
@@ -410,7 +453,11 @@ export const generateKeywords = action({
           // Fetch current pool for this workspace/description
           const existing = (await ctx.runQuery(
             api.keywordSuggestions.getSuggestions,
-            { workspaceId: targetWorkspaceId, limit: 200 }
+            {
+              workspaceId: targetWorkspaceId,
+              userDescription: normalizedDescription,
+              limit: 200,
+            }
           )) as KeywordSuggestionDoc[];
           const existingSet = new Set(
             (existing || []).map(
@@ -434,7 +481,7 @@ export const generateKeywords = action({
 
           await ctx.runMutation(internal.keywordSuggestions.storeSuggestions, {
             workspaceId: targetWorkspaceId,
-            userDescription,
+            userDescription: normalizedDescription,
             batchRequestId: requestId,
             suggestions: dedupedPayload,
           });
@@ -447,6 +494,8 @@ export const generateKeywords = action({
           finalKeywordCount: frontendKeywords.length,
           modelUsed: "grok-4-fast-reasoning",
           usedFallback: false,
+          workspaceId: resolvedWorkspaceId ?? null,
+          normalizedDescription,
         }
       );
 

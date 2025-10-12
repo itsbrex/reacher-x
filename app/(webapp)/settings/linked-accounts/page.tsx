@@ -21,7 +21,7 @@ export default function LinkedAccountsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { accounts, isLoading, reconnectAccount, disconnectAccount } =
+  const { accounts, isLoading, connectAccount, disconnectAccount } =
     useLinkedAccounts();
   const linkXAccount = useMutation(api.socialAccountsMutations.linkXAccount);
 
@@ -153,8 +153,10 @@ export default function LinkedAccountsPage() {
                   isConnected={account.isConnected}
                   connectedAt={account.connectedAt}
                   statusText={account.statusText}
-                  onReconnect={() => reconnectAccount()}
-                  onDisconnect={() => disconnectAccount(account.id)}
+                  onReconnect={() => connectAccount(account.provider)}
+                  onDisconnect={() =>
+                    disconnectAccount(account.id, account.provider)
+                  }
                 />
               ))}
             </div>

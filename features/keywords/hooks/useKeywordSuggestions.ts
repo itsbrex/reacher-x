@@ -159,8 +159,16 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   );
   const convexSuggestions = useQuery(
     api.keywordSuggestions.getSuggestions,
-    isAuthenticated && workspace
-      ? { workspaceId: workspace._id, limit: HOOK_CONFIG.AUTH_POOL_LIMIT }
+    isAuthenticated && workspace && userDescription
+      ? {
+          workspaceId: workspace._id,
+          // Normalize once for server parity (trim/lower/spaces)
+          userDescription: userDescription
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " "),
+          limit: HOOK_CONFIG.AUTH_POOL_LIMIT,
+        }
       : "skip"
   );
 
@@ -233,30 +241,15 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     if (isAuthenticated) {
       // Wait for query to resolve
       if (convexSuggestions === undefined) return false;
-      const filtered = (convexSuggestions || [])
-        .filter((s) =>
-          userDescription ? s.userDescription === userDescription : true
-        )
-        .sort((a, b) => a.generatedAt - b.generatedAt); // oldest first for stable window
-
-      // Dedupe by keyword|exact at UI layer defensively
-      const seen = new Set<string>();
-      const items: KeywordItem[] = filtered
-        .filter((s) => {
-          const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .map((s) => ({
-          id: s._id,
-          keyword: s.keyword,
-          timestamp: new Date(s.generatedAt).toISOString(),
-          isPinned: false,
-          // pass through metadata and lift exactMatch to top-level for UI
-          metadata: s.metadata,
-          exactMatch: s.metadata?.exactMatch ?? false,
-        }));
+      // Server now returns oldest-first unused; consume as-is
+      const items: KeywordItem[] = (convexSuggestions || []).map((s) => ({
+        id: s._id,
+        keyword: s.keyword,
+        timestamp: new Date(s.generatedAt).toISOString(),
+        isPinned: false,
+        metadata: s.metadata,
+        exactMatch: s.metadata?.exactMatch ?? false,
+      }));
       setSuggestions(items);
       setFromCache(false);
       setCacheAge(
@@ -287,7 +280,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     setFromCache(true);
     setCacheAge(allUnused[0]?.generatedAt);
     return keywordItems.length > 0;
-  }, [isAuthenticated, convexSuggestions, userDescription]);
+  }, [isAuthenticated, convexSuggestions]);
 
   // Derived hydration flag
   const isHydrating = useMemo(() => {
@@ -525,8 +518,8 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           await markSuggestionAsUsedMutation({
             suggestionId: keywordId as Id<"keywordSuggestions">,
           });
-          // Immediately refresh to keep 5 visible while server propagates
-          loadSuggestionsFromStore();
+          // Let Convex reactivity update the list; avoid manual override with stale data
+          // Fallback to local refresh only if needed (no-op here)
         } else {
           const success = markSuggestionAsUsed(keyword);
           if (success) {
@@ -558,21 +551,12 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     if (isAuthenticated) {
       // Wait for query to resolve
       if (convexSuggestions === undefined) return;
-
-      // Filter pool to current description
-      const filtered = (convexSuggestions || [])
-        .filter((s) =>
-          userDescription ? s.userDescription === userDescription : true
-        )
-        .sort((a, b) => a.generatedAt - b.generatedAt);
-
-      const hasCurrentDesc = filtered.length > 0;
+      const hasCurrentDesc = (convexSuggestions || []).length > 0;
 
       logger.info("[KEYWORD_SUGGESTIONS] Refresh (auth):", {
         serverUnused: Array.isArray(convexSuggestions)
           ? convexSuggestions.length
           : 0,
-        filteredUnused: filtered.length,
         userDescription,
         hasCurrentDesc,
       });
@@ -586,7 +570,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       loadSuggestionsFromStore();
 
       // Harmonize threshold: regenerate when <=5 remain to match 10-target pool
-      if (filtered.length <= 5) {
+      if ((convexSuggestions || []).length <= 5) {
         void generateKeywords(undefined, { silent: true });
       }
       return;
@@ -621,6 +605,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   // Reactively update UI when Convex suggestions arrive, and trigger generation if needed
   useEffect(() => {
     if (isAuthenticated && convexSuggestions !== undefined) {
+      // For auth: rely on reactive updates; refresh handles generation threshold
       void refreshSuggestions();
     }
   }, [isAuthenticated, convexSuggestions, refreshSuggestions]);
