@@ -62,6 +62,8 @@ interface KeywordListProps {
   activeIndex?: number;
   /** Callback when active index changes */
   onActiveIndexChange?: (index: number) => void;
+  /** Optional renderer for extra right-aligned content per item */
+  renderItemExtra?: (item: KeywordItem) => React.ReactNode;
 }
 
 export const KeywordList = memo<KeywordListProps>(function KeywordList({
@@ -76,6 +78,7 @@ export const KeywordList = memo<KeywordListProps>(function KeywordList({
   listId,
   activeIndex = -1,
   onActiveIndexChange,
+  renderItemExtra,
 }) {
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -168,6 +171,7 @@ export const KeywordList = memo<KeywordListProps>(function KeywordList({
             highlightQuery={highlightQuery}
             isActive={index === activeIndex}
             index={index}
+            renderExtra={renderItemExtra}
           />
         ))}
       </ul>
@@ -183,6 +187,7 @@ interface KeywordListItemProps {
   highlightQuery?: string;
   isActive?: boolean;
   index?: number;
+  renderExtra?: (item: KeywordItem) => React.ReactNode;
 }
 
 const KeywordListItem = memo<KeywordListItemProps>(function KeywordListItem({
@@ -193,6 +198,7 @@ const KeywordListItem = memo<KeywordListItemProps>(function KeywordListItem({
   highlightQuery,
   isActive = false,
   index = 0,
+  renderExtra,
 }) {
   const itemRef = useRef<HTMLLIElement>(null);
 
@@ -276,6 +282,11 @@ const KeywordListItem = memo<KeywordListItemProps>(function KeywordListItem({
               &nbsp;&nbsp;· {item.timestamp}
             </time>
           )}
+        </span>
+      )}
+      {renderExtra && (
+        <span className="ml-2 text-right text-[10px] text-muted-foreground">
+          {renderExtra(item)}
         </span>
       )}
     </li>

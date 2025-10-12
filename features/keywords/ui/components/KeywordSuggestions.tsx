@@ -4,6 +4,8 @@
 import { memo, useMemo } from "react";
 import { KeywordList, type KeywordItem } from "./KeywordList";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
+import AnimatedPercent from "@/shared/ui/components/AnimatedPercent";
+import { useKeywordGenProgress } from "@/shared/hooks/useKeywordGenProgress";
 
 interface KeywordSuggestionsProps {
   suggestions: KeywordItem[];
@@ -32,44 +34,75 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
       [history]
     );
 
-    const filteredSuggestions = useMemo(() => {
-      return suggestions
-        .filter((item) => {
-          // Exclude current query (defensive)
-          if (
-            item.keyword.toLowerCase().trim() ===
-            currentQuery.toLowerCase().trim()
-          ) {
-            return false;
-          }
+    // Prefer unseen suggestions; backfill from seen-in-history to keep up to 5 visible
+    const finalSuggestions = useMemo(() => {
+      const norm = (s: string) => s.toLowerCase().trim();
 
-          // Exclude keywords that already exist in search history
-          if (historyKeywordSet.has(item.keyword.toLowerCase())) {
-            return false;
-          }
+      const preferred = suggestions.filter((item) => {
+        const n = norm(item.keyword);
+        if (historyKeywordSet.has(n)) return false;
+        return true;
+      });
+      const fallback = suggestions.filter((item) => {
+        const n = norm(item.keyword);
+        if (!historyKeywordSet.has(n)) return false;
+        return true;
+      });
 
-          return true;
-        })
-        .slice(0, MAX_DISPLAY);
-    }, [suggestions, currentQuery, historyKeywordSet]);
+      const out = preferred.slice(0, MAX_DISPLAY);
+      if (out.length < MAX_DISPLAY) {
+        out.push(...fallback.slice(0, MAX_DISPLAY - out.length));
+      }
+      return out;
+    }, [suggestions, historyKeywordSet]);
 
-    if (loading) {
+    const { value: progress, phase, isComplete } = useKeywordGenProgress();
+
+    // Only show loading/progress when we don't have suggestions to display yet.
+    const hasSuggestions = finalSuggestions.length > 0;
+    const showLoading =
+      !hasSuggestions && (loading || (progress > 0 && !isComplete));
+
+    if (showLoading) {
+      const isGenerating = progress > 0 && !isComplete;
       return (
         <section
           className={className}
-          aria-label="Keyword suggestions"
+          aria-label={
+            isGenerating
+              ? "Generating keyword suggestions"
+              : "Loading keyword suggestions"
+          }
           aria-busy="true"
           role="region"
         >
           <dl className="m-0">
-            <dt className="mx-3.5 mb-3 text-sm font-medium text-muted-foreground">
-              Try these ↴
+            <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
+              <span className="flex items-baseline gap-1">
+                {isGenerating ? (
+                  <>
+                    Generating keyword suggestions ·
+                    <AnimatedPercent
+                      value={progress}
+                      srLabel="Keyword suggestion generation progress"
+                      className="text-xs"
+                    />
+                    {phase && <span className="sr-only">Phase: {phase}</span>}
+                  </>
+                ) : (
+                  <>Loading keyword suggestions…</>
+                )}
+              </span>
             </dt>
             <dd className="m-0">
               <div
                 className="space-y-2"
                 role="status"
-                aria-label="Loading keyword suggestions"
+                aria-label={
+                  isGenerating
+                    ? "Generating keyword suggestions"
+                    : "Loading keyword suggestions"
+                }
               >
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div
@@ -86,15 +119,15 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
       );
     }
 
-    // Hide section entirely when loaded but no suggestions
-    if (!loading && filteredSuggestions.length === 0) {
+    // Hide section entirely when not loading and we have nothing to show
+    if (!showLoading && !hasSuggestions) {
       return null;
     }
 
     return (
       <section
         className={className}
-        aria-label={`${filteredSuggestions.length} keyword suggestions`}
+        aria-label={`${finalSuggestions.length} keyword suggestions`}
         role="region"
       >
         <dl className="m-0">
@@ -103,9 +136,10 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
           </dt>
           <dd className="m-0">
             <KeywordList
-              items={filteredSuggestions}
+              items={finalSuggestions}
               onKeywordClick={onSuggestionClick}
               listLabel="Suggested keywords"
+              highlightQuery={currentQuery}
             />
           </dd>
         </dl>

@@ -2,7 +2,7 @@
  * Keyword Suggestions Hook
  *
  * This hook implements the proper keyword suggestion management system:
- * - Store 15 generated keywords at a time
+ * - Store 10 generated keywords at a time
  * - Show only 5 unused keywords to the user
  * - When a keyword is used, remove it from suggestions and show a new one
  * - When no unused keywords remain, trigger regeneration
@@ -37,6 +37,7 @@ import {
 } from "@/shared/lib/utils/keywordSuggestionsStore";
 import type { KeywordItem } from "../ui/components/KeywordList";
 import { logger } from "@/shared/lib/logger";
+import { useKeywordGeneration } from "@/features/keywords/contexts/KeywordGenerationContext";
 
 // Type definitions for API responses
 interface KeywordGenerationResponse {
@@ -56,7 +57,7 @@ interface KeywordGenerationResponse {
     requestId: string;
     generatedAt: number;
     processingTimeMs: number;
-    llmProcessingTimeMs: number;
+    llmProcessingTimeMs?: number;
     userDescriptionLength: number;
     modelUsed: string;
     usedFallback: boolean;
@@ -98,7 +99,10 @@ export interface KeywordSuggestionsState {
   generationMetadata: GenerationMetadata;
 
   // Actions
-  generateKeywords: (descriptionOverride?: string) => Promise<void>;
+  generateKeywords: (
+    descriptionOverride?: string,
+    options?: { silent?: boolean }
+  ) => Promise<void>;
   generateSeedKeyword: (descriptionOverride?: string) => Promise<{
     keyword: string;
     exactMatch: boolean;
@@ -147,9 +151,6 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   const isLoadingRef = useRef<boolean>(false);
 
   // Convex actions & queries
-  const generateKeywordsAction = useAction(
-    api.keywordSuggestions.generateKeywords
-  );
   const generateSeedKeywordAction = useAction(
     api.keywordGeneration.generateSeedKeyword
   );
@@ -162,6 +163,9 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       ? { workspaceId: workspace._id, limit: HOOK_CONFIG.AUTH_POOL_LIMIT }
       : "skip"
   );
+
+  // Context-based coordinated generation (cross-route dedupe)
+  const { runGeneration } = useKeywordGeneration();
 
   // Load unified user description and validate
   useEffect(() => {
@@ -235,15 +239,24 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         )
         .sort((a, b) => a.generatedAt - b.generatedAt); // oldest first for stable window
 
-      const items: KeywordItem[] = filtered.map((s) => ({
-        id: s._id,
-        keyword: s.keyword,
-        timestamp: new Date(s.generatedAt).toISOString(),
-        isPinned: false,
-        // pass through metadata and lift exactMatch to top-level for UI
-        metadata: s.metadata,
-        exactMatch: s.metadata?.exactMatch ?? false,
-      }));
+      // Dedupe by keyword|exact at UI layer defensively
+      const seen = new Set<string>();
+      const items: KeywordItem[] = filtered
+        .filter((s) => {
+          const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .map((s) => ({
+          id: s._id,
+          keyword: s.keyword,
+          timestamp: new Date(s.generatedAt).toISOString(),
+          isPinned: false,
+          // pass through metadata and lift exactMatch to top-level for UI
+          metadata: s.metadata,
+          exactMatch: s.metadata?.exactMatch ?? false,
+        }));
       setSuggestions(items);
       setFromCache(false);
       setCacheAge(
@@ -254,14 +267,22 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
     // Unauthenticated: use full unused pool (no slicing)
     const allUnused = getAllUnusedSuggestions();
-    const keywordItems: KeywordItem[] = allUnused.map((suggestion) => ({
-      id: suggestion.id,
-      keyword: suggestion.keyword,
-      timestamp: new Date(suggestion.generatedAt).toISOString(),
-      isPinned: false,
-      metadata: suggestion.metadata,
-      exactMatch: suggestion.metadata?.exactMatch ?? false,
-    }));
+    const seenLocal = new Set<string>();
+    const keywordItems: KeywordItem[] = allUnused
+      .filter((s) => {
+        const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+        if (seenLocal.has(key)) return false;
+        seenLocal.add(key);
+        return true;
+      })
+      .map((suggestion) => ({
+        id: suggestion.id,
+        keyword: suggestion.keyword,
+        timestamp: new Date(suggestion.generatedAt).toISOString(),
+        isPinned: false,
+        metadata: suggestion.metadata,
+        exactMatch: suggestion.metadata?.exactMatch ?? false,
+      }));
     setSuggestions(keywordItems);
     setFromCache(true);
     setCacheAge(allUnused[0]?.generatedAt);
@@ -314,7 +335,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
   // Generate new keywords using AI
   const generateKeywords = useCallback(
-    async (descriptionOverride?: string) => {
+    async (descriptionOverride?: string, options?: { silent?: boolean }) => {
       // Choose explicit override first, then hydrated description
       const descriptionToUse = (descriptionOverride ?? userDescription) || "";
       if (descriptionToUse.length < HOOK_CONFIG.MIN_DESCRIPTION_LENGTH) {
@@ -343,7 +364,9 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
 
       lastRequestTimestamp.current = now;
       isLoadingRef.current = true;
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setError(null);
       setFromCache(false);
 
@@ -356,18 +379,11 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           stats: getSuggestionsStats(),
         });
 
-        // Use simple generation (re-prompting is handled by useKeywordRePrompt hook)
-        const result = await generateKeywordsAction({
+        // Coordinate with context to ensure a single in-flight request
+        const genData = (await runGeneration({
           userDescription: descriptionToUse,
           workspaceId: workspace?._id,
-        });
-
-        if (!result.success || !result.data) {
-          throw new Error(result.error || "Failed to generate keywords");
-        }
-
-        // Handle response
-        const genData = result.data as KeywordGenerationResponse;
+        })) as KeywordGenerationResponse;
         const metadata = genData.metadata;
 
         if (!isAuthenticated) {
@@ -428,14 +444,15 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           processingTimeMs: Date.now() - startTime,
         });
       } finally {
-        setLoading(false);
+        if (!options?.silent) {
+          setLoading(false);
+        }
         isLoadingRef.current = false;
       }
     },
     [
-      hasValidDescription,
       userDescription,
-      generateKeywordsAction,
+      runGeneration,
       shouldUseRePrompt,
       loadSuggestionsFromStore,
       isAuthenticated,
@@ -492,7 +509,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         return null;
       }
     },
-    [hasValidDescription, userDescription, generateSeedKeywordAction]
+    [userDescription, generateSeedKeywordAction]
   );
 
   // Record keyword usage and mark as used
@@ -508,7 +525,8 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           await markSuggestionAsUsedMutation({
             suggestionId: keywordId as Id<"keywordSuggestions">,
           });
-          // reactive query will refresh
+          // Immediately refresh to keep 5 visible while server propagates
+          loadSuggestionsFromStore();
         } else {
           const success = markSuggestionAsUsed(keyword);
           if (success) {
@@ -560,20 +578,21 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       });
 
       if (!hasCurrentDesc) {
-        await generateKeywords();
+        await generateKeywords(undefined, { silent: false });
         return;
       }
 
       // Try to display what we have
       loadSuggestionsFromStore();
 
-      if (filtered.length <= 2) {
-        await generateKeywords();
+      // Harmonize threshold: regenerate when <=5 remain to match 10-target pool
+      if (filtered.length <= 5) {
+        void generateKeywords(undefined, { silent: true });
       }
       return;
     }
 
-    // Unauthenticated path: local store rule (<= 2) and description change via local state
+    // Unauthenticated path: local store rule (<= 5) and description change via local state
     const localDescChanged = hasUserDescriptionChanged(userDescription || "");
     logger.info("[KEYWORD_SUGGESTIONS] Refresh (unauth):", {
       localDescChanged,
@@ -581,13 +600,14 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
     });
 
     if (localDescChanged) {
-      await generateKeywords();
+      await generateKeywords(undefined, { silent: false });
       return;
     }
 
-    if (loadSuggestionsFromStore()) return;
+    // Always update UI with current suggestions, then decide on regeneration
+    loadSuggestionsFromStore();
     if (shouldRegenerateSuggestions()) {
-      await generateKeywords();
+      void generateKeywords(undefined, { silent: true });
     }
   }, [
     hasValidDescription,
@@ -604,6 +624,14 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
       void refreshSuggestions();
     }
   }, [isAuthenticated, convexSuggestions, refreshSuggestions]);
+
+  // Listen to localStorage changes to immediately refresh suggestions for unauth users
+  useEffect(() => {
+    if (isAuthenticated) return;
+    const onChange = () => loadSuggestionsFromStore();
+    window.addEventListener("onLocalStorageChange", onChange);
+    return () => window.removeEventListener("onLocalStorageChange", onChange);
+  }, [isAuthenticated, loadSuggestionsFromStore]);
 
   // Clear error state
   const clearError = useCallback(() => {
@@ -675,7 +703,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
   return {
     // Suggestions data
     suggestions,
-    loading: loading || isHydrating,
+    loading: isHydrating || loading,
     error,
     isHydrating,
 

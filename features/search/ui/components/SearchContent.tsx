@@ -47,7 +47,6 @@ export const SearchContent = memo<SearchContentProps>(function SearchContent({
             <SimilarKeywords
               currentQuery={currentQuery}
               onKeywordClick={onKeywordClick}
-              loading={loading}
               maxResults={5}
               threshold={0.3}
               className="px-4"
@@ -59,7 +58,6 @@ export const SearchContent = memo<SearchContentProps>(function SearchContent({
         <RecentKeywords
           currentQuery={currentQuery}
           onKeywordClick={onKeywordClick}
-          loading={loading}
           maxResults={5}
           className="px-4"
         />

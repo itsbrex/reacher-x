@@ -451,7 +451,6 @@ export default function WebAppPage() {
             <SimilarKeywords
               currentQuery={currentQuery}
               onKeywordClick={handleKeywordClick}
-              loading={!isLoaded}
               maxResults={5}
               threshold={0.3}
             />
@@ -462,7 +461,6 @@ export default function WebAppPage() {
         <RecentKeywords
           currentQuery={currentQuery}
           onKeywordClick={handleKeywordClick}
-          loading={!isLoaded}
           maxResults={5}
         />
       </div>

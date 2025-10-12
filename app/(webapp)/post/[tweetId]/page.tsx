@@ -10,7 +10,7 @@ import {
 } from "@/features/webapp/ui/components";
 import { Tweet as TweetComponent } from "@/features/webapp/ui/components/Tweet";
 import type { Tweet } from "@/features/threads/types";
-import { getCachedTweet } from "@/shared/lib/utils/tweetCache";
+import { getCachedTweet, touchTweetLRU } from "@/shared/lib/utils/tweetCache";
 import { ReplyComposer } from "@/features/composer/ui/components/ReplyComposer";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { useQuery, useAction } from "convex/react";
@@ -51,6 +51,12 @@ function PostDetailInner() {
 
   const cachedTweet = useMemo(() => getCachedTweet(tweetId), [tweetId]);
   const tweet = navTweet || cachedTweet;
+  // Touch LRU after render to avoid setState-in-render cascades triggered by storage events
+  useEffect(() => {
+    if (tweetId) {
+      queueMicrotask(() => touchTweetLRU(tweetId));
+    }
+  }, [tweetId]);
   const keywordIdParam = searchParams.get("keywordId") || "";
   const queryParam = searchParams.get("q") || "";
 

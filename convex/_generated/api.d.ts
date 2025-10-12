@@ -20,6 +20,7 @@ import type * as keywordGeneration from "../keywordGeneration.js";
 import type * as keywordMigration from "../keywordMigration.js";
 import type * as keywordRePrompt from "../keywordRePrompt.js";
 import type * as keywordSuggestions from "../keywordSuggestions.js";
+import type * as keywordSuggestionsBattleTested from "../keywordSuggestionsBattleTested.js";
 import type * as keywords from "../keywords.js";
 import type * as lib_llmConfig from "../lib/llmConfig.js";
 import type * as lib_notificationHelpers from "../lib/notificationHelpers.js";
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   keywordMigration: typeof keywordMigration;
   keywordRePrompt: typeof keywordRePrompt;
   keywordSuggestions: typeof keywordSuggestions;
+  keywordSuggestionsBattleTested: typeof keywordSuggestionsBattleTested;
   keywords: typeof keywords;
   "lib/llmConfig": typeof lib_llmConfig;
   "lib/notificationHelpers": typeof lib_notificationHelpers;

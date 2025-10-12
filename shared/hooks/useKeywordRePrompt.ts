@@ -77,6 +77,7 @@ export function useKeywordRePrompt() {
         return { success: false, error: "No flagged keywords to process" };
       }
 
+      // Include tweetIds from votes to ground reprompting with real examples
       const flaggedKeywordsForAction = flaggedKeywords.map((kw) => ({
         keyword: kw.keyword,
         status: kw.status,
@@ -84,6 +85,9 @@ export function useKeywordRePrompt() {
         totalVotes: kw.votes.length,
         upVotes: kw.votes.filter((v) => v.vote === "up").length,
         downVotes: kw.votes.filter((v) => v.vote === "down").length,
+        tweetIds: kw.votes
+          .map((v) => v.tweetId)
+          .filter((id): id is string => !!id),
       }));
 
       logger.info("[KEYWORD_REPROMPT] Processing flagged keywords:", {

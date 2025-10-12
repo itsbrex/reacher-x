@@ -12,7 +12,6 @@ import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 interface SimilarKeywordsProps {
   currentQuery: string;
   onKeywordClick?: (item: KeywordItem) => void;
-  loading?: boolean;
   className?: string;
   maxResults?: number;
   threshold?: number;
@@ -24,28 +23,19 @@ export const SimilarKeywords = memo<SimilarKeywordsProps>(
   function SimilarKeywords({
     currentQuery,
     onKeywordClick,
-    loading = false,
     className,
     maxResults = 5,
     threshold = 0.3,
     additionalKeywords = [],
   }) {
     // Get search history to find similar keywords
-    const { history } = useSearchHistory();
+    const { history, isLoaded } = useSearchHistory();
 
     // Combine search history with additional keywords and filter out current query
     const allKeywords = useMemo(() => {
-      // The `history` object from the hook already includes the `isPinned` property.
-      // We can directly combine it with any additional keywords.
-      const combined = [...history, ...additionalKeywords];
-
-      // Filter out current query (case-insensitive)
-      return combined.filter(
-        (item) =>
-          item.keyword.toLowerCase().trim() !==
-          currentQuery.toLowerCase().trim()
-      );
-    }, [history, additionalKeywords, currentQuery]);
+      // Combine history with any additional keywords; include current query
+      return [...history, ...additionalKeywords];
+    }, [history, additionalKeywords]);
 
     const similarKeywords = useMemo(() => {
       return filterSimilarKeywords(
@@ -56,7 +46,7 @@ export const SimilarKeywords = memo<SimilarKeywordsProps>(
       );
     }, [allKeywords, currentQuery, threshold, maxResults]);
 
-    if (loading) {
+    if (!isLoaded) {
       return (
         <section
           className={className}

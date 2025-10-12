@@ -154,6 +154,12 @@ export default defineSchema({
         generatedAt: v.optional(v.number()),
         usedFallback: v.optional(v.boolean()),
         exactMatch: v.optional(v.boolean()),
+        // Verification proof fields
+        verificationScore: v.optional(v.number()), // Grok score 0-100
+        examplesCount: v.optional(v.number()), // Number of example tweets Grok surfaced
+        validatedAt: v.optional(v.number()), // When Grok validated
+        validationModel: v.optional(v.string()), // e.g., grok-4-fast-reasoning
+        resultCount: v.optional(v.number()), // Our post-check result count from twitterSearch
       })
     ),
   })

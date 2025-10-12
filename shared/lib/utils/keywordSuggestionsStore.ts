@@ -2,7 +2,7 @@
  * Keyword Suggestions Store
  *
  * This module manages AI-generated keyword suggestions with the following logic:
- * - Store 15 generated keywords at a time
+ * - Store 10 generated keywords at a time
  * - Show only 5 unused keywords to the user
  * - When a keyword is used, remove it from suggestions and show a new one
  * - When no unused keywords remain, trigger regeneration
@@ -23,9 +23,10 @@ const KEYWORD_SUGGESTIONS_KEY = "reacherx_keyword_suggestions";
 
 // Configuration constants
 const SUGGESTIONS_CONFIG = {
-  TOTAL_GENERATED: 15, // Total keywords to generate at once
+  TOTAL_GENERATED: 10, // Total keywords to generate at once (aligned with server)
   DISPLAY_COUNT: 5, // Number of keywords to show to user
-  MIN_UNUSED_FOR_REGENERATION: 2, // Trigger regeneration when this many unused remain
+  // Trigger regeneration when half or fewer unused remain; with 10 total, regen at <= 5
+  MIN_UNUSED_FOR_REGENERATION: 5,
 } as const;
 
 /**
@@ -193,17 +194,42 @@ export function storeNewSuggestions(
     metadata: kw.metadata,
   }));
 
-  let finalSuggestions: KeywordSuggestion[] = newSuggestions;
+  // Dedupe incoming vs existing unused by normalized key keyword|exact
+  const incomingSet = new Set(
+    newSuggestions.map(
+      (s) =>
+        `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`
+    )
+  );
+
+  let finalSuggestions: KeywordSuggestion[] = newSuggestions.filter(
+    (s, idx) => {
+      const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+      // Only keep first occurrence in incoming batch
+      if (Array.from(incomingSet).indexOf(key) !== idx) return false;
+      return true;
+    }
+  );
 
   if (state) {
     const isDescriptionChanged = state.userDescription !== userDescription;
     if (isDescriptionChanged) {
       // Replace on description change so old suggestions are no longer shown
-      finalSuggestions = newSuggestions;
+      finalSuggestions = finalSuggestions;
     } else {
       // Append new suggestions after existing unused ones to preserve stable visible window
       const unusedExisting = state.suggestions.filter((s) => !s.isUsed);
-      finalSuggestions = [...unusedExisting, ...newSuggestions];
+      const existingSet = new Set(
+        unusedExisting.map(
+          (s) =>
+            `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`
+        )
+      );
+      const dedupedIncoming = finalSuggestions.filter((s) => {
+        const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+        return !existingSet.has(key);
+      });
+      finalSuggestions = [...unusedExisting, ...dedupedIncoming];
     }
   }
 

@@ -6,10 +6,9 @@ import { KeywordList, type KeywordItem } from "./KeywordList";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 
 interface RecentKeywordsProps {
-  /** Current search query to filter out from results */
+  /** Current search query for highlighting */
   currentQuery?: string;
   onKeywordClick?: (item: KeywordItem) => void;
-  loading?: boolean;
   className?: string;
   /** Maximum number of recent keywords to display */
   maxResults?: number;
@@ -19,27 +18,19 @@ export const RecentKeywords = memo<RecentKeywordsProps>(
   function RecentKeywords({
     currentQuery = "",
     onKeywordClick,
-    loading = false,
     className,
     maxResults = 5,
   }) {
     // Get search history
     const { history, isLoaded } = useSearchHistory();
 
-    // Filter out current query and limit results
+    // Include current query; simply take most recent items
     const recentKeywords = useMemo(() => {
-      const filtered = currentQuery
-        ? history.filter(
-            (item) =>
-              item.keyword.toLowerCase().trim() !==
-              currentQuery.toLowerCase().trim()
-          )
-        : history;
+      return history.slice(0, maxResults);
+    }, [history, maxResults]);
 
-      return filtered.slice(0, maxResults);
-    }, [history, currentQuery, maxResults]);
-
-    const isLoading = loading || !isLoaded;
+    // Only depend on real history readiness
+    const isLoading = !isLoaded;
     if (isLoading) {
       return (
         <section
@@ -94,6 +85,7 @@ export const RecentKeywords = memo<RecentKeywordsProps>(
               onKeywordClick={onKeywordClick}
               showTimestamp={true}
               listLabel="Recent keywords, ordered by most recent"
+              highlightQuery={currentQuery}
             />
           </dd>
         </dl>

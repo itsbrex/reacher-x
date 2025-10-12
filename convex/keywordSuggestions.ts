@@ -46,8 +46,29 @@ export const storeSuggestions = internalMutation({
     }
 
     const now = Date.now();
+    // Load existing unused suggestions for dedupe
+    const existing = await ctx.db
+      .query("keywordSuggestions")
+      .withIndex("by_workspace_isUsed_generatedAt", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("isUsed", false)
+      )
+      .take(500);
+    const existingSet = new Set(
+      existing.map(
+        (e) =>
+          `${e.keyword.trim().toLowerCase()}|${e.metadata?.exactMatch ? 1 : 0}`
+      )
+    );
+
+    let inserted = 0;
+    let skipped = 0;
     for (let i = 0; i < args.suggestions.length; i++) {
       const s = args.suggestions[i];
+      const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+      if (existingSet.has(key)) {
+        skipped++;
+        continue;
+      }
       await ctx.db.insert("keywordSuggestions", {
         userId: user._id,
         workspaceId: args.workspaceId,
@@ -58,7 +79,16 @@ export const storeSuggestions = internalMutation({
         batchRequestId: args.batchRequestId,
         metadata: s.metadata,
       });
+      existingSet.add(key);
+      inserted++;
     }
+    logger.info("[KEYWORD_STORE] StoreSuggestions summary", {
+      workspaceId: args.workspaceId,
+      batchRequestId: args.batchRequestId,
+      attempted: args.suggestions.length,
+      inserted,
+      skipped,
+    });
   },
 });
 
@@ -96,10 +126,8 @@ export const markSuggestionAsUsed = mutation({
 
 import { action } from "./_generated/server";
 import { generateKeywordsArgsValidator } from "./validators";
-import { generateObject } from "ai";
-import { z } from "zod";
-import { createLLMModel } from "./lib/llmConfig";
 import { internal, api } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 
 // =============================================================================
 // KEYWORD GENERATION SYSTEM
@@ -120,43 +148,69 @@ import { internal, api } from "./_generated/api";
 
 // Import shared validation and request utilities
 import { validateDescriptionForKeywords } from "../shared/lib/utils/validation";
+import { makeKeywordGenProgressKey } from "../shared/lib/utils/progressKey";
 import { generateRequestId } from "../shared/lib/utils/request";
 
-// Configuration constants
-const KEYWORD_GENERATION_CONFIG = {
-  TARGET_KEYWORD_COUNT: 15, // Generate 15 keywords at a time
-} as const;
+// (Battle-tested flow delegates to xAI live search action)
 
-// Simplified schema for keyword generation results (MVP)
-const KeywordGenerationSchema = z
-  .object({
-    keywords: z
-      .array(
-        z.object({
-          keyword: z
-            .string()
-            .min(1)
-            .max(100)
-            .describe("Keyword or phrase for searching potential customers"),
-          exactMatch: z
-            .boolean()
-            .describe(
-              "Whether this keyword should be searched as an exact phrase match"
-            ),
-        })
-      )
-      .length(KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT)
-      .describe(
-        `Array of ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} creative buyer-intent keywords`
-      ),
-  })
-  .describe("Keyword generation results for lead qualification");
+type KeywordSuggestionDoc = Doc<"keywordSuggestions">;
 
 export const generateKeywords = action({
   args: generateKeywordsArgsValidator,
-  handler: async (ctx, { userDescription, workspaceId }) => {
+  handler: async (
+    ctx,
+    { userDescription, workspaceId }
+  ): Promise<
+    | {
+        success: true;
+        data: {
+          keywords: Array<{
+            id: string;
+            keyword: string;
+            timestamp: string;
+            metadata: Record<string, unknown>;
+          }>;
+          metadata: {
+            requestId: string;
+            generatedAt: number;
+            processingTimeMs: number;
+            userDescriptionLength: number;
+            modelUsed: string;
+            usedFallback: boolean;
+          };
+        };
+      }
+    | {
+        success: false;
+        error: string;
+        data: null;
+        metadata: {
+          requestId: string;
+          processingTimeMs: number;
+          fallbackUsed: boolean;
+        };
+      }
+  > => {
     const startTime = Date.now();
     const requestId = generateRequestId("keyword_gen");
+    // Resolve workspace first to stabilize the progress key used by the client subscription
+    let resolvedWorkspaceId = workspaceId ?? null;
+    if (!resolvedWorkspaceId) {
+      try {
+        const defaultWorkspace = await ctx.runQuery(
+          api.workspaces.getDefaultWorkspace,
+          {}
+        );
+        if (defaultWorkspace) {
+          resolvedWorkspaceId = defaultWorkspace._id;
+        }
+      } catch {}
+    }
+
+    const progressKey = makeKeywordGenProgressKey(
+      (resolvedWorkspaceId as unknown as string) || null,
+      userDescription
+    );
 
     logger.info(`[KEYWORD_GEN] Starting request ${requestId}`, {
       userDescription: userDescription.substring(0, 100) + "...",
@@ -165,6 +219,16 @@ export const generateKeywords = action({
     });
 
     try {
+      // Emit initial queued progress
+      try {
+        await ctx.runMutation(api.searchProgress.upsertProgress, {
+          keywordKey: progressKey,
+          operation: "initial",
+          phase: "queued",
+          value: 5,
+        });
+      } catch {}
+
       // Validate user description with comprehensive logging
       const descriptionValidation =
         validateDescriptionForKeywords(userDescription);
@@ -186,154 +250,174 @@ export const generateKeywords = action({
         }
       );
 
-      // Enhanced prompt with creativity and personal touch emphasis
-      const prompt = `You are an expert potential customer finding AI agent for ReacherX, a platform that helps anyone find potential customers on social media. Your expertise lies in crafting inventive, emotionally resonant search queries that surface genuine buyer intent on Twitter/X, using creative language to mimic real people's frustrations, humor, and vulnerabilities—while filtering out promotional noise from sellers, affiliates, and spammers.
-
-The following is the description that the user has provided:
-"${userDescription}"
-
-Your task: Generate exactly ${KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT} creative, precise search queries (as keywords/phrases) to discover potential customers actively expressing buying needs for the described product/service/skill. Focus on organic, personal language that reveals unmet needs through emotions like frustration, self-doubt, or light humor (e.g., "I suck at [pain point]", "lol this [issue] sucks"). These queries should minimize seller hijacks by sounding like everyday user vents. Ensure diversity in phrasing, emotional tone, and specificity across all items—shown in batches of 5. Mentally simulate searching each on Twitter/X: Only include if it likely yields 70%+ buyer-intent results (e.g., personal stories/questions) over promotions.
-
-Sort by quality:
-(1) Emotional resonance/personal touch (high)
-(2) Relevance to user description,
-(3) Low competition/high conversion.
-
-Guidelines to Avoid Hijacked Keywords:
-1. Keep concise: 2-3 words max (for platform limits), blending specificity from user description with creative flair.
-2. Buyer-oriented modifiers: Use words like 'help me', 'stuck on', 'recommend something', but make them personal/emotional.
-3. Natural exclusions: Imply individual struggles (e.g., 'my [pain] is embarrassing' to avoid commercial pitches).
-4. Blend formal/industry terms with slang, typos, abbreviations, and creative twists (e.g., 'lead managment fail' or 'CRM nightmare vibes').
-5. Diversify intent/emotion: 40% frustration (e.g., "sucks"), 30% questions/seeking (e.g., "what's good for?"), 20% humor/self-deprecation (e.g., "lol I suck at"), 10% urgency (e.g., "desperately need").
-6. Prioritize low-competition signals: Target small user vibes (individuals/teams), not marketer lingo.
-7. Include typos sparingly (10-20% of keywords) for realism, like common misspellings in emotional rants.
-8. Creativity Mandate: Infuse personal touch in at least 50%—use first-person ("I", "my team"), emojis in phrasing if natural (e.g., "customer tracking hell 😩"), or casual exclamations to evoke relatability.
-
-Examples tailored to user description (adapt these creatively):
-- If user description is "CRM for small businesses": "I suck at lead tracking lol" (frustration, exactMatch: true)
-- "Why is customer management so hard? 😩" (question, exactMatch: false)
-- "Small team CRM disaster stories" (personal vent, exactMatch: false)
-- Avoid generic: No "buy CRM" or "best tool"—focus on pains like "losing deals to bad follow-ups".
-
-For each query, provide:
-- The exact keyword/phrase to search for (Do not add quotes).
-- exactMatch: boolean (true for precise emotional phrases/questions to catch exact vents; false for broader emotional themes).
-
-Output ONLY valid JSON matching the schema (no additional text):
-
-{
-  "keywords": [
-    {
-      "keyword": "string", 
-      "exactMatch": true
-    }
-  ]
-}`;
-
-      // Get the model configuration using centralized system
-      const modelConfig = createLLMModel("keyword_generation");
-
-      logger.info(
-        `[KEYWORD_GEN] ${requestId} - Calling LLM for keyword generation:`,
-        {
-          promptLength: prompt.length,
-          model: modelConfig.modelName,
-          temperature: modelConfig.temperature,
-          usedFallback: modelConfig.usedFallback,
-          configSource: modelConfig.configSource,
-        }
-      );
-
-      // Call LLM with structured output
-      const llmStartTime = Date.now();
-      const result = await generateObject({
-        model: modelConfig.model,
-        schema: KeywordGenerationSchema,
-        prompt: prompt,
-        temperature: modelConfig.temperature,
-      });
-      const llmEndTime = Date.now();
-
-      logger.info(`[KEYWORD_GEN] ${requestId} - LLM call completed:`, {
-        processingTimeMs: llmEndTime - llmStartTime,
-        keywordCount: result.object?.keywords?.length || 0,
-        modelUsed: modelConfig.modelName,
-        usedFallback: modelConfig.usedFallback,
-        usage: result.usage,
-      });
-
-      // Validate LLM response
-      if (!result.object?.keywords || !Array.isArray(result.object.keywords)) {
-        logger.error(
-          `[KEYWORD_GEN] ${requestId} - Invalid LLM response format:`,
-          {
-            responseType: typeof result.object,
-            hasKeywords: !!result.object?.keywords,
-            keywordsType: typeof result.object?.keywords,
-            isArray: Array.isArray(result.object?.keywords),
-            response: result.object,
-            modelUsed: modelConfig.modelName,
-          }
-        );
-        throw new Error(
-          `${modelConfig.modelName} returned invalid response format - expected object with keywords array`
-        );
-      }
-
-      const keywords = result.object.keywords;
-
-      // Validate keyword count (log-only if mismatch; proceed with what we have)
-      if (keywords.length !== KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT) {
-        logger.warn(`[KEYWORD_GEN] ${requestId} - Keyword count mismatch`, {
-          expected: KEYWORD_GENERATION_CONFIG.TARGET_KEYWORD_COUNT,
-          received: keywords.length,
-          modelUsed: modelConfig.modelName,
+      // Emit progress: begin generating (prompting)
+      try {
+        await ctx.runMutation(api.searchProgress.upsertProgress, {
+          keywordKey: progressKey,
+          operation: "initial",
+          phase: "searching",
+          value: 30,
         });
+      } catch {}
+
+      // Short-circuit: reuse fresh unused suggestions for the same description
+      const FRESH_MS = 2 * 60 * 1000;
+      const targetWorkspaceId = resolvedWorkspaceId;
+      if (targetWorkspaceId) {
+        try {
+          const existing = (await ctx.runQuery(
+            api.keywordSuggestions.getSuggestions,
+            { workspaceId: targetWorkspaceId, limit: 200 }
+          )) as KeywordSuggestionDoc[];
+          const freshForDesc = (existing || [])
+            .filter(
+              (s: KeywordSuggestionDoc) =>
+                s.userDescription === userDescription && !s.isUsed
+            )
+            .filter(
+              (s: KeywordSuggestionDoc) => Date.now() - s.generatedAt < FRESH_MS
+            );
+          if (freshForDesc.length > 0) {
+            logger.info(`[KEYWORD_GEN] ${requestId} - Short-circuit reuse`, {
+              reused: freshForDesc.length,
+              workspaceId: targetWorkspaceId,
+            });
+            const frontendKeywords = freshForDesc.map(
+              (s: KeywordSuggestionDoc, index: number) => ({
+                id: `existing_${String(s._id)}_${index}`,
+                keyword: s.keyword,
+                timestamp: new Date(s.generatedAt).toISOString(),
+                metadata: {
+                  ...(s.metadata || {}),
+                  usedFallback: false,
+                },
+              })
+            );
+            const endTime = Date.now();
+            return {
+              success: true,
+              data: {
+                keywords: frontendKeywords,
+                metadata: {
+                  requestId,
+                  generatedAt: Date.now(),
+                  processingTimeMs: endTime - startTime,
+                  userDescriptionLength: userDescription.length,
+                  modelUsed: "reuse:fresh",
+                  usedFallback: false,
+                },
+              },
+            };
+          }
+        } catch (e) {
+          // If short-circuit probe fails, proceed to generation normally
+          logger.warn(
+            `[KEYWORD_GEN] ${requestId} - Short-circuit probe failed`,
+            {
+              error: e instanceof Error ? e.message : String(e),
+            }
+          );
+        }
       }
 
-      logger.info(`[KEYWORD_GEN] ${requestId} - Generated keywords summary:`, {
-        keywordCount: keywords.length,
-        sample: keywords.slice(0, 3),
-      });
+      // No prompt needed here; we delegate to battle-tested generator
 
-      // Transform to frontend-compatible format
+      // Delegate to battle-tested generator with xAI live search
+      // Build args for battle-tested generator; omit workspaceId when not available
+      const battleArgs: {
+        userDescription: string;
+        workspaceId?: typeof targetWorkspaceId;
+        progressKey?: string;
+      } = { userDescription, progressKey };
+      if (targetWorkspaceId) {
+        battleArgs.workspaceId = targetWorkspaceId;
+      }
+      const battle = await ctx.runAction(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (api as any).keywordSuggestionsBattleTested
+          .generateBattleTestedKeywords,
+        battleArgs
+      );
+      if (!battle?.success || !battle.data) {
+        throw new Error(battle?.error || "Battle-tested generation failed");
+      }
+      const keywords = battle.data as Array<{
+        keyword: string;
+        exactMatch: boolean;
+        score?: number;
+        examplesCount?: number;
+        resultCount?: number;
+      }>;
       const frontendKeywords = keywords.map((kw, index) => ({
         id: `generated_${Date.now()}_${index}`,
         keyword: kw.keyword,
         timestamp: new Date().toISOString(),
         metadata: {
           generatedAt: Date.now(),
-          source: modelConfig.modelName,
-          usedFallback: modelConfig.usedFallback,
+          source: "grok-4-fast-reasoning",
+          usedFallback: false,
           exactMatch: kw.exactMatch,
+          battleTested: true,
+          verificationScore: kw.score,
+          examplesCount: kw.examplesCount,
+          validatedAt: Date.now(),
+          validationModel: "grok-4-fast-reasoning",
+          resultCount: kw.resultCount,
         },
       }));
 
       const endTime = Date.now();
 
+      // Emit progress: ranking complete
+      try {
+        await ctx.runMutation(api.searchProgress.upsertProgress, {
+          keywordKey: progressKey,
+          operation: "initial",
+          phase: "chunking",
+          value: 60,
+        });
+      } catch {}
+
       // Persist suggestions to Convex for authenticated users
       const identity = await ctx.auth.getUserIdentity();
       if (identity) {
-        let targetWorkspaceId = workspaceId ?? null;
-        if (!targetWorkspaceId) {
-          const defaultWorkspace = await ctx.runQuery(
-            api.workspaces.getDefaultWorkspace,
-            {}
-          );
-          if (defaultWorkspace) {
-            targetWorkspaceId = defaultWorkspace._id;
-          }
-        }
+        const targetWorkspaceId = resolvedWorkspaceId;
         if (targetWorkspaceId) {
           const suggestionsPayload = frontendKeywords.map((k) => ({
             keyword: k.keyword,
             metadata: k.metadata,
           }));
+          // Server-side dedupe before insert: skip if same keyword|exact exists unused
+          // Fetch current pool for this workspace/description
+          const existing = (await ctx.runQuery(
+            api.keywordSuggestions.getSuggestions,
+            { workspaceId: targetWorkspaceId, limit: 200 }
+          )) as KeywordSuggestionDoc[];
+          const existingSet = new Set(
+            (existing || []).map(
+              (s: KeywordSuggestionDoc) =>
+                `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`
+            )
+          );
+          const dedupedPayload = suggestionsPayload.filter((s) => {
+            const key = `${s.keyword.trim().toLowerCase()}|${s.metadata?.exactMatch ? 1 : 0}`;
+            return !existingSet.has(key);
+          });
+          // Emit progress: deduping/persist prep
+          try {
+            await ctx.runMutation(api.searchProgress.upsertProgress, {
+              keywordKey: progressKey,
+              operation: "initial",
+              phase: "filtering",
+              value: 80,
+            });
+          } catch {}
+
           await ctx.runMutation(internal.keywordSuggestions.storeSuggestions, {
             workspaceId: targetWorkspaceId,
             userDescription,
             batchRequestId: requestId,
-            suggestions: suggestionsPayload,
+            suggestions: dedupedPayload,
           });
         }
       }
@@ -341,12 +425,25 @@ Output ONLY valid JSON matching the schema (no additional text):
         `[KEYWORD_GEN] ${requestId} - Request completed successfully:`,
         {
           totalProcessingTimeMs: endTime - startTime,
-          llmProcessingTimeMs: llmEndTime - llmStartTime,
           finalKeywordCount: frontendKeywords.length,
-          modelUsed: modelConfig.modelName,
-          usedFallback: modelConfig.usedFallback,
+          modelUsed: "grok-4-fast-reasoning",
+          usedFallback: false,
         }
       );
+
+      // Emit progress: finalize and complete
+      try {
+        await ctx.runMutation(api.searchProgress.upsertProgress, {
+          keywordKey: progressKey,
+          operation: "initial",
+          phase: "finalizing",
+          value: 95,
+        });
+        await ctx.runMutation(api.searchProgress.completeProgress, {
+          keywordKey: progressKey,
+          operation: "initial",
+        });
+      } catch {}
 
       return {
         success: true,
@@ -356,10 +453,9 @@ Output ONLY valid JSON matching the schema (no additional text):
             requestId,
             generatedAt: Date.now(),
             processingTimeMs: endTime - startTime,
-            llmProcessingTimeMs: llmEndTime - llmStartTime,
             userDescriptionLength: userDescription.length,
-            modelUsed: modelConfig.modelName,
-            usedFallback: modelConfig.usedFallback,
+            modelUsed: "grok-4-fast-reasoning",
+            usedFallback: false,
           },
         },
       };

@@ -533,6 +533,8 @@ export const rePromptKeywordsArgsValidator = v.object({
       totalVotes: v.number(),
       upVotes: v.number(),
       downVotes: v.number(),
+      // Optional list of tweet IDs that users voted on for this keyword
+      tweetIds: v.optional(v.array(v.string())),
     })
   ),
 });

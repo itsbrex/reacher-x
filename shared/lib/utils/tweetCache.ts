@@ -94,12 +94,20 @@ export function getCachedTweet(tweetId: string): Tweet | null {
     return null;
   }
 
-  // touch LRU
+  // Do not write during render; caller can choose to touch LRU asynchronously
+  return entry.tweet;
+}
+
+// Safe LRU touch to be called from effects/handlers (not during render)
+export function touchTweetLRU(tweetId: string) {
+  if (!tweetId) return;
+  const state = load();
+  const entry = state.entries[tweetId];
+  if (!entry) return;
   entry.lastAccessed = Date.now();
   state.order = state.order.filter((id) => id !== tweetId);
   state.order.push(tweetId);
   save(state);
-  return entry.tweet;
 }
 
 export function clearTweet(tweetId: string) {

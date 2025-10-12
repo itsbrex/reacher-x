@@ -173,7 +173,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
                 className="ml-1 text-xs text-muted-foreground"
                 title="Exact phrase match"
               >
-                [exact]
+                · Exact Phrase
               </span>
             )}
             {isPinned && (
@@ -181,7 +181,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
                 className="ml-1 text-xs text-muted-foreground"
                 title="Pinned keyword"
               >
-                [pinned]
+                𖥣 Pinned
               </span>
             )}
           </span>

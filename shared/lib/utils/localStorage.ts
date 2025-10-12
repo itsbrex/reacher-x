@@ -52,10 +52,14 @@ export function setLocalStorage(key: string, value: string): boolean {
     }
     localStorage.setItem(key, value);
     // Dispatch a custom event to notify listeners within the same page.
-    // This allows for "optimistic-like" updates without complex state passing.
-    window.dispatchEvent(
-      new CustomEvent("onLocalStorageChange", { detail: { key } })
-    );
+    // Defer dispatch to avoid synchronous state updates during render.
+    queueMicrotask(() => {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("onLocalStorageChange", { detail: { key } })
+        );
+      } catch {}
+    });
     return true;
   } catch (error) {
     // Silent failure to avoid noise and PII; callers can handle missing values

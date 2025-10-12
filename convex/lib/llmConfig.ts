@@ -90,6 +90,14 @@ export const LLM_CONFIGS = {
     baseURL: "https://api.x.ai/v1",
     apiKeyEnvVar: "XAI_API_KEY",
   },
+  "grok-4-fast-reasoning": {
+    modelName: "grok-4-fast-reasoning",
+    temperature: 0.4,
+    description:
+      "xAI Grok-4 Fast (reasoning) - Agentic search with web/X browsing",
+    baseURL: "https://api.x.ai/v1",
+    apiKeyEnvVar: "XAI_API_KEY",
+  },
 } as const;
 
 export type LLMModelType = keyof typeof LLM_CONFIGS;
@@ -100,10 +108,10 @@ export type LLMModelType = keyof typeof LLM_CONFIGS;
 const USE_CASE_PREFERENCES = {
   keyword_generation: {
     envVar: "KEYWORD_GENERATION_MODEL",
-    preferred: "grok-4-fast" as LLMModelType,
-    fallback: "grok-3-latest" as LLMModelType,
+    preferred: "grok-4-fast-reasoning" as LLMModelType,
+    fallback: "grok-4-fast" as LLMModelType,
     description:
-      "Keyword generation prefers Grok-4 Fast (non-reasoning), falls back to Grok-3",
+      "Keyword generation prefers Grok-4 Fast (reasoning), falls back to Grok-4 Fast",
   },
   seed_generation: {
     envVar: "SEED_GENERATION_MODEL",
