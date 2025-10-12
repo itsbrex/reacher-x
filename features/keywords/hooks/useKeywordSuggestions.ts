@@ -380,7 +380,7 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
         const metadata = genData.metadata;
 
         if (!isAuthenticated) {
-          // Unauthenticated: store locally
+          // Unauthenticated: store locally and optimistically render
           const keywords = genData.keywords.map((kw) => ({
             keyword: kw.keyword,
             metadata: {
@@ -398,7 +398,29 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           if (!storeSuccess) {
             throw new Error("Failed to store new suggestions");
           }
-          // Refresh from local store
+
+          // Optimistically render returned keywords immediately
+          try {
+            const optimisticItems = (genData.keywords || []).map((k) => ({
+              id: k.id,
+              keyword: k.keyword,
+              timestamp: k.timestamp,
+              isPinned: false,
+              metadata: k.metadata,
+              exactMatch: k.metadata?.exactMatch ?? false,
+            }));
+            if (optimisticItems.length > 0) {
+              setSuggestions(optimisticItems);
+              setFromCache(false);
+              setCacheAge(
+                optimisticItems[0]?.timestamp
+                  ? Date.parse(optimisticItems[0].timestamp) || undefined
+                  : undefined
+              );
+            }
+          } catch {}
+
+          // Dispatch event and refresh from local store
           window.dispatchEvent(
             new CustomEvent("keywordSuggestionsUpdated", {
               detail: { source: "generation", count: keywords.length },
@@ -406,7 +428,28 @@ export function useKeywordSuggestions(): KeywordSuggestionsState {
           );
           loadSuggestionsFromStore();
         } else {
-          // Authenticated: server persisted; query will update reactively
+          // Authenticated: optimistically render returned keywords; reactive query will reconcile
+          try {
+            const optimisticItems = (genData.keywords || []).map((k) => ({
+              id: k.id,
+              keyword: k.keyword,
+              timestamp: k.timestamp,
+              isPinned: false,
+              metadata: k.metadata,
+              exactMatch: k.metadata?.exactMatch ?? false,
+            }));
+            if (optimisticItems.length > 0) {
+              setSuggestions(optimisticItems);
+              setFromCache(false);
+              setCacheAge(
+                optimisticItems[0]?.timestamp
+                  ? Date.parse(optimisticItems[0].timestamp) || undefined
+                  : undefined
+              );
+            }
+          } catch {}
+
+          // Then wait for Convex useQuery to update and replace
           loadSuggestionsFromStore();
         }
 
