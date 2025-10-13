@@ -293,14 +293,23 @@ Return JSON ONLY (no extra text):
       }
 
       // Enforce 25-char limit when exactMatch is true
+      // If LLM miscounts and generates >25 chars with exactMatch=true,
+      // automatically set exactMatch=false instead of failing the request
       const normalizedKeyword = result.object.keyword
         .replace(/\s+/g, " ")
         .trim();
-      const isExact = !!result.object.exactMatch;
-      if (isExact && normalizedKeyword.length > 25) {
-        throw new Error(
-          `Exact match keywords must be 25 characters or fewer. Received ${normalizedKeyword.length} characters.`
+      let finalExactMatch = !!result.object.exactMatch;
+
+      if (finalExactMatch && normalizedKeyword.length > 25) {
+        logger.warn(
+          `[SEED_KEYWORD] ${requestId} - Auto-correcting exactMatch from true to false (keyword length ${normalizedKeyword.length} > 25):`,
+          {
+            keyword: normalizedKeyword,
+            originalExactMatch: true,
+            correctedExactMatch: false,
+          }
         );
+        finalExactMatch = false;
       }
 
       const endTime = Date.now();
@@ -308,14 +317,14 @@ Return JSON ONLY (no extra text):
         totalTimeMs: endTime - startTime,
         keyword: normalizedKeyword,
         keywordLength: normalizedKeyword.length,
-        exactMatch: result.object.exactMatch,
+        exactMatch: finalExactMatch,
       });
 
       return {
         success: true,
         data: {
           keyword: normalizedKeyword,
-          exactMatch: result.object.exactMatch,
+          exactMatch: finalExactMatch,
           metadata: {
             requestId,
             generatedAt: Date.now(),
