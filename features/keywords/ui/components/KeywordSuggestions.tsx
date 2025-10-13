@@ -10,7 +10,6 @@ import { useKeywordGenProgress } from "@/shared/hooks/useKeywordGenProgress";
 interface KeywordSuggestionsProps {
   suggestions: KeywordItem[];
   onSuggestionClick?: (item: KeywordItem) => void;
-  loading?: boolean;
   className?: string;
   /** Current search query to filter out from suggestions */
   currentQuery?: string;
@@ -20,7 +19,6 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
   function KeywordSuggestions({
     suggestions,
     onSuggestionClick,
-    loading = false,
     className,
     currentQuery = "",
   }) {
@@ -58,12 +56,9 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
 
     const { value: progress, phase, isComplete } = useKeywordGenProgress();
 
-    // Only show loading/progress when we don't have suggestions to display yet.
+    // Show skeleton/progress whenever we don't have suggestions yet.
     const hasSuggestions = finalSuggestions.length > 0;
-    const showLoading =
-      !hasSuggestions && (loading || (progress > 0 && !isComplete));
-
-    if (showLoading) {
+    if (!hasSuggestions) {
       const isGenerating = progress > 0 && !isComplete;
       return (
         <section
@@ -117,11 +112,6 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
           </dl>
         </section>
       );
-    }
-
-    // Hide section entirely when not loading and we have nothing to show
-    if (!showLoading && !hasSuggestions) {
-      return null;
     }
 
     return (
