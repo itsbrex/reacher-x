@@ -4,6 +4,7 @@
 import { memo, useMemo } from "react";
 import { KeywordList, type KeywordItem } from "./KeywordList";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface RecentKeywordsProps {
   /** Current search query for highlighting */
@@ -50,11 +51,7 @@ export const RecentKeywords = memo<RecentKeywordsProps>(
                 aria-label="Loading recent keywords"
               >
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-9 animate-pulse rounded-md bg-muted"
-                    aria-hidden="true"
-                  />
+                  <Skeleton key={i} aria-hidden="true" className="h-9" />
                 ))}
                 <span className="sr-only">Loading recent keywords...</span>
               </div>

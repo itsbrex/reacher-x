@@ -73,12 +73,12 @@ export function OpenGraphPreview({
           className="relative w-full overflow-hidden rounded-md border border-border/50"
           style={{ aspectRatio: "16 / 9" }}
         >
-          <Skeleton className="absolute inset-0 h-full w-full animate-pulse" />
+          <Skeleton className="animate-pulse-fast absolute inset-0 h-full w-full" />
         </div>
         <div className="mt-2 flex items-start gap-4">
           <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-3/4 animate-pulse" />
-            <Skeleton className="h-3 w-1/2 animate-pulse" />
+            <Skeleton className="animate-pulse-fast h-4 w-3/4" />
+            <Skeleton className="animate-pulse-fast h-3 w-1/2" />
           </div>
         </div>
       </div>

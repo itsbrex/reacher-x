@@ -134,6 +134,15 @@ h6 {
   .text-balance {
     text-wrap: balance;
   }
+  .animate-pulse-fast {
+    animation: pulse-fast 0.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@keyframes pulse-fast {
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* Scoped fix: neutralize Radix ScrollArea internal wrapper on /search */

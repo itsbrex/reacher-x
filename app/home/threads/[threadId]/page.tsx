@@ -1,16 +1,16 @@
 // app/(landing)/threads/[threadId]/page.tsx
+export const dynamic = "force-dynamic";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
 
 import { Badge } from "@/shared/ui/components/Badge";
-import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
+import { LiveRecentThreads } from "@/features/threads/ui/components/LiveRecentThreads";
 import { Thread } from "../../../../features/threads/types";
 import Link from "next/link";
 
-import { getRecentThreads } from "@/features/threads/lib/getRecentThreads";
+import { LiveThreadDetail } from "@/features/threads/ui/components/LiveThreadDetail";
 
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
@@ -66,10 +66,6 @@ export default async function ThreadDetailPage(props: {
 }) {
   const params = await props.params;
   const { threadId } = params;
-  const recentThreads = await getRecentThreads(4);
-  const filteredRecentThreads = recentThreads
-    .filter((thread) => thread.threadId !== threadId)
-    .slice(0, 3);
 
   // Fetch thread data and thread IDs on the server
   const thread = (await convex.query(api.socialdataMutations.getThreadById, {
@@ -92,7 +88,7 @@ export default async function ThreadDetailPage(props: {
   const user = tweets[0].user;
 
   return (
-    <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mx-auto mt-4 w-full max-w-[1288px] duration-300 md:mt-12">
+    <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mx-auto mt-4 w-full max-w-[1288px] px-4 duration-300 md:mt-12 md:px-4">
       <Link
         href="/home/threads"
         className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-0"
@@ -109,16 +105,7 @@ export default async function ThreadDetailPage(props: {
       </Link>
       <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12 md:pb-56">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 duration-300 @container md:px-0">
-          {tweets.map((tweet, index) => (
-            <ThreadCard
-              className="pt-2"
-              key={tweet.id_str}
-              staticTweet={tweet}
-              size="lg"
-              showFullContent={true}
-              showThread={index === tweets.length - 1}
-            />
-          ))}
+          <LiveThreadDetail threadId={threadId} />
         </section>
         <Separator orientation="horizontal" className="block md:hidden" />
         <aside className="space-y-6">
@@ -184,7 +171,7 @@ export default async function ThreadDetailPage(props: {
             <h3 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 text-2xl font-medium duration-300 md:px-0">
               Recent threads.
             </h3>
-            <RecentThreads bordered={true} threads={filteredRecentThreads} />
+            <LiveRecentThreads excludeThreadId={threadId} />
           </section>
         </aside>
       </div>

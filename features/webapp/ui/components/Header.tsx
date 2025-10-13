@@ -51,6 +51,7 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { clearAllLocalAppData } from "@/shared/lib/utils/localStorage";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 /* ----------------------------------------------------------------------------
  * Header variants (CVA)
@@ -152,7 +153,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
               aria-label="Desktop navigation menu"
             >
               <li>
-                <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+                <Skeleton className="h-8 w-8 rounded-full" aria-hidden="true" />
               </li>
             </menu>
           </nav>

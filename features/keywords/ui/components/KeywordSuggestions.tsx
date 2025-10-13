@@ -6,6 +6,7 @@ import { KeywordList, type KeywordItem } from "./KeywordList";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
 import AnimatedPercent from "@/shared/ui/components/AnimatedPercent";
 import { useKeywordGenProgress } from "@/shared/hooks/useKeywordGenProgress";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface KeywordSuggestionsProps {
   suggestions: KeywordItem[];
@@ -100,11 +101,7 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
                 }
               >
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-9 animate-pulse rounded-md bg-muted"
-                    aria-hidden="true"
-                  />
+                  <Skeleton key={i} className="h-9" aria-hidden="true" />
                 ))}
                 <span className="sr-only">Loading suggested keywords...</span>
               </div>

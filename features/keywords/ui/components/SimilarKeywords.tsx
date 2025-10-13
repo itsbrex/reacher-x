@@ -8,6 +8,7 @@ import {
   filterSimilarKeywords,
 } from "./KeywordList";
 import { useSearchHistory } from "@/features/search/hooks/useSearchHistory";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 
 interface SimilarKeywordsProps {
   currentQuery: string;
@@ -65,11 +66,7 @@ export const SimilarKeywords = memo<SimilarKeywordsProps>(
                 aria-label={`Loading keywords similar to ${currentQuery}`}
               >
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-9 animate-pulse rounded-md bg-muted"
-                    aria-hidden="true"
-                  />
+                  <Skeleton key={i} className="h-9" aria-hidden="true" />
                 ))}
                 <span className="sr-only">
                   Loading keywords similar to {currentQuery}...

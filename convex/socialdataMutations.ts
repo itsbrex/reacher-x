@@ -42,7 +42,11 @@ export const insertThreadMutation = mutation({
 
 export const getStaticThreads = query({
   handler: async (ctx) => {
-    return await ctx.db.query("threads").order("desc").collect();
+    return await ctx.db
+      .query("threads")
+      .withIndex("by_postedAt")
+      .order("desc")
+      .collect();
   },
 });
 
