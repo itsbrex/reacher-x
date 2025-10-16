@@ -11,6 +11,8 @@ export default defineSchema({
     lastName: v.optional(v.string()),
     profileImageUrl: v.optional(v.string()),
     onboardingCompletedAt: v.optional(v.number()),
+    // Cross-device tour persistence
+    tourState: v.optional(v.any()),
   }).index("by_workos_user_id", ["workosUserId"]),
 
   socialAccounts: defineTable({

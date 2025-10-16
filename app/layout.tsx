@@ -14,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${dmSans.variable} ${dmMono.variable} antialiased`}>
+      <body
+        suppressHydrationWarning
+        className={`${dmSans.variable} ${dmMono.variable} antialiased`}
+      >
         <link
           rel="preconnect"
           href="https://8xibu2ksfzfcma9o.public.blob.vercel-storage.com"

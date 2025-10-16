@@ -186,6 +186,7 @@ export const SearchInput = memo(
             <span className="px-0.5 text-muted-foreground">·</span>
             {showExactMatch && (
               <Toggle
+                id="rx-tour-exact-toggle"
                 size="xsIcon"
                 pressed={exactMatch}
                 onPressedChange={handleToggleExactMatch}

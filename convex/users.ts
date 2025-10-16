@@ -4,6 +4,7 @@ import {
   getUserByWorkosIdArgsValidator,
   getUserByIdArgsValidator,
 } from "./validators";
+import { v } from "convex/values";
 
 export const createOrUpdateUser = mutation({
   args: createOrUpdateUserArgsValidator,
@@ -98,5 +99,32 @@ export const setOnboardingCompleted = mutation({
 
     await ctx.db.patch(user._id, { onboardingCompletedAt: Date.now() });
     return user._id;
+  },
+});
+
+// Persist cross-device tour state
+export const setTourState = mutation({
+  args: {
+    tour: v.string(),
+    state: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_user_id", (q) =>
+        q.eq("workosUserId", identity.subject)
+      )
+      .first();
+    if (!user) throw new Error("User not found");
+
+    const nextState = {
+      ...(user.tourState || {}),
+      [args.tour]: args.state,
+    } as Record<string, unknown>;
+    await ctx.db.patch(user._id, { tourState: nextState });
+    return true;
   },
 });

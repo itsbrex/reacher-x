@@ -63,7 +63,11 @@ function TweetActionButton({
       aria-label={ariaLabel}
       className="gap-1 font-mono text-muted-foreground"
     >
-      <Link href={href} onClick={onClick}>
+      <Link
+        id={Icon === QuickPhrasesIcon ? "rx-tour-reply" : undefined}
+        href={href}
+        onClick={onClick}
+      >
         <Icon className="fill-current" aria-hidden="true" />
         {showLabel && `${count}`}
       </Link>
@@ -218,6 +222,8 @@ export function TweetFooter({
       {/* Engagement Metrics */}
       <div className="flex items-center gap-2">
         <TweetActionButton
+          // Used by onboarding tour to gate results and anchor the reply action step
+          // We attach id to the underlying link via asChild composition
           icon={QuickPhrasesIcon}
           count={formattedReplyCount}
           href={postHref}
@@ -248,7 +254,7 @@ export function TweetFooter({
       </div>
       {/* Simple Voting Buttons - only show when voting context is provided */}
       {votingContext && tweetId && (
-        <div className="flex items-center gap-1">
+        <div id="rx-tour-vote" className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="xsIcon"

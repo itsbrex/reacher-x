@@ -222,6 +222,7 @@ export default function OnboardingClient() {
           if (keywordId) {
             searchParams.set("keywordId", keywordId);
           }
+          searchParams.set("tour", "starter");
           router.push(`/search?${searchParams.toString()}`);
         } else {
           logger.warn("[ONBOARDING] No seed keyword generated");

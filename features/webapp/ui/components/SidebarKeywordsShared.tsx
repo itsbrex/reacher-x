@@ -192,6 +192,7 @@ export const KeywordItemComponent = memo<KeywordItemComponentProps>(
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuAction
+              id={isActive ? "rx-tour-keyword-menu" : undefined}
               showOnHover
               onClick={(e) => {
                 e.stopPropagation();

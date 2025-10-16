@@ -650,8 +650,7 @@ export default function SearchResultsPage() {
             results?.meta?.originalCount &&
             results.meta.originalCount > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
-                All {results.meta.originalCount} tweets were filtered out by AI
-                lead qualification
+                All {results.meta.originalCount} posts were filtered out
               </p>
             )}
         </div>
@@ -1067,6 +1066,7 @@ export default function SearchResultsPage() {
                   </TabsList>
                   <div className="flex items-center gap-1">
                     <Button
+                      id="rx-tour-filter"
                       variant="ghost"
                       size="xs"
                       className="gap-1"
@@ -1090,6 +1090,7 @@ export default function SearchResultsPage() {
                     </Button>
                     {/* Updated Sort Button with Dot Indicator */}
                     <Button
+                      id="rx-tour-sort"
                       variant="outline"
                       size="xsIcon"
                       onClick={openSort}

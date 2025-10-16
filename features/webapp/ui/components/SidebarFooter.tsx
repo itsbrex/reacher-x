@@ -35,7 +35,7 @@ export function SidebarFooter() {
             isActive={isActive}
             asChild
           >
-            <Link href="/workspace">
+            <Link id="rx-tour-workspace" href="/workspace">
               <FolderIcon className="fill-foreground" />
               <span className="truncate">{workspaceName}</span>
             </Link>

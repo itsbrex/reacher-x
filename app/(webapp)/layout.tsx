@@ -16,6 +16,7 @@ import {
   NotificationProvider,
 } from "@/features/webapp/ui/components";
 import { KeywordGenerationProvider } from "@/features/keywords/contexts/KeywordGenerationContext";
+import OnboardingClient from "./OnboardingClient";
 
 export default function WebAppLayout({ children }: { children: ReactNode }) {
   return (
@@ -46,6 +47,8 @@ export default function WebAppLayout({ children }: { children: ReactNode }) {
                     <SidebarFooter />
                   </Sidebar>
                   <main className="flex h-full min-h-0 w-full flex-col overflow-auto">
+                    {/* Mount client-only onboarding controller */}
+                    <OnboardingClient />
                     {children}
                   </main>
                 </div>
