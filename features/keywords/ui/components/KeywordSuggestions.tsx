@@ -24,6 +24,7 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
     onSuggestionClick,
     className,
     currentQuery = "",
+    loading = false,
   }) {
     const MAX_DISPLAY = 5;
 
@@ -59,58 +60,63 @@ export const KeywordSuggestions = memo<KeywordSuggestionsProps>(
 
     const { value: progress, phase, isComplete } = useKeywordGenProgress();
 
-    // Show skeleton/progress whenever we don't have suggestions yet.
+    // Show skeleton/progress only when explicitly loading or generating.
     const hasSuggestions = finalSuggestions.length > 0;
     if (!hasSuggestions) {
       const isGenerating = progress > 0 && !isComplete;
-      return (
-        <section
-          className={className}
-          aria-label={
-            isGenerating
-              ? "Generating keyword suggestions"
-              : "Loading keyword suggestions"
-          }
-          aria-busy="true"
-          role="region"
-        >
-          <dl className="m-0">
-            <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
-              <span className="flex items-baseline gap-1">
-                {isGenerating ? (
-                  <>
-                    Generating keyword suggestions ·
-                    <AnimatedPercent
-                      value={progress}
-                      srLabel="Keyword suggestion generation progress"
-                      className="text-xs"
-                    />
-                    {phase && <span className="sr-only">Phase: {phase}</span>}
-                  </>
-                ) : (
-                  <>Loading keyword suggestions…</>
-                )}
-              </span>
-            </dt>
-            <dd className="m-0">
-              <div
-                className="space-y-2"
-                role="status"
-                aria-label={
-                  isGenerating
-                    ? "Generating keyword suggestions"
-                    : "Loading keyword suggestions"
-                }
-              >
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-9" aria-hidden="true" />
-                ))}
-                <span className="sr-only">Loading suggested keywords...</span>
-              </div>
-            </dd>
-          </dl>
-        </section>
-      );
+      if (loading || isGenerating) {
+        return (
+          <section
+            className={className}
+            aria-label={
+              isGenerating
+                ? "Generating keyword suggestions"
+                : "Loading keyword suggestions"
+            }
+            aria-busy="true"
+            role="region"
+          >
+            <dl className="m-0">
+              <dt className="mx-3.5 mb-2 text-xs font-medium text-muted-foreground">
+                <span className="flex items-baseline gap-1">
+                  {isGenerating ? (
+                    <>
+                      Generating keyword suggestions ·
+                      <AnimatedPercent
+                        value={progress}
+                        srLabel="Keyword suggestion generation progress"
+                        className="text-xs"
+                      />
+                      {phase && <span className="sr-only">Phase: {phase}</span>}
+                    </>
+                  ) : (
+                    <>Loading keyword suggestions…</>
+                  )}
+                </span>
+              </dt>
+              <dd className="m-0">
+                <div
+                  className="space-y-2"
+                  role="status"
+                  aria-label={
+                    isGenerating
+                      ? "Generating keyword suggestions"
+                      : "Loading keyword suggestions"
+                  }
+                >
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9" aria-hidden="true" />
+                  ))}
+                  <span className="sr-only">Loading suggested keywords...</span>
+                </div>
+              </dd>
+            </dl>
+          </section>
+        );
+      }
+
+      // Not loading and no suggestions: render nothing to avoid infinite loader for unauth users
+      return null;
     }
 
     return (
