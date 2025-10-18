@@ -47,6 +47,7 @@ import {
 } from "@/shared/ui/components/Alert";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { logger } from "@/shared/lib/logger";
+import { extractKeywordsFromQuery } from "@/shared/lib/utils/highlighting";
 
 // Valid tab types
 const validTabs = ["all", "posts", "replies", "quotes"] as const;
@@ -66,6 +67,10 @@ export default function SearchResultsPage() {
   // Committed state (from URL - source of truth)
   const committedQuery = searchParams.get("q") || "";
   const committedExactMatch = searchParams.get("exact") === "true";
+  const computedHighlightQueries = useMemo(() => {
+    if (committedExactMatch) return [];
+    return extractKeywordsFromQuery(committedQuery);
+  }, [committedQuery, committedExactMatch]);
 
   // Track the keyword ID that led to the current search
   const currentKeywordId = searchParams.get("keywordId") || "";
@@ -610,6 +615,7 @@ export default function SearchResultsPage() {
               if (packed) params.set("t", packed);
               if (currentKeywordId) params.set("keywordId", currentKeywordId);
               if (committedQuery) params.set("q", committedQuery);
+              params.set("exact", committedExactMatch ? "true" : "false");
               params.set("tab", getCurrentTab());
               // Save current scroll immediately before navigation
               const viewport = scrollAreaRef.current?.querySelector(
@@ -629,11 +635,17 @@ export default function SearchResultsPage() {
               characterLimit={280}
               showFullContent={false}
               showThread={true}
+              highlightQueries={
+                committedExactMatch
+                  ? [committedQuery]
+                  : computedHighlightQueries
+              }
               votingContext={
                 currentKeywordId && committedQuery
                   ? {
                       keywordId: currentKeywordId,
                       searchQuery: committedQuery,
+                      exact: committedExactMatch,
                     }
                   : undefined
               }

@@ -20,7 +20,7 @@ export interface QuoteTweetCardProps {
   tweet: TweetType;
   characterLimit?: number;
   showFullContent?: boolean;
-  highlightQuery?: string;
+  highlightQueries?: string[];
   className?: string;
   loading?: boolean;
 }
@@ -29,7 +29,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   tweet,
   characterLimit = 280,
   showFullContent = false,
-  highlightQuery,
+  highlightQueries,
   className,
   loading = false,
 }) => {
@@ -203,7 +203,7 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
           tweet={tweet}
           characterLimit={characterLimit}
           showFullContent={showFullContent}
-          highlightQuery={highlightQuery}
+          highlightQueries={highlightQueries}
           className="mb-1"
         />
 

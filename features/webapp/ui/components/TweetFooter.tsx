@@ -35,6 +35,7 @@ interface TweetFooterProps {
   votingContext?: {
     keywordId: string;
     searchQuery: string;
+    exact?: boolean;
   };
   className?: string;
 }
@@ -196,6 +197,9 @@ export function TweetFooter({
     }
     if (votingContext?.searchQuery) {
       params.set("q", votingContext.searchQuery);
+    }
+    if (typeof votingContext?.exact !== "undefined") {
+      params.set("exact", votingContext.exact ? "true" : "false");
     }
     const qs = params.toString();
     postHref = `/post/${tweetId}${qs ? `?${qs}` : ""}`;

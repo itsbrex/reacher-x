@@ -29,6 +29,7 @@ import {
 } from "@/features/profile/contexts/ProfileContext";
 import { ProfilePanel } from "@/features/profile/ui/components/ProfilePanel";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
+import { extractKeywordsFromQuery } from "@/shared/lib/utils/highlighting";
 
 function PostDetailInner() {
   const router = useRouter();
@@ -59,6 +60,12 @@ function PostDetailInner() {
   }, [tweetId]);
   const keywordIdParam = searchParams.get("keywordId") || "";
   const queryParam = searchParams.get("q") || "";
+  const exactParam = searchParams.get("exact") === "true";
+
+  const highlightQueries = useMemo(() => {
+    if (!queryParam) return undefined;
+    return exactParam ? [queryParam] : extractKeywordsFromQuery(queryParam);
+  }, [queryParam, exactParam]);
 
   const { isAuthenticated, isLoading, user } = useAuth();
   const xAccount = useQuery(
@@ -192,6 +199,7 @@ function PostDetailInner() {
                 keywordId: keywordIdParam || "",
                 searchQuery: queryParam || "",
               }}
+              highlightQueries={highlightQueries}
             />
           )}
 

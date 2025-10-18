@@ -3,14 +3,14 @@ import * as React from "react";
 import { useProfile } from "@/features/profile/contexts/ProfileContext";
 import { cn } from "@/shared/lib/utils/utils";
 import { parseText } from "@/shared/lib/utils/parseText";
-import { highlightInReactTree } from "@/shared/lib/utils/highlighting";
+import { highlightInReactTreeMultiple } from "@/shared/lib/utils/highlighting";
 import { Tweet as TweetType } from "../../../threads/types";
 
 export interface TweetBodyProps {
   tweet: TweetType;
   characterLimit?: number;
   showFullContent?: boolean;
-  highlightQuery?: string;
+  highlightQueries?: string[];
   className?: string;
 }
 
@@ -18,7 +18,7 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
   tweet,
   characterLimit = 280,
   showFullContent = false,
-  highlightQuery,
+  highlightQueries,
   className,
 }) => {
   const fullText = tweet?.full_text || tweet?.text || "Tweet text unavailable";
@@ -30,7 +30,10 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
 
   // Parse and highlight keywords in the tweet body
   const parsedBody = parseText(visibleText, tweet?.entities);
-  const highlightedBody = highlightInReactTree(parsedBody, highlightQuery);
+  const highlightedBody =
+    Array.isArray(highlightQueries) && highlightQueries.length > 0
+      ? highlightInReactTreeMultiple(parsedBody, highlightQueries)
+      : parsedBody;
   const { openProfile } = useProfile();
 
   return (

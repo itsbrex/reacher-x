@@ -26,11 +26,12 @@ export interface TweetProps {
   votingContext?: {
     keywordId: string;
     searchQuery: string;
+    exact?: boolean;
   };
   isInReplyLaterList?: boolean;
   onReplyLater?: (tweetId: string) => void;
   onRemoveReplyLater?: (tweetId: string) => void;
-  highlightQuery?: string;
+  highlightQueries?: string[];
   className?: string;
 }
 
@@ -44,7 +45,7 @@ export const Tweet: React.FC<TweetProps> = ({
   isInReplyLaterList = false,
   onReplyLater,
   onRemoveReplyLater,
-  highlightQuery,
+  highlightQueries,
   className,
 }) => {
   const media = tweet?.entities?.media;
@@ -186,7 +187,7 @@ export const Tweet: React.FC<TweetProps> = ({
           tweet={tweet}
           characterLimit={characterLimit}
           showFullContent={showFullContent}
-          highlightQuery={highlightQuery}
+          highlightQueries={highlightQueries}
           className="my-1"
         />
 
@@ -204,7 +205,7 @@ export const Tweet: React.FC<TweetProps> = ({
               tweet={tweet.quoted_status}
               characterLimit={characterLimit}
               showFullContent={showFullContent}
-              highlightQuery={highlightQuery}
+              highlightQueries={highlightQueries}
             />
           </div>
         )}

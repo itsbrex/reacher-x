@@ -309,3 +309,189 @@ export const HIGHLIGHT_PRESETS = {
     includeAria: true,
   },
 } as const;
+
+// Unicode-aware word boundary helpers
+// Reference: MDN RegExp Unicode property escapes and word boundaries
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions/Unicode_Property_Escapes
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions#word_boundaries
+const SUPPORTS_UNICODE_PROPS = (() => {
+  try {
+    new RegExp("\\p{L}", "u");
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const WORD_CHAR_CLASS = SUPPORTS_UNICODE_PROPS
+  ? "[\\p{L}\\p{N}_]"
+  : "[A-Za-z0-9_]";
+// For robustness across environments, treat word-like tokens as ASCII letters/digits/underscore only.
+const isWordLike = (q: string): boolean => /^[A-Za-z0-9_]+$/.test(q);
+const buildBoundaryAwarePattern = (query: string): string => {
+  const escaped = escapeRegexChars(query);
+  if (!escaped) return "";
+  if (isWordLike(query)) {
+    // Use ASCII class when Unicode property escapes aren't available
+    return `(?<!${WORD_CHAR_CLASS})(${escaped})(?!${WORD_CHAR_CLASS})`;
+  }
+  return `(${escaped})`;
+};
+
+/**
+ * Build a combined regex for multiple queries using alternation.
+ * Each query is escaped to prevent regex injection.
+ * Longer queries are prioritized to avoid partial matches overshadowing longer phrases.
+ */
+export function buildHighlightRegexFromQueries(
+  queries: string[],
+  caseSensitive = false
+): RegExp | null {
+  if (!Array.isArray(queries)) return null;
+  const normalized = Array.from(
+    new Set(queries.map((q) => (q ?? "").trim()).filter((q) => q.length > 0))
+  ).sort((a, b) => b.length - a.length);
+  if (normalized.length === 0) return null;
+  const alternation = normalized
+    .map((q) => buildBoundaryAwarePattern(q))
+    .filter((p) => p.length > 0)
+    .join("|");
+  const flags = caseSensitive
+    ? SUPPORTS_UNICODE_PROPS
+      ? "gu"
+      : "g"
+    : SUPPORTS_UNICODE_PROPS
+      ? "giu"
+      : "gi";
+  return new RegExp(alternation, flags);
+}
+
+/**
+ * Highlight text using multiple queries at once.
+ */
+export function highlightTextMultiple(
+  text: string,
+  queries: string[] | null | undefined,
+  options: HighlightOptions = {}
+): HighlightResult {
+  const {
+    highlightClassName = DEFAULT_HIGHLIGHT_CLASS,
+    caseSensitive = false,
+    includeAria = true,
+    ariaLabel,
+  } = options;
+
+  if (!text || !queries || queries.length === 0) {
+    return { highlightedText: text, hasHighlights: false, matchCount: 0 };
+  }
+
+  const regex = buildHighlightRegexFromQueries(queries, caseSensitive);
+  if (!regex) {
+    return { highlightedText: text, hasHighlights: false, matchCount: 0 };
+  }
+
+  const parts = text.split(regex);
+  let matchCount = 0;
+
+  const highlightedText = parts.map((part, index) => {
+    const isMatch = regex.test(part);
+    if (isMatch) {
+      matchCount++;
+      const markProps: React.HTMLAttributes<HTMLElement> = {
+        className: highlightClassName,
+      };
+      if (includeAria) {
+        markProps["aria-label"] = ariaLabel || `highlighted text: ${part}`;
+        markProps.role = "mark";
+      }
+      return React.createElement("mark", { key: index, ...markProps }, part);
+    }
+    return React.createElement("span", { key: index }, part);
+  });
+
+  return { highlightedText, hasHighlights: matchCount > 0, matchCount };
+}
+
+/**
+ * Hook variant for highlighting with multiple queries.
+ */
+export function useHighlightMultiple(
+  text: string,
+  queries: string[] | null | undefined,
+  options: HighlightOptions = {}
+): HighlightResult {
+  const {
+    highlightClassName = DEFAULT_HIGHLIGHT_CLASS,
+    caseSensitive = false,
+    includeAria = true,
+    ariaLabel,
+  } = options;
+
+  return useMemo(
+    () =>
+      highlightTextMultiple(text, queries, {
+        highlightClassName,
+        caseSensitive,
+        includeAria,
+        ariaLabel,
+      }),
+    [text, queries, highlightClassName, caseSensitive, includeAria, ariaLabel]
+  );
+}
+
+/**
+ * Recursively highlights multiple queries in a React node tree.
+ * Preserves anchors and accessibility attributes.
+ */
+export function highlightInReactTreeMultiple(
+  node: React.ReactNode,
+  queries: string[] | null | undefined,
+  options: HighlightOptions = {}
+): React.ReactNode {
+  if (!queries || queries.length === 0 || !node) return node;
+  if (typeof node === "string") {
+    return highlightTextMultiple(node, queries, options).highlightedText;
+  }
+  if (Array.isArray(node)) {
+    return node.map((child) =>
+      highlightInReactTreeMultiple(child, queries, options)
+    );
+  }
+  if (React.isValidElement(node)) {
+    if (node.type === "a") {
+      return node;
+    }
+    type Props = typeof node extends React.ReactElement<infer P> ? P : object;
+    const props = node.props as Props;
+    if (typeof props === "object" && props !== null) {
+      const children =
+        "children" in props
+          ? (props as { children?: React.ReactNode }).children
+          : undefined;
+      return React.cloneElement(
+        node,
+        props,
+        highlightInReactTreeMultiple(children, queries, options)
+      );
+    }
+    return node;
+  }
+  return node;
+}
+
+/**
+ * Extract keywords from a free-form query for non-exact matching.
+ * Keeps hashtags and @mentions intact. Filters very short tokens.
+ */
+export function extractKeywordsFromQuery(query: string): string[] {
+  const q = (query || "").trim();
+  if (!q) return [];
+  const tokens = q
+    .split(/[^A-Za-z0-9_#@]+/g)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2);
+  // Deduplicate, prefer longer tokens first
+  const unique = Array.from(new Set(tokens)).sort(
+    (a, b) => b.length - a.length
+  );
+  return unique;
+}
