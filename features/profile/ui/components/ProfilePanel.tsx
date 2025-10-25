@@ -258,15 +258,16 @@ export function ProfilePanel({
                       </AvatarFallback>
                     </Avatar>
                     <div className="my-2 flex items-center gap-1">
-                      <address className="not-italic">
+                      <address className="min-w-0 flex-1 not-italic">
                         <div className="flex items-center gap-1">
                           {profile.name && profileUrl && (
                             <Link
                               href={profileUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm font-medium hover:underline"
+                              className="block min-w-0 max-w-[18rem] truncate text-sm font-medium hover:underline md:max-w-[28rem]"
                               aria-label={`View ${profile.name}'s profile on X`}
+                              title={profile.name}
                             >
                               {profile.name}
                             </Link>
@@ -283,8 +284,9 @@ export function ProfilePanel({
                             href={profileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-mono text-sm font-medium text-muted-foreground hover:underline"
+                            className="block min-w-0 max-w-[14rem] truncate font-mono text-sm font-medium text-muted-foreground hover:underline md:max-w-[22rem]"
                             aria-label={`Open @${username} on X`}
+                            title={`@${username}`}
                           >
                             @{username}
                           </Link>

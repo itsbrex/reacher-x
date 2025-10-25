@@ -91,7 +91,7 @@ export function ThreadHeader({
             onClick={(e) => e.stopPropagation()}
             className={cn(
               screenNameClass,
-              "block min-w-0 max-w-[4rem] shrink grow-0 truncate font-medium hover:underline md:max-w-[14rem]"
+              "md:max-w-auto block min-w-0 max-w-[4rem] shrink grow-0 truncate font-medium hover:underline"
             )}
             aria-label={`View @${screenName}'s profile`}
             title={`@${screenName}`}
