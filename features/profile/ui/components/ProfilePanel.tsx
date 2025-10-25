@@ -48,6 +48,7 @@ import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import type { ProfileMode, ProfileUser } from "../../contexts/ProfileContext";
 import { format } from "date-fns";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import { Drawer, DrawerContent } from "@/shared/ui/components/Drawer";
 
@@ -318,7 +319,18 @@ export function ProfilePanel({
                           {username && (
                             <DropdownMenuItem
                               onClick={() =>
-                                navigator.clipboard.writeText(`@${username}`)
+                                navigator.clipboard
+                                  .writeText(`@${username}`)
+                                  .then(
+                                    () =>
+                                      toast.success("Copied!", {
+                                        description: "Twitter handle copied.",
+                                      }),
+                                    () =>
+                                      toast.error("Error!", {
+                                        description: "Unable to copy handle.",
+                                      })
+                                  )
                               }
                             >
                               <AlternateEmailIcon className="fill-current" />
@@ -328,7 +340,16 @@ export function ProfilePanel({
                           {profileUrl && (
                             <DropdownMenuItem
                               onClick={() =>
-                                navigator.clipboard.writeText(profileUrl)
+                                navigator.clipboard.writeText(profileUrl).then(
+                                  () =>
+                                    toast.success("Copied!", {
+                                      description: "Profile link copied.",
+                                    }),
+                                  () =>
+                                    toast.error("Error!", {
+                                      description: "Unable to copy link.",
+                                    })
+                                )
                               }
                             >
                               <LinkIcon className="fill-current" />
