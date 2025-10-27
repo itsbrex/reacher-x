@@ -34,6 +34,7 @@ import { usePathname } from "next/navigation";
 
 export function SidebarNavigation() {
   const pathname = usePathname();
+  const isOnboarding = pathname.startsWith("/onboarding");
 
   return (
     <SidebarGroup>
@@ -78,7 +79,7 @@ export function SidebarNavigation() {
           <SidebarMenuItem>
             <Collapsible className="group/collapsible [&[data-state=open]>button>svg:last-child]:rotate-90">
               <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip="Settings">
+                <SidebarMenuButton tooltip="Settings" disabled={isOnboarding}>
                   <SettingsIcon className="fill-sidebar-foreground" />
                   <span className="truncate">Settings</span>
                   <ChevronRightIcon className="ml-auto fill-sidebar-foreground transition-transform" />
@@ -87,16 +88,23 @@ export function SidebarNavigation() {
               <CollapsibleContent>
                 <SidebarMenuSub>
                   <SidebarMenuItem>
-                    <SidebarMenuButton
-                      tooltip="Linked accounts"
-                      isActive={pathname === "/settings/linked-accounts"}
-                      asChild
-                    >
-                      <Link href="/settings/linked-accounts">
+                    {isOnboarding ? (
+                      <SidebarMenuButton tooltip="Linked accounts" disabled>
                         <ManageAccountsIcon className="fill-sidebar-foreground" />
                         <span className="truncate">Linked accounts</span>
-                      </Link>
-                    </SidebarMenuButton>
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton
+                        tooltip="Linked accounts"
+                        isActive={pathname === "/settings/linked-accounts"}
+                        asChild
+                      >
+                        <Link href="/settings/linked-accounts">
+                          <ManageAccountsIcon className="fill-sidebar-foreground" />
+                          <span className="truncate">Linked accounts</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
                   </SidebarMenuItem>
                 </SidebarMenuSub>
               </CollapsibleContent>

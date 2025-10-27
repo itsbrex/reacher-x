@@ -9,7 +9,6 @@ import {
   SidebarSearchHeader,
   SidebarContentWrapper,
   SidebarNavigation,
-  SidebarResources,
   SidebarKeywords,
   SidebarFooter,
   SidebarWrapper,
@@ -41,7 +40,6 @@ export default function WebAppLayout({ children }: { children: ReactNode }) {
                     <SidebarSearchHeader />
                     <SidebarContentWrapper>
                       <SidebarNavigation />
-                      <SidebarResources />
                       <SidebarKeywords />
                     </SidebarContentWrapper>
                     <SidebarFooter />

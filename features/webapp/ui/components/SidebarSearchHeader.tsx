@@ -34,8 +34,11 @@ import {
   useHighlight,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils/highlighting";
+import { usePathname } from "next/navigation";
 
 export function SidebarSearchHeader() {
+  const pathname = usePathname();
+  const isOnboarding = pathname.startsWith("/onboarding");
   const [searchOpen, setSearchOpen] = useState(false);
   const [commandSearchQuery, setCommandSearchQuery] = useState("");
   const { state } = useSidebar();
@@ -81,6 +84,7 @@ export function SidebarSearchHeader() {
           size="default"
           variant="secondary"
           className="w-full justify-center"
+          disabled={isOnboarding}
         >
           <AddIcon className="fill-sidebar-foreground" />
         </SidebarMenuButton>
@@ -90,6 +94,7 @@ export function SidebarSearchHeader() {
           tooltip="Search keywords"
           size="default"
           className="w-full justify-center"
+          disabled={isOnboarding}
         >
           <SearchIcon className="fill-sidebar-foreground" />
         </SidebarMenuButton>
@@ -142,6 +147,7 @@ export function SidebarSearchHeader() {
         className="w-full"
         variant="secondary"
         size="sm"
+        disabled={isOnboarding}
       >
         <AddIcon className="fill-primary" />
         New keyword
@@ -155,6 +161,7 @@ export function SidebarSearchHeader() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="h-9 pl-8"
           aria-label="Search keywords"
+          disabled={isOnboarding}
         />
       </div>
     </SidebarHeader>

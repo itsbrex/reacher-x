@@ -20,7 +20,6 @@ import {
   ChangeCircleIcon,
   ContrastIcon,
   DarkModeIcon,
-  DataUsageIcon,
   FolderIcon,
   HomeIcon,
   LightModeIcon,
@@ -36,7 +35,7 @@ import {
   ToggleGroupItem,
 } from "@/shared/ui/components/ToggleGroup";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
 import {
   Drawer,
@@ -104,6 +103,8 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
     const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
     const { user, loading } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
+    const isOnboarding = pathname.startsWith("/onboarding");
     const isMobile = useIsMobile();
     const { theme, setTheme } = useTheme();
 
@@ -202,22 +203,39 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           </Link>
         </DropdownMenuItem> */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/workspace">
-            <span className="flex items-center gap-2">
-              <FolderIcon className="fill-current" aria-hidden="true" />
-              Workspace
-            </span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings/linked-accounts">
-            <span className="flex items-center gap-2">
-              <ManageAccountsIcon className="fill-current" aria-hidden="true" />
-              Linked accounts
-            </span>
-          </Link>
-        </DropdownMenuItem>
+        {isOnboarding ? (
+          <DropdownMenuItem disabled>
+            <FolderIcon className="fill-current" aria-hidden="true" />
+            Workspace
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href="/workspace">
+              <span className="flex items-center gap-2">
+                <FolderIcon className="fill-current" aria-hidden="true" />
+                Workspace
+              </span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {isOnboarding ? (
+          <DropdownMenuItem disabled>
+            <ManageAccountsIcon className="fill-current" aria-hidden="true" />
+            Linked accounts
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href="/settings/linked-accounts">
+              <span className="flex items-center gap-2">
+                <ManageAccountsIcon
+                  className="fill-current"
+                  aria-hidden="true"
+                />
+                Linked accounts
+              </span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="mailto:support@reacherx.com">
             <span className="flex items-center gap-2">
@@ -246,11 +264,11 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
     const authMenu = (
       <>
         <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        {/* <DropdownMenuSeparator /> */}
+        {/* <DropdownMenuItem>
           <DataUsageIcon className="fill-current" aria-hidden="true" />
           Post limit
-        </DropdownMenuItem>
+        </DropdownMenuItem> */}
         {/* <DropdownMenuItem asChild>
           <Link href="/replies">
             <span className="flex items-center gap-2">
@@ -268,22 +286,39 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           </Link>
         </DropdownMenuItem> */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/workspace">
-            <span className="flex items-center gap-2">
-              <FolderIcon className="fill-current" aria-hidden="true" />
-              Workspace
-            </span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings/linked-accounts">
-            <span className="flex items-center gap-2">
-              <ManageAccountsIcon className="fill-current" aria-hidden="true" />
-              Linked accounts
-            </span>
-          </Link>
-        </DropdownMenuItem>
+        {isOnboarding ? (
+          <DropdownMenuItem disabled>
+            <FolderIcon className="fill-current" aria-hidden="true" />
+            Workspace
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href="/workspace">
+              <span className="flex items-center gap-2">
+                <FolderIcon className="fill-current" aria-hidden="true" />
+                Workspace
+              </span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {isOnboarding ? (
+          <DropdownMenuItem disabled>
+            <ManageAccountsIcon className="fill-current" aria-hidden="true" />
+            Linked accounts
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href="/settings/linked-accounts">
+              <span className="flex items-center gap-2">
+                <ManageAccountsIcon
+                  className="fill-current"
+                  aria-hidden="true"
+                />
+                Linked accounts
+              </span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="mailto:support@reacherx.com">
             <span className="flex items-center gap-2">
@@ -510,12 +545,12 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                         </li> */}
                         <li>
                           <DrawerClose asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              asChild
-                            >
-                              <Link href="/workspace">
+                            {isOnboarding ? (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                disabled
+                              >
                                 <span className="flex items-center gap-2">
                                   <FolderIcon
                                     className="fill-current"
@@ -523,18 +558,34 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                                   />
                                   Workspace
                                 </span>
-                              </Link>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                asChild
+                              >
+                                <Link href="/workspace">
+                                  <span className="flex items-center gap-2">
+                                    <FolderIcon
+                                      className="fill-current"
+                                      aria-hidden="true"
+                                    />
+                                    Workspace
+                                  </span>
+                                </Link>
+                              </Button>
+                            )}
                           </DrawerClose>
                         </li>
                         <li>
                           <DrawerClose asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              asChild
-                            >
-                              <Link href="/settings/linked-accounts">
+                            {isOnboarding ? (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                disabled
+                              >
                                 <span className="flex items-center gap-2">
                                   <ManageAccountsIcon
                                     className="fill-current"
@@ -542,8 +593,24 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                                   />
                                   Linked accounts
                                 </span>
-                              </Link>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                asChild
+                              >
+                                <Link href="/settings/linked-accounts">
+                                  <span className="flex items-center gap-2">
+                                    <ManageAccountsIcon
+                                      className="fill-current"
+                                      aria-hidden="true"
+                                    />
+                                    Linked accounts
+                                  </span>
+                                </Link>
+                              </Button>
+                            )}
                           </DrawerClose>
                         </li>
                         <li>
@@ -583,7 +650,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                       </>
                     ) : (
                       <>
-                        <li>
+                        {/* <li>
                           <Button
                             variant="ghost"
                             className="w-full justify-start"
@@ -594,7 +661,7 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                             />
                             Post limit
                           </Button>
-                        </li>
+                        </li> */}
                         {/* <li>
                           <DrawerClose asChild>
                             <Button
@@ -635,12 +702,12 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                         </li> */}
                         <li>
                           <DrawerClose asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              asChild
-                            >
-                              <Link href="/workspace">
+                            {isOnboarding ? (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                disabled
+                              >
                                 <span className="flex items-center gap-2">
                                   <FolderIcon
                                     className="fill-current"
@@ -648,18 +715,34 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                                   />
                                   Workspace
                                 </span>
-                              </Link>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                asChild
+                              >
+                                <Link href="/workspace">
+                                  <span className="flex items-center gap-2">
+                                    <FolderIcon
+                                      className="fill-current"
+                                      aria-hidden="true"
+                                    />
+                                    Workspace
+                                  </span>
+                                </Link>
+                              </Button>
+                            )}
                           </DrawerClose>
                         </li>
                         <li>
                           <DrawerClose asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              asChild
-                            >
-                              <Link href="/settings/linked-accounts">
+                            {isOnboarding ? (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                disabled
+                              >
                                 <span className="flex items-center gap-2">
                                   <ManageAccountsIcon
                                     className="fill-current"
@@ -667,8 +750,24 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                                   />
                                   Linked accounts
                                 </span>
-                              </Link>
-                            </Button>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                asChild
+                              >
+                                <Link href="/settings/linked-accounts">
+                                  <span className="flex items-center gap-2">
+                                    <ManageAccountsIcon
+                                      className="fill-current"
+                                      aria-hidden="true"
+                                    />
+                                    Linked accounts
+                                  </span>
+                                </Link>
+                              </Button>
+                            )}
                           </DrawerClose>
                         </li>
                         <li>
