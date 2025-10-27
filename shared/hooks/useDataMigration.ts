@@ -13,6 +13,7 @@ import {
 import {
   hasOnboardingCompletedLocally,
   clearOnboardingCompleted,
+  getLocalTourStateV1,
 } from "@/shared/lib/utils/localStorage";
 
 /**
@@ -42,6 +43,7 @@ export function useDataMigration() {
     api.workspaces.migrateLocalStorageData
   );
   const setOnboardingCompleted = useMutation(api.users.setOnboardingCompleted);
+  const setTourState = useMutation(api.users.setTourState);
 
   const migrateData = useCallback(async (): Promise<MigrationResult> => {
     if (isMigrating) {
@@ -101,6 +103,16 @@ export function useDataMigration() {
         logger.warn("Failed to clear some localStorage data after migration");
       }
 
+      // If tour was completed locally, mirror to server (keep local copy for unauthenticated continuity)
+      try {
+        const tour = getLocalTourStateV1();
+        if (tour) {
+          await setTourState({ tour: "v1", state: tour });
+        }
+      } catch (e) {
+        logger.warn("Failed to migrate tour state to server:", e);
+      }
+
       const result: MigrationResult = {
         success: true,
         migratedData: localStorageData,
@@ -128,6 +140,7 @@ export function useDataMigration() {
     migrationResult,
     migrateLocalStorageData,
     setOnboardingCompleted,
+    setTourState,
   ]);
 
   const resetMigration = useCallback(() => {

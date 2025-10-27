@@ -9,6 +9,7 @@ import {
   STORAGE_KEYS,
   getLocalStorage,
   clearWorkspaceData,
+  getLocalTourStateV1,
 } from "./localStorage";
 import {
   getAllUnusedSuggestions,
@@ -51,6 +52,7 @@ export interface LocalStorageData {
     metadata?: { [key: string]: unknown };
   }>;
   suggestionsUserDescription?: string;
+  tourStateV1?: Record<string, unknown>;
   // Add more data types as needed
   [key: string]: string | undefined | unknown;
 }
@@ -122,6 +124,16 @@ export function collectLocalStorageData(): LocalStorageData {
     logger.warn("Failed to collect suggestions for migration:", error);
   }
 
+  // Collect tour state (v1) if present
+  try {
+    const tour = getLocalTourStateV1();
+    if (tour && typeof tour === "object") {
+      data.tourStateV1 = tour;
+    }
+  } catch (error) {
+    logger.warn("Failed to collect tour state for migration:", error);
+  }
+
   return data;
 }
 
@@ -135,7 +147,8 @@ export function hasDataToMigrate(): boolean {
     Boolean(
       data.workspaceDescription ||
         data.workspaceName ||
-        (data.keywords && data.keywords.length > 0)
+        (data.keywords && data.keywords.length > 0) ||
+        data.tourStateV1
     )
   );
 }

@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   WORKSPACE_DESCRIPTION: "workspace_description",
   WORKSPACE_NAME: "workspace_name",
   ONBOARDING_COMPLETED: "RX_ONBOARDING_COMPLETED",
+  TOUR_STATE_V1: "rx.tour.v1",
 } as const;
 
 /**
@@ -36,7 +37,7 @@ export function getLocalStorage(key: string): string | null {
       return null;
     }
     return localStorage.getItem(key);
-  } catch (error) {
+  } catch {
     // Keep console here minimal: this util is used very frequently; avoid noisy logs even in dev
     return null;
   }
@@ -61,7 +62,7 @@ export function setLocalStorage(key: string, value: string): boolean {
       } catch {}
     });
     return true;
-  } catch (error) {
+  } catch {
     // Silent failure to avoid noise and PII; callers can handle missing values
     return false;
   }
@@ -77,7 +78,7 @@ export function removeLocalStorage(key: string): boolean {
     }
     localStorage.removeItem(key);
     return true;
-  } catch (error) {
+  } catch {
     // Silent failure to avoid noise and PII
     return false;
   }
@@ -135,6 +136,29 @@ export function clearOnboardingCompleted(): boolean {
 }
 
 /**
+ * Get locally stored tour state (v1) if present
+ */
+export function getLocalTourStateV1(): Record<string, unknown> | null {
+  try {
+    const raw = getLocalStorage(STORAGE_KEYS.TOUR_STATE_V1);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object")
+      return parsed as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear locally stored tour state (v1)
+ */
+export function clearLocalTourStateV1(): boolean {
+  return removeLocalStorage(STORAGE_KEYS.TOUR_STATE_V1);
+}
+
+/**
  * Clear all application-specific localStorage data.
  * This deliberately preserves unrelated keys (e.g., from other apps) by
  * removing only known prefixes/keys we use.
@@ -148,6 +172,7 @@ export function clearAllLocalAppData(): void {
       STORAGE_KEYS.WORKSPACE_DESCRIPTION,
       STORAGE_KEYS.WORKSPACE_NAME,
       STORAGE_KEYS.ONBOARDING_COMPLETED,
+      STORAGE_KEYS.TOUR_STATE_V1,
       // Common feature storage keys
       "RX_SORT_SETTINGS",
       "RX_FILTER_SETTINGS",
@@ -181,7 +206,7 @@ export function clearAllLocalAppData(): void {
         new CustomEvent("onLocalStorageChange", { detail: { key: "*" } })
       );
     } catch {}
-  } catch (error) {
+  } catch {
     // Silent failure in production; safe to ignore
   }
 }
