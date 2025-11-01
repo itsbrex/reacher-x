@@ -57,7 +57,7 @@ export interface Media {
     variants: { content_type: string; url: string; bitrate?: number }[];
   };
   additional_media_info?: {
-    monetizable: boolean;
+    monetizable?: boolean;
   };
 }
 
