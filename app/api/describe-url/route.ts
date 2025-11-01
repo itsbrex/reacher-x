@@ -174,9 +174,34 @@ export async function POST(req: NextRequest) {
         "[/api/describe-url] workspace_description model failed, falling back to general",
         e
       );
-      const { model, temperature } = createLLMModel("general");
-      modelToUse = model;
-      temperatureToUse = temperature;
+      try {
+        const { model, temperature } = createLLMModel("general");
+        modelToUse = model;
+        temperatureToUse = temperature;
+        logger.info(
+          "[/api/describe-url] successfully fell back to general model"
+        );
+      } catch (fallbackError) {
+        logger.error(
+          "[/api/describe-url] both workspace_description and general models failed",
+          {
+            workspaceDescriptionError:
+              e instanceof Error ? e.message : String(e),
+            generalError:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+            hasXAIKey: !!process.env.XAI_API_KEY,
+            hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+          }
+        );
+        return NextResponse.json(
+          {
+            error: "LLM service is not configured. Please contact support.",
+          },
+          { status: 503 }
+        );
+      }
     }
     const system =
       "You are an expert potential customer finding AI agent for ReacherX. Your expertise lies in crafting concise, accurate descriptions of a provided URL so an AI can understand the user's product, service, or profile.";
