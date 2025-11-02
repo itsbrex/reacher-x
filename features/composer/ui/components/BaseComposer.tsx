@@ -133,7 +133,10 @@ export function BaseComposer({
       ]),
     []
   );
-  const ALLOWED_VIDEO_TYPES = useMemo(() => new Set(["video/mp4"]), []);
+  const ALLOWED_VIDEO_TYPES = useMemo(
+    () => new Set(["video/mp4", "video/quicktime"]),
+    []
+  );
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
   const MAX_GIF_BYTES = 15 * 1024 * 1024; // 15 MB
   const MAX_VIDEO_BYTES = 512 * 1024 * 1024; // 512 MB
@@ -178,7 +181,7 @@ export function BaseComposer({
 
       return {
         ok: false,
-        error: "Invalid format. Allowed: JPG, PNG, WEBP, GIF; MP4.",
+        error: "Invalid format. Allowed: JPG, PNG, WEBP, GIF; MP4, MOV.",
       } as const;
     },
     [

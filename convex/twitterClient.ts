@@ -29,11 +29,13 @@ function getMediaType(contentType: string): EUploadMimeType {
     case "image/webp":
       return EUploadMimeType.Webp;
     case "video/mp4":
+    case "video/quicktime":
+      // X API accepts H.264 videos in both MP4 and MOV containers
       return EUploadMimeType.Mp4;
     default:
       // Reject unsupported types to fail fast & clearly
       throw new Error(
-        `Unsupported media type: ${contentType}. Allowed: image/jpeg, image/png, image/webp, image/gif, video/mp4.`
+        `Unsupported media type: ${contentType}. Allowed: image/jpeg, image/png, image/webp, image/gif, video/mp4, video/quicktime.`
       );
   }
 }

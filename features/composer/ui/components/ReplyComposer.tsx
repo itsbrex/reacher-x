@@ -2,14 +2,14 @@
 
 import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/ui/components/DropdownMenu";
-import { Button } from "@/shared/ui/components/Button";
-import { MoreHorizIcon } from "@/shared/ui/components/icons";
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuTrigger,
+// } from "@/shared/ui/components/DropdownMenu";
+// import { Button } from "@/shared/ui/components/Button";
+// import { MoreHorizIcon } from "@/shared/ui/components/icons";
 import Link from "next/link";
 import { BaseComposer } from "./BaseComposer";
 import { ReplyComposerProps } from "../../types";
@@ -55,19 +55,19 @@ export function ReplyComposer({
         submitButtonText="Reply"
         onContentChange={onContentChange}
         onSubmit={handleSubmit}
-        headerActionsRight={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="xsIcon" aria-label="More options">
-                <MoreHorizIcon className="fill-current" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Copy link</DropdownMenuItem>
-              <DropdownMenuItem>Report</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
+        // headerActionsRight={
+        //   <DropdownMenu>
+        //     <DropdownMenuTrigger asChild>
+        //       <Button variant="ghost" size="xsIcon" aria-label="More options">
+        //         <MoreHorizIcon className="fill-current" />
+        //       </Button>
+        //     </DropdownMenuTrigger>
+        //     <DropdownMenuContent align="end">
+        //       <DropdownMenuItem>Copy link</DropdownMenuItem>
+        //       <DropdownMenuItem>Report</DropdownMenuItem>
+        //     </DropdownMenuContent>
+        //   </DropdownMenu>
+        // }
         headerSecondary={
           <div className="flex items-center gap-1">
             <span>Replying to</span>

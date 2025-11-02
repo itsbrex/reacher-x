@@ -22,7 +22,6 @@ import {
 import {
   ImageIcon,
   VideoLibraryIcon,
-  GifBoxIcon,
   MoodIcon,
   FormatBoldIcon,
   FormatItalicIcon,
@@ -65,7 +64,7 @@ export function ComposerToolbar({
   onItalic,
   onEmojiSelect,
   onMediaUpload,
-  onGifSelect,
+
   submitButtonText = "Post",
   onSubmit,
   canSubmit = true,
@@ -107,7 +106,7 @@ export function ComposerToolbar({
           <input
             type="file"
             id="video-upload"
-            accept="video/mp4"
+            accept="video/mp4,video/quicktime"
             multiple
             className="hidden"
             onChange={handleMediaUpload}
@@ -134,7 +133,7 @@ export function ComposerToolbar({
       )}
 
       {/* GIF */}
-      {config.showGif && (
+      {/* {config.showGif && (
         <Button
           variant="ghost"
           size="xsIcon"
@@ -143,7 +142,7 @@ export function ComposerToolbar({
         >
           <GifBoxIcon className="fill-current" />
         </Button>
-      )}
+      )} */}
 
       {/* Emoji Picker */}
       {config.showEmoji && (

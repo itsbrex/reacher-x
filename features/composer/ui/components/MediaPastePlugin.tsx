@@ -25,6 +25,7 @@ export function MediaPastePlugin({ onMediaUpload }: MediaPastePluginProps) {
         "image/webp",
         "image/gif",
         "video/mp4",
+        "video/quicktime",
       ]);
       const mediaFiles = files.filter((file) =>
         allowed.has((file.type || "").toLowerCase())
