@@ -240,28 +240,29 @@ function PostDetailInner() {
             </Alert>
           ) : expiredImmediate || showAuthAlert ? (
             // Expired session: destructive alert, shown immediately when detected
-            <Alert variant="destructive">
-              <AlertTitle>Your X session expired</AlertTitle>
+            <Alert>
+              <AlertTitle>Your X/Twitter session expired</AlertTitle>
               <AlertDescription>
                 Reconnect your account to continue posting replies.
                 <div className="mt-3 flex gap-2">
                   <Button
-                    size="sm"
-                    variant="destructive"
+                    size="xs"
                     onClick={() =>
                       router.push(
-                        `/api/x/connect?returnTo=${encodeURIComponent(`/post/${tweetId}`)}`
+                        `/api/x/connect?returnTo=${encodeURIComponent(
+                          `/settings/linked-accounts?next=${encodeURIComponent(`/post/${tweetId}`)}`
+                        )}`
                       )
                     }
                   >
                     Reconnect
                   </Button>
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="outline"
-                    onClick={() => setShowAuthAlert(false)}
+                    onClick={() => router.push("/settings/linked-accounts")}
                   >
-                    Dismiss
+                    View linked accounts
                   </Button>
                 </div>
               </AlertDescription>

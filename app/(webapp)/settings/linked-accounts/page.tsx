@@ -29,12 +29,15 @@ export default function LinkedAccountsPage() {
   // Track OAuth processing state to prevent flicker
   const hasProcessedOAuth = useRef(false);
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
+  const nextRef = useRef<string | null>(null);
 
   // ✅ This effect is appropriate because we're synchronizing with external system (URL parameters)
   // This follows React best practices: "Code that runs because a component was displayed should be in Effects"
   useEffect(() => {
     const status = searchParams.get("x_status");
     const sessionId = searchParams.get("session");
+    const nextUrl = searchParams.get("next");
+    if (nextUrl) nextRef.current = nextUrl;
 
     // Only process once per mount and only if we have a status
     if (!status || hasProcessedOAuth.current) return;
@@ -93,6 +96,10 @@ export default function LinkedAccountsPage() {
           toast.success("Connected!", {
             description: "Twitter account connected successfully!",
           });
+          // Redirect back to the requested page if provided
+          if (nextRef.current) {
+            router.push(nextRef.current);
+          }
         })
         .catch((error) => {
           logger.error("Failed to link X account:", error);
