@@ -529,8 +529,18 @@ export function useTwitterSearch() {
                   : new Error("Filtering failed");
               }
             } else {
-              // Filtering disabled: keep raw transformed results
-              finalResults = transformedResults;
+              // Filtering disabled (or no filter results): merge on pagination, preserve existing list
+              if (isPagination && resultsRef.current) {
+                const newTweets = transformedResults.tweets || [];
+                finalResults = mergePaginationResults(
+                  resultsRef.current,
+                  newTweets,
+                  transformedResults
+                );
+              } else {
+                // Initial page without filtering
+                finalResults = transformedResults;
+              }
             }
 
             setResults(finalResults);

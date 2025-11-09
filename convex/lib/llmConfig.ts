@@ -288,10 +288,12 @@ export function createLLMModel(useCase: UseCase = "general"): LLMModelResult {
       configSource: resolution.configSource,
     });
 
+    const temperatureToUse = useCase === "filtering" ? 0.0 : config.temperature;
+
     return {
       model,
       modelName: config.modelName,
-      temperature: config.temperature,
+      temperature: temperatureToUse,
       description: config.description,
       usedFallback: resolution.usedFallback,
       configSource: resolution.configSource,

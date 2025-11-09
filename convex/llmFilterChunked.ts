@@ -9,6 +9,7 @@ import { logger } from "../shared/lib/logger";
 import { validateDescriptionForFiltering } from "../shared/lib/utils/validation";
 import { generateRequestId } from "../shared/lib/utils/request";
 import { createPromptSection } from "../shared/lib/utils/prompt";
+import { LLM_FILTER_THRESHOLD } from "./lib/llmFilterConfig";
 import { chunkTweets } from "../shared/lib/utils/chunkTweets";
 
 /**
@@ -133,13 +134,13 @@ For each tweet:
 - Assign a usefulness score (0.0-1.0) as a potential opportunity to convert into a customer.
 - Use a mental 0-10 scale, then normalize to 0.0-1.0.
 - Scoring guidelines:
-  • 0.7-1.0 → Strong opportunity (highly useful)  
-  • 0.4-0.69 → Moderate opportunity (may need follow-up)  
-  • 0.0-0.39 → Noise / not useful
+  • 0.8-1.0 → Strong opportunity (highly useful)  
+  • 0.6-0.79 → Moderate opportunity (may need follow-up)  
+  • 0.0-0.59 → Noise / not useful
 
 Important:  
-- Only include tweets if they score ≥ 0.4 (moderate or strong opportunity).  
-- Exclude all tweets that score < 0.4 (do not include them in the output).  
+- Only include tweets if they score ≥ 0.6 (moderate or strong opportunity).  
+- Exclude all tweets that score < 0.6 (do not include them in the output).  
 
 Output ONLY a JSON object with a "results" array containing included tweets/posts/replies/quotes scored. No extra prose:
 
@@ -193,7 +194,7 @@ ${JSON.stringify(tweetsForAnalysis, null, 2)}`;
         score: number;
       }>;
 
-      const SCORE_THRESHOLD = 0.4;
+      const SCORE_THRESHOLD = LLM_FILTER_THRESHOLD;
       const keptTweetIds = new Set(
         llmResults
           .filter(
@@ -326,7 +327,7 @@ export const processChunkServer = internalAction({
         temperature: modelConfig.temperature,
       });
 
-      const SCORE_THRESHOLD = 0.4;
+      const SCORE_THRESHOLD = LLM_FILTER_THRESHOLD;
       const keptTweetIds = new Set(
         ((result.object?.results || []) as Array<{ id: string; score: number }>)
           .filter(

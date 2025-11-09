@@ -579,228 +579,228 @@ export default function SearchResultsPage() {
   ]);
 
   // Render tweet list component
-  const renderTweetList = (tweets: Tweet[]) => (
-    <div className="divide-y">
-      {/* Loading state: only show placeholders if there are no items yet */}
-      {tweets.length === 0 &&
-      (loading ||
-        !hasInitialCommitStartedRef.current ||
-        (!chunkProgress.isComplete && results?.meta?.originalCount !== 0) ||
-        autoAdvanceState === "chaining") ? (
-        <div className="space-y-0">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="px-4 py-2">
-              <article
-                className="group flex w-full cursor-pointer gap-2 overflow-hidden"
-                aria-label="Loading tweet"
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <div className="mt-1 h-8 w-8 rounded-full bg-muted" />
-                  {/* No vertical separator in search skeletons */}
-                </div>
-                <div className="flex flex-1 flex-col">
-                  <header className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                    <Skeleton className="h-4 w-6" />
-                  </header>
-                  <div className="my-2 space-y-2">
-                    <Skeleton className="h-4 w-5/6" />
-                    <Skeleton className="h-4 w-4/6" />
-                    <Skeleton className="h-4 w-3/6" />
-                  </div>
-                  {i === 2 && (
-                    <div className="mt-2">
-                      <Skeleton className="h-6 w-24" />
-                    </div>
-                  )}
-                  <div className="mt-2 flex items-center gap-4">
-                    <Skeleton className="h-6 w-12" />
-                    <Skeleton className="h-6 w-12" />
-                    <Skeleton className="h-6 w-12" />
-                    <Skeleton className="h-6 w-12" />
-                  </div>
-                </div>
-              </article>
-            </div>
-          ))}
-        </div>
-      ) : tweets.length > 0 ? (
-        tweets.map((tweet, idx) => (
-          <div
-            key={
-              tweet.id_str ||
-              tweet.id ||
-              `${tweet.user?.screen_name ?? "u"}-${tweet.tweet_created_at ?? "t"}-${idx}`
-            }
-            className="px-4 py-2"
-            onClick={(e) => {
-              const target = e.target as HTMLElement | null;
-              // Ignore non-primary clicks, modified clicks, or if a text selection exists
-              const hasSelection =
-                typeof window !== "undefined" &&
-                !!window.getSelection()?.toString();
-              if (
-                e.defaultPrevented ||
-                e.button !== 0 ||
-                e.metaKey ||
-                e.ctrlKey ||
-                e.shiftKey ||
-                e.altKey ||
-                hasSelection ||
-                e.detail > 1
-              ) {
-                return;
-              }
-              // Ignore clicks inside interactive elements
-              const interactive = target?.closest(
-                "a,button,[role=button],img,video,media-chrome,input,textarea,iframe,[contenteditable=true]"
-              );
-              if (interactive) {
-                return;
-              }
-              try {
-                // Cache for instant hydration on detail page
-                cacheTweet(tweet);
-              } catch {}
-
-              // Expose current page tweets globally for filter suggestions (best-effort)
-              try {
-                (
-                  globalThis as unknown as {
-                    __reacherx_current_tweets__?: Tweet[];
-                  }
-                ).__reacherx_current_tweets__ = tweets;
-              } catch {}
-
-              // Pack minimal tweet payload in URL param (base64) to avoid effects on target page
-              let packed = "";
-              try {
-                packed = base64UrlEncodeUtf8(JSON.stringify(tweet));
-              } catch {}
-              const id = tweet.id_str || String(tweet.id ?? "");
-              const params = new URLSearchParams();
-              if (packed) params.set("t", packed);
-              if (currentKeywordId) params.set("keywordId", currentKeywordId);
-              if (committedQuery) params.set("q", committedQuery);
-              params.set("exact", committedExactMatch ? "true" : "false");
-              params.set("tab", getCurrentTab());
-              // Save current scroll immediately before navigation
-              const viewport = scrollAreaRef.current?.querySelector(
-                "[data-radix-scroll-area-viewport]"
-              ) as HTMLElement | null;
-              if (viewport) {
-                const key = getScrollKey();
-                sessionStorage.setItem(key, String(viewport.scrollTop));
-              }
-              router.push(`/post/${id}?${params.toString()}`, {
-                scroll: false,
-              });
-            }}
-          >
-            <TweetComponent
-              tweet={tweet}
-              characterLimit={280}
-              showFullContent={false}
-              showThread={true}
-              highlightQueries={
-                committedExactMatch
-                  ? [committedQuery]
-                  : computedHighlightQueries
-              }
-              votingContext={
-                currentKeywordId && committedQuery
-                  ? {
-                      keywordId: currentKeywordId,
-                      searchQuery: committedQuery,
-                      exact: committedExactMatch,
-                    }
-                  : undefined
-              }
-            />
-          </div>
-        ))
-      ) : (
-        // Empty state (only when not loading)
-        <div className="p-8 text-center">
-          <p className="text-sm font-medium text-muted-foreground">
-            No results found
-          </p>
-          {chunkProgress.isComplete &&
-            chunkProgress.withResults === 0 &&
-            results?.meta?.originalCount &&
-            results.meta.originalCount > 0 && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                All {results.meta.originalCount} posts were filtered out
-              </p>
-            )}
-        </div>
-      )}
-      {shouldShowLoadMore && (
-        <div className="space-y-2 p-4">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="default"
-                  size="xs"
-                  className="mx-auto block"
-                  onClick={handleLoadMore}
-                  disabled={loading || autoAdvanceState === "chaining"}
+  const renderTweetList = (tweets: Tweet[], tab: ValidTab) => {
+    const isActiveTab = getCurrentTab() === tab;
+    const hasAnyResults = !!results?.tweets && results.tweets.length > 0;
+    return (
+      <div className="divide-y">
+        {/* Loading state: show placeholders only when the active tab has no results yet */}
+        {tweets.length === 0 && isActiveTab && !hasAnyResults ? (
+          <div className="space-y-0">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="px-4 py-2">
+                <article
+                  className="group flex w-full cursor-pointer gap-2 overflow-hidden"
+                  aria-label="Loading tweet"
                 >
-                  {autoAdvanceState === "chaining"
-                    ? `Searching next pages (${Math.min(
-                        autoAdvancePagesChecked,
-                        autoAdvanceCap
-                      )}/${autoAdvanceCap})...`
-                    : loading
-                      ? "Loading..."
-                      : hasResolvedChunks()
-                        ? `Load more (${getResolvedChunkTweetCount()} new)`
-                        : "Load more"}
-                </Button>
-              </TooltipTrigger>
-              {hasResolvedChunks() && (
-                <TooltipContent>
-                  Feed will refresh with new results. Nothing will disappear.
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          {/* Auto-advance helper text */}
-          {autoAdvanceState === "chaining" && (
-            <div className="mt-1 text-center text-[10px] text-muted-foreground">
-              Checking next pages automatically…
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="mt-1 h-8 w-8 rounded-full bg-muted" />
+                    {/* No vertical separator in search skeletons */}
+                  </div>
+                  <div className="flex flex-1 flex-col">
+                    <header className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <Skeleton className="h-4 w-6" />
+                    </header>
+                    <div className="my-2 space-y-2">
+                      <Skeleton className="h-4 w-5/6" />
+                      <Skeleton className="h-4 w-4/6" />
+                      <Skeleton className="h-4 w-3/6" />
+                    </div>
+                    {i === 2 && (
+                      <div className="mt-2">
+                        <Skeleton className="h-6 w-24" />
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center gap-4">
+                      <Skeleton className="h-6 w-12" />
+                      <Skeleton className="h-6 w-12" />
+                      <Skeleton className="h-6 w-12" />
+                      <Skeleton className="h-6 w-12" />
+                    </div>
+                  </div>
+                </article>
+              </div>
+            ))}
+          </div>
+        ) : tweets.length > 0 ? (
+          tweets.map((tweet, idx) => (
+            <div
+              key={
+                tweet.id_str ||
+                tweet.id ||
+                `${tweet.user?.screen_name ?? "u"}-${tweet.tweet_created_at ?? "t"}-${idx}`
+              }
+              className="px-4 py-2"
+              onClick={(e) => {
+                const target = e.target as HTMLElement | null;
+                // Ignore non-primary clicks, modified clicks, or if a text selection exists
+                const hasSelection =
+                  typeof window !== "undefined" &&
+                  !!window.getSelection()?.toString();
+                if (
+                  e.defaultPrevented ||
+                  e.button !== 0 ||
+                  e.metaKey ||
+                  e.ctrlKey ||
+                  e.shiftKey ||
+                  e.altKey ||
+                  hasSelection ||
+                  e.detail > 1
+                ) {
+                  return;
+                }
+                // Ignore clicks inside interactive elements
+                const interactive = target?.closest(
+                  "a,button,[role=button],img,video,media-chrome,input,textarea,iframe,[contenteditable=true]"
+                );
+                if (interactive) {
+                  return;
+                }
+                try {
+                  // Cache for instant hydration on detail page
+                  cacheTweet(tweet);
+                } catch {}
+
+                // Expose current page tweets globally for filter suggestions (best-effort)
+                try {
+                  (
+                    globalThis as unknown as {
+                      __reacherx_current_tweets__?: Tweet[];
+                    }
+                  ).__reacherx_current_tweets__ = tweets;
+                } catch {}
+
+                // Pack minimal tweet payload in URL param (base64) to avoid effects on target page
+                let packed = "";
+                try {
+                  packed = base64UrlEncodeUtf8(JSON.stringify(tweet));
+                } catch {}
+                const id = tweet.id_str || String(tweet.id ?? "");
+                const params = new URLSearchParams();
+                if (packed) params.set("t", packed);
+                if (currentKeywordId) params.set("keywordId", currentKeywordId);
+                if (committedQuery) params.set("q", committedQuery);
+                params.set("exact", committedExactMatch ? "true" : "false");
+                params.set("tab", getCurrentTab());
+                // Save current scroll immediately before navigation
+                const viewport = scrollAreaRef.current?.querySelector(
+                  "[data-radix-scroll-area-viewport]"
+                ) as HTMLElement | null;
+                if (viewport) {
+                  const key = getScrollKey();
+                  sessionStorage.setItem(key, String(viewport.scrollTop));
+                }
+                router.push(`/post/${id}?${params.toString()}`, {
+                  scroll: false,
+                });
+              }}
+            >
+              <TweetComponent
+                tweet={tweet}
+                characterLimit={280}
+                showFullContent={false}
+                showThread={true}
+                highlightQueries={
+                  committedExactMatch
+                    ? [committedQuery]
+                    : computedHighlightQueries
+                }
+                votingContext={
+                  currentKeywordId && committedQuery
+                    ? {
+                        keywordId: currentKeywordId,
+                        searchQuery: committedQuery,
+                        exact: committedExactMatch,
+                      }
+                    : undefined
+                }
+              />
             </div>
-          )}
-          {autoAdvanceState === "stopped" &&
-            autoAdvanceStopReason === "foundKept" && (
+          ))
+        ) : (
+          // Empty state (only when not loading)
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              No results found
+            </p>
+            {chunkProgress.isComplete &&
+              chunkProgress.withResults === 0 &&
+              results?.meta?.originalCount &&
+              results.meta.originalCount > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  All {results.meta.originalCount} posts were filtered out
+                </p>
+              )}
+          </div>
+        )}
+        {shouldShowLoadMore && (
+          <div className="space-y-2 p-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="xs"
+                    className="mx-auto block"
+                    onClick={handleLoadMore}
+                    disabled={loading || autoAdvanceState === "chaining"}
+                  >
+                    {autoAdvanceState === "chaining"
+                      ? `Searching next pages (${Math.min(
+                          autoAdvancePagesChecked,
+                          autoAdvanceCap
+                        )}/${autoAdvanceCap})...`
+                      : loading
+                        ? "Loading..."
+                        : hasResolvedChunks()
+                          ? `Load more (${getResolvedChunkTweetCount()} new)`
+                          : "Load more"}
+                  </Button>
+                </TooltipTrigger>
+                {hasResolvedChunks() && (
+                  <TooltipContent>
+                    Feed will refresh with new results. Nothing will disappear.
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            {/* Auto-advance helper text */}
+            {autoAdvanceState === "chaining" && (
               <div className="mt-1 text-center text-[10px] text-muted-foreground">
-                Found {autoAdvanceFoundCount} result
-                {autoAdvanceFoundCount === 1 ? "" : "s"} from page{" "}
-                {autoAdvanceFoundFromPage}.
+                Checking next pages automatically…
               </div>
             )}
-          {autoAdvanceState === "stopped" &&
-            autoAdvanceStopReason === "cap" && (
-              <div className="mt-1 text-center text-[10px] text-muted-foreground">
-                Checked {autoAdvancePagesChecked} page
-                {autoAdvancePagesChecked === 1 ? "" : "s"} automatically — no
-                relevant results. Click Load more to continue.
-              </div>
-            )}
-          {autoAdvanceState === "stopped" &&
-            autoAdvanceStopReason === "noMorePages" && (
-              <div className="mt-1 text-center text-[10px] text-muted-foreground">
-                No more results.
-              </div>
-            )}
-        </div>
-      )}
-    </div>
-  );
+            {autoAdvanceState === "stopped" &&
+              autoAdvanceStopReason === "foundKept" && (
+                <div className="mt-1 text-center text-[10px] text-muted-foreground">
+                  Found {autoAdvanceFoundCount} result
+                  {autoAdvanceFoundCount === 1 ? "" : "s"} from page{" "}
+                  {autoAdvanceFoundFromPage}.
+                </div>
+              )}
+            {autoAdvanceState === "stopped" &&
+              autoAdvanceStopReason === "cap" && (
+                <div className="mt-1 text-center text-[10px] text-muted-foreground">
+                  Checked {autoAdvancePagesChecked} page
+                  {autoAdvancePagesChecked === 1 ? "" : "s"} automatically — no
+                  relevant results. Click Load more to continue.
+                </div>
+              )}
+            {autoAdvanceState === "stopped" &&
+              autoAdvanceStopReason === "noMorePages" && (
+                <div className="mt-1 text-center text-[10px] text-muted-foreground">
+                  No more results.
+                </div>
+              )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Commit draft state (search execution)
   const handleSearch = useCallback(
@@ -1196,19 +1196,19 @@ export default function SearchResultsPage() {
 
                 {/* Tab Contents */}
                 <TabsContent value="all">
-                  {renderTweetList(filteredResults.all)}
+                  {renderTweetList(filteredResults.all, "all")}
                 </TabsContent>
 
                 <TabsContent value="posts">
-                  {renderTweetList(filteredResults.posts)}
+                  {renderTweetList(filteredResults.posts, "posts")}
                 </TabsContent>
 
                 <TabsContent value="replies">
-                  {renderTweetList(filteredResults.replies)}
+                  {renderTweetList(filteredResults.replies, "replies")}
                 </TabsContent>
 
                 <TabsContent value="quotes">
-                  {renderTweetList(filteredResults.quotes)}
+                  {renderTweetList(filteredResults.quotes, "quotes")}
                 </TabsContent>
               </Tabs>
             </div>
