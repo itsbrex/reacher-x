@@ -2,6 +2,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQueryState, parseAsStringEnum } from "nuqs";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { SearchContent } from "@/features/search/ui/components/SearchContent";
 import { useFilter } from "@/features/search/contexts/FilterContext";
@@ -131,83 +132,48 @@ export default function SearchResultsPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Active platform (twitter | linkedin) - persisted in URL (?pf=)
-  const [activePlatform, setActivePlatform] = useState<"twitter" | "linkedin">(
-    (() => {
-      try {
-        const pf = new URLSearchParams(
-          typeof window !== "undefined" ? window.location.search : ""
-        ).get("pf");
-        return pf === "linkedin" ? "linkedin" : "twitter";
-      } catch {
-        return "twitter";
-      }
-    })()
+  const [activePlatform, setActivePlatform] = useQueryState(
+    "pf",
+    parseAsStringEnum(["twitter", "linkedin"]).withDefault("twitter")
   );
 
   // Storage keys
   const SCROLL_STORAGE_KEY_BASE = "searchScrollPosition";
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<ValidTab>("all");
+  const [activeTab, setActiveTab] = useQueryState(
+    "tab",
+    parseAsStringEnum([...validTabs]).withDefault("all")
+  );
 
   // Persist and sync tab with URL + per-query session storage
   const updateActiveTab = useCallback(
     (tab: ValidTab) => {
       setActiveTab(tab);
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
-      replaceSearchGuarded(url.searchParams);
-      const q = url.searchParams.get("q") || "__noquery__";
+      const q =
+        (typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("q")
+          : searchParams.get("q")) || "__noquery__";
       sessionStorage.setItem(`activeTab::${q}`, tab);
     },
-    [setActiveTab, replaceSearchGuarded]
+    [setActiveTab, searchParams]
   );
 
-  // Initialize tab from URL or sessionStorage (per query) on mount
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const pf = urlParams.get("pf");
+    const hasTabParam = searchParams.has("tab");
+    const q = searchParams.get("q") || "__noquery__";
+    const pf = searchParams.get("pf");
     const isLinkedIn = pf === "linkedin";
-    const tabParam = urlParams.get("tab");
-    if (tabParam) {
-      if (isLinkedIn && tabParam === "reposts") {
-        updateActiveTab(tabParam as ValidTab);
-        return;
-      }
-      if (validTabs.includes(tabParam as ValidTab)) {
-        updateActiveTab(tabParam as ValidTab);
-        return;
-      }
-    }
-    const q = urlParams.get("q") || "__noquery__";
-    if (pf === "twitter" || pf === "linkedin") {
-      setActivePlatform(pf);
-    }
-    const stored = sessionStorage.getItem(`activeTab::${q}`);
-    if (stored) {
-      if (isLinkedIn && stored === "reposts") {
-        updateActiveTab(stored as ValidTab);
-      } else if (validTabs.includes(stored as ValidTab)) {
-        updateActiveTab(stored as ValidTab);
+    if (!hasTabParam) {
+      const stored = sessionStorage.getItem(`activeTab::${q}`);
+      if (stored) {
+        if (isLinkedIn && stored === "reposts") {
+          setActiveTab(stored as ValidTab);
+        } else if (validTabs.includes(stored as ValidTab)) {
+          setActiveTab(stored as ValidTab);
+        }
       }
     }
-  }, [updateActiveTab]);
-
-  // Extra safety: always reflect activePlatform → pf in the URL when it diverges
-  useEffect(() => {
-    try {
-      const url = new URL(window.location.href);
-      const currentPf = url.searchParams.get("pf");
-      if (
-        (activePlatform === "twitter" || activePlatform === "linkedin") &&
-        currentPf !== activePlatform
-      ) {
-        url.searchParams.set("pf", activePlatform);
-        replaceSearchGuarded(url.searchParams);
-      }
-    } catch {}
-  }, [activePlatform, replaceSearchGuarded]);
+  }, [searchParams, setActiveTab]);
 
   // (moved below hook declarations to avoid TDZ)
 
@@ -236,7 +202,7 @@ export default function SearchResultsPage() {
     ) {
       setActiveTab("all");
     }
-  }, [activePlatform, activeTab]);
+  }, [activePlatform, activeTab, setActiveTab]);
 
   const getScrollKey = useCallback(() => {
     const q = committedQuery || "__noquery__";
@@ -365,15 +331,12 @@ export default function SearchResultsPage() {
     platformAutoSelectedRef.current = false;
   }, [committedQuery]);
   useEffect(() => {
-    try {
-      const url = new URL(window.location.href);
-      const pf = url.searchParams.get("pf");
-      const hasExplicitPf = pf === "twitter" || pf === "linkedin";
-      if (hasExplicitPf) {
-        platformAutoSelectedRef.current = true;
-        return;
-      }
-    } catch {}
+    const pfParam = searchParams.get("pf");
+    const hasExplicitPf = pfParam === "twitter" || pfParam === "linkedin";
+    if (hasExplicitPf) {
+      platformAutoSelectedRef.current = true;
+      return;
+    }
     if (!committedQuery || platformAutoSelectedRef.current) return;
     const twCount = results?.tweets?.length || 0;
     const liCount = liResults?.posts?.length || 0;
@@ -382,17 +345,13 @@ export default function SearchResultsPage() {
         twCount > 0 ? "twitter" : "linkedin";
       platformAutoSelectedRef.current = true;
       setActivePlatform(nextPf);
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set("pf", nextPf);
-        replaceSearchGuarded(url.searchParams);
-      } catch {}
     }
   }, [
     results?.tweets?.length,
     liResults?.posts?.length,
     committedQuery,
-    replaceSearchGuarded,
+    searchParams,
+    setActivePlatform,
   ]);
 
   // Filter context
@@ -1499,12 +1458,6 @@ export default function SearchResultsPage() {
               const nextPlatform = val as "twitter" | "linkedin";
               platformAutoSelectedRef.current = true;
               setActivePlatform(nextPlatform);
-              try {
-                const url = new URL(window.location.href);
-                url.searchParams.set("pf", nextPlatform);
-                const next = `/search?${url.searchParams.toString()}`;
-                router.replace(next, { scroll: false });
-              } catch {}
             }}
             aria-label="Select platform"
           >

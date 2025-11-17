@@ -6,6 +6,7 @@ import { Toaster } from "@/shared/ui/components/Sonner";
 import MediaChromeYTTemplate from "@/shared/ui/components/MediaChromeYTTemplate";
 import { dmSans, dmMono } from "./fonts";
 import "./globals.css";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 export default function RootLayout({
   children,
@@ -55,9 +56,11 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <MediaChromeYTTemplate />
-              {children}
-              <Toaster />
+              <NuqsAdapter>
+                <MediaChromeYTTemplate />
+                {children}
+                <Toaster />
+              </NuqsAdapter>
             </ThemeProvider>
           </ConvexClientProvider>
         </PostHogProvider>
