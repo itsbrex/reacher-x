@@ -365,6 +365,15 @@ export default function SearchResultsPage() {
     platformAutoSelectedRef.current = false;
   }, [committedQuery]);
   useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const pf = url.searchParams.get("pf");
+      const hasExplicitPf = pf === "twitter" || pf === "linkedin";
+      if (hasExplicitPf) {
+        platformAutoSelectedRef.current = true;
+        return;
+      }
+    } catch {}
     if (!committedQuery || platformAutoSelectedRef.current) return;
     const twCount = results?.tweets?.length || 0;
     const liCount = liResults?.posts?.length || 0;
