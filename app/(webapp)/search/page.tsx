@@ -4,16 +4,11 @@ import { searchParamsCache } from "@/shared/lib/searchParams";
 import { Suspense } from "react";
 
 type PageProps = {
-  searchParams:
-    | Promise<SearchParams>
-    | Record<string, string | string[] | undefined>;
+  searchParams: Promise<SearchParams>;
 };
 
 export default async function Page({ searchParams }: PageProps) {
-  const sp =
-    typeof (searchParams as Promise<SearchParams>).then === "function"
-      ? await (searchParams as Promise<SearchParams>)
-      : (searchParams as Record<string, string | string[] | undefined>);
+  const sp = await searchParams;
 
   await searchParamsCache.parse(sp);
 
