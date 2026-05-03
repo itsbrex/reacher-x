@@ -32,8 +32,7 @@ export async function proxy(req: NextRequest, ev: NextFetchEvent) {
   // Allow public landing pages (e.g., /home and its subroutes)
   const isLandingRoute = pathname === "/home" || pathname.startsWith("/home/");
   if (isLandingRoute) {
-    const workosRes = await workosMiddleware(req, ev);
-    return workosRes ?? NextResponse.next();
+    return NextResponse.next();
   }
 
   // Allow WorkOS auth routes to proceed without onboarding gating so login works

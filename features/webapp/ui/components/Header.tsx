@@ -928,18 +928,11 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   </DropdownMenuItem>
 
                   {/* Home page */}
-                  <DropdownMenuItem disabled={locked} asChild={!locked}>
-                    {locked ? (
-                      <>
-                        <HomeIcon className="fill-current" aria-hidden="true" />
-                        Home page
-                      </>
-                    ) : (
-                      <Link href="/home">
-                        <HomeIcon className="fill-current" aria-hidden="true" />
-                        Home page
-                      </Link>
-                    )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/home">
+                      <HomeIcon className="fill-current" aria-hidden="true" />
+                      Home page
+                    </Link>
                   </DropdownMenuItem>
 
                   {/* Log out */}
