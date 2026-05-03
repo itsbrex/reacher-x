@@ -73,7 +73,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
       "Unlimited qualified prospects / month",
       "5 workspaces",
       "Workspace settings rollback",
-      "Calendar integration",
+      "Calendar integration (Coming soon)",
       "Priority support",
     ],
     pricing: {
