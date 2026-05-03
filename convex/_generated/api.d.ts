@@ -178,6 +178,7 @@ import type * as styleAnalysis from "../styleAnalysis.js";
 import type * as styleAnalysisActions from "../styleAnalysisActions.js";
 import type * as styleMonitorActions from "../styleMonitorActions.js";
 import type * as styleMonitors from "../styleMonitors.js";
+import type * as testerPlans from "../testerPlans.js";
 import type * as twitterEngagement from "../twitterEngagement.js";
 import type * as users from "../users.js";
 import type * as validators from "../validators.js";
@@ -378,6 +379,7 @@ declare const fullApi: ApiFromModules<{
   styleAnalysisActions: typeof styleAnalysisActions;
   styleMonitorActions: typeof styleMonitorActions;
   styleMonitors: typeof styleMonitors;
+  testerPlans: typeof testerPlans;
   twitterEngagement: typeof twitterEngagement;
   users: typeof users;
   validators: typeof validators;
