@@ -863,6 +863,9 @@ export const createProspectsFoundNotification = internalMutation({
       return null;
     }
 
+    const useCase = getWorkspaceUseCase(workspace.useCaseKey);
+    const entityPluralLower = useCase.entityPlural.toLowerCase();
+
     const messageParts: string[] = [];
     if (twitterSaved > 0) {
       messageParts.push(`${twitterSaved} on X`);
@@ -879,11 +882,11 @@ export const createProspectsFoundNotification = internalMutation({
         workspaceId,
         workflowId
       ),
-      title: `${prospectsFound} new prospects found`,
+      title: `${prospectsFound} new ${entityPluralLower} found`,
       message:
         messageParts.length > 0
           ? messageParts.join(", ")
-          : "New prospects are ready for review.",
+          : `New ${entityPluralLower} are ready for review.`,
       targetHref: "/",
     });
   },
@@ -2376,18 +2379,23 @@ async function handleProspectResponseCore(
       prospect.displayName || extractDisplayName(prospect.data);
     const prospectScreenName = extractScreenName(prospect);
 
+    const workspace = await ctx.db.get(prospect.workspaceId);
+    const useCase = getWorkspaceUseCase(workspace?.useCaseKey);
+    const entitySingular = useCase.entitySingular;
+    const entitySingularLower = entitySingular.toLowerCase();
+
     await ctx.db.insert("outreachNotifications", {
       userId: prospect.userId,
       workspaceId: prospect.workspaceId,
       type: "prospect_replied",
       title:
         args.responseChannel === "linkedin_invite"
-          ? `${prospectDisplayName || "Prospect"} accepted your invitation`
-          : `${prospectDisplayName || "Prospect"} replied`,
+          ? `${prospectDisplayName || entitySingular} accepted your invitation`
+          : `${prospectDisplayName || entitySingular} replied`,
       message: args.responseText
         ? `"${args.responseText.substring(0, 100)}${args.responseText.length > 100 ? "..." : ""}"`
         : args.responseChannel === "linkedin_invite"
-          ? "They accepted your LinkedIn invitation."
+          ? `The ${entitySingularLower} accepted your LinkedIn invitation.`
           : args.responseChannel === "twitter_reply"
             ? "A new reply came in on X."
             : args.responseChannel === "linkedin_dm"
