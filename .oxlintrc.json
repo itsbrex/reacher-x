@@ -10,6 +10,7 @@
     "build/**",
     "node_modules/**",
     "convex/_generated/**",
-    ".pnpm-store/**"
+    ".pnpm-store/**",
+    "app/home/page.tsx"
   ]
 }
