@@ -378,6 +378,8 @@ body[data-scroll-locked] {
     --mask-offset-left: 0px;
     --mask-offset-right: 0px;
     --scroll-buffer: 2rem;
+    /* Prevent implicit overflow-y:auto (CSS spec forces it when overflow-x is auto/scroll) so vertical wheel events pass through to the parent */
+    overflow-y: clip;
     mask-image: linear-gradient(to left, transparent, black 90%), linear-gradient(to right, transparent 0%, black 100%), linear-gradient(black, black);
     mask-size: var(--left-mask-width) 100%, var(--right-mask-width) 100%, 100% 100%;
     mask-repeat: no-repeat, no-repeat, no-repeat;

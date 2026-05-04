@@ -201,7 +201,7 @@ export default function ArchivesPage() {
     <div className="flex h-full min-h-0 w-full">
       <PageLayout
         className={cn(
-          "h-full min-h-0 w-full overflow-hidden",
+          "flex h-full min-h-0 w-full flex-col overflow-hidden",
           (showProspectPanel ||
             showFilterAsPrimaryPanel ||
             showSortAsPrimaryPanel) &&
@@ -209,118 +209,122 @@ export default function ArchivesPage() {
         )}
       >
         <PageHeader title={pageLabels.archives} onBack={() => router.back()} />
-        <WorkspacePlanLimitAlert className="mx-4 mt-4" />
-        <PageContent className="flex h-full flex-col p-0">
-          {setupStatusQuery.isError ? (
-            <div className="px-4 pt-4">
-              <div className="rounded-lg border border-dashed p-6 text-center">
-                <p className="text-sm font-medium">Could not load archives</p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  {setupStatusQuery.error.message || "Please try again."}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => router.refresh()}
-                >
-                  Retry
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="mb-0 px-4 pt-4">
-                <SearchInput
-                  defaultValue={searchQuery}
-                  onQueryChange={setSearchQuery}
-                  placeholder={`Search archived ${entitiesLower}...`}
-                  showExactMatch={false}
-                />
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <IconButtonWithIndicator
-                    aria-label="Open filters"
-                    showIndicator={activeFilterCount > 0}
-                    onClick={openFilterPanelWithState}
-                    type="button"
-                    size="xs"
-                    className="w-full justify-center gap-1.5"
+        <PageContent className="flex min-h-0 flex-1 flex-col p-0">
+          <ScrollArea className="min-w-0 flex-1">
+            <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+            {setupStatusQuery.isError ? (
+              <div className="px-4 pt-4">
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <p className="text-sm font-medium">Could not load archives</p>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {setupStatusQuery.error.message || "Please try again."}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => router.refresh()}
                   >
-                    <FilterAltIcon className="fill-current" />
-                    <span>Filter</span>
-                  </IconButtonWithIndicator>
-                  <IconButtonWithIndicator
-                    aria-label="Open sort"
-                    showIndicator={isSortActive}
-                    onClick={openSortPanel}
-                    type="button"
-                    size="xs"
-                    className="w-full justify-center gap-1.5"
-                  >
-                    <SwapVertIcon className="h-4 w-4 fill-current" />
-                    <span>Sort</span>
-                  </IconButtonWithIndicator>
+                    Retry
+                  </Button>
                 </div>
               </div>
-
-              <ScrollArea className="flex-1 px-4 pt-4 pb-4">
-                {isLoading ? (
-                  <div className="space-y-3 pb-8">
-                    <ProspectCardSkeleton />
-                    <ProspectCardSkeleton />
-                    <ProspectCardSkeleton />
+            ) : (
+              <>
+                <div className="mb-0 px-4 pt-4">
+                  <SearchInput
+                    defaultValue={searchQuery}
+                    onQueryChange={setSearchQuery}
+                    placeholder={`Search archived ${entitiesLower}...`}
+                    showExactMatch={false}
+                  />
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <IconButtonWithIndicator
+                      aria-label="Open filters"
+                      showIndicator={activeFilterCount > 0}
+                      onClick={openFilterPanelWithState}
+                      type="button"
+                      size="xs"
+                      className="w-full justify-center gap-1.5"
+                    >
+                      <FilterAltIcon className="fill-current" />
+                      <span>Filter</span>
+                    </IconButtonWithIndicator>
+                    <IconButtonWithIndicator
+                      aria-label="Open sort"
+                      showIndicator={isSortActive}
+                      onClick={openSortPanel}
+                      type="button"
+                      size="xs"
+                      className="w-full justify-center gap-1.5"
+                    >
+                      <SwapVertIcon className="h-4 w-4 fill-current" />
+                      <span>Sort</span>
+                    </IconButtonWithIndicator>
                   </div>
-                ) : showEmptyState ? (
-                  <div className="flex h-full items-center justify-center py-16">
-                    <div className="text-muted-foreground text-center">
-                      <ArchiveIcon className="fill-muted-foreground mx-auto mb-3 size-12" />
-                      <p className="font-medium">No archived {entitiesLower}</p>
-                      <p className="mt-1 text-sm">
-                        Archived {entitiesLower} will appear here
-                      </p>
+                </div>
+
+                <div className="px-4 pt-4 pb-4">
+                  {isLoading ? (
+                    <div className="space-y-3 pb-8">
+                      <ProspectCardSkeleton />
+                      <ProspectCardSkeleton />
+                      <ProspectCardSkeleton />
                     </div>
-                  </div>
-                ) : showSearchNoMatch ? (
-                  <p className="text-muted-foreground py-8 text-center text-sm">
-                    No archived {entitiesLower} match your search
-                  </p>
-                ) : (
-                  <div className="pb-8">
-                    <ul className="space-y-3">
-                      {displayProspects.map((prospect) => (
-                        <li key={prospect._id}>
-                          <ProspectCard
-                            prospect={prospect}
-                            highlightKeywords={prospect.matchedKeywords}
-                            onClick={() =>
-                              handleProspectClick(prospect.prospectId)
-                            }
-                          />
-                        </li>
-                      ))}
-                    </ul>
-
-                    {hasMore && (
-                      <div className="pt-2">
-                        <Button
-                          size="xs"
-                          className="w-full"
-                          onClick={loadMore}
-                          disabled={isLoadingMore}
-                        >
-                          {isLoadingMore ? (
-                            <AsciiSpinnerText text="Loading" />
-                          ) : (
-                            "Load more"
-                          )}
-                        </Button>
+                  ) : showEmptyState ? (
+                    <div className="flex h-full items-center justify-center py-16">
+                      <div className="text-muted-foreground text-center">
+                        <ArchiveIcon className="fill-muted-foreground mx-auto mb-3 size-12" />
+                        <p className="font-medium">
+                          No archived {entitiesLower}
+                        </p>
+                        <p className="mt-1 text-sm">
+                          Archived {entitiesLower} will appear here
+                        </p>
                       </div>
-                    )}
-                  </div>
-                )}
-              </ScrollArea>
-            </>
-          )}
+                    </div>
+                  ) : showSearchNoMatch ? (
+                    <p className="text-muted-foreground py-8 text-center text-sm">
+                      No archived {entitiesLower} match your search
+                    </p>
+                  ) : (
+                    <div className="pb-8">
+                      <ul className="space-y-3">
+                        {displayProspects.map((prospect) => (
+                          <li key={prospect._id}>
+                            <ProspectCard
+                              prospect={prospect}
+                              highlightKeywords={prospect.matchedKeywords}
+                              onClick={() =>
+                                handleProspectClick(prospect.prospectId)
+                              }
+                            />
+                          </li>
+                        ))}
+                      </ul>
+
+                      {hasMore && (
+                        <div className="pt-2">
+                          <Button
+                            size="xs"
+                            className="w-full"
+                            onClick={loadMore}
+                            disabled={isLoadingMore}
+                          >
+                            {isLoadingMore ? (
+                              <AsciiSpinnerText text="Loading" />
+                            ) : (
+                              "Load more"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </ScrollArea>
         </PageContent>
       </PageLayout>
 

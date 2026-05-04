@@ -19,7 +19,6 @@ import {
   TimelineSeparator,
   TimelineTitle,
 } from "@/shared/ui/components/Timeline";
-import { ScrollArea, ScrollBar } from "@/shared/ui/components/ScrollArea";
 import { Button } from "@/shared/ui/components/Button";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -119,31 +118,31 @@ export function PipelineTimeline({
       </div>
 
       {/* Timeline with horizontal scroll */}
-      <ScrollArea className="w-full">
-        <div ref={scrollRef} className="pb-4">
-          <Timeline defaultValue={currentStep} orientation="horizontal">
-            {PIPELINE_STAGES.map((stage) => (
-              <TimelineItem
-                key={stage.id}
-                step={stage.step}
-                className="min-w-[100px] group-data-[orientation=horizontal]/timeline:mt-0"
-              >
-                <TimelineHeader>
-                  <TimelineSeparator className="group-data-[orientation=horizontal]/timeline:top-8" />
-                  <TimelineDate className="mb-10 text-[10px]">
-                    {formatStageTimestamp(stageTimestamps[stage.id])}
-                  </TimelineDate>
-                  <TimelineTitle className="text-xs">
-                    {stageLabels[stage.id]}
-                  </TimelineTitle>
-                  <TimelineIndicator className="group-data-[orientation=horizontal]/timeline:top-8" />
-                </TimelineHeader>
-              </TimelineItem>
-            ))}
-          </Timeline>
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      <div
+        ref={scrollRef}
+        className="scrollbar-none w-full overflow-x-auto scroll-fade-effect-x pb-4"
+      >
+        <Timeline defaultValue={currentStep} orientation="horizontal">
+          {PIPELINE_STAGES.map((stage) => (
+            <TimelineItem
+              key={stage.id}
+              step={stage.step}
+              className="min-w-[100px] group-data-[orientation=horizontal]/timeline:mt-0"
+            >
+              <TimelineHeader>
+                <TimelineSeparator className="group-data-[orientation=horizontal]/timeline:top-8" />
+                <TimelineDate className="mb-10 text-[10px]">
+                  {formatStageTimestamp(stageTimestamps[stage.id])}
+                </TimelineDate>
+                <TimelineTitle className="text-xs">
+                  {stageLabels[stage.id]}
+                </TimelineTitle>
+                <TimelineIndicator className="group-data-[orientation=horizontal]/timeline:top-8" />
+              </TimelineHeader>
+            </TimelineItem>
+          ))}
+        </Timeline>
+      </div>
     </div>
   );
 }

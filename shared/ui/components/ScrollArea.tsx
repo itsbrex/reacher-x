@@ -40,7 +40,7 @@ const ScrollArea = React.forwardRef<
       children,
       scrollHideDelay = 0,
       viewportClassName,
-      viewportOverscrollClassName = "overscroll-contain",
+      viewportOverscrollClassName,
       scrollbar = "vertical",
       maskClassName,
       maskHeight = 30,
@@ -48,6 +48,11 @@ const ScrollArea = React.forwardRef<
     },
     ref
   ) => {
+    const resolvedOverscrollClassName =
+      viewportOverscrollClassName ??
+      (scrollbar === "horizontal"
+        ? "overscroll-x-contain overscroll-y-auto"
+        : "overscroll-contain");
     const [showMask, setShowMask] = React.useState<Mask>({
       top: false,
       bottom: false,
@@ -117,7 +122,7 @@ const ScrollArea = React.forwardRef<
               data-slot="scroll-area-viewport"
               className={cn(
                 "size-full min-w-0 overflow-auto rounded-[inherit]",
-                viewportOverscrollClassName,
+                resolvedOverscrollClassName,
                 viewportClassName
               )}
               tabIndex={0}
@@ -151,7 +156,7 @@ const ScrollArea = React.forwardRef<
             data-slot="scroll-area-viewport"
             className={cn(
               "size-full min-w-0 rounded-[inherit]",
-              viewportOverscrollClassName,
+              resolvedOverscrollClassName,
               viewportClassName
             )}
           >

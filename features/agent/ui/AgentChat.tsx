@@ -1532,11 +1532,12 @@ export function AgentChat({
         prospectArchived={Boolean(prospectId) && prospectArchived}
       />
 
-      {!isSetupRoute ? <WorkspacePlanLimitAlert className="mx-4 mt-4" /> : null}
-
       {/* Chat Messages Area - scrollable container */}
       <ChatContainerRoot className="relative min-h-0 flex-1">
         <ChatContainerContent className="px-4 py-4">
+          {!isSetupRoute ? (
+            <WorkspacePlanLimitAlert className="mb-4" />
+          ) : null}
           {/* Load more button */}
           {hasMore && (
             <div className="mb-4 text-center">

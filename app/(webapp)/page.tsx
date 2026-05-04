@@ -503,7 +503,7 @@ export default function ProspectsPage() {
     <div className="flex h-full min-h-0 w-full">
       <PageLayout
         className={cn(
-          "h-full min-h-0 w-full overflow-hidden",
+          "flex h-full min-h-0 w-full flex-col overflow-hidden",
           (showProspectPanel ||
             showFilterAsPrimaryPanel ||
             showSortAsPrimaryPanel) &&
@@ -515,56 +515,56 @@ export default function ProspectsPage() {
           onBack={() => router.back()}
           backDisabled={!canGoBack}
         />
-        <WorkspacePlanLimitAlert className="mx-4 mt-4" />
-        <PageContent className="flex h-full min-w-0 flex-col p-0">
-          {setupStatusQuery.isError ? (
-            <div className="px-4 pt-4">
-              <div className="rounded-lg border border-dashed p-6 text-center">
-                <p className="text-sm font-medium">
-                  Could not load {entitiesLower}
-                </p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  {setupStatusQuery.error.message || "Please try again."}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => router.refresh()}
-                >
-                  Retry
-                </Button>
+        <PageContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
+          <ScrollArea className="min-w-0 flex-1">
+            <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+            {setupStatusQuery.isError ? (
+              <div className="px-4 pt-4">
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <p className="text-sm font-medium">
+                    Could not load {entitiesLower}
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {setupStatusQuery.error.message || "Please try again."}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => router.refresh()}
+                  >
+                    Retry
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              <ProspectsToolbar
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                tabs={tabs}
-                searchPlaceholder={`Search ${entitiesLower}...`}
-                filterActiveCount={activeFilterCount}
-                sortActive={isSortActive}
-                onOpenFilters={openFilterPanelWithState}
-                onOpenSort={openSortPanel}
-                className="px-4 pt-4"
-              />
+            ) : (
+              <>
+                <ProspectsToolbar
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  tabs={tabs}
+                  searchPlaceholder={`Search ${entitiesLower}...`}
+                  filterActiveCount={activeFilterCount}
+                  sortActive={isSortActive}
+                  onOpenFilters={openFilterPanelWithState}
+                  onOpenSort={openSortPanel}
+                  className="px-4 pt-4"
+                />
 
-              <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4">
-                {showPendingBar && feedState ? (
-                  <PendingProspectsFeedBar
-                    pendingCount={feedState.pendingCount}
-                    pendingCountCapped={feedState.pendingCountCapped}
-                    preview={feedState.pendingPreview}
-                    entityPluralLower={entitiesLower}
-                    onMerge={handleMergePending}
-                    disabled={isMergePending}
-                  />
-                ) : null}
+                <div className="flex flex-col gap-4 px-4 pt-4 pb-4">
+                  {showPendingBar && feedState ? (
+                    <PendingProspectsFeedBar
+                      pendingCount={feedState.pendingCount}
+                      pendingCountCapped={feedState.pendingCountCapped}
+                      preview={feedState.pendingPreview}
+                      entityPluralLower={entitiesLower}
+                      onMerge={handleMergePending}
+                      disabled={isMergePending}
+                    />
+                  ) : null}
 
-                <ScrollArea className="min-w-0 flex-1">
                   {isLoading ? (
                     <div className="space-y-3 pb-8">
                       <ProspectCardSkeleton />
@@ -632,10 +632,10 @@ export default function ProspectsPage() {
                       )}
                     </div>
                   )}
-                </ScrollArea>
-              </div>
-            </>
-          )}
+                </div>
+              </>
+            )}
+          </ScrollArea>
         </PageContent>
       </PageLayout>
 

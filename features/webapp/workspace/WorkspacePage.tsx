@@ -505,8 +505,6 @@ export default function WorkspacePage() {
             />
 
             <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <WorkspacePlanLimitAlert className="mx-4 mt-4" />
-
               {authError && (
                 <div className="px-4 pt-4">
                   <Alert variant="destructive" className="mb-6">
@@ -575,6 +573,7 @@ export default function WorkspacePage() {
                   </div>
 
                   <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
+                    <WorkspacePlanLimitAlert className="mb-4" />
                     <TabsContent value="details" className="mt-0">
                       {isEditing ? (
                         <Alert className="mb-4">

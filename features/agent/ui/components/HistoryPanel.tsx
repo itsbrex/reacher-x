@@ -239,24 +239,23 @@ export function HistoryPanel({
           }
         />
         <PageContent className="flex min-h-0 flex-1 flex-col">
-          <WorkspacePlanLimitAlert className="mx-4 mt-4" />
-
-          {/* Search */}
-          <div className="mt-4 mb-0 px-4">
-            <div className="relative">
-              <SearchIcon className="fill-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                placeholder="Search threads..."
-                size="sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-
           {/* Thread list */}
           <ScrollArea className="min-h-0 flex-1" viewportClassName="pb-8">
+            <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+
+            {/* Search */}
+            <div className="mt-4 mb-0 px-4">
+              <div className="relative">
+                <SearchIcon className="fill-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Input
+                  placeholder="Search threads..."
+                  size="sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
             {isLoading || showSearching ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
