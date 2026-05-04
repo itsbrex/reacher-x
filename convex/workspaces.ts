@@ -699,6 +699,15 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
       return { ok: false as const, reason: "workspace_not_found" };
     }
 
+    if (workspace.userId) {
+      await ctx.runMutation(
+        internal.planUsage.reconcileCurrentUsageForUserInternal,
+        {
+          userId: workspace.userId,
+        }
+      );
+    }
+
     const limitState = await ctx.runQuery(
       internal.workflows.prospecting.checkProspectLimitInternal,
       {
@@ -753,7 +762,15 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
       );
 
       for (const prospect of prospects) {
-        if (prospect.qualificationWorkflowId) {
+        const isPendingQualification =
+          prospect.qualificationStatus !== "qualified" &&
+          prospect.qualificationStatus !== "disqualified";
+        const needsEnrichment =
+          prospect.status !== "archived" &&
+          prospect.qualificationStatus === "qualified" &&
+          prospect.enrichmentStatus !== "enriched";
+
+        if (isPendingQualification && prospect.qualificationWorkflowId) {
           try {
             await workflow.cancel(ctx, prospect.qualificationWorkflowId as any);
           } catch (error) {
@@ -771,25 +788,10 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
           );
         }
 
-        if (prospect.enrichmentWorkflowId) {
-          try {
-            await workflow.cancel(ctx, prospect.enrichmentWorkflowId as any);
-          } catch (error) {
-            console.warn(
-              "[reconcileWorkspaceCapacityStateInternal] Failed to cancel enrichment workflow:",
-              prospect._id,
-              error
-            );
-          }
-          await ctx.runMutation(internal.prospects.clearEnrichmentWorkflowId, {
+        if (needsEnrichment && !prospect.enrichmentWorkflowId) {
+          await ctx.runAction(internal.workflows.enrichment.startEnrichment, {
             prospectId: prospect._id,
-          });
-        }
-
-        if (prospect.planGenerationStatus === "generating") {
-          await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-            prospectId: prospect._id,
-            status: "idle",
+            workspaceId: args.workspaceId,
           });
         }
       }
@@ -1397,6 +1399,14 @@ export const startProspectingWorkflow = action({
     const hasRequiredSetupData = hasRequiredWorkspaceAgentData(workspace);
     if (!hasRequiredSetupData) {
       throw new Error("Workspace setup is incomplete");
+    }
+    if (workspace.userId) {
+      await ctx.runMutation(
+        internal.planUsage.reconcileCurrentUsageForUserInternal,
+        {
+          userId: workspace.userId,
+        }
+      );
     }
     const limitState = await ctx.runQuery(
       internal.workflows.prospecting.checkProspectLimitInternal,

@@ -16,6 +16,7 @@ import {
 } from "./lib/planHelpers";
 import { computeUsageCycleWindow } from "./lib/planCycleUtils";
 import { internalMutation, mutation, query } from "./lib/functionBuilders";
+import { computeQualifiedProspectUsageForWindow } from "./lib/planUsageState";
 import { getUserFromIdentity } from "./lib/userUtils";
 
 function windowMatchesCycle(
@@ -62,14 +63,11 @@ async function reconcileUsageCyclesForUser(
   const matchingRow =
     matchingRows.find((row) => row.cycleEnd === window.cycleEnd) ?? null;
 
-  const planMatchesCurrentWindow =
-    plan.currentProspectsCycleStart === window.cycleStart &&
-    plan.currentProspectsCycleEnd === window.cycleEnd;
-  const qInWindow = matchingRow
-    ? matchingRow.prospectsUsed
-    : planMatchesCurrentWindow
-      ? plan.currentProspectsCount
-      : 0;
+  const qInWindow = await computeQualifiedProspectUsageForWindow(
+    ctx,
+    userId,
+    window
+  );
 
   if (plan._id) {
     await ctx.db.patch(plan._id, {
@@ -126,6 +124,23 @@ async function reconcileUsageCyclesForUser(
     updatedAt: now,
   });
 }
+
+export const reconcileCurrentUsageForUserInternal = internalMutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { userId }) => {
+    await reconcileUsageCyclesForUser(ctx, userId);
+
+    const plan = await getOrCreateUserPlan(ctx, userId);
+    return {
+      tier: plan.tier,
+      used: plan.currentProspectsCount,
+      cycleStart: plan.currentProspectsCycleStart ?? null,
+      cycleEnd: plan.currentProspectsCycleEnd ?? null,
+    };
+  },
+});
 
 export const rolloverStaleUsageCycles = internalMutation({
   args: {},

@@ -1,4 +1,4 @@
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { polar } from "../polar";
@@ -6,6 +6,68 @@ import { computeUsageCycleWindow } from "./planCycleUtils";
 import { getOrCreateUserPlan } from "./planCore";
 
 type PlanUsageCtx = QueryCtx | MutationCtx;
+type QualifiedUsageWindow = {
+  cycleStart: number;
+  cycleEnd: number;
+};
+type QualifiedUsageEligibility = Pick<
+  Doc<"prospects">,
+  "origin" | "qualificationStatus" | "qualifiedAt"
+>;
+
+export function isProspectEligibleForQualifiedUsage(
+  prospect: Pick<Doc<"prospects">, "origin">
+) {
+  return prospect.origin !== "setup_preview";
+}
+
+function countsQualifiedProspectInWindow(
+  window: QualifiedUsageWindow,
+  args: {
+    qualified: boolean;
+    qualifiedAt?: number;
+    usageEligible?: boolean;
+  }
+) {
+  return (
+    args.usageEligible !== false &&
+    args.qualified &&
+    typeof args.qualifiedAt === "number" &&
+    args.qualifiedAt >= window.cycleStart &&
+    args.qualifiedAt <= window.cycleEnd
+  );
+}
+
+export function shouldCountQualifiedProspectUsageInWindow(
+  window: QualifiedUsageWindow,
+  prospect: QualifiedUsageEligibility
+) {
+  return countsQualifiedProspectInWindow(window, {
+    qualified: prospect.qualificationStatus === "qualified",
+    qualifiedAt: prospect.qualifiedAt,
+    usageEligible: isProspectEligibleForQualifiedUsage(prospect),
+  });
+}
+
+export async function computeQualifiedProspectUsageForWindow(
+  ctx: PlanUsageCtx,
+  userId: Id<"users">,
+  window: QualifiedUsageWindow
+) {
+  const prospects = await ctx.db
+    .query("prospects")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  let used = 0;
+  for (const prospect of prospects) {
+    if (shouldCountQualifiedProspectUsageInWindow(window, prospect)) {
+      used += 1;
+    }
+  }
+
+  return used;
+}
 
 async function getWorkspaceCountForUser(
   ctx: PlanUsageCtx,
@@ -65,8 +127,10 @@ export async function applyQualifiedProspectUsageTransition(
     userId: Id<"users">;
     previousQualified: boolean;
     previousQualifiedAt?: number;
+    previousUsageEligible?: boolean;
     nextQualified: boolean;
     nextQualifiedAt?: number;
+    nextUsageEligible?: boolean;
   }
 ) {
   const snapshot = await readStoredQualifiedProspectUsageSnapshot(
@@ -75,20 +139,16 @@ export async function applyQualifiedProspectUsageTransition(
   );
   const { plan, window } = snapshot;
 
-  const countsInCurrentWindow = (qualified: boolean, qualifiedAt?: number) =>
-    qualified &&
-    typeof qualifiedAt === "number" &&
-    qualifiedAt >= window.cycleStart &&
-    qualifiedAt <= window.cycleEnd;
-
-  const previousCounted = countsInCurrentWindow(
-    args.previousQualified,
-    args.previousQualifiedAt
-  );
-  const nextCounted = countsInCurrentWindow(
-    args.nextQualified,
-    args.nextQualifiedAt
-  );
+  const previousCounted = countsQualifiedProspectInWindow(window, {
+    qualified: args.previousQualified,
+    qualifiedAt: args.previousQualifiedAt,
+    usageEligible: args.previousUsageEligible,
+  });
+  const nextCounted = countsQualifiedProspectInWindow(window, {
+    qualified: args.nextQualified,
+    qualifiedAt: args.nextQualifiedAt,
+    usageEligible: args.nextUsageEligible,
+  });
   const delta = Number(nextCounted) - Number(previousCounted);
 
   if (delta === 0) {

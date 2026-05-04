@@ -23,6 +23,7 @@ import {
   PageHeader,
   PageContent,
 } from "@/features/webapp/ui/components";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { Button } from "@/shared/ui/components/Button";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/components/Tabs";
@@ -514,6 +515,7 @@ export default function ProspectsPage() {
           onBack={() => router.back()}
           backDisabled={!canGoBack}
         />
+        <WorkspacePlanLimitAlert className="mx-4 mt-4" />
         <PageContent className="flex h-full min-w-0 flex-col p-0">
           {setupStatusQuery.isError ? (
             <div className="px-4 pt-4">

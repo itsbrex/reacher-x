@@ -118,6 +118,7 @@ import {
 } from "@/shared/hooks";
 import { getSetupPanelStepTitle } from "@/features/agent/lib/setupOnboardingStepTitles";
 import { SetupOnboardingInlineCard } from "./components/SetupOnboardingInlineCard";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DropdownMenu,
@@ -1530,6 +1531,8 @@ export function AgentChat({
         }
         prospectArchived={Boolean(prospectId) && prospectArchived}
       />
+
+      {!isSetupRoute ? <WorkspacePlanLimitAlert className="mx-4 mt-4" /> : null}
 
       {/* Chat Messages Area - scrollable container */}
       <ChatContainerRoot className="relative min-h-0 flex-1">

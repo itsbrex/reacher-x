@@ -120,7 +120,7 @@ export function WorkspaceSystemStatusTrigger({
     if (status.issueReason === "limit_reached") {
       return {
         tooltip: "△ Agent has reached its limit",
-        title: `△ Agent is paused until you increase capacity or free up space.`,
+        title: `△ Agent is paused because you’ve reached your current plan limit. Upgrade to continue discovering and qualifying ${entityPluralLower}.`,
         meta: `${activeUseCase.displayName} capacity`,
       };
     }

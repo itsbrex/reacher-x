@@ -31,6 +31,7 @@ import { SearchIcon, AddIcon } from "@/shared/ui/components/icons";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { ThreadCard, type ThreadData } from "./ThreadCard";
 import { ThreadCardSkeleton } from "./ThreadCardSkeleton";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import type { ThreadSearchResult } from "@/shared/types/search";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { useConvexReady } from "@/shared/hooks/useConvexReady";
@@ -123,9 +124,7 @@ export function HistoryPanel({
     try {
       await deletePromise;
     } finally {
-      setDeletingThreadId((current) =>
-        current === threadId ? null : current
-      );
+      setDeletingThreadId((current) => (current === threadId ? null : current));
     }
   };
 
@@ -240,6 +239,8 @@ export function HistoryPanel({
           }
         />
         <PageContent className="flex min-h-0 flex-1 flex-col">
+          <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+
           {/* Search */}
           <div className="mt-4 mb-0 px-4">
             <div className="relative">

@@ -1043,23 +1043,6 @@ export const runEnrichmentWorkflow = internalAction({
       }
     }
 
-    const limitState = await ctx.runQuery(
-      internal.workflows.prospecting.checkProspectLimitInternal,
-      {
-        workspaceId: args.workspaceId,
-      }
-    );
-    if (limitState.limitReached) {
-      await ctx.runAction(
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-        {
-          workspaceId: args.workspaceId,
-        }
-      );
-      await releaseClaim();
-      return { workflowId: "" };
-    }
-
     let wfId = "";
     try {
       wfId = String(
@@ -1110,22 +1093,6 @@ export const startEnrichment = internalAction({
     force: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<{ workId: string }> => {
-    const limitState = await ctx.runQuery(
-      internal.workflows.prospecting.checkProspectLimitInternal,
-      {
-        workspaceId: args.workspaceId,
-      }
-    );
-    if (limitState.limitReached) {
-      await ctx.runAction(
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-        {
-          workspaceId: args.workspaceId,
-        }
-      );
-      return { workId: "" };
-    }
-
     const claimToken = createEnrichmentClaimToken(String(args.prospectId));
     const claimResult = await ctx.runMutation(
       internal.prospects.claimEnrichmentWorkflowIdInternal,
@@ -1302,22 +1269,6 @@ export const startPreviewEnrichment = internalAction({
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args): Promise<{ workId: string }> => {
-    const limitState = await ctx.runQuery(
-      internal.workflows.prospecting.checkProspectLimitInternal,
-      {
-        workspaceId: args.workspaceId,
-      }
-    );
-    if (limitState.limitReached) {
-      await ctx.runAction(
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-        {
-          workspaceId: args.workspaceId,
-        }
-      );
-      return { workId: "" };
-    }
-
     const claimToken = createEnrichmentClaimToken(String(args.prospectId));
     const claimResult = await ctx.runMutation(
       internal.prospects.claimEnrichmentWorkflowIdInternal,

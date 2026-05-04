@@ -18,6 +18,7 @@ import {
   PageLayout,
   PageContent,
 } from "@/features/webapp/ui/components";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { Button } from "@/shared/ui/components/Button";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import { CharacterCounter } from "@/shared/ui/components/CharacterCounter";
@@ -362,7 +363,7 @@ export default function WorkspacePage() {
           <Tabs value="details" className="flex min-h-0 flex-1 flex-col">
             {/* Real tab bar — always visible, disabled while loading */}
             <div className="border-border shrink-0 border-b">
-              <div className="scrollbar-none overflow-x-auto scroll-fade-effect-x px-4 [&::-webkit-scrollbar]:hidden">
+              <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
                 <TabsList variant="underline">
                   <TabsTrigger value="details" variant="underline" disabled>
                     Details
@@ -504,6 +505,8 @@ export default function WorkspacePage() {
             />
 
             <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+
               {authError && (
                 <div className="px-4 pt-4">
                   <Alert variant="destructive" className="mb-6">
@@ -559,7 +562,7 @@ export default function WorkspacePage() {
                   }
                 >
                   <div className="border-border shrink-0 border-b">
-                    <div className="scrollbar-none overflow-x-auto scroll-fade-effect-x px-4 [&::-webkit-scrollbar]:hidden">
+                    <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
                       <TabsList variant="underline">
                         <TabsTrigger value="details" variant="underline">
                           Details
@@ -571,7 +574,7 @@ export default function WorkspacePage() {
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-effect-y overscroll-contain px-4 pt-4 pb-24">
+                  <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
                     <TabsContent value="details" className="mt-0">
                       {isEditing ? (
                         <Alert className="mb-4">

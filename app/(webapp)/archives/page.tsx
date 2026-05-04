@@ -17,6 +17,7 @@ import {
   PageHeader,
   PageContent,
 } from "@/features/webapp/ui/components";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { Button } from "@/shared/ui/components/Button";
 import { IconButtonWithIndicator } from "@/shared/ui/components/IconButtonWithIndicator";
@@ -208,6 +209,7 @@ export default function ArchivesPage() {
         )}
       >
         <PageHeader title={pageLabels.archives} onBack={() => router.back()} />
+        <WorkspacePlanLimitAlert className="mx-4 mt-4" />
         <PageContent className="flex h-full flex-col p-0">
           {setupStatusQuery.isError ? (
             <div className="px-4 pt-4">

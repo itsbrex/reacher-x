@@ -151,7 +151,7 @@ export function deriveWorkspaceSystemStatus(
       tooltip: "Prospecting limit reached",
       dialogTitle: "Prospecting limit reached",
       dialogDescription:
-        "Prospecting is paused until you increase capacity or free up space.",
+        "Prospecting is paused because the current plan limit has been reached. Upgrade to resume discovery.",
       actionLabel: "View plans",
       actionKind: "view_plans",
     };

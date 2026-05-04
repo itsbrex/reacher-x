@@ -15,6 +15,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/features/webapp/ui/components";
+import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { NotificationsInbox } from "@/features/webapp/ui/components/notifications/NotificationsInbox";
 import type { NotificationItem } from "@/features/webapp/ui/components/notifications/NotificationsInbox";
 import { Button } from "@/shared/ui/components/Button";
@@ -102,8 +103,11 @@ export default function NotificationsPage() {
     <div className="flex h-full min-h-0 w-full">
       <PageLayout className="flex h-full min-h-0 flex-col overflow-hidden">
         <PageHeader title="Notifications" onBack={() => router.back()} />
-        <PageContent className="min-h-0 flex-1 overflow-y-auto scroll-fade-effect-y pt-4 pb-6">
-          {(authError || shellStateQuery.isError || notificationsQuery.isError) && (
+        <WorkspacePlanLimitAlert className="mx-4 mt-4" />
+        <PageContent className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
+          {(authError ||
+            shellStateQuery.isError ||
+            notificationsQuery.isError) && (
             <div className="mx-4 mb-4 rounded-lg border border-dashed p-4 text-sm">
               <p className="font-medium">Could not load notifications</p>
               <p className="text-muted-foreground mt-1">

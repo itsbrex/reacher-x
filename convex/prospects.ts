@@ -56,7 +56,10 @@ import {
 } from "../shared/lib/twitter/contracts";
 import { extractLinkedInUsername } from "../shared/lib/utils/url/socialProfiles";
 import { upsertDiscoveryEdgeInDb } from "./lib/discoveryEdgesCore";
-import { applyQualifiedProspectUsageTransition } from "./lib/planUsageState";
+import {
+  applyQualifiedProspectUsageTransition,
+  isProspectEligibleForQualifiedUsage,
+} from "./lib/planUsageState";
 import {
   getWorkflowEvidencePostId,
   sanitizeProspectDataForWorkflow,
@@ -852,9 +855,14 @@ export const createProspectsBatch = internalMutation({
         const nextSetupSessionId = p.setupSessionId ?? existing.setupSessionId;
         const nextSetupRevision = p.setupRevision ?? existing.setupRevision;
         const previousQualified = existing.qualificationStatus === "qualified";
+        const previousUsageEligible =
+          isProspectEligibleForQualifiedUsage(existing);
         const nextQualificationStatus =
           p.qualificationStatus ?? existing.qualificationStatus;
         const nextQualified = nextQualificationStatus === "qualified";
+        const nextUsageEligible = isProspectEligibleForQualifiedUsage({
+          origin: nextOrigin,
+        });
         const nextQualifiedAt = nextQualified
           ? (existing.qualifiedAt ?? now)
           : p.qualificationStatus !== undefined
@@ -920,14 +928,19 @@ export const createProspectsBatch = internalMutation({
             setupRevision: nextSetupRevision,
           }))
         ) {
-          await applyQualifiedProspectUsageTransition(ctx, {
-            userId: existing.userId,
-            previousQualified,
-            previousQualifiedAt: existing.qualifiedAt,
-            nextQualified,
-            nextQualifiedAt,
-          });
-          shouldReconcileWorkspaceCapacity = true;
+          const usageTransition = await applyQualifiedProspectUsageTransition(
+            ctx,
+            {
+              userId: existing.userId,
+              previousQualified,
+              previousQualifiedAt: existing.qualifiedAt,
+              previousUsageEligible,
+              nextQualified,
+              nextQualifiedAt,
+              nextUsageEligible,
+            }
+          );
+          shouldReconcileWorkspaceCapacity ||= usageTransition.delta !== 0;
         }
         if (p.platform === "twitter" || p.platform === "linkedin") {
           await recordDirectSearchDiscoveryEdges({
@@ -962,11 +975,15 @@ export const createProspectsBatch = internalMutation({
         const initialQualificationStatus = p.qualificationStatus ?? "pending";
         const initialQualifiedAt =
           initialQualificationStatus === "qualified" ? now : undefined;
+        const initialOrigin = p.origin ?? "workspace_discovery";
+        const initialUsageEligible = isProspectEligibleForQualifiedUsage({
+          origin: initialOrigin,
+        });
         const prospectId = await ctx.db.insert("prospects", {
           workspaceId: args.workspaceId,
           userId: args.userId,
           platform: p.platform,
-          origin: p.origin ?? "workspace_discovery",
+          origin: initialOrigin,
           setupSessionId: p.setupSessionId,
           setupRevision: p.setupRevision,
           externalId: p.externalId,
@@ -996,19 +1013,24 @@ export const createProspectsBatch = internalMutation({
         if (
           initialQualificationStatus === "qualified" &&
           (await isActiveSetupPreviewProspect(ctx, {
-            origin: p.origin ?? "workspace_discovery",
+            origin: initialOrigin,
             setupSessionId: p.setupSessionId,
             setupRevision: p.setupRevision,
           }))
         ) {
-          await applyQualifiedProspectUsageTransition(ctx, {
-            userId: args.userId,
-            previousQualified: false,
-            previousQualifiedAt: undefined,
-            nextQualified: true,
-            nextQualifiedAt: initialQualifiedAt,
-          });
-          shouldReconcileWorkspaceCapacity = true;
+          const usageTransition = await applyQualifiedProspectUsageTransition(
+            ctx,
+            {
+              userId: args.userId,
+              previousQualified: false,
+              previousQualifiedAt: undefined,
+              previousUsageEligible: false,
+              nextQualified: true,
+              nextQualifiedAt: initialQualifiedAt,
+              nextUsageEligible: initialUsageEligible,
+            }
+          );
+          shouldReconcileWorkspaceCapacity ||= usageTransition.delta !== 0;
         }
 
         if (p.platform === "twitter" || p.platform === "linkedin") {
@@ -1785,6 +1807,7 @@ export const updateProspectQualification = internalMutation({
 
     const previousQualified = prospect.qualificationStatus === "qualified";
     const nextQualified = args.qualificationStatus === "qualified";
+    const usageEligible = isProspectEligibleForQualifiedUsage(prospect);
 
     await ctx.db.patch(args.prospectId, {
       qualificationStatus: args.qualificationStatus,
@@ -1796,15 +1819,17 @@ export const updateProspectQualification = internalMutation({
       updatedAt: getCurrentUTCTimestamp(),
     });
 
-    await applyQualifiedProspectUsageTransition(ctx, {
+    const usageTransition = await applyQualifiedProspectUsageTransition(ctx, {
       userId: prospect.userId,
       previousQualified,
       previousQualifiedAt: prospect.qualifiedAt,
+      previousUsageEligible: usageEligible,
       nextQualified,
       nextQualifiedAt: args.qualifiedAt,
+      nextUsageEligible: usageEligible,
     });
 
-    if (previousQualified !== nextQualified) {
+    if (usageTransition.delta !== 0) {
       await ctx.scheduler.runAfter(
         0,
         internal.workspaces.reconcileWorkspaceCapacityStateInternal,
@@ -2219,6 +2244,7 @@ export const promoteSetupPreviewProspectsInternal = internalMutation({
     const now = getCurrentUTCTimestamp();
     let promoted = 0;
     let deleted = 0;
+    let shouldReconcileWorkspaceCapacity = false;
 
     for (const prospect of prospects) {
       if (prospect.workspaceId !== args.workspaceId) {
@@ -2227,6 +2253,21 @@ export const promoteSetupPreviewProspectsInternal = internalMutation({
 
       if (approvedSet.has(prospect._id)) {
         const rank = args.approvedProspectIds.indexOf(prospect._id);
+        const usageTransition = await applyQualifiedProspectUsageTransition(
+          ctx,
+          {
+            userId: prospect.userId,
+            previousQualified: prospect.qualificationStatus === "qualified",
+            previousQualifiedAt: prospect.qualifiedAt,
+            previousUsageEligible:
+              isProspectEligibleForQualifiedUsage(prospect),
+            nextQualified: prospect.qualificationStatus === "qualified",
+            nextQualifiedAt: prospect.qualifiedAt,
+            nextUsageEligible: isProspectEligibleForQualifiedUsage({
+              origin: "workspace_discovery",
+            }),
+          }
+        );
         await ctx.db.patch(prospect._id, {
           origin: "workspace_discovery",
           setupSessionId: undefined,
@@ -2238,6 +2279,7 @@ export const promoteSetupPreviewProspectsInternal = internalMutation({
           updatedAt: now,
         });
         promoted += 1;
+        shouldReconcileWorkspaceCapacity ||= usageTransition.delta !== 0;
         continue;
       }
 
@@ -2251,6 +2293,16 @@ export const promoteSetupPreviewProspectsInternal = internalMutation({
           updatedAt: now,
         });
       }
+    }
+
+    if (shouldReconcileWorkspaceCapacity) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
     }
 
     return { promoted, deleted };
