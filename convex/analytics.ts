@@ -174,18 +174,35 @@ function buildQualificationDistribution(
   rows: AnalyticsDailyRow[],
   window: TimeWindow
 ) {
+  const qualifiedCount = sumDailyFieldInWindow(
+    rows,
+    "qualificationQualifiedCount",
+    window
+  );
+  const disqualifiedCount = sumDailyFieldInWindow(
+    rows,
+    "qualificationDisqualifiedCount",
+    window
+  );
+  const pendingCount = Math.max(
+    0,
+    sumDailyFieldInWindow(rows, "newProspectsCount", window) -
+      qualifiedCount -
+      disqualifiedCount
+  );
+
   return [
     {
       segment: "qualified" as const,
-      count: sumDailyFieldInWindow(rows, "qualificationQualifiedCount", window),
+      count: qualifiedCount,
     },
     {
       segment: "disqualified" as const,
-      count: sumDailyFieldInWindow(
-        rows,
-        "qualificationDisqualifiedCount",
-        window
-      ),
+      count: disqualifiedCount,
+    },
+    {
+      segment: "pending" as const,
+      count: pendingCount,
     },
   ];
 }

@@ -310,19 +310,26 @@ export function getMockAnalyticsForRange(args: {
     { platform: "Bluesky", count: 0 },
   ];
 
+  const newProspectsCount = Math.round(47 * windowScale * (0.8 + rand() * 0.4));
+  const qualifiedCount = Math.round(1200 * windowScale * (0.85 + rand() * 0.3));
+  const disqualifiedCount = Math.round(
+    400 * windowScale * (0.85 + rand() * 0.3)
+  );
+  const pendingCount = Math.round(220 * windowScale * (0.85 + rand() * 0.3));
+
   const qualificationDistribution = [
     {
       segment: "qualified" as const,
-      count: Math.round(1200 * windowScale * (0.85 + rand() * 0.3)),
+      count: qualifiedCount,
     },
     {
       segment: "disqualified" as const,
-      count: Math.round(400 * windowScale * (0.85 + rand() * 0.3)),
+      count: disqualifiedCount,
     },
+    { segment: "pending" as const, count: pendingCount },
   ];
 
   // Generate pipeline funnel with realistic numbers based on new prospects
-  const newProspectsCount = Math.round(47 * windowScale * (0.8 + rand() * 0.4));
   const pipelineFunnel = generatePipelineFunnel(newProspectsCount, rand);
 
   // Extract contacted count from funnel for response rate context

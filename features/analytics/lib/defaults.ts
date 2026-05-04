@@ -57,6 +57,7 @@ const DEFAULT_QUALIFICATION_DISTRIBUTION: QualificationDistributionDataPoint[] =
   [
     { segment: "qualified", count: 0 },
     { segment: "disqualified", count: 0 },
+    { segment: "pending", count: 0 },
   ];
 
 function createDefaultTrends(range: DateRangePreset): TrendDataPoint[] {

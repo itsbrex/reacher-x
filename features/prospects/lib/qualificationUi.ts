@@ -4,9 +4,10 @@ import type { Doc } from "@/convex/_generated/dataModel";
 export const QUALIFICATION_UI_LABELS = {
   flaggedRowLabel: "Flagged as",
   qualified: "Qualified",
+  disqualified: "Disqualified",
   unqualified: "Unqualified",
   pending: "Pending",
-  chartTitle: "Qualified vs unqualified",
+  chartTitle: "Qualification breakdown",
 } as const;
 
 export type QualificationPresentation = {

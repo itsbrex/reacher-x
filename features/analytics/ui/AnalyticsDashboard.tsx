@@ -51,7 +51,7 @@ export interface AnalyticsDashboardProps {
  *
  * **Charts (two 2-column rows + full-width fit):**
  * Row 1: Pipeline Funnel | Prospects Over Time
- * Row 2: Qualified vs unqualified (use-case labels) | Platform Distribution
+ * Row 2: Qualification breakdown | Platform Distribution
  * Row 3: Fit Score Distribution (full width)
  */
 export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {

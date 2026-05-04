@@ -75,6 +75,7 @@ export const MOCK_ANALYTICS: AnalyticsData = {
   qualificationDistribution: [
     { segment: "qualified", count: 28 },
     { segment: "disqualified", count: 12 },
+    { segment: "pending", count: 7 },
   ],
   fitDistribution: [
     { range: "0-49", count: 12 },

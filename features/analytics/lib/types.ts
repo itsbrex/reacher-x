@@ -59,7 +59,10 @@ export interface PlatformDistributionDataPoint {
   count: number;
 }
 
-export type QualificationDistributionSegment = "qualified" | "disqualified";
+export type QualificationDistributionSegment =
+  | "qualified"
+  | "disqualified"
+  | "pending";
 
 export interface QualificationDistributionDataPoint {
   segment: QualificationDistributionSegment;

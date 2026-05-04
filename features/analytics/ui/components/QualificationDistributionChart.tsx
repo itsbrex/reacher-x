@@ -17,6 +17,7 @@ const L = QUALIFICATION_UI_LABELS;
 const EMPTY_QUALIFICATION: QualificationDistributionDataPoint[] = [
   { segment: "qualified", count: 0 },
   { segment: "disqualified", count: 0 },
+  { segment: "pending", count: 0 },
 ];
 
 function normalizeQualificationData(
@@ -46,11 +47,18 @@ export const QualificationDistributionChart = React.memo(
     const chartData = React.useMemo((): ChartRow[] => {
       return normalizeQualificationData(data).map((point) => ({
         ...point,
-        label: point.segment === "qualified" ? L.qualified : L.unqualified,
+        label:
+          point.segment === "qualified"
+            ? L.qualified
+            : point.segment === "disqualified"
+              ? L.disqualified
+              : L.pending,
         fill:
           point.segment === "qualified"
             ? "hsl(var(--chart-1))"
-            : "hsl(var(--chart-2))",
+            : point.segment === "disqualified"
+              ? "hsl(var(--chart-2))"
+              : "hsl(var(--chart-3))",
       }));
     }, [data]);
 
@@ -62,8 +70,12 @@ export const QualificationDistributionChart = React.memo(
             color: "hsl(var(--chart-1))",
           },
           disqualified: {
-            label: L.unqualified,
+            label: L.disqualified,
             color: "hsl(var(--chart-2))",
+          },
+          pending: {
+            label: L.pending,
+            color: "hsl(var(--chart-3))",
           },
         }) satisfies ChartConfig,
       []

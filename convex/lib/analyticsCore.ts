@@ -38,7 +38,10 @@ export interface PlatformDistributionDataPoint {
   count: number;
 }
 
-export type QualificationDistributionSegment = "qualified" | "disqualified";
+export type QualificationDistributionSegment =
+  | "qualified"
+  | "disqualified"
+  | "pending";
 
 export interface QualificationDistributionDataPoint {
   segment: QualificationDistributionSegment;
@@ -435,6 +438,7 @@ export function createEmptyAnalyticsData(
   const qualificationDistribution: QualificationDistributionDataPoint[] = [
     { segment: "qualified", count: 0 },
     { segment: "disqualified", count: 0 },
+    { segment: "pending", count: 0 },
   ];
 
   return {
