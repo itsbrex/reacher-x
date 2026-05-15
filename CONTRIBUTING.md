@@ -1,10 +1,10 @@
 # Contributing to ReacherX
 
-Thanks for your interest in ReacherX! This is an open-source project helping people find potential customers through AI-powered search, and your contributions are genuinely appreciated.
+Thanks for your interest in ReacherX! This is an open-source AI agent for finding and reaching people across X (Twitter) and LinkedIn, and your contributions are genuinely appreciated.
 
 ## ▪️ What is ReacherX?
 
-ReacherX is an AI-powered search engine that helps you find potential customers on X (Twitter) and LinkedIn. Instead of spending money on ads, you can directly reach people who need your product or service right now.
+ReacherX is an AI agent that finds people on social platforms, qualifies them against your criteria, enriches their profiles, learns your writing voice, and helps you engage with personalized outreach. It supports 8 use cases — customer prospecting, recruiting, partnerships, investor outreach, user research, creator outreach, community growth, and podcast speaker sourcing. See the [README](README.md) for the full breakdown.
 
 ## ▪️ Getting Started
 
@@ -28,19 +28,19 @@ pnpm install
 # Copy environment variables template
 cp .env.example .env.local
 
-# Edit .env.local and add your API keys (see README for details)
+# Edit .env.local and add your API keys (see README for full details)
 # At minimum, you'll need:
 # - NEXT_PUBLIC_CONVEX_URL (run `npx convex dev` to get this)
 # - WORKOS_CLIENT_ID
-# - COMPOSIO_API_KEY
-# - EXA_API_KEY
+# - OPENROUTER_API_KEY (primary AI provider — powers agents, qualification, enrichment, autocomplete)
+# - X_API_CLIENT_ID, X_API_CLIENT_SECRET, X_API_BEARER_TOKEN, X_CONSUMER_SECRET, X_TOKEN_ENCRYPTION_KEY
 # - RESEND_API_KEY
-# - At least one AI provider (OPENAI_API_KEY or XAI_API_KEY)
+# - CONVEX_SITE_URL
 
 # Set up Convex
 npx convex dev
 
-# Start development server
+# Start development server (in a separate terminal)
 pnpm dev
 
 # Visit http://localhost:3000
@@ -69,11 +69,11 @@ I'm very open to suggestions! [Create an issue](https://github.com/noobships/rea
 
 **Perfect!** Here's what would help most right now:
 
-| **Difficulty**                                         | **Tasks**                                                                                                                                                                                                                                                             |
-| :----------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Easy Wins**<br>_(Great for First-Time Contributors)_ | `□` Fix UI responsiveness issues<br>`□` Improve error messages and user feedback<br>`□` Add loading states and skeletons<br>`□` Improve accessibility (ARIA labels, keyboard navigation)<br>`□` Add tooltips and help text<br>`□` Fix typos and improve documentation |
-| **Medium Difficulty**                                  | `□` Improve search result filtering UI<br>`□` Add keyboard shortcuts<br>`□` Enhance workspace management features<br>`□` Better error handling for API failures<br>`□` Add unit tests for utility functions<br>`□` Improve TypeScript types                           |
-| **Advanced**<br>_(If You're Feeling Ambitious)_        | `□` Optimize AI keyword generation performance<br>`□` Add support for additional social platforms<br>`□` Implement advanced filtering options<br>`□` Improve LinkedIn search integration<br>`□` Add analytics and monitoring<br>`□` Performance optimizations         |
+| **Difficulty**                                         | **Tasks**                                                                                                                                                                                                                                                                       |
+| :----------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Easy Wins**<br>_(Great for First-Time Contributors)_ | `□` Fix UI responsiveness issues<br>`□` Improve error messages and user feedback<br>`□` Add loading states and skeletons<br>`□` Improve accessibility (ARIA labels, keyboard navigation)<br>`□` Add tooltips and help text<br>`□` Fix typos and improve documentation           |
+| **Medium Difficulty**                                  | `□` Improve prospect filtering and sorting<br>`□` Add keyboard shortcuts<br>`□` Enhance composer experience<br>`□` Better error handling for API failures<br>`□` Add unit tests for utility functions<br>`□` Improve TypeScript types                                          |
+| **Advanced**<br>_(If You're Feeling Ambitious)_        | `□` Improve LinkedIn feature parity with X<br>`□` Add support for additional social platforms<br>`□` Enhance agent memory and learning patterns<br>`□` Improve outreach plan generation quality<br>`□` Optimize qualification/enrichment workflows<br>`□` Performance optimizations |
 
 ## ▪️ Development Workflow
 
@@ -108,15 +108,15 @@ pnpm build
 
 ```bash
 # Auto-fix linting issues (if possible)
-pnpm lint --fix
+pnpm lint:fix
 ```
 
 ### Code Style
 
+- **oxlint** handles linting (configured via CLI flags in `package.json`)
 - **Prettier** handles formatting (configured in `.prettierrc`)
-- **ESLint** with TypeScript support catches issues (configured in `eslint.config.mjs`)
-- **TypeScript** for type safety
-- Follow existing code patterns and conventions
+- **ESLint** as a secondary check (configured in `eslint.config.mjs`)
+- **TypeScript** for type safety — strict mode
 
 **General guidelines:**
 
@@ -143,46 +143,97 @@ pnpm lint --fix
 
 Not sure where to start? Try these:
 
-| **Category**      | **Ideas**                                                                                                                                           |
-| :---------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documentation** | Improve this CONTRIBUTING.md<br>Add code comments<br>Create usage examples<br>Write better error messages<br>Improve README sections                |
-| **Testing**       | Test on different browsers<br>Try edge cases and report issues<br>Test accessibility features<br>Test with different API configurations             |
+| **Category**      | **Ideas**                                                                                                                                            |
+| :---------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Documentation** | Improve this CONTRIBUTING.md<br>Add code comments<br>Create usage examples<br>Write better error messages<br>Improve README sections                 |
+| **Testing**       | Test on different browsers<br>Try edge cases and report issues<br>Test accessibility features<br>Test with different API configurations              |
 | **Features**      | Look at the [GitHub issues](https://github.com/noobships/reacher-x/issues)<br>Pick something marked "good first issue"<br>Or suggest something new! |
-| **UI/UX**         | Improve search interface<br>Enhance workspace management UI<br>Better mobile responsiveness<br>Add helpful tooltips and guidance                    |
+| **UI/UX**         | Improve composer experience<br>Enhance agent chat interface<br>Better mobile responsiveness<br>Add helpful tooltips and guidance                     |
 
 ## ▪️ Current Focus
 
 Right now I'm focusing on:
 
-| **Priority** | **Focus Area**                                                 |
-| :----------: | :------------------------------------------------------------- |
-|     `1.`     | **Core functionality** - Making search and outreach rock-solid |
-|     `2.`     | **Enhanced LinkedIn features** - Better LinkedIn integration   |
-|     `3.`     | **Additional platforms** - Expanding to more social platforms  |
-|     `4.`     | **Community growth** - Getting feedback and contributors       |
+| **Priority** | **Focus Area**                                                                       |
+| :----------: | :----------------------------------------------------------------------------------- |
+|     `1.`     | **LinkedIn parity** - Bringing LinkedIn actions and monitoring to full X parity       |
+|     `2.`     | **Agent quality** - Improving outreach plan generation and memory learning            |
+|     `3.`     | **Additional platforms** - Expanding beyond X and LinkedIn                            |
+|     `4.`     | **Community growth** - Getting feedback and contributors                              |
 
 ## ▪️ Project Structure
 
 ```
 reacher-x/
-├── app/              # Next.js app router pages
-│   ├── (webapp)/     # Main application routes
-│   ├── api/          # API routes
-│   └── home/         # Landing page
-├── convex/           # Convex backend functions
-│   ├── lib/          # Shared utilities
-│   └── *.ts          # Convex queries, mutations, actions
-├── features/         # Feature-based modules
-│   ├── composer/     # Post/reply composer
-│   ├── keywords/     # Keyword management
-│   ├── search/       # Search functionality
-│   ├── threads/      # Thread management
-│   └── webapp/       # Web app components
-├── shared/           # Shared utilities and components
-│   ├── hooks/        # React hooks
-│   ├── lib/          # Utility functions
-│   └── ui/           # UI components
-└── public/           # Static assets
+├── app/                       # Next.js 16 App Router
+│   ├── (webapp)/              # Main application (auth required)
+│   │   ├── agent/             # AI chat interface
+│   │   ├── agent-ops/         # Agent operations dashboard
+│   │   ├── [slug]/[id]/       # Use-case-aware detail routes
+│   │   ├── analytics/         # Analytics dashboard
+│   │   ├── archives/          # Archived prospects
+│   │   ├── notifications/     # Notification center
+│   │   ├── plans/             # Billing plans
+│   │   ├── settings/          # Account & workspace settings
+│   │   ├── success/           # Use-case success pages
+│   │   └── workspace/         # Workspace management
+│   ├── api/                   # API routes
+│   ├── home/                  # Public landing page
+│   └── login/, callback/      # Auth flow
+│
+├── convex/                    # Backend (Convex)
+│   ├── agents/                # AI agents
+│   │   ├── index.ts           # Setup agent definition + tools
+│   │   ├── outreach/          # Outreach agent + tools
+│   │   │   └── tools/         # socialAction, generatePlan, getSocialContext, etc.
+│   │   ├── tools/             # Shared agent tools (search, qualify, enrich, memory)
+│   │   └── prompts.ts         # System prompts for both agents
+│   ├── workflows/             # Durable workflows
+│   │   ├── prospecting.ts     # Discovery pipeline
+│   │   ├── qualification.ts   # Prospect qualification
+│   │   ├── enrichment.ts      # Profile enrichment
+│   │   ├── outreach.ts        # Plan execution
+│   │   ├── memory.ts          # Memory evaluation
+│   │   └── setup.ts           # Workspace setup
+│   ├── integrations/          # External API clients
+│   │   ├── twitter/           # SocialAPI + X API clients
+│   │   ├── linkedin/          # LinkdAPI client
+│   │   └── bishopi.ts         # Keyword discovery
+│   ├── lib/                   # Core business logic
+│   │   ├── *Core.ts           # Qualification, enrichment, outreach logic
+│   │   ├── *Helpers.ts        # Constants, formatting, utilities
+│   │   ├── *Pool.ts           # Workpool instances
+│   │   ├── ai.ts              # OpenRouter provider + model config
+│   │   └── unipileClient.ts   # LinkedIn messaging client
+│   ├── schema.ts              # Database schema
+│   └── validators.ts          # Zod validators
+│
+├── features/                  # Feature modules (UI + logic)
+│   ├── agent/                 # Chat interface, onboarding, inline cards
+│   ├── agent-ops/             # Operations dashboard (5 tabs)
+│   ├── analytics/             # Analytics charts and metrics
+│   ├── billing/               # Subscription UI
+│   ├── composer/              # Reply/DM composer with inline autocomplete
+│   ├── landing/               # Landing page components
+│   ├── linked-accounts/       # OAuth account management
+│   ├── prospects/             # Prospect cards, panels, pipeline
+│   ├── search/                # Search UI
+│   ├── threads/               # Tweet/post thread display
+│   └── webapp/                # App shell, sidebar, header
+│
+├── shared/                    # Shared utilities & components
+│   ├── ui/components/         # shadcn/ui components
+│   ├── lib/
+│   │   ├── workspaceUseCases.ts  # 8 use-case definitions
+│   │   ├── autocomplete/      # Inline autocomplete logic
+│   │   ├── twitter/           # X post limits, contracts
+│   │   └── utils/             # Time, encoding, validation
+│   ├── hooks/                 # Custom React hooks
+│   └── types/                 # TypeScript types
+│
+├── emails/                    # React Email templates
+├── docs/                      # API documentation
+└── public/                    # Static assets
 ```
 
 ## ▪️ Troubleshooting
@@ -203,8 +254,9 @@ reacher-x/
 **"API errors"**
 
 - Verify all required API keys are set in `.env.local`
+- `OPENROUTER_API_KEY` is the primary AI provider — most AI features won't work without it
 - Check that API keys are valid and have proper permissions
-- See `.env.example` for all required variables
+- See the [README](README.md#configuration) for the full env var reference
 
 **"Build fails"**
 

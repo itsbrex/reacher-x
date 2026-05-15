@@ -11,7 +11,7 @@
 
 </div>
 
-## What is ReacherX?
+## ▪️ What is ReacherX?
 
 ReacherX is an AI agent that finds people on X (Twitter) and LinkedIn, qualifies them against your criteria, enriches their profiles, learns your writing voice, and helps you engage with personalized outreach — all from a chat interface. You describe who you're looking for, and the agent handles discovery, qualification, enrichment, plan generation, and execution.
 
@@ -32,7 +32,7 @@ Each use case shapes the entire experience — search queries, qualification cri
 
 **[Try it live →](https://reacherx.com)**
 
-## Screenshots
+## ▪️ Screenshots
 
 <div align="center">
 
@@ -40,7 +40,7 @@ Each use case shapes the entire experience — search queries, qualification cri
 
 </div>
 
-## How It Works
+## ▪️ How It Works
 
 ```
 You describe who you're looking for (via chat)
@@ -67,7 +67,7 @@ You describe who you're looking for (via chat)
    Agent learns from outcomes and improves over time
 ```
 
-## Features
+## ▪️ Features
 
 ### Two-Agent System
 
@@ -167,7 +167,7 @@ Track people through stages adapted to your use case:
 - **Billing** — Subscription management via Polar with plan limits
 - **Workspace management** — Multiple workspaces, each with its own use case, ICP, and pipeline
 
-## Why This Matters
+## ▪️ Why This Matters
 
 | **Traditional Approach**        | **ReacherX Approach**                                  |
 | :------------------------------ | :----------------------------------------------------- |
@@ -177,7 +177,7 @@ Track people through stages adapted to your use case:
 | `4.` Hope people see and engage | `4.` Agent drafts personalized outreach in your voice  |
 | `5.` Wait for conversions       | `5.` You approve, agent executes, learns from outcomes |
 
-## Getting Started
+## ▪️ Getting Started
 
 ### Requirements
 
@@ -259,7 +259,7 @@ pnpm dev         # terminal 2 — starts Next.js dev server
 
 Open `http://localhost:3000`.
 
-## Tech Stack
+## ▪️ Tech Stack
 
 | Layer           | Technology                                                                              |
 | :-------------- | :-------------------------------------------------------------------------------------- |
@@ -276,7 +276,7 @@ Open `http://localhost:3000`.
 | **Billing**     | Polar                                                                                   |
 | **Email**       | Resend + React Email                                                                    |
 
-## Development
+## ▪️ Development
 
 ```bash
 pnpm dev          # Start development server
@@ -285,7 +285,7 @@ pnpm start        # Start production server
 pnpm lint         # Check for linting issues
 ```
 
-## Current Status
+## ▪️ Current Status
 
 | Status | Feature                                                            |
 | :----: | :----------------------------------------------------------------- |
@@ -311,20 +311,20 @@ pnpm lint         # Check for linting issues
 |  `○`   | Full LinkedIn parity with X                                        |
 |  `○`   | Additional social platforms                                        |
 
-## Contributing
+## ▪️ Contributing
 
 Contributions are welcome. Whether you find bugs, have feature ideas, want to submit PRs, or have AI/ML expertise to share — all skill levels welcome.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
 
-## Contact
+## ▪️ Contact
 
 Built by **[@noobships](https://github.com/noobships)**
 
 [![Email](https://img.shields.io/badge/Email-creativecoder.crco@gmail.com-000000?style=for-the-badge&logo=gmail&logoColor=white)](mailto:creativecoder.crco@gmail.com)
 [![Issues](https://img.shields.io/badge/Feedback-Open_an_Issue-white?style=for-the-badge&logo=github&logoColor=black)](https://github.com/noobships/reacher-x/issues)
 
-## License
+## ▪️ License
 
 MIT License — use it however you want.
 
