@@ -34,9 +34,29 @@ Each use case shapes the entire experience — search queries, qualification cri
 
 ## ▪️ Screenshots
 
+**Prospect Discovery & Outreach Pipeline**
+
 <div align="center">
 
-![ReacherX Interface](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4Nkgrvs3NxE9WriXHDjQLzqTo0xyb7Fgu3PsaO)
+![ReacherX — Prospect discovery, qualification, and outreach pipeline](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NNJIluMPruyLnJjG9lqwfYk4Fm8T0ZCtMWNAp)
+
+</div>
+
+**AI Agent Chat**
+
+<div align="center">
+
+![ReacherX — AI agent generating outreach plans via chat](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NZaOgt0JHl2yQbBUrAWzCo69X38FLTNe0Jm45)
+
+</div>
+
+**Analytics Dashboard**
+
+<div align="center">
+
+![ReacherX — Analytics overview with funnel, response rate, and prospect trends](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4N48LN9LyE6FodfBJNQgebGjuAYVnrCW0wMHD3)
+
+![ReacherX — Qualification breakdown, platform distribution, and fit score distribution](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NQHTQAsE4qAIrfoSx2BgCKNLtujOXE63PUeG1)
 
 </div>
 
