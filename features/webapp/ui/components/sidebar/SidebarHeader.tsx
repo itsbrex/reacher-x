@@ -47,6 +47,7 @@ import {
 } from "@/shared/stores/preferredShellContext";
 import { useNewWorkspaceDraftFlow } from "@/features/webapp/hooks/useNewWorkspaceDraftFlow";
 import { getPlansUpgradeHref } from "@/features/billing/lib/plansUpgradeUrl";
+import { buildSetupHref } from "@/shared/lib/urls/setupHref";
 
 const HIGHEST_TIER = "pro";
 const CUSTOM_LIMIT_EMAIL = "creativecoder.crco@gmail.com";
@@ -163,15 +164,9 @@ export function SidebarHeader() {
         return;
       }
 
-      if (
-        targetItem.kind === "draft" &&
-        targetItem.sessionId &&
-        targetItem.threadId
-      ) {
+      if (targetItem.kind === "draft" && targetItem.threadId) {
         setPreferredShellContext("setup_session");
-        router.push(
-          `/agent/setup?sessionId=${targetItem.sessionId}&threadId=${encodeURIComponent(targetItem.threadId)}`
-        );
+        router.push(buildSetupHref(targetItem.threadId));
         return;
       }
 

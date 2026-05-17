@@ -12,7 +12,6 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { useEffect, Suspense, useMemo, useRef, useState } from "react";
 import { Button } from "@/shared/ui/components/Button";
 import { CheckCircleIcon } from "@/shared/ui/components/icons";
@@ -21,12 +20,15 @@ import { useQueryWithStatus } from "@/shared/hooks";
 function SuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const sessionId = searchParams.get("sessionId");
+  const threadIdParam = searchParams.get("threadId");
+  const sessionIdParam = searchParams.get("sessionId");
   const tierParam = searchParams.get("tier");
   const selectedTier =
     tierParam === "base" || tierParam === "pro" ? tierParam : null;
   const returnTo = searchParams.get("returnTo");
-  const selectSetupPlan = useMutation(api.setupSessions.selectSetupPlan);
+  const selectSetupPlanFromRedirect = useMutation(
+    api.setupSessions.selectSetupPlanFromRedirect
+  );
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [isReadyToRedirect, setIsReadyToRedirect] = useState(false);
   const hasHandledReturnRef = useRef(false);
@@ -42,11 +44,21 @@ function SuccessContent() {
     }
     return returnTo;
   }, [returnTo]);
+  const setupThreadId = useMemo(() => {
+    if (threadIdParam) {
+      return threadIdParam;
+    }
+
+    const queryString = normalizedReturnTo.split("?")[1] ?? "";
+    const candidate = new URLSearchParams(queryString).get("threadId");
+    return candidate && candidate.length > 0 ? candidate : null;
+  }, [normalizedReturnTo, threadIdParam]);
   const billingReady =
     selectedTier != null
       ? plan?.tier === selectedTier ||
         (selectedTier === "base" && plan?.tier === "pro")
       : subscription?.status === "active";
+  const isSetupResume = Boolean(setupThreadId || sessionIdParam);
 
   useEffect(() => {
     if (!billingReady || hasHandledReturnRef.current) {
@@ -56,9 +68,10 @@ function SuccessContent() {
     hasHandledReturnRef.current = true;
     void (async () => {
       try {
-        if (sessionId && selectedTier) {
-          await selectSetupPlan({
-            sessionId: sessionId as Id<"workspaceSetupSessions">,
+        if ((setupThreadId || sessionIdParam) && selectedTier) {
+          await selectSetupPlanFromRedirect({
+            threadId: setupThreadId ?? undefined,
+            sessionId: sessionIdParam ?? undefined,
             planChoice: selectedTier,
           });
         }
@@ -70,17 +83,23 @@ function SuccessContent() {
         );
       }
     })();
-  }, [billingReady, selectedTier, selectSetupPlan, sessionId]);
+  }, [
+    billingReady,
+    selectedTier,
+    selectSetupPlanFromRedirect,
+    sessionIdParam,
+    setupThreadId,
+  ]);
 
   useEffect(() => {
     if (isReadyToRedirect) {
       const timeout = setTimeout(
         () => router.push(normalizedReturnTo),
-        sessionId ? 1500 : 3000
+        isSetupResume ? 1500 : 3000
       );
       return () => clearTimeout(timeout);
     }
-  }, [isReadyToRedirect, normalizedReturnTo, router, sessionId]);
+  }, [isReadyToRedirect, isSetupResume, normalizedReturnTo, router]);
 
   // Derive plan name — prefer live plan, fall back to URL tier to avoid flicker
   const resolvedTier = plan?.tier ?? selectedTier;
@@ -88,7 +107,7 @@ function SuccessContent() {
     ? resolvedTier.charAt(0).toUpperCase() + resolvedTier.slice(1)
     : null;
   const statusMessage = isReadyToRedirect
-    ? sessionId
+    ? isSetupResume
       ? "Upgrade confirmed. Returning you to setup."
       : "Upgrade confirmed. Taking you back now."
     : "We're confirming your subscription and unlocking your plan.";
@@ -96,7 +115,7 @@ function SuccessContent() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="flex flex-col items-center gap-3">
-        <CheckCircleIcon className="h-5 w-5 fill-foreground" />
+        <CheckCircleIcon className="fill-foreground h-5 w-5" />
 
         <h1 className="text-sm font-medium">
           {planName ? `You\u2019re on ${planName}` : "Payment successful"}
@@ -108,8 +127,8 @@ function SuccessContent() {
 
         {subscriptionQuery.isError && (
           <p className="text-muted-foreground max-w-xs text-center text-xs">
-            Still confirming your subscription. Refresh if access
-            doesn&apos;t update.
+            Still confirming your subscription. Refresh if access doesn&apos;t
+            update.
           </p>
         )}
         {resumeError ? (
@@ -118,11 +137,8 @@ function SuccessContent() {
           </p>
         ) : null}
 
-        <Button
-          size="xs"
-          onClick={() => router.push(normalizedReturnTo)}
-        >
-          {sessionId ? "Return to setup" : "Go to Dashboard"}
+        <Button size="xs" onClick={() => router.push(normalizedReturnTo)}>
+          {isSetupResume ? "Return to setup" : "Go to Dashboard"}
         </Button>
       </div>
     </div>

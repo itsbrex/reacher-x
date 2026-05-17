@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
 import type { WorkspaceUseCaseKey } from "@/shared/lib/workspaceUseCases";
+import { buildSetupHref } from "@/shared/lib/urls/setupHref";
 
 const PANEL_ANCHOR_ID = "rx-onboarding-panel";
 
@@ -115,9 +116,7 @@ export function SetupOnboardingInlineCard({
         mode,
         useCaseKey,
       });
-      router.push(
-        `/agent/setup?sessionId=${next.sessionId}&threadId=${encodeURIComponent(next.threadId)}`
-      );
+      router.push(buildSetupHref(next.threadId));
       toast.success("Starting a fresh setup from step one.");
     } catch (error) {
       toast.error("Could not reset setup", {
@@ -144,9 +143,7 @@ export function SetupOnboardingInlineCard({
           mode,
           useCaseKey,
         });
-        router.push(
-          `/agent/setup?sessionId=${next.sessionId}&threadId=${encodeURIComponent(next.threadId)}`
-        );
+        router.push(buildSetupHref(next.threadId));
         toast.success("Draft removed. Starting setup again.");
         return;
       }

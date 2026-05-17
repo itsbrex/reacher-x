@@ -4,10 +4,7 @@ import { type ReactNode, useEffect, useMemo, startTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@nanostores/react";
 import { api } from "@/convex/_generated/api";
-import {
-  usePreferredShellQueryArgs,
-  useQueryWithStatus,
-} from "@/shared/hooks";
+import { usePreferredShellQueryArgs, useQueryWithStatus } from "@/shared/hooks";
 import { $onboardingLock } from "@/shared/stores/onboarding";
 import { $preferredShellContext } from "@/shared/stores/preferredShellContext";
 
@@ -47,27 +44,6 @@ function areSearchParamsEquivalent(a: string, b: string): boolean {
 function hasSetupAuthResultParams(queryString: string): boolean {
   const params = new URLSearchParams(queryString);
   return SETUP_AUTH_QUERY_KEYS.some((key) => params.has(key));
-}
-
-/** Shell wants sessionId+threadId but URL only has threadId; client will add sessionId (see AgentChat). */
-function shouldDeferSetupCanonicalRedirect(
-  currentQueryString: string,
-  targetLockedUrl: string,
-  activeContextType: "workspace" | "setup_session" | null
-): boolean {
-  if (activeContextType !== "setup_session" || !targetLockedUrl.includes("?")) {
-    return false;
-  }
-  const targetQuery = targetLockedUrl.split("?")[1] ?? "";
-  const C = searchParamsRecord(currentQueryString);
-  const T = searchParamsRecord(targetQuery);
-  return (
-    Boolean(C.threadId) &&
-    Boolean(T.threadId) &&
-    C.threadId === T.threadId &&
-    Boolean(T.sessionId) &&
-    !C.sessionId
-  );
 }
 
 type ShellLockFields = {
@@ -170,20 +146,11 @@ export function OnboardingLockGuardProvider({
       !areSearchParamsEquivalent(currentQueryString, targetLockedQuery)
     ) {
       if (
-        shouldDeferSetupCanonicalRedirect(
-          currentQueryString,
-          targetLockedUrl,
-          shellState.activeContextType
-        )
-      ) {
-        return;
-      }
-      if (
         shellWantsBareSetup &&
         shellState.activeContextType !== "setup_session"
       ) {
         const c = new URLSearchParams(currentQueryString);
-        if (c.has("threadId") || c.has("sessionId")) {
+        if (c.has("threadId")) {
           return;
         }
       }

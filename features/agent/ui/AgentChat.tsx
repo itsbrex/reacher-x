@@ -1256,7 +1256,6 @@ export function AgentChat({
     pendingTurn,
     isInitialized,
     generatedThreadId,
-    generatedSessionId,
     threadId: effectiveThreadId,
     setInput,
     sendMessage,
@@ -1357,20 +1356,14 @@ export function AgentChat({
     setupUrlCanonOnceRef.current = false;
   }, [threadId]);
 
-  // One layout-pass upgrade: threadId-only bookmarks get sessionId without guard fighting the URL.
+  // Canonical setup URLs only carry threadId. Strip any stale sessionId so
+  // route actions can never depend on URL-provided setup IDs.
   useLayoutEffect(() => {
     if (!isSetupRoute || !threadId || typeof window === "undefined") {
       return;
     }
     const params = new URLSearchParams(window.location.search);
-    if (params.get("sessionId")) {
-      return;
-    }
-    if (
-      !setupSessionForInlineCard?.sessionId ||
-      setupSessionForInlineCard.status === "discarded" ||
-      setupSessionForInlineCard.status === "failed"
-    ) {
+    if (!params.has("sessionId")) {
       return;
     }
     if (setupUrlCanonOnceRef.current) {
@@ -1379,18 +1372,9 @@ export function AgentChat({
     setupUrlCanonOnceRef.current = true;
     const url = new URL(window.location.href);
     url.searchParams.set("threadId", threadId);
-    url.searchParams.set(
-      "sessionId",
-      String(setupSessionForInlineCard.sessionId)
-    );
+    url.searchParams.delete("sessionId");
     router.replace(url.pathname + url.search);
-  }, [
-    isSetupRoute,
-    router,
-    setupSessionForInlineCard?.sessionId,
-    setupSessionForInlineCard?.status,
-    threadId,
-  ]);
+  }, [isSetupRoute, router, threadId]);
 
   useEffect(() => {
     discardedSetupThreadRedirectRef.current = false;
@@ -1463,9 +1447,7 @@ export function AgentChat({
       // to a persisted onboarding thread, otherwise we can bounce out early.
       const url = new URL(window.location.href);
       url.searchParams.set("threadId", generatedThreadId);
-      if (generatedSessionId) {
-        url.searchParams.set("sessionId", generatedSessionId);
-      }
+      url.searchParams.delete("sessionId");
       if (pathname !== "/agent/setup") {
         url.searchParams.delete("action");
       }
@@ -1473,7 +1455,7 @@ export function AgentChat({
         router.replace(url.pathname + url.search);
       });
     }
-  }, [generatedThreadId, generatedSessionId, pathname, threadId, router]);
+  }, [generatedThreadId, pathname, threadId, router]);
 
   // Notify parent of effective thread ID changes (for HistoryPanel "Current" badge)
   useEffect(() => {
@@ -1535,9 +1517,7 @@ export function AgentChat({
       {/* Chat Messages Area - scrollable container */}
       <ChatContainerRoot className="relative min-h-0 flex-1">
         <ChatContainerContent className="px-4 py-4">
-          {!isSetupRoute ? (
-            <WorkspacePlanLimitAlert className="mb-4" />
-          ) : null}
+          {!isSetupRoute ? <WorkspacePlanLimitAlert className="mb-4" /> : null}
           {/* Load more button */}
           {hasMore && (
             <div className="mb-4 text-center">

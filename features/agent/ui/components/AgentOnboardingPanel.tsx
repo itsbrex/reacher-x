@@ -533,7 +533,7 @@ export function AgentOnboardingPanel({
           source: "onboarding_plan",
           origin: returnUrl.origin,
           returnTo: `${returnUrl.pathname}${returnUrl.search}`,
-          sessionId: sessionId ?? undefined,
+          threadId: threadId ?? undefined,
         });
         window.location.assign(url);
       } catch (error) {
@@ -545,7 +545,7 @@ export function AgentOnboardingPanel({
         setIsStartingCheckout(false);
       }
     },
-    [selectSetupPlan, sessionId, startCheckoutFlow]
+    [selectSetupPlan, sessionId, startCheckoutFlow, threadId]
   );
 
   const handleCompletePreferences = useCallback(async () => {

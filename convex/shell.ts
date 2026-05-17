@@ -29,6 +29,7 @@ import {
   preferredShellContextValidator,
   shouldPreferWorkspaceContext,
 } from "./lib/preferredShellContext";
+import { buildSetupHref } from "../shared/lib/urls/setupHref";
 
 async function getWorkspaceActiveStyleProfileState(
   ctx: Pick<QueryCtx, "db">,
@@ -224,13 +225,12 @@ export const getAppShellState = query({
             workspaceId: String(workspace._id),
             locked,
             entitlementSlot,
-            isActive:
-              preferWorkspaceContext
-                ? defaultWorkspace?._id === workspace._id
-                : accessibleActiveSession &&
-                    accessibleActiveSession.targetWorkspaceId
-                  ? accessibleActiveSession.targetWorkspaceId === workspace._id
-                  : !accessibleActiveSession &&
+            isActive: preferWorkspaceContext
+              ? defaultWorkspace?._id === workspace._id
+              : accessibleActiveSession &&
+                  accessibleActiveSession.targetWorkspaceId
+                ? accessibleActiveSession.targetWorkspaceId === workspace._id
+                : !accessibleActiveSession &&
                   defaultWorkspace?._id === workspace._id,
           };
         })
@@ -289,7 +289,7 @@ export const getAppShellState = query({
           redirect: {
             sessionId: String(activeSession._id),
             threadId: activeSession.setupThreadId,
-            href: `/agent/setup?sessionId=${activeSession._id}&threadId=${encodeURIComponent(activeSession.setupThreadId)}`,
+            href: buildSetupHref(activeSession.setupThreadId),
           },
           effectiveUseCaseKey: resolveWorkspaceUseCaseKey(
             activeSession.useCaseKey
@@ -361,7 +361,7 @@ export const getAppShellState = query({
         sessionId: null,
         threadId: defaultWorkspace.onboardingThreadId ?? null,
         href: defaultWorkspace.onboardingThreadId
-          ? `/agent/setup?threadId=${encodeURIComponent(defaultWorkspace.onboardingThreadId)}`
+          ? buildSetupHref(defaultWorkspace.onboardingThreadId)
           : "/agent/setup",
       },
       effectiveUseCaseKey: resolveWorkspaceUseCaseKey(

@@ -469,6 +469,78 @@ async function requireOwnedSetupSession(
   return session;
 }
 
+async function getOwnedSetupSessionByThreadId(
+  ctx: ViewerCtx,
+  threadId: string,
+  userId: Id<"users">
+) {
+  const session = await getSetupSessionByThreadId(ctx.db, threadId);
+  if (!session) {
+    return null;
+  }
+  if (session.userId !== userId) {
+    throw new Error("Not authorized");
+  }
+  if (!(await isSetupSessionAccessibleForUser(ctx, session))) {
+    throw new Error("Setup session not found");
+  }
+  return session;
+}
+
+async function requireOwnedSetupSessionByThreadId(
+  ctx: ViewerCtx,
+  threadId: string,
+  userId: Id<"users">
+) {
+  const session = await getOwnedSetupSessionByThreadId(ctx, threadId, userId);
+  if (!session) {
+    throw new Error("Setup session not found");
+  }
+  return session;
+}
+
+async function applySetupPlanSelection(
+  ctx: MutationCtx,
+  session: SetupSessionDoc,
+  planChoice: Doc<"userPlans">["tier"]
+) {
+  if (session.status === "ready") {
+    return { success: true as const, alreadyCompleted: true as const };
+  }
+
+  if (
+    session.status === "awaiting_preferences" &&
+    session.planChoice === planChoice
+  ) {
+    return { success: true as const, alreadyCompleted: true as const };
+  }
+
+  if (session.status !== "awaiting_plan") {
+    throw new Error("Setup session is not awaiting a plan choice.");
+  }
+
+  const now = getCurrentUTCTimestamp();
+
+  await ctx.db.patch(session._id, {
+    status: "awaiting_preferences",
+    planChoice,
+    statusUpdatedAt: now,
+    lastUserActionAt: now,
+    lastActiveAt: now,
+  });
+
+  await maybeSignalStateChanged(ctx, {
+    ...session,
+    status: "awaiting_preferences",
+    planChoice,
+    statusUpdatedAt: now,
+    lastUserActionAt: now,
+    lastActiveAt: now,
+  });
+
+  return { success: true as const };
+}
+
 async function getAccessibleActiveSetupSessionForUser(
   ctx: ViewerCtx,
   userId: Id<"users">,
@@ -754,10 +826,11 @@ export const getSetupSessionState = query({
     if (args.sessionId) {
       session = await requireOwnedSetupSession(ctx, args.sessionId, user._id);
     } else if (args.threadId) {
-      session = await getSetupSessionByThreadId(ctx.db, args.threadId);
-      if (session && session.userId !== user._id) {
-        throw new Error("Not authorized");
-      }
+      session = await getOwnedSetupSessionByThreadId(
+        ctx,
+        args.threadId,
+        user._id
+      );
     } else {
       session = await getAccessibleActiveSetupSessionForUser(ctx, user._id, {
         includeRefine: false,
@@ -780,10 +853,11 @@ export const getSetupPreviewSummaries = query({
     if (args.sessionId) {
       session = await requireOwnedSetupSession(ctx, args.sessionId, user._id);
     } else if (args.threadId) {
-      session = await getSetupSessionByThreadId(ctx.db, args.threadId);
-      if (session && session.userId !== user._id) {
-        throw new Error("Not authorized");
-      }
+      session = await getOwnedSetupSessionByThreadId(
+        ctx,
+        args.threadId,
+        user._id
+      );
     } else {
       session = await getAccessibleActiveSetupSessionForUser(ctx, user._id, {
         includeRefine: false,
@@ -816,10 +890,11 @@ export const getSetupPreviewProspect = query({
     if (args.sessionId) {
       session = await requireOwnedSetupSession(ctx, args.sessionId, user._id);
     } else if (args.threadId) {
-      session = await getSetupSessionByThreadId(ctx.db, args.threadId);
-      if (session && session.userId !== user._id) {
-        throw new Error("Not authorized");
-      }
+      session = await getOwnedSetupSessionByThreadId(
+        ctx,
+        args.threadId,
+        user._id
+      );
     } else {
       session = await getAccessibleActiveSetupSessionForUser(ctx, user._id, {
         includeRefine: false,
@@ -1674,26 +1749,81 @@ export const selectSetupPlan = mutation({
       args.sessionId,
       user._id
     );
-    const now = getCurrentUTCTimestamp();
+    return await applySetupPlanSelection(ctx, session, args.planChoice);
+  },
+});
 
-    await ctx.db.patch(args.sessionId, {
-      status: "awaiting_preferences",
-      planChoice: args.planChoice,
-      statusUpdatedAt: now,
-      lastUserActionAt: now,
-      lastActiveAt: now,
-    });
+export const selectSetupPlanByThreadId = mutation({
+  args: {
+    threadId: v.string(),
+    planChoice: planTierValidator,
+  },
+  handler: async (ctx, args) => {
+    const user = await requireViewerUser(ctx);
+    const session = await requireOwnedSetupSessionByThreadId(
+      ctx,
+      args.threadId,
+      user._id
+    );
 
-    await maybeSignalStateChanged(ctx, {
-      ...session,
-      status: "awaiting_preferences",
-      planChoice: args.planChoice,
-      statusUpdatedAt: now,
-      lastUserActionAt: now,
-      lastActiveAt: now,
-    });
+    return await applySetupPlanSelection(ctx, session, args.planChoice);
+  },
+});
 
-    return { success: true };
+export const selectSetupPlanFromRedirect = mutation({
+  args: {
+    threadId: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    planChoice: planTierValidator,
+  },
+  handler: async (ctx, args) => {
+    const user = await requireViewerUser(ctx);
+
+    if (args.threadId) {
+      const session = await requireOwnedSetupSessionByThreadId(
+        ctx,
+        args.threadId,
+        user._id
+      );
+
+      if (args.sessionId) {
+        const normalizedSessionId = ctx.db.normalizeId(
+          "workspaceSetupSessions",
+          args.sessionId
+        );
+        if (normalizedSessionId && normalizedSessionId !== session._id) {
+          console.warn(
+            "[setupSessions] Ignoring mismatched redirect sessionId for setup plan selection",
+            {
+              expectedSessionId: String(session._id),
+              providedSessionId: args.sessionId,
+              threadId: args.threadId,
+            }
+          );
+        }
+      }
+
+      return await applySetupPlanSelection(ctx, session, args.planChoice);
+    }
+
+    if (!args.sessionId) {
+      throw new Error("Setup session is missing.");
+    }
+
+    const normalizedSessionId = ctx.db.normalizeId(
+      "workspaceSetupSessions",
+      args.sessionId
+    );
+    if (!normalizedSessionId) {
+      throw new Error("Setup session is invalid or expired.");
+    }
+
+    const session = await requireOwnedSetupSession(
+      ctx,
+      normalizedSessionId,
+      user._id
+    );
+    return await applySetupPlanSelection(ctx, session, args.planChoice);
   },
 });
 
@@ -2432,10 +2562,9 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
     );
     if (
       !session ||
-      ![
-        "discovering_preview_prospects",
-        "awaiting_input",
-      ].includes(session.status) ||
+      !["discovering_preview_prospects", "awaiting_input"].includes(
+        session.status
+      ) ||
       (session.status === "awaiting_input" &&
         session.errorCode !== "preview_discovery_failed") ||
       session.previewReadyAt

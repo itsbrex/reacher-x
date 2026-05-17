@@ -8,13 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { useQueryWithStatus } from "@/shared/hooks";
 import { NewWorkspaceDraftModal } from "@/features/webapp/ui/components/NewWorkspaceDraftModal";
 import { setPreferredShellContext } from "@/shared/stores/preferredShellContext";
-
-function buildSetupHref(args: { sessionId: string; threadId: string }): string {
-  const params = new URLSearchParams();
-  params.set("sessionId", args.sessionId);
-  params.set("threadId", args.threadId);
-  return `/agent/setup?${params.toString()}`;
-}
+import { buildSetupHref } from "@/shared/lib/urls/setupHref";
 
 export function useNewWorkspaceDraftFlow(args?: { enabled?: boolean }) {
   const enabled = args?.enabled ?? true;
@@ -32,9 +26,9 @@ export function useNewWorkspaceDraftFlow(args?: { enabled?: boolean }) {
   const activeDraft = decisionStateQuery.data?.activeDraft ?? null;
 
   const navigateToSetup = useCallback(
-    (nextArgs: { sessionId: string; threadId: string }) => {
+    (nextArgs: { threadId: string }) => {
       setPreferredShellContext("setup_session");
-      router.push(buildSetupHref(nextArgs));
+      router.push(buildSetupHref(nextArgs.threadId));
     },
     [router]
   );
@@ -42,7 +36,6 @@ export function useNewWorkspaceDraftFlow(args?: { enabled?: boolean }) {
   const startFresh = useCallback(async () => {
     const result = await startSetupSession({ mode: "new_workspace" });
     navigateToSetup({
-      sessionId: result.sessionId,
       threadId: result.threadId,
     });
   }, [navigateToSetup, startSetupSession]);
@@ -78,7 +71,6 @@ export function useNewWorkspaceDraftFlow(args?: { enabled?: boolean }) {
 
     setOpen(false);
     navigateToSetup({
-      sessionId: activeDraft.sessionId,
       threadId: activeDraft.threadId,
     });
   }, [activeDraft, navigateToSetup]);

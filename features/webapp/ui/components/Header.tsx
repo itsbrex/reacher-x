@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
 
 import { cn } from "@/shared/lib/utils";
+import { buildSetupHref } from "@/shared/lib/urls/setupHref";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -289,15 +290,9 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           return;
         }
 
-        if (
-          targetItem.kind === "draft" &&
-          targetItem.sessionId &&
-          targetItem.threadId
-        ) {
+        if (targetItem.kind === "draft" && targetItem.threadId) {
           setPreferredShellContext("setup_session");
-          router.push(
-            `/agent/setup?sessionId=${targetItem.sessionId}&threadId=${encodeURIComponent(targetItem.threadId)}`
-          );
+          router.push(buildSetupHref(targetItem.threadId));
           return;
         }
 

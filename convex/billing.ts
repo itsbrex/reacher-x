@@ -92,7 +92,7 @@ export const startCheckoutFlow = action({
     ),
     origin: v.string(),
     returnTo: v.optional(v.string()),
-    sessionId: v.optional(v.id("workspaceSetupSessions")),
+    threadId: v.optional(v.string()),
   },
   returns: v.object({
     url: v.string(),
@@ -110,8 +110,8 @@ export const startCheckoutFlow = action({
     successUrl.searchParams.set("tier", args.tier);
     successUrl.searchParams.set("billingPeriod", args.billingPeriod);
     successUrl.searchParams.set("returnTo", normalizeReturnTo(args.returnTo));
-    if (args.sessionId) {
-      successUrl.searchParams.set("sessionId", args.sessionId);
+    if (args.threadId) {
+      successUrl.searchParams.set("threadId", args.threadId);
     }
 
     const productId = resolvePolarProductId(args);
