@@ -38,7 +38,9 @@ export const INLINE_AUTOCOMPLETE_MIN_PREFIX_CHARS = 8;
 export const INLINE_AUTOCOMPLETE_MAX_PREFIX_CHARS = 600;
 export const INLINE_AUTOCOMPLETE_MAX_SUFFIX_CHARS = 96;
 export const INLINE_AUTOCOMPLETE_MAX_SUGGESTION_CHARS = 24;
-export const INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS = 10;
+export const INLINE_AUTOCOMPLETE_MAX_SUGGESTION_WORDS = 4;
+// OpenRouter's GPT-5.4 Nano provider rejects max_output_tokens below 16.
+export const INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS = 16;
 export const INLINE_AUTOCOMPLETE_DEBOUNCE_MS = 140;
 export const INLINE_AUTOCOMPLETE_NO_SUGGESTION = "__NO_COMPLETION__";
 
@@ -172,9 +174,12 @@ export function clampInlineAutocompleteSuggestion(args: {
   maxLength?: number;
   characterCountMode?: InlineAutocompleteCharacterCountMode;
 }) {
-  const suggestion = trimSuggestionToNaturalBoundary(
-    args.suggestion,
-    INLINE_AUTOCOMPLETE_MAX_SUGGESTION_CHARS
+  const suggestion = trimSuggestionToWordLimit(
+    trimSuggestionToNaturalBoundary(
+      args.suggestion,
+      INLINE_AUTOCOMPLETE_MAX_SUGGESTION_CHARS
+    ),
+    INLINE_AUTOCOMPLETE_MAX_SUGGESTION_WORDS
   );
   const maxLength = args.maxLength;
 
@@ -207,7 +212,10 @@ export function clampInlineAutocompleteSuggestion(args: {
     return "";
   }
 
-  return trimSuggestionToNaturalBoundary(suggestion, remaining);
+  return trimSuggestionToWordLimit(
+    trimSuggestionToNaturalBoundary(suggestion, remaining),
+    INLINE_AUTOCOMPLETE_MAX_SUGGESTION_WORDS
+  );
 }
 
 export function getInlineAutocompleteInsertionText(args: {
@@ -297,4 +305,22 @@ function trimSuggestionToNaturalBoundary(suggestion: string, limit: number) {
   }
 
   return slice.trimEnd();
+}
+
+function trimSuggestionToWordLimit(suggestion: string, maxWords: number) {
+  if (!suggestion || maxWords <= 0) {
+    return "";
+  }
+
+  const trimmed = suggestion.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const words = trimmed.split(/\s+/);
+  if (words.length <= maxWords) {
+    return trimmed;
+  }
+
+  return words.slice(0, maxWords).join(" ").trimEnd();
 }
