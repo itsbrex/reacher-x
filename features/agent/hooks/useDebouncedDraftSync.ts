@@ -17,6 +17,7 @@ export function useDebouncedDraftSync(args: {
   const persistedValueRef = useRef(persistedValue);
   const queuedValueRef = useRef(value);
   const lastAttemptedValueRef = useRef<string | null>(null);
+  const statusResetFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     persistedValueRef.current = persistedValue;
@@ -31,6 +32,17 @@ export function useDebouncedDraftSync(args: {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+  }, []);
+
+  const scheduleIdleStatus = useCallback(() => {
+    if (statusResetFrameRef.current !== null) {
+      cancelAnimationFrame(statusResetFrameRef.current);
+    }
+
+    statusResetFrameRef.current = requestAnimationFrame(() => {
+      setStatus("idle");
+      statusResetFrameRef.current = null;
+    });
   }, []);
 
   const flush = useCallback(async () => {
@@ -65,14 +77,14 @@ export function useDebouncedDraftSync(args: {
   useEffect(() => {
     if (!enabled) {
       clearPendingTimer();
-      setStatus("idle");
+      scheduleIdleStatus();
       return;
     }
 
     if (value === persistedValueRef.current) {
       clearPendingTimer();
       if (status !== "saving") {
-        setStatus("idle");
+        scheduleIdleStatus();
       }
       return;
     }
@@ -83,11 +95,22 @@ export function useDebouncedDraftSync(args: {
     }, delayMs);
 
     return clearPendingTimer;
-  }, [clearPendingTimer, delayMs, enabled, flush, status, value]);
+  }, [
+    clearPendingTimer,
+    delayMs,
+    enabled,
+    flush,
+    scheduleIdleStatus,
+    status,
+    value,
+  ]);
 
   useEffect(
     () => () => {
       clearPendingTimer();
+      if (statusResetFrameRef.current !== null) {
+        cancelAnimationFrame(statusResetFrameRef.current);
+      }
     },
     [clearPendingTimer]
   );

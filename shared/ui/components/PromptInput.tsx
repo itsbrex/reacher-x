@@ -202,17 +202,20 @@ function PromptInputTextarea({
         inlineAutocompleteContext?.enabled !== false,
     });
 
-  const adjustHeight = (el: HTMLTextAreaElement | null) => {
-    if (!el || disableAutosize) return;
+  const adjustHeight = useCallback(
+    (el: HTMLTextAreaElement | null) => {
+      if (!el || disableAutosize) return;
 
-    el.style.height = "auto";
+      el.style.height = "auto";
 
-    if (typeof maxHeight === "number") {
-      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-    } else {
-      el.style.height = `min(${el.scrollHeight}px, ${maxHeight})`;
-    }
-  };
+      if (typeof maxHeight === "number") {
+        el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+      } else {
+        el.style.height = `min(${el.scrollHeight}px, ${maxHeight})`;
+      }
+    },
+    [disableAutosize, maxHeight]
+  );
 
   const handleRef = (el: HTMLTextAreaElement | null) => {
     textareaRef.current = el;

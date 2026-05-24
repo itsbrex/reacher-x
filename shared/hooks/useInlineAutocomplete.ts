@@ -79,9 +79,11 @@ export function useInlineAutocomplete(args: {
   const activeRequestIdRef = useRef(0);
   const dismissedSignatureRef = useRef<string | null>(null);
 
-  if (request && requestSignature) {
-    requestMapRef.current.set(requestSignature, request);
-  }
+  useEffect(() => {
+    if (request && requestSignature) {
+      requestMapRef.current.set(requestSignature, request);
+    }
+  }, [request, requestSignature]);
 
   const clearSuggestion = useCallback(
     (reason: InlineAutocompleteDismissReason) => {
@@ -105,13 +107,22 @@ export function useInlineAutocomplete(args: {
     [posthog, request]
   );
 
+  const dismissSuggestionAfterEffect = useCallback(
+    (reason: InlineAutocompleteDismissReason) => {
+      queueMicrotask(() => {
+        clearSuggestion(reason);
+      });
+    },
+    [clearSuggestion]
+  );
+
   useEffect(() => {
     if (!enabled || !shouldRequestInlineAutocomplete(request)) {
       activeRequestIdRef.current += 1;
-      clearSuggestion("disabled");
+      dismissSuggestionAfterEffect("disabled");
       return;
     }
-  }, [clearSuggestion, enabled, request]);
+  }, [dismissSuggestionAfterEffect, enabled, request]);
 
   useEffect(() => {
     if (
@@ -124,8 +135,13 @@ export function useInlineAutocomplete(args: {
     }
 
     activeRequestIdRef.current += 1;
-    clearSuggestion("input_changed");
-  }, [clearSuggestion, requestSignature, state.requestSignature, state.suggestion]);
+    dismissSuggestionAfterEffect("input_changed");
+  }, [
+    dismissSuggestionAfterEffect,
+    requestSignature,
+    state.requestSignature,
+    state.suggestion,
+  ]);
 
   useEffect(() => {
     if (!enabled || !debouncedRequestSignature) {
@@ -143,7 +159,9 @@ export function useInlineAutocomplete(args: {
 
     const requestId = activeRequestIdRef.current + 1;
     activeRequestIdRef.current = requestId;
-    setIsLoading(true);
+    queueMicrotask(() => {
+      setIsLoading(true);
+    });
 
     void getInlineSuggestion(nextRequest)
       .then((result) => {

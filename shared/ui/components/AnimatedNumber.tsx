@@ -43,6 +43,21 @@ export default function AnimatedNumber({
 
   const safe = Number.isFinite(value) ? value : 0;
   const rounded = Number(safe.toFixed(decimals));
+  const resolvedFormat = React.useMemo<Format>(
+    () => ({
+      maximumFractionDigits: decimals,
+      ...format,
+    }),
+    [decimals, format]
+  );
+  const fallbackFormatter = React.useMemo(
+    () =>
+      new Intl.NumberFormat(
+        locales,
+        resolvedFormat as Intl.NumberFormatOptions
+      ),
+    [locales, resolvedFormat]
+  );
 
   const [display, setDisplay] = React.useState<number>(() =>
     animateOnMount ? 0 : rounded
@@ -56,13 +71,15 @@ export default function AnimatedNumber({
   if (!isSupported || !canAnimate) {
     return (
       <span
-        className={cn("font-mono tabular-nums", className)}
+        className={cn("inline-flex items-baseline", className)}
         style={style}
         {...rest}
       >
-        {prefix}
-        {display}
-        {suffix}
+        <span className="font-mono tabular-nums">
+          {prefix}
+          {fallbackFormatter.format(display)}
+          {suffix}
+        </span>
       </span>
     );
   }
@@ -78,7 +95,7 @@ export default function AnimatedNumber({
         prefix={prefix}
         suffix={suffix}
         locales={locales}
-        format={format}
+        format={resolvedFormat}
         className="font-mono tabular-nums"
         style={
           {

@@ -45,12 +45,6 @@ const StatMetric = React.memo(function StatMetric({
     semantic = "default",
   } = metric;
 
-  const [isMounted, setIsMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   const isPositive = trend === "up";
   const decimals = format === "number" ? 0 : 1;
   const suffix = format === "percent" ? "%" : undefined;
@@ -84,24 +78,17 @@ const StatMetric = React.memo(function StatMetric({
 
       {/* Value */}
       <div className="mt-2">
-        {isMounted ? (
-          <AnimatedNumber
-            value={value}
-            decimals={decimals}
-            suffix={suffix}
-            animateOnMount
-            className={cn(
-              "text-3xl font-semibold tracking-tight",
-              semantic === "destructive" && value > 0 && "text-red-500"
-            )}
-            format={{ useGrouping: true }}
-          />
-        ) : (
-          <span className="font-mono text-3xl font-semibold tracking-tight tabular-nums">
-            {value.toFixed(decimals)}
-            {suffix}
-          </span>
-        )}
+        <AnimatedNumber
+          value={value}
+          decimals={decimals}
+          suffix={suffix}
+          animateOnMount
+          className={cn(
+            "text-3xl font-semibold tracking-tight",
+            semantic === "destructive" && value > 0 && "text-red-500"
+          )}
+          format={{ useGrouping: true }}
+        />
       </div>
 
       {/* Context line */}
@@ -111,64 +98,39 @@ const StatMetric = React.memo(function StatMetric({
 
       {/* Trend Indicator */}
       <div className="mt-1.5 flex items-center gap-1.5 text-sm">
-        {isMounted ? (
-          <>
-            <span
+        <>
+          <span
+            className={cn(
+              "flex items-center gap-0.5 font-medium",
+              isGoodTrend ? "text-emerald-600" : "text-red-500"
+            )}
+          >
+            <ArrowUpwardIcon
               className={cn(
-                "flex items-center gap-0.5 font-medium",
-                isGoodTrend ? "text-emerald-600" : "text-red-500"
+                "size-3.5 fill-current",
+                !isPositive && "rotate-180"
               )}
-            >
-              <ArrowUpwardIcon
-                className={cn(
-                  "size-3.5 fill-current",
-                  !isPositive && "rotate-180"
-                )}
-              />
-              <AnimatedNumber
-                value={Math.abs(change)}
-                decimals={1}
-                animateOnMount
-                className="tabular-nums"
-              />
-            </span>
-            <span className="text-muted-foreground">
-              (
-              <AnimatedNumber
-                value={changePercent}
-                decimals={2}
-                prefix={changePercent >= 0 ? "+" : ""}
-                suffix="%"
-                animateOnMount
-                className="tabular-nums"
-              />
-              )
-            </span>
-          </>
-        ) : (
-          <>
-            <span
-              className={cn(
-                "flex items-center gap-0.5 font-medium",
-                isGoodTrend ? "text-emerald-600" : "text-red-500"
-              )}
-            >
-              <ArrowUpwardIcon
-                className={cn(
-                  "size-3.5 fill-current",
-                  !isPositive && "rotate-180"
-                )}
-              />
-              <span className="font-mono tabular-nums">
-                {Math.abs(change).toFixed(1)}
-              </span>
-            </span>
-            <span className="text-muted-foreground font-mono tabular-nums">
-              ({changePercent >= 0 ? "+" : ""}
-              {changePercent.toFixed(2)}%)
-            </span>
-          </>
-        )}
+            />
+            <AnimatedNumber
+              value={Math.abs(change)}
+              decimals={1}
+              animateOnMount
+              className="tabular-nums"
+            />
+          </span>
+          <span className="text-muted-foreground">
+            (
+            <AnimatedNumber
+              value={changePercent}
+              decimals={2}
+              prefix={changePercent >= 0 ? "+" : ""}
+              suffix="%"
+              animateOnMount
+              className="tabular-nums"
+            />
+            )
+          </span>
+        </>
       </div>
     </article>
   );

@@ -50,6 +50,7 @@ export function InlineAutocompletePlugin({
   const [overlayPosition, setOverlayPosition] =
     useState<CaretOverlayPosition | null>(null);
   const [isComposing, setIsComposing] = useState(false);
+  const requestBeforeCursor = request?.beforeCursor ?? "";
   const { suggestion, dismissSuggestion, isLoading, recordAccepted } =
     useInlineAutocomplete({
       request,
@@ -150,7 +151,7 @@ export function InlineAutocompletePlugin({
         }
 
         const insertionText = getInlineAutocompleteInsertionText({
-          beforeCursor: request?.beforeCursor ?? "",
+          beforeCursor: requestBeforeCursor,
           suggestion,
         });
 
@@ -229,6 +230,7 @@ export function InlineAutocompletePlugin({
     handleCompositionEnd,
     handleCompositionStart,
     recordAccepted,
+    requestBeforeCursor,
     suggestion,
     updateSelectionRequest,
   ]);
@@ -257,7 +259,7 @@ export function InlineAutocompletePlugin({
 
   return (
     <div
-      className="text-muted-foreground pointer-events-none absolute z-20 overflow-hidden whitespace-nowrap text-sm opacity-55 select-none"
+      className="text-muted-foreground pointer-events-none absolute z-20 overflow-hidden text-sm whitespace-nowrap opacity-55 select-none"
       style={{
         top: overlayPosition.top,
         left: overlayPosition.left,
