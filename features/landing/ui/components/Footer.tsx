@@ -2,211 +2,282 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Slot } from "@radix-ui/react-slot";
-import { cva } from "class-variance-authority";
+import { usePathname } from "next/navigation";
+import {
+  GITHUB_REPO_ISSUES_URL,
+  GITHUB_REPO_URL,
+} from "@/features/landing/lib/github";
+import { useTheme } from "next-themes";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/components/Button";
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/shared/ui/components/ToggleGroup";
+import {
   TwitterIcon,
   DiscordIcon,
-  ThreadsIcon,
   LinkedinIcon,
   BlueskyIcon,
+  ThreadsIcon,
+  ArrowUpwardIcon,
+  ChangeCircleIcon,
+  LightModeIcon,
+  DarkModeIcon,
 } from "@/shared/ui/components/icons";
-import { NavLink } from "./NavLink";
 
-export interface FooterProps extends React.HTMLAttributes<HTMLElement> {
-  /** If true, renders the footer inside a Radix <Slot> instead of a <footer> tag. */
-  asChild?: boolean;
+const FOOTER_COLUMNS = [
+  {
+    title: "Product",
+    links: [
+      { label: "Use cases", href: "#use-cases" },
+      { label: "Pricing", href: "/home/pricing" },
+      { label: "Changelog", href: "#" },
+    ],
+  },
+  {
+    title: "Resources",
+    links: [
+      { label: "Threads", href: "/home/threads" },
+      { label: "Vision", href: "#" },
+      { label: "Contact", href: "mailto:support@reacherx.com" },
+    ],
+  },
+  {
+    title: "Open source",
+    links: [
+      { label: "GitHub", href: GITHUB_REPO_URL },
+      { label: "Documentation", href: "#" },
+      { label: "Contribute", href: GITHUB_REPO_ISSUES_URL },
+      { label: "License (MIT)", href: "#" },
+    ],
+  },
+] as const;
+
+const SOCIALS = [
+  {
+    href: "https://x.com/ReacherXfounder",
+    label: "X/Twitter",
+    icon: <TwitterIcon />,
+  },
+  {
+    href: "https://discord.gg/76dF9NPH",
+    label: "Discord",
+    icon: <DiscordIcon className="fill-current" />,
+  },
+  {
+    href: "https://www.linkedin.com/in/noobships",
+    label: "LinkedIn",
+    icon: <LinkedinIcon className="fill-current" />,
+  },
+  {
+    href: "https://bsky.app/profile/reacherxfounder.bsky.social",
+    label: "Bluesky",
+    icon: <BlueskyIcon className="stroke-current" />,
+  },
+  {
+    href: "https://threads.net/@reacherxfounder",
+    label: "Threads",
+    icon: <ThreadsIcon className="fill-current" />,
+  },
+];
+
+function isLinkActive(href: string, pathname: string): boolean {
+  if (
+    href.startsWith("#") ||
+    href.startsWith("mailto:") ||
+    href.startsWith("http")
+  )
+    return false;
+  if (href === pathname) return true;
+  return pathname.startsWith(href + "/");
 }
 
-// Optional cva for sub-elements if you want them standardized as well:
-const brandLinkVariants = cva("text-base font-medium font-mono");
+export function Footer({ className }: { className?: string }) {
+  const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
+  const [currentYear, setCurrentYear] = React.useState<number | null>(null);
+  React.useEffect(() => setCurrentYear(new Date().getFullYear()), []);
 
-export const Footer = React.forwardRef<HTMLElement, FooterProps>(
-  ({ className, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "footer";
+  const handleScrollToTop = React.useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
-    // Compute year only on client to avoid new Date() during prerender (Next.js 16 cacheComponents)
-    const [currentYear, setCurrentYear] = React.useState<number | null>(null);
-    React.useEffect(() => {
-      setCurrentYear(new Date().getFullYear());
-    }, []);
-
-    const handleScrollToTop = React.useCallback(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, []);
-
-    return (
-      <Comp
-        ref={ref}
-        role="contentinfo"
-        className={cn(
-          "ease-[cubic-bezier(0.25, 1, 0.5, 1)] border-border flex flex-col gap-0 border-t px-0 pt-0 pb-0 duration-300",
-          className
-        )}
-        {...props}
-      >
-        <div className="mx-auto flex w-full max-w-[1288px] flex-col gap-6 px-4 pt-6 pb-12 md:gap-12 md:pt-12 md:pb-12">
-          <section className="flex w-fit flex-col gap-1">
-            <Link
-              href="/"
-              aria-label="ReacherX Home"
-              className={cn(brandLinkVariants())}
+  return (
+    <footer
+      role="contentinfo"
+      className={cn("border-border border-t", className)}
+    >
+      <div className="mx-auto flex w-full max-w-[1288px] flex-col gap-8 px-4 pt-8 pb-8 md:gap-12 md:pt-12 md:pb-12">
+        {/* Brand */}
+        <div className="flex flex-col gap-1">
+          <Link
+            href="/home"
+            aria-label="ReacherX Home"
+            className="font-mono text-base font-medium"
+          >
+            🆁 ReacherX
+          </Link>
+          <address className="not-italic">
+            <a
+              href="mailto:support@reacherx.com"
+              className="text-muted-foreground font-mono text-sm font-medium hover:underline"
             >
-              🆁 ReacherX
-            </Link>
-            <address className="not-italic">
-              <Link
-                href="mailto:creativecoder.crco@gmail.com"
-                className="text-muted-foreground font-mono text-sm font-medium hover:underline"
+              support@reacherx.com
+            </a>
+          </address>
+        </div>
+
+        {/* Link columns */}
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          {FOOTER_COLUMNS.map(({ title, links }) => (
+            <div key={title} className="flex flex-col gap-3">
+              <span className="text-muted-foreground text-sm font-medium">
+                {title}
+              </span>
+              <ul className="flex flex-col gap-2">
+                {links.map(({ label, href }) => {
+                  const active = isLinkActive(href, pathname);
+                  return (
+                    <li key={label}>
+                      {href.startsWith("http") || href.startsWith("mailto:") ? (
+                        <a
+                          href={href}
+                          target={
+                            href.startsWith("http") ? "_blank" : undefined
+                          }
+                          rel={
+                            href.startsWith("http")
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
+                          className="text-sm hover:underline"
+                        >
+                          {label}
+                        </a>
+                      ) : (
+                        <Link
+                          href={href}
+                          className={cn(
+                            "text-sm hover:underline",
+                            active &&
+                              "font-medium underline decoration-2 underline-offset-4"
+                          )}
+                        >
+                          {label}
+                        </Link>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
+          {/* Follow on — only visible on desktop as 4th column */}
+          <div className="hidden flex-col gap-3 md:flex">
+            <span className="text-muted-foreground text-sm font-medium">
+              Follow on
+            </span>
+            <div className="flex flex-wrap">
+              {SOCIALS.map(({ href, label, icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button
+                    aria-label={`ReacherX on ${label}`}
+                    variant="ghost"
+                    size="icon"
+                    className="[&_svg]:size-5"
+                  >
+                    {icon}
+                  </Button>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Follow on — mobile only, full-width row */}
+        <div className="flex flex-col gap-3 md:hidden">
+          <span className="text-muted-foreground text-sm font-medium">
+            Follow on
+          </span>
+          <div className="flex flex-wrap">
+            {SOCIALS.map(({ href, label, icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                creativecoder.crco@gmail.com
-              </Link>
-            </address>
-          </section>
+                <Button
+                  aria-label={`ReacherX on ${label}`}
+                  variant="ghost"
+                  size="icon"
+                  className="[&_svg]:size-5"
+                >
+                  {icon}
+                </Button>
+              </a>
+            ))}
+          </div>
+        </div>
 
-          <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-6 duration-300 md:flex-row md:items-start md:justify-between">
-            <div className="flex flex-col gap-4">
-              <small className="text-muted-foreground text-sm font-medium">
-                Links
-              </small>
-              <menu>
-                <li>
-                  <NavLink href="/home/threads" activeClassName="underline">
-                    Threads
-                  </NavLink>
-                </li>
-              </menu>
-            </div>
-
-            <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col gap-4 duration-300">
-              <small className="text-muted-foreground text-sm font-medium">
-                Follow on
-              </small>
-              <div className="flex">
-                <Link
-                  href="https://x.com/ReacherXfounder"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on X/Twitter"
-                    variant="ghost"
-                    size="icon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <TwitterIcon />
-                  </Button>
-                </Link>
-                <Link
-                  href="https://discord.gg/76dF9NPH"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on Discord"
-                    variant="ghost"
-                    size="icon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <DiscordIcon className="fill-current" />
-                  </Button>
-                </Link>
-                <Link
-                  href="https://www.linkedin.com/in/noobships"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on LinkedIn"
-                    variant="ghost"
-                    size="icon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <LinkedinIcon className="fill-current" />
-                  </Button>
-                </Link>
-                <Link
-                  href="https://bsky.app/profile/reacherxfounder.bsky.social"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on Bluesky"
-                    variant="ghost"
-                    size="icon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <BlueskyIcon className="stroke-current" />
-                  </Button>
-                </Link>
-                <Link
-                  href="https://threads.net/@reacherxfounder"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on Threads"
-                    variant="ghost"
-                    size="icon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <ThreadsIcon className="fill-current" />
-                  </Button>
-                </Link>
-                {/* <Link
-                  href="https://instagram.com/reacherxfounder/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    aria-label="ReacherX on Instagram"
-                    variant="ghost"
-                    size="xsIcon"
-                    className="[&_svg]:size-8 md:[&_svg]:size-6"
-                  >
-                    <InstagramIcon className="fill-current" />
-                  </Button>
-                </Link> */}
-              </div>
-            </div>
-          </section>
-
+        {/* Go to top + Theme switcher */}
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="xs"
             className="w-fit"
             onClick={handleScrollToTop}
           >
-            Get to top
+            <ArrowUpwardIcon className="size-4 fill-current" />
+            Go to top
           </Button>
-
-          <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] flex flex-col-reverse gap-2 duration-300 md:flex-row md:items-center md:justify-between">
-            <small className="text-muted-foreground text-sm">
-              Copyright &copy; {currentYear ?? ""} ReacherX. All rights
-              reserved.
-            </small>
-            <div className="flex items-center space-x-2">
-              <Link
-                href="/"
-                className="text-primary text-sm font-medium underline-offset-4 hover:underline"
-              >
-                Privacy policy
-              </Link>
-              <span className="text-muted-foreground">|</span>
-              <Link
-                href="/"
-                className="text-primary text-sm font-medium underline-offset-4 hover:underline"
-              >
-                Terms of service
-              </Link>
-            </div>
-          </section>
+          <ToggleGroup
+            type="single"
+            value={theme ?? "system"}
+            onValueChange={(val) => val && setTheme(val)}
+            className="border-input rounded-md border"
+          >
+            <ToggleGroupItem value="system" size="xsIcon">
+              <ChangeCircleIcon className="fill-current" aria-hidden="true" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="light" size="xsIcon">
+              <LightModeIcon className="fill-current" aria-hidden="true" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="dark" size="xsIcon">
+              <DarkModeIcon className="fill-current" aria-hidden="true" />
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
-      </Comp>
-    );
-  }
-);
 
-Footer.displayName = "Footer";
+        {/* Bottom bar */}
+        <div className="flex flex-col-reverse gap-2 md:flex-row md:items-center md:justify-between">
+          <small className="text-muted-foreground text-sm">
+            Copyright &copy; {currentYear ?? ""} ReacherX. All rights reserved.
+          </small>
+          <div className="flex items-center space-x-2">
+            <Link
+              href="#"
+              className="text-primary text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Privacy policy
+            </Link>
+            <span className="text-muted-foreground">|</span>
+            <Link
+              href="#"
+              className="text-primary text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Terms of service
+            </Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

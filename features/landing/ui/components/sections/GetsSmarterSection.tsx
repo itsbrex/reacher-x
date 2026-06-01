@@ -1,0 +1,55 @@
+import { StepBlock } from "./StepBlock";
+
+const FEATURES = [
+  {
+    heading: "△ Agent writes like you. Not like a bot.",
+    description: (
+      <>
+        It learns your voice from your connected X/Twitter and LinkedIn
+        accounts, plus the edits you make to its drafts. It learns your
+        vocabulary, humor, sentence structure, tone, and directness.
+        <br />
+        <br />
+        Your voice is elevated. Not replaced.
+      </>
+    ),
+    videoAssetKey: "smarter-writes" as const,
+    reversed: false,
+  },
+  {
+    heading: "△ Agent has full context on every enriched person.",
+    description:
+      "Before drafting a reply or DM, △ Agent reads their recent posts, reviews their enriched profile, and checks your full interaction history with them. It doesn\u2019t send generic templates. Every message is tailored and personalised to get the highest response rate.",
+    videoAssetKey: "smarter-context" as const,
+    reversed: true,
+  },
+  {
+    heading: "△ Agent improves from your feedback.",
+    description:
+      "Every edit, approval, rejection, and skip teaches △ Agent. It gets better at finding, qualifying, and writing for the people you care about.",
+    videoAssetKey: "smarter-feedback" as const,
+    reversed: false,
+  },
+] as const;
+
+export function GetsSmarterSection() {
+  return (
+    <section
+      aria-labelledby="gets-smarter-heading"
+      className="px-4 py-16 md:py-24"
+    >
+      <h2
+        id="gets-smarter-heading"
+        className="mb-16 text-center text-3xl font-medium md:mb-24 md:text-4xl"
+      >
+        △ Agent gets smarter over time. <br className="hidden md:block" />
+        Not a tool. An agent that learns.
+      </h2>
+      <div className="space-y-16 md:space-y-24">
+        {FEATURES.map((feature) => (
+          <StepBlock key={feature.heading} {...feature} />
+        ))}
+      </div>
+    </section>
+  );
+}

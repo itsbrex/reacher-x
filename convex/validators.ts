@@ -729,19 +729,6 @@ export const getTwitterProfileArgsValidator = v.object({
   twitter: v.string(),
 });
 
-export const getThreadsArgsValidator = v.object({
-  threadIds: v.array(v.string()),
-});
-
-export const insertThreadMutationArgsValidator = v.object({
-  threadId: v.string(),
-  tweets: v.array(tweetValidator),
-});
-
-export const insertThreadArgsValidator = v.object({
-  threadId: v.string(),
-});
-
 export const getDynamicThreadDataArgsValidator = v.object({
   threadId: v.string(),
 });
@@ -752,19 +739,9 @@ export const getConversationContextArgsValidator = v.object({
   matchedReplyTweetId: v.optional(v.string()),
 });
 
-export const getRecentThreadsArgsValidator = v.object({
-  count: v.number(),
-  excludeThreadId: v.optional(v.string()),
-});
-
 // Email validators
 export const sendWelcomeEmailArgsValidator = v.object({
   email: v.string(),
-});
-
-// Additional Social Data validators
-export const getThreadByIdArgsValidator = v.object({
-  threadId: v.string(),
 });
 
 // v4: Plan tier validator

@@ -1,24 +1,23 @@
 // app/home/threads/[threadId]/page.tsx
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
 
 import { Badge } from "@/shared/ui/components/Badge";
-import { LiveRecentThreads } from "@/features/threads/ui/components/LiveRecentThreads";
-import { Thread } from "../../../../features/threads/types";
 import Link from "next/link";
-
-import { LiveThreadDetail } from "@/features/threads/ui/components/LiveThreadDetail";
 
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
 import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 import { PromoCounter } from "@/features/landing/ui/components/PromoCounter";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
+import { notFound } from "next/navigation";
+import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
+import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
+import {
+  getPublicThread,
+  getPublicThreads,
+} from "@/features/threads/lib/getPublicThreads";
 
 export async function generateMetadata({
   params,
@@ -26,9 +25,7 @@ export async function generateMetadata({
   params: Promise<{ threadId: string }>;
 }): Promise<Metadata> {
   const { threadId } = await params; // Await the params Promise
-  const thread = (await convex.query(api.socialapiMutations.getThreadById, {
-    threadId,
-  })) as Thread | null;
+  const { thread } = await getPublicThread(threadId);
 
   if (!thread) {
     return {
@@ -71,22 +68,17 @@ export default async function ThreadDetailPage(props: {
   const params = await props.params;
   const { threadId } = params;
 
-  // Fetch thread data and thread IDs on the server
-  const thread = (await convex.query(api.socialapiMutations.getThreadById, {
-    threadId,
-  })) as Thread | null;
-  const threadIds = (await convex.query(
-    api.socialapiMutations.getThreadIds
-  )) as string[];
+  const [{ thread, threadNumber }, recentThreads] = await Promise.all([
+    getPublicThread(threadId),
+    getPublicThreads({
+      excludeThreadId: threadId,
+      limit: 4,
+    }),
+  ]);
 
-  // Handle thread not found
   if (!thread) {
-    return <div>Thread not found</div>;
+    notFound();
   }
-
-  // Compute thread number
-  const index = threadIds.indexOf(threadId);
-  const threadNumber = index !== -1 ? threadIds.length - index : null;
 
   const tweets = thread.tweets;
   const user = tweets[0].user;
@@ -109,7 +101,16 @@ export default async function ThreadDetailPage(props: {
       </Link>
       <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-6 duration-300 md:mt-12 md:grid-cols-[calc(66.47%-1.5rem)_calc(33.53%-1.5rem)] md:gap-12 md:pb-56">
         <section className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] @container px-4 duration-300 md:px-0">
-          <LiveThreadDetail threadId={threadId} />
+          {tweets.map((tweet, index) => (
+            <ThreadCard
+              className="pt-2"
+              key={tweet.id_str}
+              staticTweet={tweet}
+              size="lg"
+              showFullContent={true}
+              showThread={index === tweets.length - 1}
+            />
+          ))}
         </section>
         <Separator orientation="horizontal" className="block md:hidden" />
         <aside className="space-y-6">
@@ -177,7 +178,9 @@ export default async function ThreadDetailPage(props: {
             <h3 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 text-2xl font-medium duration-300 md:px-0">
               Recent threads.
             </h3>
-            <LiveRecentThreads excludeThreadId={threadId} />
+            {recentThreads.length > 0 ? (
+              <RecentThreads threads={recentThreads} />
+            ) : null}
           </section>
         </aside>
       </div>

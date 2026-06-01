@@ -106,6 +106,7 @@ import type * as lib_prospectListFeedUtils from "../lib/prospectListFeedUtils.js
 import type * as lib_prospectSearchMerge from "../lib/prospectSearchMerge.js";
 import type * as lib_prospectSearchText from "../lib/prospectSearchText.js";
 import type * as lib_prospectingHelpers from "../lib/prospectingHelpers.js";
+import type * as lib_publicSocialCore from "../lib/publicSocialCore.js";
 import type * as lib_qualificationCore from "../lib/qualificationCore.js";
 import type * as lib_qualificationPool from "../lib/qualificationPool.js";
 import type * as lib_ragIndexing from "../lib/ragIndexing.js";
@@ -164,6 +165,7 @@ import type * as prospectSearchUnified from "../prospectSearchUnified.js";
 import type * as prospectSummaries from "../prospectSummaries.js";
 import type * as prospectThreads from "../prospectThreads.js";
 import type * as prospects from "../prospects.js";
+import type * as publicSocial from "../publicSocial.js";
 import type * as readModels from "../readModels.js";
 import type * as sendEmail from "../sendEmail.js";
 import type * as setupSessions from "../setupSessions.js";
@@ -173,7 +175,6 @@ import type * as socialActions from "../socialActions.js";
 import type * as socialApiBudget from "../socialApiBudget.js";
 import type * as socialapi from "../socialapi.js";
 import type * as socialapiMonitors from "../socialapiMonitors.js";
-import type * as socialapiMutations from "../socialapiMutations.js";
 import type * as styleAnalysis from "../styleAnalysis.js";
 import type * as styleAnalysisActions from "../styleAnalysisActions.js";
 import type * as styleMonitorActions from "../styleMonitorActions.js";
@@ -307,6 +308,7 @@ declare const fullApi: ApiFromModules<{
   "lib/prospectSearchMerge": typeof lib_prospectSearchMerge;
   "lib/prospectSearchText": typeof lib_prospectSearchText;
   "lib/prospectingHelpers": typeof lib_prospectingHelpers;
+  "lib/publicSocialCore": typeof lib_publicSocialCore;
   "lib/qualificationCore": typeof lib_qualificationCore;
   "lib/qualificationPool": typeof lib_qualificationPool;
   "lib/ragIndexing": typeof lib_ragIndexing;
@@ -365,6 +367,7 @@ declare const fullApi: ApiFromModules<{
   prospectSummaries: typeof prospectSummaries;
   prospectThreads: typeof prospectThreads;
   prospects: typeof prospects;
+  publicSocial: typeof publicSocial;
   readModels: typeof readModels;
   sendEmail: typeof sendEmail;
   setupSessions: typeof setupSessions;
@@ -374,7 +377,6 @@ declare const fullApi: ApiFromModules<{
   socialApiBudget: typeof socialApiBudget;
   socialapi: typeof socialapi;
   socialapiMonitors: typeof socialapiMonitors;
-  socialapiMutations: typeof socialapiMutations;
   styleAnalysis: typeof styleAnalysis;
   styleAnalysisActions: typeof styleAnalysisActions;
   styleMonitorActions: typeof styleMonitorActions;

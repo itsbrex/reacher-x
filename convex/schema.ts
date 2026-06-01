@@ -3,7 +3,6 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
   icpValidator,
-  tweetValidator,
   planTierValidator,
   prospectListSortValidator,
   prospectPlatformValidator,
@@ -736,13 +735,23 @@ export default defineSchema({
     twitter: v.optional(v.string()),
   }).index("by_email", ["email"]),
 
-  threads: defineTable({
+  publicThreads: defineTable({
     threadId: v.string(),
-    postedAt: v.number(),
-    tweets: v.array(tweetValidator),
+    position: v.number(),
+    isActive: v.boolean(),
   })
     .index("by_threadId", ["threadId"])
-    .index("by_postedAt", ["postedAt"]),
+    .index("by_position", ["position"])
+    .index("by_isActive_position", ["isActive", "position"]),
+
+  publicTestimonials: defineTable({
+    tweetId: v.string(),
+    position: v.number(),
+    isActive: v.boolean(),
+  })
+    .index("by_tweetId", ["tweetId"])
+    .index("by_position", ["position"])
+    .index("by_isActive_position", ["isActive", "position"]),
 
   // Media uploads for temporary storage
   mediaUploads: defineTable({

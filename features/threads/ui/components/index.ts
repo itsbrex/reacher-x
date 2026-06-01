@@ -7,9 +7,6 @@
 
 // Thread-specific components
 export { default as GalleryViewer } from "./GalleryViewer";
-export { LiveRecentThreads } from "./LiveRecentThreads";
-export { LiveThreadDetail } from "./LiveThreadDetail";
-export { LiveThreadsList } from "./LiveThreadsList";
 export { default as MediaViewerDrawer } from "./MediaViewerDrawer";
 export { QuoteThreadCard } from "./QuoteThreadCard";
 export { RecentThreads } from "./RecentThreads";

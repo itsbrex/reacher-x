@@ -1,6 +1,7 @@
 // features/landing/ui/components/RecentThreads.tsx
 import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { Thread } from "@/features/threads/types";
+import { cn } from "@/shared/lib/utils";
 
 interface RecentThreadsProps {
   threads: Thread[]; // Changed to required prop
@@ -25,13 +26,13 @@ export function RecentThreads({
   }
 
   return (
-    <div className={className}>
+    <div className={cn("grid grid-cols-1 gap-6 md:grid-cols-2", className)}>
       {threads.map((thread) => {
         const firstTweet = thread.tweets[0];
         return (
           <ThreadCard
             key={thread.threadId}
-            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 py-4 duration-300 md:px-0"
+            className="[&_[data-orientation=vertical]]:hidden"
             characterLimit={168}
             staticTweet={firstTweet}
             size={size}

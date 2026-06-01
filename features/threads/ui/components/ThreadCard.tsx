@@ -271,6 +271,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
                   className={undefined}
                 >
                   <time
+                    suppressHydrationWarning
                     className={cn(
                       timeClass,
                       "ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-muted-foreground shrink-0 duration-300"

@@ -85,7 +85,7 @@ const LandingVideoPlayer: React.FC<LandingVideoPlayerProps> = ({
       >
         <video
           slot="media"
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover"
           aria-label={ariaLabel}
           playsInline
           preload={preloadValue}

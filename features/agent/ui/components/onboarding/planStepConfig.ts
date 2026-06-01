@@ -37,7 +37,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     subtitle: "Perfect for testing the waters.",
     features: [
       "X/Twitter + LinkedIn integrated",
-      "24/7 prospecting, qualification, enrichment & outreach",
+      "24/7 sourcing, qualification, enrichment & outreach",
       "100 qualified prospects / month",
       "1 workspace",
       "Email support",
@@ -50,7 +50,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
   {
     id: "base",
     title: "Base",
-    subtitle: "For individuals who prospect regularly.",
+    subtitle: "For individuals running outreach regularly.",
     featureLeadIn: "Everything in Free, plus:",
     features: [
       "1000 qualified prospects / month",

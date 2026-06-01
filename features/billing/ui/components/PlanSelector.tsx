@@ -142,9 +142,7 @@ function PlanTierCard({
             {tier.title}
           </CardTitle>
           {tier.badge ? (
-            <Badge variant="outline" className="text-xs font-normal">
-              {tier.badge}
-            </Badge>
+            <Badge variant="outline-strong">{tier.badge}</Badge>
           ) : null}
         </div>
         <CardDescription>{tier.subtitle}</CardDescription>
@@ -293,8 +291,18 @@ export function PlanSelector({
           <TabsTrigger value="monthly" size="sm" className="flex-1">
             Monthly
           </TabsTrigger>
-          <TabsTrigger value="yearly" size="sm" className="flex-1">
-            Yearly · Save 20%
+          <TabsTrigger
+            value="yearly"
+            size="sm"
+            className="group flex-1 gap-1.5"
+          >
+            Yearly
+            <Badge
+              variant="outline-strong"
+              className="border-muted-foreground text-muted-foreground group-data-[state=active]:border-foreground group-data-[state=active]:text-foreground"
+            >
+              Save 20%
+            </Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>

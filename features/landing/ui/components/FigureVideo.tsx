@@ -30,7 +30,7 @@ export const FigureVideo: React.FC<FigureVideoProps> = ({
   return (
     <figure
       className={cn(
-        "relative aspect-square overflow-hidden rounded-lg",
+        "relative aspect-square overflow-hidden rounded-lg border",
         figureClassName
       )}
     >

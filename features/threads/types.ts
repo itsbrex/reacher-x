@@ -1,4 +1,3 @@
-import { Id } from "../../convex/_generated/dataModel";
 import type { TwitterViewerState } from "@/shared/lib/twitter/contracts";
 
 export interface User {
@@ -129,8 +128,6 @@ export interface Tweet {
 }
 
 export interface Thread {
-  _id: Id<"threads">;
-  _creationTime: number;
   postedAt: number;
   threadId: string;
   tweets: Tweet[];

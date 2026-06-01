@@ -2,11 +2,9 @@
 
 // convex/socialdata.ts
 import { action } from "./lib/functionBuilders";
-import { logger } from "../shared/lib/logger";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { acquireSocialApiBudget } from "./lib/socialApiBudget";
 import {
   getXConnectionStatusForUser,
@@ -27,8 +25,6 @@ import type {
 import {
   getConversationContextArgsValidator,
   getTwitterProfileArgsValidator,
-  getThreadsArgsValidator,
-  insertThreadArgsValidator,
   getDynamicThreadDataArgsValidator,
   userTimelineModeValidator,
   twitterSearchTypeValidator,
@@ -538,72 +534,6 @@ export const searchUserTimeline = action({
       "/twitter/search",
       params
     );
-  },
-});
-
-export const getThreads = action({
-  args: getThreadsArgsValidator,
-  handler: async (ctx, { threadIds }) => {
-    const results = await Promise.allSettled(
-      threadIds.map(async (threadId) => {
-        return await fetchSocialApiJson(
-          ctx,
-          "socialapi.getThreads",
-          `/twitter/thread/${threadId}`
-        );
-      })
-    );
-
-    // Extract successful thread data
-    const threads = results
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value);
-
-    // Optionally, collect and log errors for failed fetches
-    const errors = results
-      .filter((result) => result.status === "rejected")
-      .map((result) => result.reason);
-
-    if (errors.length > 0) {
-      logger.error("Some threads failed to fetch:", errors);
-    }
-
-    return threads;
-  },
-});
-
-// convex/socialdata.ts
-export const insertThread = action({
-  args: insertThreadArgsValidator,
-  handler: async (ctx, { threadId }) => {
-    const threadData = (await fetchSocialApiJson(
-      ctx,
-      "socialapi.insertThread",
-      `/twitter/thread/${threadId}`
-    )) as {
-      tweets?: unknown[];
-    };
-
-    const tweets = Array.isArray(threadData.tweets)
-      ? threadData.tweets
-          .map((tweet) => mapSocialApiTweet(tweet))
-          .filter((tweet): tweet is NonNullable<typeof tweet> => tweet !== null)
-      : [];
-
-    const firstTweet = tweets[0];
-    if (!firstTweet?.tweet_created_at) {
-      throw new Error("Thread data is incomplete or missing created_at");
-    }
-
-    const postedAt = firstTweet.tweet_created_at
-      ? new Date(firstTweet.tweet_created_at).getTime()
-      : getCurrentUTCTimestamp();
-
-    await ctx.runMutation(api.socialapiMutations.insertThreadMutation, {
-      threadId,
-      tweets,
-      postedAt,
-    });
   },
 });
 
