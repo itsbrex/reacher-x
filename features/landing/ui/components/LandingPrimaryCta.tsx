@@ -5,6 +5,10 @@ import { useAuth } from "@workos-inc/authkit-nextjs/components";
 import { cn } from "@/shared/lib/utils";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import {
+  ArrowOutwardIcon,
+  ChangeHistoryIcon,
+} from "@/shared/ui/components/icons";
 
 interface LandingPrimaryCtaProps {
   authenticatedHref?: string;
@@ -18,8 +22,8 @@ interface LandingPrimaryCtaProps {
 export function LandingPrimaryCta({
   authenticatedHref = "/",
   anonymousHref = "/login",
-  authenticatedLabel = "View dashboard",
-  anonymousLabel = "Try △ Agent",
+  authenticatedLabel = "Dashboard",
+  anonymousLabel = "Start reaching",
   className,
   skeletonClassName,
 }: LandingPrimaryCtaProps) {
@@ -36,6 +40,7 @@ export function LandingPrimaryCta({
         className={cn(buttonVariants({ variant: "default" }), className)}
       >
         {authenticatedLabel}
+        <ArrowOutwardIcon className="size-4 fill-current" />
       </Link>
     );
   }
@@ -45,6 +50,7 @@ export function LandingPrimaryCta({
       href={anonymousHref}
       className={cn(buttonVariants({ variant: "default" }), className)}
     >
+      <ChangeHistoryIcon className="size-4 fill-current" />
       {anonymousLabel}
     </Link>
   );

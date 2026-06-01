@@ -14,8 +14,8 @@ export function InControlSection() {
       </h2>
       <div className="space-y-16 md:space-y-24">
         <StepBlock
-          heading="Do it yourself. Or delegate to △ Agent."
-          description="You can manually reply to people, send DMs, and engage with their posts all from inside ReacherX. Or ask △ Agent to generate an outreach plan, or give it a command and have it execute it on your behalf. Either way, nothing sends without your approval."
+          heading="Do it yourself. Or delegate to Agent."
+          description="You can manually reply to people, send DMs, and engage with their posts all from inside ReacherX. Or ask Agent to generate an outreach plan, or give it a command and have it execute it on your behalf. Either way, nothing sends without your approval."
           videoAssetKey="control-delegate"
           reversed={false}
         />

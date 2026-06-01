@@ -17,7 +17,7 @@ export function SocialProofSection({
         id="social-proof-heading"
         className="mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
       >
-        You&apos;ll love △ Agent. <br className="hidden md:block" />
+        You&apos;ll love Agent. <br className="hidden md:block" />
         Others already do.
       </h2>
 

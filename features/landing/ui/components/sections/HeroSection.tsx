@@ -14,7 +14,7 @@ export function HeroSection() {
           id="hero-heading"
           className="text-3xl font-medium tracking-tight md:text-5xl"
         >
-          Open-source, self-improving △ Agent that finds the people you need in
+          Open-source, self-improving Agent that reaches the people you need in
           real time.
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base md:text-lg">

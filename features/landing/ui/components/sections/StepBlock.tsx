@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { cn } from "@/shared/lib/utils";
+import {
+  ArrowOutwardIcon,
+  ChangeHistoryIcon,
+} from "@/shared/ui/components/icons";
 import { ThemedFigureVideo } from "../ThemedFigureVideo";
 import type { VideoAssetKey } from "../../../lib/videoAssets";
 
@@ -22,7 +26,7 @@ export function StepBlock({
   heading,
   description,
   videoAssetKey,
-  ctaLabel = "Try △ Agent",
+  ctaLabel = "Start reaching",
   ctaHref = "/login",
   learnMoreLabel = "Learn more",
   learnMoreHref = "#",
@@ -52,13 +56,15 @@ export function StepBlock({
             href={ctaHref}
             className={buttonVariants({ variant: "default", size: "sm" })}
           >
+            <ChangeHistoryIcon className="size-4 fill-current" />
             {ctaLabel}
           </Link>
           <Link
             href={learnMoreHref}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
+            className={buttonVariants({ variant: "link", size: "sm" })}
           >
-            {learnMoreLabel} &rarr;
+            {learnMoreLabel}
+            <ArrowOutwardIcon className="size-4 fill-current" />
           </Link>
         </div>
       </div>

@@ -324,7 +324,7 @@ export function PricingSection({
           </SelectTrigger>
           <SelectContent>
             <div className="px-2 py-1.5 text-sm font-medium">
-              I want to find...
+              I want to reach...
             </div>
             <SelectSeparator />
             {PRICING_USE_CASE_GROUPS.map((group, groupIndex) => (

@@ -28,7 +28,7 @@ export function FounderStorySection() {
             I started ReacherX because ads felt broken. The people you need
             already exist, posting their problems, asking for help, and looking
             for what you&apos;re building. They are not missing. They are just
-            hard to find.
+            hard to reach.
           </p>
           <p className="text-base leading-relaxed">
             Three years in, it has been harder than I imagined. But I&apos;m
@@ -37,11 +37,11 @@ export function FounderStorySection() {
           <p className="text-base leading-relaxed">
             ReacherX is open source because I believe in Open Source as a
             philosophy; the best tools are built in the open. If it helps you
-            find the people you need, the effort is worth it.
+            reach the people you need, the effort is worth it.
           </p>
           <footer className="pt-4">
             <p className="text-foreground font-medium">&mdash; Salman</p>
-            <p className="text-muted-foreground text-sm">Founder, 🆁 ReacherX</p>
+            <p className="text-foreground text-sm">Founder, 🆁 ReacherX</p>
           </footer>
         </article>
       </div>

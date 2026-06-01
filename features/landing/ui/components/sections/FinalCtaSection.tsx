@@ -9,7 +9,7 @@ export function FinalCtaSection() {
       <h2 id="final-cta-heading" className="text-3xl font-medium md:text-4xl">
         The people you need are already out there.{" "}
         <br className="hidden md:block" />
-        Let △ Agent find them.
+        Let your Agent reach them.
       </h2>
       <div className="mt-8">
         <LandingPrimaryCta className="mx-auto" skeletonClassName="mx-auto" />

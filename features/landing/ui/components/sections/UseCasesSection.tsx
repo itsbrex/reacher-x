@@ -11,35 +11,35 @@ import { ArrowForwardIcon } from "@/shared/ui/components/icons";
 const USE_CASES = [
   {
     title: "Customers",
-    description: "Find people who need what you sell or offer.",
+    description: "Reach people who need what you sell or offer.",
   },
   {
     title: "Recruit",
-    description: "Find candidates who match your criteria/job description.",
+    description: "Reach candidates who match your criteria/job description.",
   },
   {
     title: "Investors",
-    description: "Find investors actively looking to fund you.",
+    description: "Reach investors actively looking to fund you.",
   },
   {
     title: "Partner",
-    description: "Find collaborators in your industry.",
+    description: "Reach collaborators in your industry.",
   },
   {
     title: "Community",
-    description: "Find early members who care about your topic.",
+    description: "Reach early members who care about your topic.",
   },
   {
     title: "Creators",
-    description: "Find influencers who align with your brand.",
+    description: "Reach influencers who align with your brand.",
   },
   {
     title: "Research",
-    description: "Find study participants who match your needs.",
+    description: "Reach study participants who match your needs.",
   },
   {
     title: "Podcasts",
-    description: "Find guests with real expertise.",
+    description: "Reach guests with real expertise.",
   },
 ] as const;
 
@@ -54,7 +54,7 @@ export function UseCasesSection() {
         id="use-cases-heading"
         className="mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
       >
-        One △ Agent that adapts to who you need.
+        One Agent that adapts to your use case.
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {USE_CASES.map(({ title, description }) => (
