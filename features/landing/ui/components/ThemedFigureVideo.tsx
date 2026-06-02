@@ -38,7 +38,7 @@ export function ThemedFigureVideo({
   return (
     <figure
       className={cn(
-        "relative aspect-square overflow-hidden rounded-lg border",
+        "relative aspect-square overflow-hidden",
         figureClassName
       )}
     >
@@ -52,7 +52,7 @@ export function ThemedFigureVideo({
             className="object-cover"
           />
         ) : (
-          <Skeleton className="h-full w-full rounded-lg" />
+          <Skeleton className="h-full w-full" />
         )}
       </div>
 
@@ -61,7 +61,7 @@ export function ThemedFigureVideo({
           mp4Url={asset.mp4Url}
           posterUrl={posterUrl}
           ariaLabel={ariaLabel}
-          className={cn("h-full w-full rounded-lg", className)}
+          className={cn("h-full w-full", className)}
           initialPreload={initialPreload}
         />
       </div>

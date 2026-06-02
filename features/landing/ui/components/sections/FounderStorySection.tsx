@@ -14,7 +14,7 @@ export function FounderStorySection() {
       <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-12">
         {/* Founder photo — replace div with next/image once /public/founder.jpg exists */}
         <div
-          className="bg-muted aspect-square w-full rounded-lg"
+          className="bg-muted aspect-square w-full"
           role="img"
           aria-label="Salman, Founder of ReacherX"
         />

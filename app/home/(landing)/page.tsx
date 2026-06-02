@@ -35,17 +35,22 @@ export default function Home() {
   const recentThreadsPromise = getPublicThreads({ limit: 2 });
 
   return (
-    <div className="mx-auto w-full max-w-[1288px]">
-      <HeroSection />
-      <HowAgentWorksSection />
-      <GetsSmarterSection />
-      <InControlSection />
+    <>
+      <div className="mx-auto w-full max-w-[1288px]">
+        <HeroSection />
+        <HowAgentWorksSection />
+        <GetsSmarterSection />
+        <InControlSection />
+      </div>
+      {/* Full-viewport-width — cards scroll edge-to-edge */}
       <UseCasesSection />
-      <OpenSourceSection />
-      <SocialProofSection tweetsPromise={testimonialsPromise} />
-      <RecentThreadsSection threadsPromise={recentThreadsPromise} />
-      <FounderStorySection />
-      <FinalCtaSection />
-    </div>
+      <div className="mx-auto w-full max-w-[1288px]">
+        <OpenSourceSection />
+        <SocialProofSection tweetsPromise={testimonialsPromise} />
+        <RecentThreadsSection threadsPromise={recentThreadsPromise} />
+        <FounderStorySection />
+        <FinalCtaSection />
+      </div>
+    </>
   );
 }

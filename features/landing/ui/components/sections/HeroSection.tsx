@@ -34,7 +34,7 @@ export function HeroSection() {
           videoAssetKey="hero"
           ariaLabel="ReacherX Agent dashboard demo"
           figureClassName="aspect-video w-full"
-          className="h-full w-full rounded-lg"
+          className="h-full w-full"
           initialPreload="metadata"
         />
       </div>

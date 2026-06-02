@@ -54,14 +54,14 @@ export function StepBlock({
         <div className="mt-6 flex items-center gap-3">
           <Link
             href={ctaHref}
-            className={buttonVariants({ variant: "default", size: "sm" })}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "rounded-full")}
           >
             <ChangeHistoryIcon className="size-4 fill-current" />
             {ctaLabel}
           </Link>
           <Link
             href={learnMoreHref}
-            className={buttonVariants({ variant: "link", size: "sm" })}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-full")}
           >
             {learnMoreLabel}
             <ArrowOutwardIcon className="size-4 fill-current" />
@@ -76,8 +76,8 @@ export function StepBlock({
         <ThemedFigureVideo
           videoAssetKey={videoAssetKey}
           ariaLabel={heading}
-          figureClassName="aspect-[4/3] w-full"
-          className="h-full w-full rounded-lg"
+          figureClassName="aspect-square w-full"
+          className="h-full w-full"
         />
       </div>
     </div>

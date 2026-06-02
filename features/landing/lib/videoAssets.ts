@@ -18,7 +18,7 @@ export type VideoAsset = {
 
 /** Placeholder video used until real Screen Studio recordings are ready. */
 const PLACEHOLDER =
-  "https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4N2noDEJUVnFmXaDUJ0CIOf7wedMbczQ8PBSEv";
+  "https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NgsGo9xphdWDIlwzXNZkSCAxQUf6RmpKqgTG2";
 
 export const VIDEO_ASSETS = {
   hero: {

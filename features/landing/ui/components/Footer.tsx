@@ -30,7 +30,7 @@ const FOOTER_COLUMNS = [
   {
     title: "Product",
     links: [
-      { label: "Use cases", href: "#use-cases" },
+      { label: "Use cases", href: "/home/use-cases" },
       { label: "Pricing", href: "/home/pricing" },
       { label: "Changelog", href: "#" },
     ],
@@ -232,7 +232,7 @@ export function Footer({ className }: { className?: string }) {
           <Button
             variant="outline"
             size="xs"
-            className="w-fit"
+            className="w-fit rounded-full"
             onClick={handleScrollToTop}
           >
             <ArrowUpwardIcon className="size-4 fill-current" />

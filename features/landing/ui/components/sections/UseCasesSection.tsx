@@ -1,85 +1,89 @@
-import Link from "next/link";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/shared/ui/components/Card";
-import { ArrowForwardIcon } from "@/shared/ui/components/icons";
+"use client";
 
-const USE_CASES = [
-  {
-    title: "Customers",
-    description: "Reach people who need what you sell or offer.",
-  },
-  {
-    title: "Recruit",
-    description: "Reach candidates who match your criteria/job description.",
-  },
-  {
-    title: "Investors",
-    description: "Reach investors actively looking to fund you.",
-  },
-  {
-    title: "Partner",
-    description: "Reach collaborators in your industry.",
-  },
-  {
-    title: "Community",
-    description: "Reach early members who care about your topic.",
-  },
-  {
-    title: "Creators",
-    description: "Reach influencers who align with your brand.",
-  },
-  {
-    title: "Research",
-    description: "Reach study participants who match your needs.",
-  },
-  {
-    title: "Podcasts",
-    description: "Reach guests with real expertise.",
-  },
-] as const;
+import * as React from "react";
+import { USE_CASES } from "@/features/landing/lib/useCases";
+import { UseCaseCard } from "@/features/landing/ui/components/UseCaseCard";
+import {
+  ScrollXCarousel,
+  ScrollXCarouselContainer,
+  ScrollXCarouselProgress,
+  ScrollXCarouselWrap,
+} from "@/components/systaliko-ui/scroll-x-carousel";
+
+/**
+ * Dynamically compute the xRange end-percentage so the last card lands
+ * flush with the right edge at 100 % scroll — regardless of viewport width.
+ */
+function useDynamicEndX() {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [endX, setEndX] = React.useState("-65%");
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const motionDiv = container.firstElementChild as HTMLElement | null;
+    if (!motionDiv) return;
+
+    function recalc() {
+      const contentW = motionDiv!.scrollWidth;
+      const visibleW = container!.clientWidth;
+      if (contentW <= visibleW) {
+        setEndX("0%");
+        return;
+      }
+      const pct = ((contentW - visibleW) / contentW) * 100;
+      setEndX(`-${pct.toFixed(1)}%`);
+    }
+
+    recalc();
+    const ro = new ResizeObserver(recalc);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  return { containerRef, endX };
+}
 
 export function UseCasesSection() {
+  const { containerRef, endX } = useDynamicEndX();
+
   return (
-    <section
-      id="use-cases"
-      aria-labelledby="use-cases-heading"
-      className="px-4 py-16 md:py-24"
-    >
-      <h2
-        id="use-cases-heading"
-        className="mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
-      >
-        One Agent that adapts to your use case.
-      </h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {USE_CASES.map(({ title, description }) => (
-          <Card
-            key={title}
-            className="flex min-h-[474px] flex-col justify-between rounded-xl shadow-none"
+    <section id="use-cases" aria-labelledby="use-cases-heading">
+      <ScrollXCarousel className="h-[200vh]">
+        <ScrollXCarouselContainer className="top-12 flex h-[calc(100dvh-3rem)] flex-col items-stretch justify-center md:top-14 md:h-[calc(100dvh-3.5rem)]">
+          {/* Heading — centered, constrained to content width */}
+          <h2
+            id="use-cases-heading"
+            className="mx-auto mb-16 w-full max-w-[1288px] px-4 text-center text-3xl font-medium md:mb-24 md:text-4xl"
           >
-            <CardHeader className="p-4">
-              <CardTitle className="text-lg">{title}</CardTitle>
-              <CardDescription className="text-foreground">
-                {description}
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className="p-4 pt-0">
-              <Link
-                href="#"
-                className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-              >
-                Explore
-                <ArrowForwardIcon className="size-4 fill-current" />
-              </Link>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+            One Agent that adapts to who you need.
+          </h2>
+
+          {/* Horizontal-scrolling cards — full viewport width, no padding */}
+          <div ref={containerRef}>
+            <ScrollXCarouselWrap
+              xRagnge={["-0%", endX]}
+              className="flex space-x-4 md:space-x-6 [&>*:first-child]:ml-[max(1rem,_calc((100vw_-_1288px)_/_2_+_1rem))] [&>*:last-child]:mr-[max(1rem,_calc((100vw_-_1288px)_/_2_+_1rem))]"
+            >
+              {USE_CASES.map((uc) => (
+                <UseCaseCard
+                  key={uc.slug}
+                  useCase={uc}
+                  className="min-w-[75vw] md:min-w-[35vw] xl:min-w-[28vw]"
+                />
+              ))}
+            </ScrollXCarouselWrap>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mx-auto mt-12 w-full max-w-[1288px] px-4">
+            <ScrollXCarouselProgress
+              className="bg-secondary h-0.5 overflow-hidden"
+              progressStyle="bg-primary size-full"
+            />
+          </div>
+        </ScrollXCarouselContainer>
+      </ScrollXCarousel>
     </section>
   );
 }

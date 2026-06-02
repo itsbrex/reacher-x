@@ -62,7 +62,7 @@ export function PictureCarousel({
       setApi={setApi} // Store the carousel API
       opts={{ loop: true }}
       plugins={[Autoplay({ delay })]}
-      className={cn(className, "overflow-hidden rounded-lg")}
+      className={cn(className, "overflow-hidden")}
       onMouseEnter={handleMouseEnter} // Stop on hover
       onMouseLeave={handleMouseLeave} // Resume on leave
     >
@@ -73,17 +73,15 @@ export function PictureCarousel({
               <source
                 media="(max-width: 768px)"
                 srcSet={image.mobileSrc}
-                className="rounded-lg"
               />
               <source
                 media="(min-width: 769px)"
                 srcSet={image.desktopSrc}
-                className="rounded-lg"
               />
               <img
                 src={image.desktopSrc}
                 alt={image.alt}
-                className="h-auto w-full rounded-lg"
+                className="h-auto w-full"
               />
             </picture>
           </CarouselItem>

@@ -37,7 +37,7 @@ export function LandingPrimaryCta({
     return (
       <Link
         href={authenticatedHref}
-        className={cn(buttonVariants({ variant: "default" }), className)}
+        className={cn(buttonVariants({ variant: "default" }), "rounded-full", className)}
       >
         {authenticatedLabel}
         <ArrowOutwardIcon className="size-4 fill-current" />
@@ -48,7 +48,7 @@ export function LandingPrimaryCta({
   return (
     <Link
       href={anonymousHref}
-      className={cn(buttonVariants({ variant: "default" }), className)}
+      className={cn(buttonVariants({ variant: "default" }), "rounded-full", className)}
     >
       <ChangeHistoryIcon className="size-4 fill-current" />
       {anonymousLabel}
