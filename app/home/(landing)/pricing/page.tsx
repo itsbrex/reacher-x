@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { APP_NAME } from "@/shared/lib/metadata";
+import { pricingFaqItems } from "@/features/landing/lib/faqs";
+import { FaqsSection } from "@/features/landing/ui/components/sections/FaqsSection";
 import { PricingSection } from "@/features/landing/ui/components/sections/PricingSection";
 import { FinalCtaSection } from "@/features/landing/ui/components/sections/FinalCtaSection";
 import {
@@ -33,6 +35,7 @@ export default function PricingPage() {
       >
         <PricingSectionRuntime />
       </Suspense>
+      <FaqsSection items={pricingFaqItems} />
       <FinalCtaSection />
     </div>
   );

@@ -9,7 +9,9 @@ import { OpenSourceSection } from "@/features/landing/ui/components/sections/Ope
 import { SocialProofSection } from "@/features/landing/ui/components/sections/SocialProofSection";
 import { RecentThreadsSection } from "@/features/landing/ui/components/sections/RecentThreadsSection";
 import { FounderStorySection } from "@/features/landing/ui/components/sections/FounderStorySection";
+import { FaqsSection } from "@/features/landing/ui/components/sections/FaqsSection";
 import { FinalCtaSection } from "@/features/landing/ui/components/sections/FinalCtaSection";
+import { homepageFaqItems } from "@/features/landing/lib/faqs";
 import { getPublicTestimonials } from "@/features/landing/lib/getPublicTestimonials";
 import { getPublicThreads } from "@/features/threads/lib/getPublicThreads";
 
@@ -49,6 +51,7 @@ export default function Home() {
         <SocialProofSection tweetsPromise={testimonialsPromise} />
         <RecentThreadsSection threadsPromise={recentThreadsPromise} />
         <FounderStorySection />
+        <FaqsSection items={homepageFaqItems} />
         <FinalCtaSection />
       </div>
     </>
