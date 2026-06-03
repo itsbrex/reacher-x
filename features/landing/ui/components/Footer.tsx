@@ -32,14 +32,16 @@ const FOOTER_COLUMNS = [
     links: [
       { label: "Use cases", href: "/home/use-cases" },
       { label: "Pricing", href: "/home/pricing" },
-      { label: "Changelog", href: "#" },
+      {
+        label: "Changelog",
+        href: "https://github.com/noobships/reacher-x/releases/",
+      },
     ],
   },
   {
     title: "Resources",
     links: [
       { label: "Threads", href: "/home/threads" },
-      { label: "Vision", href: "#" },
       { label: "Contact", href: "mailto:support@reacherx.com" },
     ],
   },
@@ -47,9 +49,15 @@ const FOOTER_COLUMNS = [
     title: "Open source",
     links: [
       { label: "GitHub", href: GITHUB_REPO_URL },
-      { label: "Documentation", href: "#" },
+      {
+        label: "Documentation",
+        href: "https://github.com/noobships/reacher-x/blob/main/README.md",
+      },
       { label: "Contribute", href: GITHUB_REPO_ISSUES_URL },
-      { label: "License (MIT)", href: "#" },
+      {
+        label: "License (MIT)",
+        href: "https://github.com/noobships/reacher-x/blob/main/LICENSE",
+      },
     ],
   },
 ] as const;
@@ -96,18 +104,14 @@ function isLinkActive(href: string, pathname: string): boolean {
 export function Footer({ className }: { className?: string }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const [currentYear, setCurrentYear] = React.useState<number | null>(null);
-  React.useEffect(() => setCurrentYear(new Date().getFullYear()), []);
+  const currentYear = new Date().getFullYear();
 
   const handleScrollToTop = React.useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   return (
-    <footer
-      role="contentinfo"
-      className={cn("border-border border-t", className)}
-    >
+    <footer className={cn("border-border border-t", className)}>
       <div className="mx-auto flex w-full max-w-[1288px] flex-col gap-8 px-4 pt-8 pb-8 md:gap-12 md:pt-12 md:pb-12">
         {/* Brand */}
         <div className="flex flex-col gap-1">
@@ -140,19 +144,17 @@ export function Footer({ className }: { className?: string }) {
                   const active = isLinkActive(href, pathname);
                   return (
                     <li key={label}>
-                      {href.startsWith("http") || href.startsWith("mailto:") ? (
+                      {href.startsWith("http") ? (
                         <a
                           href={href}
-                          target={
-                            href.startsWith("http") ? "_blank" : undefined
-                          }
-                          rel={
-                            href.startsWith("http")
-                              ? "noopener noreferrer"
-                              : undefined
-                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="text-sm hover:underline"
                         >
+                          {label}
+                        </a>
+                      ) : href.startsWith("mailto:") ? (
+                        <a href={href} className="text-sm hover:underline">
                           {label}
                         </a>
                       ) : (
@@ -259,9 +261,9 @@ export function Footer({ className }: { className?: string }) {
         {/* Bottom bar */}
         <div className="flex flex-col-reverse gap-2 md:flex-row md:items-center md:justify-between">
           <small className="text-muted-foreground text-sm">
-            Copyright &copy; {currentYear ?? ""} ReacherX. All rights reserved.
+            Copyright &copy; {currentYear} ReacherX. All rights reserved.
           </small>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Link
               href="#"
               className="text-primary text-sm font-medium underline-offset-4 hover:underline"

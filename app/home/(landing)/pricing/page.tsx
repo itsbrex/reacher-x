@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { APP_NAME } from "@/shared/lib/metadata";
 import { pricingFaqItems } from "@/features/landing/lib/faqs";
 import { FaqsSection } from "@/features/landing/ui/components/sections/FaqsSection";
 import { PricingSection } from "@/features/landing/ui/components/sections/PricingSection";
@@ -13,11 +12,11 @@ import {
 import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "@/shared/lib/workspaceUseCases";
 
 export const metadata: Metadata = {
-  title: `Pricing — ${APP_NAME}`,
+  title: "Pricing",
   description:
     "Simple, transparent pricing for ReacherX. Start free, upgrade when you're ready.",
   openGraph: {
-    title: `Pricing — ${APP_NAME}`,
+    title: "Pricing",
     description:
       "Simple, transparent pricing for ReacherX. Start free, upgrade when you're ready.",
     url: "https://reacherx.com/home/pricing",

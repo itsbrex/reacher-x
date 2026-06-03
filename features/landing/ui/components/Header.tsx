@@ -107,7 +107,7 @@ function getInitials(name?: string) {
 }
 
 const NAV_LINKS = [
-  { href: "/home/use-cases", label: "Use-cases", isAnchor: false },
+  { href: "/home/use-cases", label: "Use cases", isAnchor: false },
   { href: "/home/threads", label: "Threads", isAnchor: false },
   { href: "mailto:support@reacherx.com", label: "Contact", isAnchor: true },
   { href: "/home/pricing", label: "Pricing", isAnchor: false },
