@@ -12,6 +12,7 @@ import {
   isWorkspaceUseCaseKey,
   type WorkspaceUseCaseKey,
 } from "@/shared/lib/workspaceUseCases";
+import { WORKSPACE_USE_CASE_GROUPS } from "@/shared/lib/workspaceUseCaseGroups";
 import {
   getWorkspaceUseCaseLocalStorageServerSnapshot,
   getWorkspaceUseCaseLocalStorageSnapshot,
@@ -156,7 +157,7 @@ function TierCard({
             {tier.featureLeadIn}
           </p>
         )}
-        <ul className="space-y-2 text-sm" role="list">
+        <ul className="space-y-2 text-sm">
           {tier.features.map((feature) => (
             <li key={feature} className="flex gap-2">
               <Check
@@ -187,65 +188,19 @@ function TierCard({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Use-case groups (mirrors onboarding UseCaseStep)                           */
-/* -------------------------------------------------------------------------- */
-
-const PRICING_USE_CASE_GROUPS: {
-  categoryLabel: string;
-  items: {
-    key: WorkspaceUseCaseKey;
-    title: string;
-    icon: React.FC<React.SVGProps<SVGSVGElement>>;
-  }[];
-}[] = [
-  {
-    categoryLabel: "For business growth",
-    items: [
-      {
-        key: "customer_prospecting",
-        title: "Leads, Customers & Users",
-        icon: LeadsCustomersUsersIcon,
-      },
-      {
-        key: "partnership_outreach",
-        title: "Partnerships",
-        icon: PartnershipsIcon,
-      },
-      { key: "investor_outreach", title: "Investors", icon: InvestorsIcon },
-    ],
-  },
-  {
-    categoryLabel: "For hiring & talent",
-    items: [{ key: "recruiting", title: "Candidates", icon: CandidatesIcon }],
-  },
-  {
-    categoryLabel: "For audience & content",
-    items: [
-      {
-        key: "community_growth",
-        title: "Community members",
-        icon: CommunityMembersIcon,
-      },
-      { key: "creator_outreach", title: "Creators", icon: CreatorsIcon },
-      {
-        key: "podcast_speaker_sourcing",
-        title: "Podcast guests",
-        icon: PodcastGuestsIcon,
-      },
-    ],
-  },
-  {
-    categoryLabel: "For research",
-    items: [
-      {
-        key: "user_research_recruitment",
-        title: "Research participants",
-        icon: ResearchParticipantsIcon,
-      },
-    ],
-  },
-];
+const useCaseIconByKey: Record<
+  WorkspaceUseCaseKey,
+  React.FC<React.SVGProps<SVGSVGElement>>
+> = {
+  customer_prospecting: LeadsCustomersUsersIcon,
+  recruiting: CandidatesIcon,
+  partnership_outreach: PartnershipsIcon,
+  investor_outreach: InvestorsIcon,
+  user_research_recruitment: ResearchParticipantsIcon,
+  creator_outreach: CreatorsIcon,
+  community_growth: CommunityMembersIcon,
+  podcast_speaker_sourcing: PodcastGuestsIcon,
+};
 
 /* -------------------------------------------------------------------------- */
 /*  Custom select item (icon left, check right)                                */
@@ -324,10 +279,10 @@ export function PricingSection({
           </SelectTrigger>
           <SelectContent>
             <div className="px-2 py-1.5 text-sm font-medium">
-              I want to reach...
+              I want to reach…
             </div>
             <SelectSeparator />
-            {PRICING_USE_CASE_GROUPS.map((group, groupIndex) => (
+            {WORKSPACE_USE_CASE_GROUPS.map((group, groupIndex) => (
               <React.Fragment key={group.categoryLabel}>
                 {groupIndex > 0 && <SelectSeparator />}
                 <SelectGroup>
@@ -338,7 +293,7 @@ export function PricingSection({
                     <UseCaseSelectItem
                       key={item.key}
                       value={item.key}
-                      icon={item.icon}
+                      icon={useCaseIconByKey[item.key]}
                     >
                       {item.title}
                     </UseCaseSelectItem>
