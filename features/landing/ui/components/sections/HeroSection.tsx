@@ -12,7 +12,7 @@ export function HeroSection() {
       <div className="mx-auto max-w-3xl text-center">
         <h1
           id="hero-heading"
-          className="text-3xl font-medium tracking-tight md:text-5xl"
+          className="font-pixel-square text-3xl font-medium tracking-tight md:text-5xl"
         >
           Open-source, self-improving Agent that reaches the people you need in
           real time.

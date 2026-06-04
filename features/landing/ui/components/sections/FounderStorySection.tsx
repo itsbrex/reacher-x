@@ -6,7 +6,7 @@ export function FounderStorySection() {
     >
       <h2
         id="founder-story-heading"
-        className="mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
+        className="font-pixel-square mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
       >
         Three years. <br className="hidden md:block" />A single goal.
       </h2>

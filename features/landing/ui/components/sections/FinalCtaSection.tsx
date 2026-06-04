@@ -6,7 +6,10 @@ export function FinalCtaSection() {
       aria-labelledby="final-cta-heading"
       className="px-4 py-24 text-center md:py-32"
     >
-      <h2 id="final-cta-heading" className="text-3xl font-medium md:text-4xl">
+      <h2
+        id="final-cta-heading"
+        className="font-pixel-square text-3xl font-medium md:text-4xl"
+      >
         The people you need are already out there.{" "}
         <br className="hidden md:block" />
         Let your Agent reach them.

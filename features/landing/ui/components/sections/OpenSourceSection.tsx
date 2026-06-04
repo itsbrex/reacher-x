@@ -193,7 +193,7 @@ export function OpenSourceSection() {
     >
       <h2
         id="open-source-heading"
-        className="mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
+        className="font-pixel-square mb-12 text-center text-3xl font-medium md:mb-16 md:text-4xl"
       >
         Ads are closed source. <br className="hidden md:block" />
         Agent is open source.

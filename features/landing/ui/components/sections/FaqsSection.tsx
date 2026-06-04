@@ -19,7 +19,7 @@ export function FaqsSection({
       <div className="mx-auto w-full max-w-3xl">
         <h2
           id="faqs-heading"
-          className="mb-10 text-center text-3xl font-medium md:mb-12 md:text-4xl"
+          className="font-pixel-square mb-10 text-center text-3xl font-medium md:mb-12 md:text-4xl"
         >
           FAQs
         </h2>
