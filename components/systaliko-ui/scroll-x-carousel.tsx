@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { cn } from "@/lib/utils";
 import {
   HTMLMotionProps,
   motion,
@@ -10,7 +10,7 @@ import {
   useScroll,
   useSpring,
   useTransform,
-} from 'motion/react';
+} from "motion/react";
 
 interface ScrollXCarouselContextValue {
   scrollYProgress: MotionValue<number>;
@@ -21,7 +21,7 @@ const ScrollXCarouselContext =
 function useScrollXCarousel() {
   const context = React.useContext(ScrollXCarouselContext);
   if (!context) {
-    throw new Error('useScrollXCarousel must be used within a ScrollXCarousel');
+    throw new Error("useScrollXCarousel must be used within a ScrollXCarousel");
   }
   return context;
 }
@@ -38,7 +38,7 @@ export function ScrollXCarousel({
     <ScrollXCarouselContext.Provider value={{ scrollYProgress }}>
       <div
         ref={carouselRef}
-        className={cn('relative max-w-full', className)}
+        className={cn("relative max-w-full", className)}
         {...props}
       >
         {children}
@@ -53,7 +53,7 @@ export function ScrollXCarouselContainer({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('sticky overflow-hidden w-full top-0 left-0', className)}
+      className={cn("sticky top-0 left-0 w-full overflow-hidden", className)}
       {...props}
     />
   );
@@ -61,9 +61,9 @@ export function ScrollXCarouselContainer({
 export function ScrollXCarouselWrap({
   className,
   style,
-  xRagnge = ['-0%', '-80%'],
+  xRagnge = ["-0%", "-80%"],
   ...props
-}: HTMLMotionProps<'div'> & { xRagnge?: unknown[] }) {
+}: HTMLMotionProps<"div"> & { xRagnge?: unknown[] }) {
   const { scrollYProgress } = useScrollXCarousel();
   const reducedMotion = useReducedMotion();
   const smoothProgress = useSpring(scrollYProgress, {
@@ -78,8 +78,8 @@ export function ScrollXCarouselWrap({
 
   return (
     <motion.div
-      className={cn('w-fit', className)}
-      style={{ x, willChange: 'transform', ...style }}
+      className={cn("w-fit", className)}
+      style={{ x, willChange: "transform", ...style }}
       {...props}
     />
   );
@@ -93,9 +93,9 @@ export function ScrollXCarouselProgress({
   const { scrollYProgress } = useScrollXCarousel();
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
-    <div className={cn('max-w-screen overflow-hidden', className)} {...props}>
+    <div className={cn("max-w-screen overflow-hidden", className)} {...props}>
       <motion.div
-        className={cn('origin-left', progressStyle)}
+        className={cn("origin-left", progressStyle)}
         style={{ scaleX, ...style }}
       />
     </div>
