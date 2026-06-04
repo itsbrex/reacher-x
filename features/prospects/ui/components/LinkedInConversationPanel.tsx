@@ -16,6 +16,11 @@ import {
 } from "@/features/composer/ui/dmComposerClasses";
 import { useProspectLinkedInPanel } from "../../hooks/useProspectLinkedInPanel";
 import { Button } from "@/shared/ui/components/Button";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import {
@@ -430,12 +435,12 @@ export function LinkedInConversationPanel({
               ) : resolvedData ? (
                 <>
                   {resolvedData.warning ? (
-                    <div className="rounded-[20px] border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
-                      <p className="font-medium">Limited live sync</p>
-                      <p className="text-muted-foreground mt-1">
+                    <Alert className="rounded-[20px] px-4 py-3">
+                      <AlertTitle>Limited live sync</AlertTitle>
+                      <AlertDescription>
                         {resolvedData.warning.message}
-                      </p>
-                    </div>
+                      </AlertDescription>
+                    </Alert>
                   ) : null}
                   {isRefreshing ? (
                     <p className="text-muted-foreground text-xs">
