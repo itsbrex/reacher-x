@@ -33,6 +33,8 @@
     "@lexical/rich-text": "^0.44.0",
     "@lexical/selection": "^0.44.0",
     "@lexical/utils": "^0.44.0",
+    "@mux/mux-background-video": "^0.2.3",
+    "@mux/mux-player-react": "^3.13.0",
     "@nanostores/react": "^1.1.0",
     "@number-flow/react": "^0.6.0",
     "@openrouter/ai-sdk-provider": "^1.4.1",

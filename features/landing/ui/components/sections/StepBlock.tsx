@@ -54,14 +54,20 @@ export function StepBlock({
         <div className="mt-6 flex items-center gap-3">
           <Link
             href={ctaHref}
-            className={cn(buttonVariants({ variant: "default", size: "sm" }), "rounded-full")}
+            className={cn(
+              buttonVariants({ variant: "default", size: "sm" }),
+              "rounded-full"
+            )}
           >
             <ChangeHistoryIcon className="size-4 fill-current" />
             {ctaLabel}
           </Link>
           <Link
             href={learnMoreHref}
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-full")}
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "rounded-full"
+            )}
           >
             {learnMoreLabel}
             <ArrowOutwardIcon className="size-4 fill-current" />

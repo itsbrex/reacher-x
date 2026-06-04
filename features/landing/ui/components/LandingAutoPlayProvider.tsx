@@ -2,9 +2,16 @@
 
 import React from "react";
 
+export type LandingPlayableMediaElement = {
+  muted: boolean;
+  playsInline: boolean;
+  pause: () => void;
+  play: () => Promise<void> | void;
+};
+
 type AutoPlayContextValue = {
-  setCurrent: (el: HTMLVideoElement | null) => void;
-  isCurrent: (el: HTMLVideoElement | null | undefined) => boolean;
+  setCurrent: (el: LandingPlayableMediaElement | null) => void;
+  isCurrent: (el: LandingPlayableMediaElement | null | undefined) => boolean;
 };
 
 const AutoPlayContext = React.createContext<AutoPlayContextValue | undefined>(
@@ -20,19 +27,22 @@ export function useLandingAutoPlay() {
 export const LandingAutoPlayProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
-  const currentRef = React.useRef<HTMLVideoElement | null>(null);
+  const currentRef = React.useRef<LandingPlayableMediaElement | null>(null);
 
-  const setCurrent = React.useCallback((el: HTMLVideoElement | null) => {
-    if (currentRef.current && currentRef.current !== el) {
-      try {
-        currentRef.current.pause();
-      } catch {}
-    }
-    currentRef.current = el;
-  }, []);
+  const setCurrent = React.useCallback(
+    (el: LandingPlayableMediaElement | null) => {
+      if (currentRef.current && currentRef.current !== el) {
+        try {
+          currentRef.current.pause();
+        } catch {}
+      }
+      currentRef.current = el;
+    },
+    []
+  );
 
   const isCurrent = React.useCallback(
-    (el: HTMLVideoElement | null | undefined) => {
+    (el: LandingPlayableMediaElement | null | undefined) => {
       return !!el && currentRef.current === el;
     },
     []

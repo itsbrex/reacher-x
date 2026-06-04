@@ -37,6 +37,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.licdn.com",
       },
+      {
+        // Mux-generated video posters
+        protocol: "https",
+        hostname: "image.mux.com",
+      },
     ],
   },
 

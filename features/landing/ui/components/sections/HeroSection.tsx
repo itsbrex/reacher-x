@@ -36,6 +36,7 @@ export function HeroSection() {
           figureClassName="aspect-[4/3] w-full"
           className="h-full w-full"
           initialPreload="metadata"
+          variant="player"
         />
       </div>
     </section>

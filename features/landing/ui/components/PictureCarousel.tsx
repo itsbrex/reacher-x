@@ -70,14 +70,8 @@ export function PictureCarousel({
         {images.map((image, index) => (
           <CarouselItem key={index}>
             <picture>
-              <source
-                media="(max-width: 768px)"
-                srcSet={image.mobileSrc}
-              />
-              <source
-                media="(min-width: 769px)"
-                srcSet={image.desktopSrc}
-              />
+              <source media="(max-width: 768px)" srcSet={image.mobileSrc} />
+              <source media="(min-width: 769px)" srcSet={image.desktopSrc} />
               <img
                 src={image.desktopSrc}
                 alt={image.alt}

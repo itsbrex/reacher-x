@@ -29,10 +29,7 @@ export const FigureVideo: React.FC<FigureVideoProps> = ({
 }) => {
   return (
     <figure
-      className={cn(
-        "relative aspect-square overflow-hidden",
-        figureClassName
-      )}
+      className={cn("relative aspect-square overflow-hidden", figureClassName)}
     >
       <LandingVideoPlayer
         hlsUrl={hlsUrl}

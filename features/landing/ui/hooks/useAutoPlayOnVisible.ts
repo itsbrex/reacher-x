@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useLandingAutoPlay } from "../components/LandingAutoPlayProvider";
+import {
+  type LandingPlayableMediaElement,
+  useLandingAutoPlay,
+} from "../components/LandingAutoPlayProvider";
 
 export function useAutoPlayOnVisible(
-  videoRef: React.RefObject<HTMLVideoElement | null>,
+  videoRef: React.RefObject<LandingPlayableMediaElement | null>,
   opts: { enabled?: boolean } = {}
 ) {
   const { setCurrent, isCurrent } = useLandingAutoPlay();
@@ -25,20 +28,21 @@ export function useAutoPlayOnVisible(
         // Autoplay policies require muted + playsInline
         el.muted = true;
         el.playsInline = true;
-        el.play().catch(() => {});
+        Promise.resolve(el.play()).catch(() => {});
       } else {
-        if (!isCurrent(el)) {
-          try {
-            el.pause();
-          } catch {}
+        if (isCurrent(el)) {
+          setCurrent(null);
         }
+        try {
+          el.pause();
+        } catch {}
       }
     };
 
     const io = new IntersectionObserver(onIntersect, {
       threshold: [0, 0.6, 1],
     });
-    io.observe(el);
+    io.observe(el as unknown as Element);
     return () => io.disconnect();
   }, [videoRef, enabled, setCurrent, isCurrent]);
 }

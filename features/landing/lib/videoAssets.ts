@@ -1,14 +1,14 @@
 /**
- * Central registry of demo video URLs for the landing page.
- * Each key maps to light-mode and dark-mode variants.
- *
- * Replace placeholder URLs with real Screen Studio recordings
- * once they are uploaded to UploadThing.
+ * Central registry of Mux playback IDs for landing-page demo videos.
+ * Each key maps to light-mode and dark-mode variants so we can
+ * swap theme-specific recordings later without changing component APIs.
  */
 
 type VideoSource = {
+  playbackId?: string;
   mp4Url: string;
   posterUrl?: string;
+  posterTime?: number;
 };
 
 export type VideoAsset = {
@@ -16,50 +16,135 @@ export type VideoAsset = {
   dark: VideoSource;
 };
 
-/** Shared placeholder video used until real Screen Studio recordings are ready. */
+export const LANDING_USE_CASES_PLAYBACK_ID =
+  "EbGp59Zf6aUIkTonyJ2DcnAN4gSHlGmZ02U1X2602PLEE";
+
+export const LANDING_PRIMARY_PLAYBACK_ID =
+  "vMuVTzPy4cqU02RfeQlU602DUnTZ5Uu9VnAiq28b4MAds";
+
 export const LANDING_PLACEHOLDER_VIDEO_URL =
   "https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4Ne4o1rZgyRbrWdIGZK0sCkx5o6azDVPMBptAj";
 
 export const VIDEO_ASSETS = {
   hero: {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "how-step-1": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "how-step-2": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "how-step-3": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "how-step-4": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "smarter-writes": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "smarter-context": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "smarter-feedback": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "control-delegate": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
   "control-workspaces": {
-    light: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
-    dark: { mp4Url: LANDING_PLACEHOLDER_VIDEO_URL },
+    light: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
+    dark: {
+      playbackId: LANDING_PRIMARY_PLAYBACK_ID,
+      mp4Url: LANDING_PLACEHOLDER_VIDEO_URL,
+      posterTime: 0,
+    },
   },
 } as const satisfies Record<string, VideoAsset>;
 
