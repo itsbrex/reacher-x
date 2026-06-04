@@ -6,7 +6,7 @@ import { PostHogProvider } from "./home/PostHogProvider";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
 import { Toaster } from "@/shared/ui/components/Sonner";
 import MediaChromeYTTemplate from "@/shared/ui/components/MediaChromeYTTemplate";
-import { inter, dmMono } from "./fonts";
+import { geistSans, geistMono, geistPixelSquare } from "./fonts";
 import "./globals.css";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { APP_DESCRIPTION, APP_NAME } from "@/shared/lib/metadata";
@@ -98,7 +98,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${dmMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${geistPixelSquare.variable} antialiased`}
       >
         <PostHogProvider>
           <ConvexClientProvider>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { Button } from "@/shared/ui/components/Button";
-import { dmMono, inter } from "./fonts";
+import { geistMono, geistPixelSquare, geistSans } from "./fonts";
 import "./globals.css";
 
 export default function GlobalError({
@@ -21,7 +21,7 @@ export default function GlobalError({
     <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${dmMono.variable} bg-background text-foreground antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${geistPixelSquare.variable} bg-background text-foreground antialiased`}
       >
         <title>Something went wrong | ReacherX</title>
         <main className="flex min-h-screen items-center justify-center p-6">

@@ -1,15 +1,7 @@
-import { Inter, DM_Mono } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
+import { GeistPixelSquare } from "geist/font/pixel";
+import { GeistSans } from "geist/font/sans";
 
-export const inter = Inter({
-  weight: ["400", "500", "600"],
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-export const dmMono = DM_Mono({
-  weight: ["400", "500"],
-  subsets: ["latin"],
-  variable: "--font-dm-mono",
-  display: "swap",
-});
+export const geistSans = GeistSans;
+export const geistMono = GeistMono;
+export const geistPixelSquare = GeistPixelSquare;

@@ -82,6 +82,7 @@
     "embla-carousel-react": "^8.6.0",
     "exa-js": "^2.12.1",
     "frimousse": "^0.3.0",
+    "geist": "^1.7.2",
     "hls-video-element": "^1.5.11",
     "hls.js": "^1.6.16",
     "lexical": "^0.44.0",

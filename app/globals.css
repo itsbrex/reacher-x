@@ -6,6 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-pixel-square: var(--font-geist-pixel-square);
+
   --color-main: hsl(var(--main));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -218,7 +222,7 @@
 }
 
 body {
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
   line-height: 1.2em;
 }
 
@@ -264,9 +268,13 @@ h6 {
 }
 
 .font-mono {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-geist-mono), monospace;
   line-height: 142.9%; /* You can also use '1.429' for line-height */
   letter-spacing: -0.04em; /* -4% as 'em' */
+}
+
+.font-pixel-square {
+  font-family: var(--font-geist-pixel-square), sans-serif;
 }
 
 @utility word-break {
