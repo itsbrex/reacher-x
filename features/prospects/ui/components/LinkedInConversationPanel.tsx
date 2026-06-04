@@ -435,7 +435,7 @@ export function LinkedInConversationPanel({
               ) : resolvedData ? (
                 <>
                   {resolvedData.warning ? (
-                    <Alert className="rounded-[20px] px-4 py-3">
+                    <Alert>
                       <AlertTitle>Limited live sync</AlertTitle>
                       <AlertDescription>
                         {resolvedData.warning.message}

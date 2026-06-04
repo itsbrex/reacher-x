@@ -224,7 +224,7 @@ export function InlineDmPreviewCard({
           ) : null}
 
           {data.warning ? (
-            <Alert className="px-3 py-2">
+            <Alert>
               <AlertTitle>Limited live sync</AlertTitle>
               <AlertDescription>{data.warning.message}</AlertDescription>
             </Alert>
