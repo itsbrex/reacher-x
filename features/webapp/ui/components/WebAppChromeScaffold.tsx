@@ -4,6 +4,7 @@ import {
   SidebarHeader as UISidebarHeader,
   SidebarProvider as UISidebarProvider,
 } from "@/shared/ui/components/Sidebar";
+import { Badge } from "@/shared/ui/components/Badge";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Button } from "@/shared/ui/components/Button";
 import { PanelLeft } from "lucide-react";
@@ -95,8 +96,8 @@ function HeaderLoadingBar() {
         <div className="w-12 text-center font-mono text-[1.75rem] leading-[normal!important] font-medium">
           🆁
         </div>
-        <span className="border-border mr-2 inline-block border-r border-l px-2 py-[0.969rem] font-mono text-xs font-bold">
-          v4.0 beta
+        <span className="border-border mr-2 inline-flex border-r border-l px-2 py-[0.969rem]">
+          <Badge variant="outline-strong">v4 beta</Badge>
         </span>
         <Button
           variant="ghost"
@@ -176,8 +177,8 @@ function WebAppChromeLoadingShell({ children }: { children: ReactNode }) {
           <div className="w-12 text-center font-mono text-[1.75rem] leading-[normal!important] font-medium">
             🆁
           </div>
-          <span className="border-border mr-2 inline-block border-r border-l px-2 py-[0.969rem] font-mono text-xs font-bold">
-            v4.0 beta
+          <span className="border-border mr-2 inline-flex border-r border-l px-2 py-[0.969rem]">
+            <Badge variant="outline-strong">v4 beta</Badge>
           </span>
           <Button
             variant="ghost"

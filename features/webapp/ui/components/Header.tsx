@@ -105,6 +105,9 @@ const brandLinkVariants = cva(
   "text-[1.75rem] font-medium font-mono w-12 text-center leading-[normal!important]"
 );
 const navVariants = cva("flex items-center gap-0 md:gap-4");
+const versionBadgeFrameVariants = cva(
+  "border-border mr-2 inline-flex border-r border-l px-2 py-[0.969rem]"
+);
 
 /* ----------------------------------------------------------------------------
  * Header Props
@@ -422,8 +425,8 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
             >
               🆁
             </Link>
-            <span className="border-border mr-2 inline-block border-r border-l px-2 py-[0.969rem] font-mono text-xs font-bold">
-              v4.0 beta
+            <span className={cn(versionBadgeFrameVariants())}>
+              <Badge variant="outline-strong">v4 beta</Badge>
             </span>
             <SidebarTrigger />
           </div>
@@ -458,8 +461,8 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
           >
             🆁
           </Link>
-          <span className="border-border mr-2 inline-block border-r border-l px-2 py-[0.969rem] font-mono text-xs font-bold">
-            v4.0 beta
+          <span className={cn(versionBadgeFrameVariants())}>
+            <Badge variant="outline-strong">v4 beta</Badge>
           </span>
           <SidebarTrigger />
         </div>
