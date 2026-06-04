@@ -101,6 +101,12 @@
       "sourceType": "github",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
+    "mux-video": {
+      "source": "muxinc/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mux/SKILL.md",
+      "computedHash": "eaf3453ee47a8e00c657a6e9562389a88c03604761a6ed10a44224b4e7128f8a"
+    },
     "openrouter-typescript-sdk": {
       "source": "openrouterteam/agent-skills",
       "sourceType": "github",
