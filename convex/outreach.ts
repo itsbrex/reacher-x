@@ -488,6 +488,9 @@ async function resolveTaskForPanel(args: {
     if (prospectId && ownedTask.plan.prospectId !== prospectId) {
       return null;
     }
+    if (targetTweetId && ownedTask.task.targetTweetId !== targetTweetId) {
+      return null;
+    }
     return ownedTask;
   }
 
@@ -514,6 +517,8 @@ async function resolveTaskForPanel(args: {
       const owned = await ensureOwnedTask(match ?? null);
       if (owned) return owned;
     }
+
+    return null;
   }
 
   if (prospectId) {
