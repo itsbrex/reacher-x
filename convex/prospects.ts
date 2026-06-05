@@ -682,6 +682,7 @@ export const getOnboardingProgress = query({
       systemMode: systemStatus.mode,
       userVisibleIssueState,
       pipelineStartedAt: workspace.prospectingWorkflowStartedAt ?? null,
+      pausedAt: workspace.prospectingWorkflowPausedAt ?? null,
       phase,
       isDone,
     };

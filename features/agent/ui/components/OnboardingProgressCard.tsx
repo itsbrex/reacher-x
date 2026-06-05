@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
+import { AnimatedElapsedTimer } from "@/shared/ui/components/AnimatedElapsedTimer";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import {
   Timeline,
@@ -60,6 +60,7 @@ const DEFAULT_PROGRESS_DATA = {
   systemMode: "running" as const,
   userVisibleIssueState: null,
   pipelineStartedAt: null,
+  pausedAt: null,
   phase: "searching" as const,
   isDone: false,
 };
@@ -122,6 +123,7 @@ export function OnboardingProgressCard({
   const data = dataQuery.data ?? DEFAULT_PROGRESS_DATA;
 
   const pipelineStartedAt = data?.pipelineStartedAt ?? null;
+  const pausedAt = data?.pausedAt ?? null;
   const readyCount =
     data?.actionableReadyCount ?? data?.readyQualifiedEnrichedCount ?? 0;
   const isReady = readyCount > 0;
@@ -129,22 +131,6 @@ export function OnboardingProgressCard({
     data?.userVisibleIssueState?.status === "delayed"
       ? data.userVisibleIssueState.message
       : null;
-
-  const [elapsed, setElapsed] = useState(() =>
-    pipelineStartedAt ? Math.floor((Date.now() - pipelineStartedAt) / 1000) : 0
-  );
-
-  // Tick the timer
-  useEffect(() => {
-    if (!pipelineStartedAt || isReady) return;
-    const tick = () =>
-      setElapsed(Math.floor((Date.now() - pipelineStartedAt) / 1000));
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [pipelineStartedAt, isReady]);
-
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
 
   const timelineStep = data ? getTimelineStep(data) : 0;
   const entitiesLower = activeUseCase.entityPlural.toLowerCase();
@@ -229,18 +215,17 @@ export function OnboardingProgressCard({
             {headerMetaLabel}
           </span>
           {timerMode === "elapsed" ? (
-            <span className="text-muted-foreground font-mono text-xs tabular-nums">
-              <AnimatedNumber value={minutes} />
-              {":"}
-              <AnimatedNumber
-                value={seconds}
-                format={{ minimumIntegerDigits: 2 }}
-              />
-            </span>
+            <AnimatedElapsedTimer
+              startedAt={pipelineStartedAt}
+              className="text-muted-foreground text-xs"
+            />
           ) : timerMode === "paused" ? (
-            <span className="text-muted-foreground font-mono text-xs tabular-nums">
-              Paused
-            </span>
+            <AnimatedElapsedTimer
+              startedAt={pipelineStartedAt}
+              pausedAt={pausedAt}
+              prefix="Paused"
+              className="text-muted-foreground text-xs"
+            />
           ) : null}
         </div>
       </CardHeader>
@@ -275,13 +260,13 @@ export function OnboardingProgressCard({
               <TimelineItem
                 key={stage.id}
                 step={stage.step}
-                className="min-w-0 flex-1 group-data-[orientation=horizontal]/timeline:mt-0"
+                className="min-w-[72px] flex-1 group-data-[orientation=horizontal]/timeline:mt-0"
               >
                 <TimelineHeader>
-                  <TimelineSeparator className="group-data-[orientation=horizontal]/timeline:top-5" />
+                  <TimelineSeparator className="group-data-[orientation=horizontal]/timeline:top-7" />
                   <TimelineDate
                     className={cn(
-                      "mb-6 font-mono text-[10px] tabular-nums",
+                      "mb-8 font-mono text-[10px] tabular-nums",
                       count > 0 ? "text-foreground" : "text-muted-foreground/50"
                     )}
                   >
@@ -294,7 +279,7 @@ export function OnboardingProgressCard({
                   <TimelineTitle className="text-[11px]">
                     {stage.label}
                   </TimelineTitle>
-                  <TimelineIndicator className="group-data-[orientation=horizontal]/timeline:top-5" />
+                  <TimelineIndicator className="group-data-[orientation=horizontal]/timeline:top-7" />
                 </TimelineHeader>
               </TimelineItem>
             );
