@@ -786,6 +786,27 @@ async function fetchTwitterPosts(args: {
   return dedupePosts(sortPostsDescending(collected));
 }
 
+async function fetchTwitterPostById(
+  ctx: ToolContext,
+  postId: string
+): Promise<NormalizedSocialPost | null> {
+  const hydrated = await ctx.runAction(
+    api.socialapi.getTwitterPostsByIdsFromSocialApi,
+    {
+      tweetIds: [postId],
+    }
+  );
+
+  return (
+    hydrated.tweets
+      .map((tweet: unknown) => normalizeTwitterPost(tweet))
+      .find(
+        (tweet: NormalizedSocialPost | null): tweet is NormalizedSocialPost =>
+          tweet?.id === postId
+      ) ?? null
+  );
+}
+
 async function fetchLinkedInProfile(
   ctx: ToolContext,
   prospect: ProspectDoc
@@ -1151,10 +1172,41 @@ export async function resolveSocialContext(
     args.dateFrom,
     args.dateTo
   );
-  const selectedPosts =
-    args.mode === "posts"
-      ? applySelection(filteredPosts, prospect, args.selection)
-      : { posts: filteredPosts, selectionResult: undefined };
+  let selectedPosts: {
+    posts: NormalizedSocialPost[];
+    selectionResult?: SocialContextSelectionResult;
+  };
+
+  if (args.mode === "posts" && args.postId) {
+    let requestedPosts = filteredPosts.filter((post) => post.id === args.postId);
+
+    if (requestedPosts.length === 0 && resolvedPlatform === "twitter") {
+      const hydratedPost = await fetchTwitterPostById(ctx, args.postId);
+      requestedPosts = hydratedPost
+        ? filterPostsByDateRange([hydratedPost], args.dateFrom, args.dateTo)
+        : [];
+    }
+
+    if (requestedPosts.length === 0) {
+      throw new Error(
+        `Could not find requested ${resolvedPlatform} post ${args.postId}.`
+      );
+    }
+
+    selectedPosts = {
+      posts: requestedPosts,
+      selectionResult: {
+        requested: args.selection,
+        matchedPostIds: requestedPosts.map((post) => post.id),
+        rationale: "Selected the explicitly requested post.",
+      },
+    };
+  } else {
+    selectedPosts =
+      args.mode === "posts"
+        ? applySelection(filteredPosts, prospect, args.selection)
+        : { posts: filteredPosts, selectionResult: undefined };
+  }
 
   if (args.mode === "posts") {
     posts = selectedPosts.posts.slice(0, limit);

@@ -253,6 +253,7 @@ function buildSingleElementSpec<T extends AgentArtifactComponent>(
       artifact: {
         type,
         props,
+        visible: true,
         children: [],
       },
     },
@@ -390,7 +391,7 @@ export function createPostListArtifact(input: {
     platform: "twitter" | "linkedin";
     textPreview: string;
     createdAt?: number;
-    rawData?: unknown;
+    postData?: unknown;
     ref?: unknown;
     summary?: unknown;
   }>;
@@ -406,7 +407,7 @@ export function createPostListArtifact(input: {
       platform: post.platform,
       textPreview: post.textPreview,
       createdAt: post.createdAt ?? null,
-      postData: post.rawData ?? null,
+      postData: post.postData ?? null,
       postRef:
         post.platform === "twitter" ? normalizeTwitterPostRef(post.ref) : null,
       postSummary:

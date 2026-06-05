@@ -13,6 +13,7 @@ import {
   resolveSocialContext,
   type NormalizedSocialPost,
 } from "./socialContextShared";
+import type { UnifiedPost } from "../../../../shared/lib/platforms/types";
 
 const displayEntitySchema = z.enum([
   "prospect_profile",
@@ -39,13 +40,17 @@ export interface DisplayEntityResult {
   openPayload?: unknown;
   prospect?: unknown;
   profile?: unknown;
-  posts: NormalizedSocialPost[];
+  posts: DisplayEntityPostPreview[];
   thread?: unknown;
   activitySummary?: unknown;
   selection?: unknown;
   resolvedPlatform?: "twitter" | "linkedin";
   error?: string;
 }
+
+type DisplayEntityPostPreview = Omit<NormalizedSocialPost, "rawData"> & {
+  postData?: unknown;
+};
 
 function getPanelModeFromTaskStatus(status?: string): PanelMode | undefined {
   if (!status) return undefined;
@@ -89,6 +94,53 @@ function getPostListTitle(args: {
   }
 
   return "Recent posts";
+}
+
+function toCompactPostData(post: NormalizedSocialPost): unknown {
+  if (post.platform === "twitter") {
+    return post.summary ?? null;
+  }
+
+  return {
+    id: post.id,
+    platform: "linkedin",
+    url: post.url,
+    author: {
+      id: post.author?.id,
+      handle: post.author?.handle,
+      name: post.author?.name,
+      avatarUrl: post.author?.avatarUrl,
+      profileUrl: post.author?.profileUrl,
+      headline: post.author?.headline,
+    },
+    text: post.textPreview,
+    createdAt: post.createdAt,
+    metrics: post.metrics,
+  } satisfies UnifiedPost;
+}
+
+function toDisplayEntityPostPreview(
+  post: NormalizedSocialPost
+): DisplayEntityPostPreview {
+  return {
+    id: post.id,
+    platform: post.platform,
+    createdAt: post.createdAt,
+    textPreview: post.textPreview,
+    url: post.url,
+    metrics: post.metrics,
+    isReply: post.isReply,
+    author: post.author,
+    ref: post.ref,
+    summary: post.summary,
+    postData: post.platform === "linkedin" ? toCompactPostData(post) : null,
+  };
+}
+
+function toOpenPayloadPost(post: NormalizedSocialPost): unknown {
+  return post.platform === "twitter"
+    ? (post.summary ?? null)
+    : toCompactPostData(post);
 }
 
 async function resolveTaskContextForPost(args: {
@@ -157,7 +209,7 @@ export const displayEntity = createTool({
     postId: z
       .string()
       .optional()
-      .describe("Specific post id for thread display."),
+      .describe("Specific post id for post or thread display."),
     postIds: z
       .array(z.string())
       .optional()
@@ -283,16 +335,17 @@ export const displayEntity = createTool({
             }
           : undefined;
       } else if (args.entity === "post" && primaryPost) {
+        const compactPostData = toCompactPostData(primaryPost);
         artifact = createPostArtifact({
           platform: primaryPost.platform,
           prospectId: resolved.prospect.id,
           openKind: "post",
           postData:
             primaryPost.platform === "linkedin"
-              ? primaryPost.rawData
+              ? compactPostData
               : undefined,
           postRef: primaryPost.ref,
-          postSummary: primaryPost.summary ?? primaryPost.rawData,
+          postSummary: primaryPost.summary,
           context: args.context ?? resolved.selection?.rationale,
           taskId: taskContext.taskId,
           taskStatus: taskContext.taskStatus,
@@ -306,7 +359,7 @@ export const displayEntity = createTool({
               prospectId: resolved.prospect.id,
               postData:
                 primaryPost.platform === "linkedin"
-                  ? primaryPost.rawData
+                  ? compactPostData
                   : undefined,
               postRef: primaryPost.ref,
               postSummary: primaryPost.summary,
@@ -337,7 +390,8 @@ export const displayEntity = createTool({
             platform: post.platform,
             textPreview: post.textPreview,
             createdAt: post.createdAt,
-            rawData: post.rawData,
+            postData:
+              post.platform === "linkedin" ? toCompactPostData(post) : null,
             ref: post.ref,
             summary: post.summary,
           })),
@@ -348,10 +402,12 @@ export const displayEntity = createTool({
               platform: resolved.resolvedPlatform,
               prospectId: resolved.prospect.id,
               title,
-              posts: displayPosts.map((post) => post.rawData),
+              posts: displayPosts.map((post) => toOpenPayloadPost(post)),
             }
           : undefined;
       }
+
+      const previewPosts = displayPosts.map(toDisplayEntityPostPreview);
 
       return {
         success: true,
@@ -359,8 +415,13 @@ export const displayEntity = createTool({
         openPayload,
         prospect: resolved.prospect,
         profile: resolved.profile,
-        posts: displayPosts,
-        thread: resolved.thread,
+        posts: previewPosts,
+        thread: resolved.thread
+          ? {
+              ...resolved.thread,
+              posts: resolved.thread.posts.map(toDisplayEntityPostPreview),
+            }
+          : undefined,
         activitySummary: resolved.activitySummary,
         selection: resolved.selection,
         resolvedPlatform: resolved.resolvedPlatform,
