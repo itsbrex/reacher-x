@@ -51,6 +51,7 @@ import {
 import { useProspectListFilters } from "@/features/prospects/hooks/useProspectListFilters";
 import { useProspectListSort } from "@/features/prospects/hooks/useProspectListSort";
 import { cn } from "@/shared/lib/utils";
+import { useCanGoBack } from "@/shared/ui/hooks/useCanGoBack";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import {
   createDefaultProspectListFilters,
@@ -111,9 +112,7 @@ export default function ProspectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const browseMode = searchQuery.trim() === "";
   const visibilityMode = "ready_only" as const;
-  const [canGoBack, setCanGoBack] = useState(() =>
-    typeof window !== "undefined" ? window.history.length > 1 : false
-  );
+  const canGoBack = useCanGoBack();
   const entitiesLower = entityPlural.toLowerCase();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
 
@@ -129,21 +128,6 @@ export default function ProspectsPage() {
   useEffect(() => {
     clearStack();
   }, [clearStack]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const updateCanGoBack = () => {
-      setCanGoBack(window.history.length > 1);
-    };
-
-    updateCanGoBack();
-    window.addEventListener("popstate", updateCanGoBack);
-
-    return () => {
-      window.removeEventListener("popstate", updateCanGoBack);
-    };
-  }, []);
 
   const handleProspectClick = (id: Id<"prospects">) => {
     if (isMobile) {
