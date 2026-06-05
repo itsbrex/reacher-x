@@ -23,6 +23,37 @@ const ACTIVITY_ENSURE_SUCCESS_TTL_MS = 6 * 60 * 60 * 1000;
 const ACTIVITY_ENSURE_RETRY_MS = 15 * 60 * 1000;
 const ACTIVITY_ENSURE_RATE_LIMIT_RETRY_MS = 5 * 60 * 1000;
 
+function isDuplicateSubscriptionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("duplicatesubscription") &&
+    normalized.includes("subscription already exists")
+  );
+}
+
+function findMatchingRemoteSubscription(
+  subscriptions: Array<{
+    eventType: XDmActivityEventType;
+    filterUserId?: string;
+    webhookId?: string;
+    subscriptionId: string;
+    tag?: string;
+  }>,
+  args: {
+    eventType: XDmActivityEventType;
+    xUserId: string;
+    webhookId: string;
+  }
+) {
+  return subscriptions.find(
+    (candidate) =>
+      candidate.eventType === args.eventType &&
+      candidate.filterUserId === args.xUserId &&
+      candidate.webhookId === args.webhookId
+  );
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
@@ -273,14 +304,6 @@ export const ensureDmActivitySubscriptionsForUserInternal = internalAction({
     if (requiredScopes.some((scope) => !granted.has(scope))) {
       return { ensured: false, reason: "missing_scopes" as const };
     }
-    if (
-      account.activitySubscriptionStatus === "pending_retry" &&
-      typeof account.activitySubscriptionsNextRetryAt === "number" &&
-      account.activitySubscriptionsNextRetryAt > now
-    ) {
-      return { ensured: false };
-    }
-
     const webhookUrl = getXWebhookCallbackUrl();
     const localWebhook: any = await ctx.runQuery(
       internal.platformConversations.getXWebhookByUrlInternal,
@@ -316,6 +339,19 @@ export const ensureDmActivitySubscriptionsForUserInternal = internalAction({
       });
       return { ensured: true, webhookId: localWebhook.webhookId };
     }
+
+    const isPendingRetryWindow =
+      account.activitySubscriptionStatus === "pending_retry" &&
+      typeof account.activitySubscriptionsNextRetryAt === "number" &&
+      account.activitySubscriptionsNextRetryAt > now;
+    const shouldAttemptDuplicateReconciliation =
+      isPendingRetryWindow &&
+      isDuplicateSubscriptionError(account.activitySubscriptionsLastError);
+
+    if (isPendingRetryWindow && !shouldAttemptDuplicateReconciliation) {
+      return { ensured: false };
+    }
+
     await ctx.runMutation(internal.xStore.patchXAccountInternal, {
       userId: args.userId,
       patch: {
@@ -360,26 +396,43 @@ export const ensureDmActivitySubscriptionsForUserInternal = internalAction({
         accountForActivity.accessToken
       );
 
-      const remoteSubscriptions = await listXActivitySubscriptions();
+      let remoteSubscriptions = await listXActivitySubscriptions();
       let lastAuthMode = accountForActivity.activitySubscriptionsLastAuthMode;
       for (const eventType of X_DM_ACTIVITY_EVENT_TYPES) {
-        let subscription = remoteSubscriptions.find(
-          (candidate) =>
-            candidate.eventType === eventType &&
-            candidate.filterUserId === accountForActivity.xUserId &&
-            candidate.webhookId === webhook.id
-        );
+        let subscription = findMatchingRemoteSubscription(remoteSubscriptions, {
+          eventType,
+          xUserId: accountForActivity.xUserId,
+          webhookId: webhook.id,
+        });
 
         if (!subscription) {
-          const created = await createXActivitySubscription({
-            eventType,
-            xUserId: accountForActivity.xUserId,
-            webhookId: webhook.id,
-            tag: `reacherx:${args.userId}:${eventType}`,
-            userOAuthAccessToken,
-          });
-          subscription = created.subscription;
-          lastAuthMode = created.authMode;
+          try {
+            const created = await createXActivitySubscription({
+              eventType,
+              xUserId: accountForActivity.xUserId,
+              webhookId: webhook.id,
+              tag: `reacherx:${args.userId}:${eventType}`,
+              userOAuthAccessToken,
+            });
+            subscription = created.subscription;
+            lastAuthMode = created.authMode;
+            remoteSubscriptions = [...remoteSubscriptions, subscription];
+          } catch (error) {
+            if (!isDuplicateSubscriptionError(error)) {
+              throw error;
+            }
+
+            remoteSubscriptions = await listXActivitySubscriptions();
+            subscription = findMatchingRemoteSubscription(remoteSubscriptions, {
+              eventType,
+              xUserId: accountForActivity.xUserId,
+              webhookId: webhook.id,
+            });
+
+            if (!subscription) {
+              throw error;
+            }
+          }
         }
 
         await ctx.runMutation(

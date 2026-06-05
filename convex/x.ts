@@ -337,6 +337,7 @@ async function persistDmConversationSnapshot(
 function buildCachedDmWarning(args: {
   conversation?: Record<string, any> | null;
   account?: Record<string, any> | null;
+  connectionStatus: XConnectionStatus;
 }): XDmPanelContext["warning"] {
   const conversation = args.conversation;
   if (conversation?.lastSyncErrorCode === "rate_limited") {
@@ -353,8 +354,12 @@ function buildCachedDmWarning(args: {
 
   const account = args.account;
   if (
+    args.connectionStatus.status === "connected" &&
+    args.connectionStatus.isConnected &&
     account?.activitySubscriptionStatus &&
-    account.activitySubscriptionStatus !== "healthy"
+    account.activitySubscriptionStatus !== "healthy" &&
+    (typeof conversation?.lastSyncSuccessAt !== "number" ||
+      Date.now() - conversation.lastSyncSuccessAt > DM_PANEL_FRESH_MS)
   ) {
     return {
       code: "activity_degraded",
@@ -418,6 +423,7 @@ function buildBaseDmPanelContext(args: {
     warning: buildCachedDmWarning({
       conversation: args.cachedSnapshot?.conversation,
       account: args.account,
+      connectionStatus: args.connectionStatus,
     }),
   };
 }
