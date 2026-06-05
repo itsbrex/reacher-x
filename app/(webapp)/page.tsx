@@ -57,6 +57,7 @@ import {
   getProspectListFilterArgs,
 } from "@/features/prospects/lib/prospectListFilters";
 import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectListSort";
+import { WorkspaceSystemStatusFeedBar } from "@/features/webapp/ui/components/WorkspaceSystemStatusFeedBar";
 
 type WorkspaceSetupStatus =
   | { status: "unauthenticated" }
@@ -110,7 +111,9 @@ export default function ProspectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const browseMode = searchQuery.trim() === "";
   const visibilityMode = "ready_only" as const;
-  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoBack, setCanGoBack] = useState(() =>
+    typeof window !== "undefined" ? window.history.length > 1 : false
+  );
   const entitiesLower = entityPlural.toLowerCase();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
 
@@ -155,6 +158,10 @@ export default function ProspectsPage() {
     preferredShellQueryArgs
   );
   const setupStatus = setupStatusQuery.data as WorkspaceSetupStatus | undefined;
+  const shellStateQuery = useQueryWithStatus(
+    api.shell.getAppShellState,
+    preferredShellQueryArgs
+  );
   const workspaceId =
     setupStatus?.status === "complete" ? setupStatus.workspace.id : null;
   const setupFitScoreMin =
@@ -299,6 +306,11 @@ export default function ProspectsPage() {
         }
       : "skip"
   );
+  const onboardingProgress = useQuery(
+    api.prospects.getOnboardingProgress,
+    workspaceId ? { workspaceId } : "skip"
+  );
+  const workspaceSystemStatus = shellStateQuery.data?.workspaceSystemStatus;
 
   const ensureProspectListAnchor = useMutation(
     api.prospectListFeed.ensureProspectListAnchor
@@ -472,6 +484,15 @@ export default function ProspectsPage() {
     feedState.pendingCount > 0 &&
     workspaceId !== null &&
     fitScoreRange !== null;
+  const showAgentStatusBar =
+    browseMode &&
+    !showPendingBar &&
+    workspaceSystemStatus !== null &&
+    workspaceSystemStatus !== undefined &&
+    onboardingProgress !== undefined &&
+    (workspaceSystemStatus.mode === "running" ||
+      workspaceSystemStatus.mode === "degraded" ||
+      workspaceSystemStatus.mode === "paused");
 
   const listFirstPageLoading = browseMode
     ? currentTabStatus === "LoadingFirstPage"
@@ -562,6 +583,12 @@ export default function ProspectsPage() {
                       entityPluralLower={entitiesLower}
                       onMerge={handleMergePending}
                       disabled={isMergePending}
+                    />
+                  ) : null}
+                  {showAgentStatusBar && onboardingProgress && workspaceSystemStatus ? (
+                    <WorkspaceSystemStatusFeedBar
+                      status={workspaceSystemStatus}
+                      progress={onboardingProgress}
                     />
                   ) : null}
 
