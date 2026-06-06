@@ -312,158 +312,154 @@ function ToolCallVisualization({
     socialAction: "Taking social action",
   };
 
-  return (
-    <div className="space-y-2">
-      {toolCalls.map((tc, idx) => {
-        // Check if this tool result has a progress array (e.g., searchProspects)
-        const result = tc.result as Record<string, unknown> | undefined;
-        const hasProgress =
-          result &&
-          Array.isArray(result.progress) &&
-          result.progress.length > 0;
+  const renderedToolCallNodes = toolCalls.map((tc, idx) => {
+    // Check if this tool result has a progress array (e.g., searchProspects)
+    const result = tc.result as Record<string, unknown> | undefined;
+    const hasProgress =
+      result && Array.isArray(result.progress) && result.progress.length > 0;
 
-        // Handle both Convex Agent states ("result") and AI SDK states ("output-available")
-        const isToolComplete =
-          tc.state === "result" || tc.state === "output-available";
-        const artifact =
-          isToolComplete && result ? getAgentArtifactFromResult(result) : null;
-        if (artifact) {
-          return (
-            <ArtifactToolResult
-              key={`${tc.toolName}-${idx}`}
-              artifact={artifact}
-              onOpenPanelFromCard={onOpenPanelFromCard}
-              onOpenPlanPanel={onOpenPlanPanel}
-              onApprovePlan={(planId: string) => {
-                void approvePlan({ planId: planId as Id<"outreachPlans"> });
-              }}
-            />
-          );
-        }
+    // Handle both Convex Agent states ("result") and AI SDK states ("output-available")
+    const isToolComplete =
+      tc.state === "result" || tc.state === "output-available";
+    const artifact =
+      isToolComplete && result ? getAgentArtifactFromResult(result) : null;
+    if (artifact) {
+      return (
+        <ArtifactToolResult
+          key={`${tc.toolName}-${idx}`}
+          artifact={artifact}
+          onOpenPanelFromCard={onOpenPanelFromCard}
+          onOpenPlanPanel={onOpenPlanPanel}
+          onApprovePlan={(planId: string) => {
+            void approvePlan({ planId: planId as Id<"outreachPlans"> });
+          }}
+        />
+      );
+    }
 
-        if (
-          isToolComplete &&
-          result &&
-          typeof result.plan === "object" &&
-          result.plan !== null &&
-          Array.isArray(result.tasks)
-        ) {
-          const plan = result.plan as {
-            id?: string;
-            status?: string;
-            strategy?: { rationale?: string };
+    if (
+      isToolComplete &&
+      result &&
+      typeof result.plan === "object" &&
+      result.plan !== null &&
+      Array.isArray(result.tasks)
+    ) {
+      const plan = result.plan as {
+        id?: string;
+        status?: string;
+        strategy?: { rationale?: string };
+      };
+      const tasks = (result.tasks as Array<Record<string, unknown>>).map(
+        (task, taskIndex) => {
+          const resolvedId =
+            typeof task.id === "string"
+              ? task.id
+              : typeof task._id === "string"
+                ? task._id
+                : `plan-task-${idx}-${taskIndex}`;
+
+          return {
+            _id: resolvedId,
+            order: typeof task.order === "number" ? task.order : taskIndex + 1,
+            type: typeof task.type === "string" ? task.type : "comment",
+            description:
+              typeof task.description === "string" ? task.description : "",
+            status: typeof task.status === "string" ? task.status : "pending",
+            content:
+              typeof task.content === "string" ? task.content : undefined,
+            targetTweetId:
+              typeof task.targetTweetId === "string"
+                ? task.targetTweetId
+                : undefined,
           };
-          const tasks = (result.tasks as Array<Record<string, unknown>>).map(
-            (task, taskIndex) => {
-              const resolvedId =
-                typeof task.id === "string"
-                  ? task.id
-                  : typeof task._id === "string"
-                    ? task._id
-                    : `plan-task-${idx}-${taskIndex}`;
+        }
+      );
 
-              return {
-                _id: resolvedId,
-                order:
-                  typeof task.order === "number" ? task.order : taskIndex + 1,
-                type: typeof task.type === "string" ? task.type : "comment",
-                description:
-                  typeof task.description === "string" ? task.description : "",
-                status:
-                  typeof task.status === "string" ? task.status : "pending",
-                content:
-                  typeof task.content === "string" ? task.content : undefined,
-                targetTweetId:
-                  typeof task.targetTweetId === "string"
-                    ? task.targetTweetId
-                    : undefined,
-              };
+      if (
+        typeof plan.status === "string" &&
+        typeof plan.strategy?.rationale === "string"
+      ) {
+        const planId = typeof plan.id === "string" ? plan.id : undefined;
+        return (
+          <OutreachPlanCard
+            key={`${tc.toolName}-${idx}`}
+            variant="preview"
+            status={plan.status}
+            rationale={plan.strategy.rationale}
+            tasks={tasks}
+            onApprove={
+              plan.status === "draft" && planId
+                ? () => {
+                    void approvePlan({
+                      planId: planId as Id<"outreachPlans">,
+                    });
+                  }
+                : undefined
             }
-          );
+            footerAction={
+              onOpenPlanPanel
+                ? {
+                    label: "Show plan",
+                    onClick: onOpenPlanPanel,
+                  }
+                : undefined
+            }
+          />
+        );
+      }
+    }
 
-          if (
-            typeof plan.status === "string" &&
-            typeof plan.strategy?.rationale === "string"
-          ) {
-            const planId = typeof plan.id === "string" ? plan.id : undefined;
-            return (
-              <OutreachPlanCard
-                key={`${tc.toolName}-${idx}`}
-                variant="preview"
-                status={plan.status}
-                rationale={plan.strategy.rationale}
-                tasks={tasks}
-                onApprove={
-                  plan.status === "draft" && planId
-                    ? () => {
-                        void approvePlan({
-                          planId: planId as Id<"outreachPlans">,
-                        });
-                      }
-                    : undefined
-                }
-                footerAction={
-                  onOpenPlanPanel
-                    ? {
-                        label: "Show plan",
-                        onClick: onOpenPlanPanel,
-                      }
-                    : undefined
-                }
-              />
-            );
-          }
-        }
-
-        // If tool has progress steps, show the progress display instead of raw Tool
-        if (hasProgress && tc.state === "result") {
-          return (
-            <div key={`${tc.toolName}-${idx}`} className="space-y-2">
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span className="font-medium">
-                  {toolLabels[tc.toolName] || tc.toolName}
-                </span>
+    // If tool has progress steps, show the progress display instead of raw Tool
+    if (hasProgress && tc.state === "result") {
+      return (
+        <div key={`${tc.toolName}-${idx}`} className="space-y-2">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <span className="font-medium">
+              {toolLabels[tc.toolName] || tc.toolName}
+            </span>
+          </div>
+          <ProgressStepsDisplay progress={result.progress as ProgressStep[]} />
+          {/* Show results summary if available */}
+          {result.results != null &&
+            typeof result.results === "object" &&
+            "totalProspects" in result.results && (
+              <div className="text-muted-foreground mt-2 text-xs">
+                Found{" "}
+                {(result.results as { totalProspects?: number })
+                  .totalProspects ?? 0}{" "}
+                prospects
               </div>
-              <ProgressStepsDisplay
-                progress={result.progress as ProgressStep[]}
-              />
-              {/* Show results summary if available */}
-              {result.results != null &&
-                typeof result.results === "object" &&
-                "totalProspects" in result.results && (
-                  <div className="text-muted-foreground mt-2 text-xs">
-                    Found{" "}
-                    {(result.results as { totalProspects?: number })
-                      .totalProspects ?? 0}{" "}
-                    prospects
-                  </div>
-                )}
-            </div>
-          );
-        }
+            )}
+        </div>
+      );
+    }
 
-        // Default: show the Tool component
-        const toolPart: ToolPart = {
-          type: toolLabels[tc.toolName] || tc.toolName,
-          state:
-            tc.state === "call" || tc.state === "partial-call"
-              ? "input-streaming"
-              : tc.state === "output-error"
-                ? "output-error"
-                : tc.result
-                  ? "output-available"
-                  : "input-available",
-          input: tc.args,
-          output: tc.result as Record<string, unknown> | undefined,
-          toolCallId: tc.toolCallId,
-          errorText: tc.errorText,
-        };
+    // Default: show the Tool component
+    const toolPart: ToolPart = {
+      type: toolLabels[tc.toolName] || tc.toolName,
+      state:
+        tc.state === "call" || tc.state === "partial-call"
+          ? "input-streaming"
+          : tc.state === "output-error"
+            ? "output-error"
+            : tc.result
+              ? "output-available"
+              : "input-available",
+      input: tc.args,
+      output: tc.result as Record<string, unknown> | undefined,
+      toolCallId: tc.toolCallId,
+      errorText: tc.errorText,
+    };
 
-        return <Tool key={`${tc.toolName}-${idx}`} toolPart={toolPart} />;
-      })}
-    </div>
-  );
+    return <Tool key={`${tc.toolName}-${idx}`} toolPart={toolPart} />;
+  });
+
+  if (renderedToolCallNodes.every((node) => node === null)) {
+    return null;
+  }
+
+  return <div className="space-y-2">{renderedToolCallNodes}</div>;
 }
 
 function getPendingTurnLabel(pendingTurn: PendingTurnState): string {
