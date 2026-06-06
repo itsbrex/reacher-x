@@ -198,14 +198,14 @@ export default function ArchivesPage() {
     !browseMode && !isSearchLoading && displayProspects.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 md:flex-row md:items-stretch">
       <PageLayout
         className={cn(
           "flex h-full min-h-0 w-full flex-col overflow-hidden",
           (showProspectPanel ||
             showFilterAsPrimaryPanel ||
             showSortAsPrimaryPanel) &&
-            "hidden border-r md:block"
+            "hidden border-r md:flex md:min-w-0 md:flex-1 md:basis-0"
         )}
       >
         <PageHeader title={pageLabels.archives} onBack={() => router.back()} />
