@@ -100,6 +100,8 @@ export type TwitterProfileSummary = {
   joinedAt?: string;
   relationshipMessage?: string;
   relationshipBadge?: "none" | "you_following" | "follows_you" | "mutual";
+  relationshipPrimaryAction?: "follow" | "unfollow";
+  relationshipPrimaryLabel?: "Follow" | "Unfollow";
 };
 
 export type LinkedInProfileSummary = {
@@ -687,6 +689,8 @@ async function fetchTwitterProfile(
       joinedAt: asString(profile.created_at),
       relationshipMessage: result.relationship.message,
       relationshipBadge: result.relationship.badge,
+      relationshipPrimaryAction: result.relationship.primaryAction,
+      relationshipPrimaryLabel: result.relationship.primaryLabel,
     };
   } catch {
     const rawProfile = await fetchSocialApiJson(
@@ -731,6 +735,8 @@ async function fetchTwitterProfile(
       joinedAt: asString(profile.created_at),
       relationshipMessage: relationship.message,
       relationshipBadge: relationship.badge,
+      relationshipPrimaryAction: relationship.primaryAction,
+      relationshipPrimaryLabel: relationship.primaryLabel,
     };
   }
 }

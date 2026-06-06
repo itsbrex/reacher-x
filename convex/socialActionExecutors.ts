@@ -48,6 +48,7 @@ type SubmitTwitterActionResult = {
   message: string;
   approvalMode?: string;
   riskLevel?: string;
+  eligibilityReasonCode?: string;
   targetTweetId?: string;
   sourcePostRef?: TwitterPostRef;
   sourcePostSummary?: TwitterPostSummary;
@@ -966,6 +967,7 @@ export const submitTwitterActionForThread = internalAction({
           message: reason,
           approvalMode: metadata.approvalMode,
           riskLevel: metadata.riskLevel,
+          eligibilityReasonCode: dmState?.eligibility.reasonCode,
           sourceContext: args.context,
           draftContent: args.text?.trim() || undefined,
           error: reason,

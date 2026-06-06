@@ -186,6 +186,7 @@ export const agentArtifactCatalog = defineCatalog(schema, {
         status: z.string(),
         approvalMode: z.string().nullable().optional(),
         riskLevel: z.string().nullable().optional(),
+        eligibilityReasonCode: z.string().nullable().optional(),
         targetTweetId: z.string().nullable().optional(),
         sourcePostData: z.any().nullable().optional(),
         sourcePostRef: twitterPostRefSchema.nullable().optional(),
@@ -569,6 +570,7 @@ export function createTwitterActionArtifact(input: {
   status: string;
   approvalMode?: string;
   riskLevel?: string;
+  eligibilityReasonCode?: string;
   targetTweetId?: string;
   sourcePostData?: unknown;
   sourcePostRef?: unknown;
@@ -590,6 +592,7 @@ export function createTwitterActionArtifact(input: {
     status: input.status,
     approvalMode: input.approvalMode ?? null,
     riskLevel: input.riskLevel ?? null,
+    eligibilityReasonCode: input.eligibilityReasonCode ?? null,
     targetTweetId: input.targetTweetId ?? null,
     sourcePostData: input.sourcePostData ?? null,
     sourcePostRef:

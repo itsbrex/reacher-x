@@ -197,7 +197,7 @@ function buildDmEligibility(args: {
     return {
       enabled: false,
       reasonCode: "missing_connection",
-      reasonLabel: "Connect X with DM access to message this prospect.",
+      reasonLabel: "Connect X/Twitter with DM access to message this prospect.",
     };
   }
 

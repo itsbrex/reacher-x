@@ -53,6 +53,7 @@ export interface SocialActionToolResult {
   message: string;
   approvalMode?: string;
   riskLevel?: string;
+  eligibilityReasonCode?: string;
   targetTweetId?: string;
   sourcePostRef?: unknown;
   sourcePostSummary?: unknown;
@@ -285,6 +286,7 @@ export const socialAction = createTool({
             status,
             approvalMode: result.approvalMode,
             riskLevel: result.riskLevel,
+            eligibilityReasonCode: result.eligibilityReasonCode,
             targetTweetId: result.targetTweetId,
             sourcePostData:
               "sourcePostData" in result ? result.sourcePostData : undefined,
