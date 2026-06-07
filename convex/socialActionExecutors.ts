@@ -194,6 +194,44 @@ function findSourcePostInProspect(
   };
 }
 
+async function hydrateMissingTwitterSourcePost(args: {
+  ctx: any;
+  userId: Id<"users">;
+  targetTweetId?: string;
+  source: {
+    sourcePostSummary?: TwitterPostSummary;
+    sourcePostRef?: TwitterPostRef;
+  } | null;
+}) {
+  if (!args.targetTweetId || args.source?.sourcePostSummary) {
+    return args.source;
+  }
+
+  const hydrated = await args.ctx.runAction(
+    internal.x.getHydratedTwitterPostInternal,
+    {
+      userId: args.userId,
+      tweetId: args.targetTweetId,
+    }
+  );
+  const tweet = hydrated?.tweet;
+  const sourcePostSummary = summarizeTwitterPost(tweet) ?? undefined;
+
+  if (!sourcePostSummary) {
+    return args.source;
+  }
+
+  const sourcePostRef =
+    getTwitterPostRef(tweet) ??
+    sourcePostSummary.ref ??
+    args.source?.sourcePostRef;
+
+  return {
+    sourcePostRef,
+    sourcePostSummary,
+  };
+}
+
 function buildActionTitle(args: {
   actionKey: CuratedTwitterActionKey;
   targetLabel?: string;
@@ -911,10 +949,15 @@ export const submitTwitterActionForThread = internalAction({
       threadContext.prospect
         ? resolveDmTargetLabel(threadContext)
         : undefined);
-    const source = findSourcePostInProspect(
-      threadContext.prospect ?? null,
-      args.tweetId
-    );
+    const source = await hydrateMissingTwitterSourcePost({
+      ctx,
+      userId: threadContext.userId,
+      targetTweetId: args.tweetId,
+      source: findSourcePostInProspect(
+        threadContext.prospect ?? null,
+        args.tweetId
+      ),
+    });
     const title = buildActionTitle({
       actionKey: args.actionKey,
       targetLabel: effectiveTargetLabel,

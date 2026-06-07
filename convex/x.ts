@@ -48,6 +48,7 @@ import {
 } from "../shared/lib/twitter/hydration";
 import { applyViewerStateToTweet } from "../shared/lib/twitter/ui";
 import { logger } from "../shared/lib/logger";
+import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   assertPostTextWithinLimit,
   getDmTextLimitError,
@@ -2090,6 +2091,33 @@ export const getHydratedTwitterPost = action({
       tweet: hydrated,
       fetchedAt: Date.now(),
     };
+  },
+});
+
+export const getHydratedTwitterPostInternal = internalAction({
+  args: {
+    userId: v.id("users"),
+    tweetId: v.string(),
+  },
+  handler: async (ctx, args): Promise<HydratedTwitterPostPayload> => {
+    try {
+      const provider = await getReadProviderForUser(ctx, args.userId);
+      const tweet = await getHydratedPostById(provider, args.tweetId);
+
+      return {
+        tweet,
+        fetchedAt: getCurrentUTCTimestamp(),
+      };
+    } catch (error) {
+      console.warn("[X] Failed to hydrate post for internal action context", {
+        tweetId: args.tweetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        tweet: null,
+        fetchedAt: getCurrentUTCTimestamp(),
+      };
+    }
   },
 });
 
