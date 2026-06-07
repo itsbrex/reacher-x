@@ -573,7 +573,7 @@ function TwitterActionArtifactCard({
         mediaKinds={livePanelData?.mediaKinds ?? []}
         sourcePostRef={sourcePostRef}
         sourcePostSummary={sourcePostSummary}
-        sourceContext={sourceContext ?? undefined}
+        targetTweetId={props.targetTweetId ?? undefined}
         reviewButtonLabel={reviewButtonLabel}
         onOpenPanel={
           canReviewInPanel
@@ -818,20 +818,22 @@ export function AgentArtifactRenderer({
     () => validateAgentArtifactEnvelope(artifact),
     [artifact]
   );
+  const actionContextValue = React.useMemo(
+    () => ({
+      onOpenPlanPanel,
+      onOpenPostPanel: resolvedOpenPanel,
+      onOpenPanel: resolvedOpenPanel,
+      onApprovePlan,
+    }),
+    [onApprovePlan, onOpenPlanPanel, resolvedOpenPanel]
+  );
 
   if (!validatedArtifact) {
     return null;
   }
 
   return (
-    <AgentArtifactActionContext.Provider
-      value={{
-        onOpenPlanPanel,
-        onOpenPostPanel: resolvedOpenPanel,
-        onOpenPanel: resolvedOpenPanel,
-        onApprovePlan,
-      }}
-    >
+    <AgentArtifactActionContext.Provider value={actionContextValue}>
       <JSONUIProvider registry={registry}>
         <Renderer spec={validatedArtifact.spec} registry={registry} />
       </JSONUIProvider>

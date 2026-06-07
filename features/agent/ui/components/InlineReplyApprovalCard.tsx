@@ -10,6 +10,8 @@ import type {
   ComposerIdentityUser,
   ComposerMediaKind,
 } from "@/features/composer/types";
+import type { Tweet as TweetType } from "@/features/threads/types";
+import { ThreadAwareTwitterReplyBody } from "@/features/prospects/ui/components/ThreadAwareTwitterReplyBody";
 import { InlineFeatureStrip } from "@/shared/ui/components/InlineFeatureStrip";
 import { Button } from "@/shared/ui/components/Button";
 import { cn } from "@/shared/lib/utils";
@@ -19,8 +21,7 @@ import type {
   TwitterPostSummary,
 } from "@/shared/lib/twitter/contracts";
 import { toFallbackTweetFromSummary } from "@/shared/lib/twitter/ui";
-import { shouldIgnoreInlineCardClick } from "./inlineCardActivation";
-import { PostCard } from "./PostCard";
+import { X_POST_WEIGHTED_MAX } from "@/shared/lib/twitter/xPostTextLimit";
 
 const PREVIEW_TOOLBAR_CONFIG: ToolbarConfig = {
   showBold: false,
@@ -33,6 +34,10 @@ const FALLBACK_CURRENT_USER: ComposerIdentityUser = {
   name: "You",
   screenName: "you",
 };
+
+const EMPTY_MEDIA_URLS: string[] = [];
+const EMPTY_MEDIA_DESCRIPTIONS: string[] = [];
+const EMPTY_MEDIA_KINDS: Array<"image" | "gif" | "video"> = [];
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|m4v|webm)$/i.test(url);
@@ -69,7 +74,7 @@ export interface InlineReplyApprovalCardProps {
   mediaKinds?: Array<"image" | "gif" | "video">;
   sourcePostRef?: TwitterPostRef | null;
   sourcePostSummary?: TwitterPostSummary | null;
-  sourceContext?: string | null;
+  targetTweetId?: string | null;
   onOpenPanel?: () => void;
   reviewButtonLabel?: string;
   onApprove?: () => void | Promise<void>;
@@ -84,15 +89,42 @@ function getLeadingLabel(status: string) {
   return "Reply preview →";
 }
 
+function getReplyUsers(args: {
+  tweet?: TweetType | null;
+  sourcePostRef?: TwitterPostRef | null;
+  sourcePostSummary?: TwitterPostSummary | null;
+}) {
+  const handle =
+    args.tweet?.user?.screen_name ??
+    args.sourcePostSummary?.author?.handle ??
+    args.sourcePostRef?.authorHandle ??
+    "";
+  const name =
+    args.tweet?.user?.name ??
+    args.sourcePostSummary?.author?.name ??
+    (handle || "user");
+
+  if (!handle) {
+    return [];
+  }
+
+  return [
+    {
+      screenName: handle,
+      name,
+    },
+  ];
+}
+
 export function InlineReplyApprovalCard({
   status,
   draftContent,
-  mediaUrls = [],
-  mediaDescriptions = [],
-  mediaKinds = [],
+  mediaUrls = EMPTY_MEDIA_URLS,
+  mediaDescriptions = EMPTY_MEDIA_DESCRIPTIONS,
+  mediaKinds = EMPTY_MEDIA_KINDS,
   sourcePostRef,
   sourcePostSummary,
-  sourceContext,
+  targetTweetId,
   onOpenPanel,
   reviewButtonLabel = "Review",
   onApprove,
@@ -100,41 +132,24 @@ export function InlineReplyApprovalCard({
   pendingAction = null,
   className,
 }: InlineReplyApprovalCardProps) {
-  const { currentUser } = useViewerXComposerIdentity();
+  const { connectionStatus, currentUser } = useViewerXComposerIdentity();
 
-  const replyUsers = React.useMemo(() => {
-    const handle =
-      sourcePostSummary?.author?.handle ?? sourcePostRef?.authorHandle ?? "";
-    const name = (sourcePostSummary?.author?.name ?? handle) || "user";
-
-    if (!handle) {
-      return [];
-    }
-
-    return [
-      {
-        screenName: handle,
-        name,
-      },
-    ];
-  }, [
-    sourcePostRef?.authorHandle,
-    sourcePostSummary?.author?.handle,
-    sourcePostSummary?.author?.name,
-  ]);
-
-  const replyToTweet = React.useMemo(() => {
-    if (sourcePostSummary) {
-      return toFallbackTweetFromSummary(sourcePostSummary);
-    }
-
-    return {
-      id_str: sourcePostRef?.postId ?? "",
-    };
-  }, [sourcePostRef?.postId, sourcePostSummary]);
+  const sourceTweetId =
+    sourcePostRef?.postId ?? sourcePostSummary?.ref.postId ?? targetTweetId;
+  const initialTweet = React.useMemo(
+    () =>
+      sourcePostSummary
+        ? (toFallbackTweetFromSummary(sourcePostSummary) as TweetType)
+        : undefined,
+    [sourcePostSummary]
+  );
 
   const canOpenPanel = typeof onOpenPanel === "function";
   const isPendingApproval = status === "pending_approval";
+  const maxLength =
+    connectionStatus?.postComposerMaxLength ?? X_POST_WEIGHTED_MAX;
+  const characterCountMode =
+    connectionStatus?.postComposerCountMode ?? "x_post";
   const initialMediaUploads = React.useMemo<ComposerInitialMediaUpload[]>(
     () =>
       mediaUrls.map((url, index) => {
@@ -151,87 +166,85 @@ export function InlineReplyApprovalCard({
     [mediaDescriptions, mediaKinds, mediaUrls]
   );
 
+  const previewContent = (
+    <div className="space-y-3 px-2 py-2">
+      {sourceTweetId ? (
+        <ThreadAwareTwitterReplyBody
+          tweetId={sourceTweetId}
+          initialTweet={initialTweet}
+          loadingContainerClassName="mx-0"
+          errorClassName="mx-0"
+          timelineContainerClassName="mx-0"
+          repliesContainerClassName="divide-y-0"
+          loadMoreContainerClassName="px-0"
+          showRepliesAfterComposer={false}
+          showLoadMoreReplies={false}
+          showFocusedTweetFullContent={false}
+          focusedTweetBodyLineClamp={3}
+          renderComposerSection={(tweet) => (
+            <ReplyComposer
+              replyTo={{
+                tweet,
+                users: getReplyUsers({
+                  tweet,
+                  sourcePostRef,
+                  sourcePostSummary,
+                }),
+              }}
+              currentUser={currentUser ?? FALLBACK_CURRENT_USER}
+              initialContent={buildSerializedTextState(draftContent ?? "")}
+              initialMediaUploads={initialMediaUploads}
+              maxLength={maxLength}
+              characterCountMode={characterCountMode}
+              placeholder="Type here."
+              previewMode
+              disabled
+              showCharacterCount={false}
+              showToolbar
+              showMediaUpload
+              toolbarConfig={PREVIEW_TOOLBAR_CONFIG}
+              toolbarPlacement="bottom"
+              submitButtonVariant="icon"
+              editorAreaClassName="min-h-0 text-sm"
+              showMediaDescription
+              showOpenGraphPreview={false}
+              className="pointer-events-none opacity-90 select-none"
+            />
+          )}
+        />
+      ) : (
+        <ReplyComposer
+          replyTo={{
+            tweet: { id_str: "" } as TweetType,
+            users: getReplyUsers({ sourcePostRef, sourcePostSummary }),
+          }}
+          currentUser={currentUser ?? FALLBACK_CURRENT_USER}
+          initialContent={buildSerializedTextState(draftContent ?? "")}
+          initialMediaUploads={initialMediaUploads}
+          maxLength={maxLength}
+          characterCountMode={characterCountMode}
+          placeholder="Type here."
+          previewMode
+          disabled
+          showCharacterCount={false}
+          showToolbar
+          showMediaUpload
+          toolbarConfig={PREVIEW_TOOLBAR_CONFIG}
+          toolbarPlacement="bottom"
+          submitButtonVariant="icon"
+          editorAreaClassName="min-h-0 text-sm"
+          showMediaDescription
+          showOpenGraphPreview={false}
+          className="pointer-events-none opacity-90 select-none"
+        />
+      )}
+    </div>
+  );
+
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div
-        role={canOpenPanel ? "button" : undefined}
-        tabIndex={canOpenPanel ? 0 : undefined}
-        className={cn(
-          "border-border overflow-hidden rounded-xl border",
-          canOpenPanel &&
-            "hover:bg-muted/30 focus-visible:ring-ring cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
-        )}
-        aria-label={canOpenPanel ? reviewButtonLabel : undefined}
-        onClick={
-          canOpenPanel
-            ? (event) => {
-                if (shouldIgnoreInlineCardClick(event)) {
-                  return;
-                }
-                onOpenPanel?.();
-              }
-            : undefined
-        }
-        onKeyDown={
-          canOpenPanel
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onOpenPanel?.();
-                }
-              }
-            : undefined
-        }
-      >
-        <div className="space-y-3 px-2 py-2">
-          {sourcePostSummary ? (
-            <PostCard
-              platform="twitter"
-              postRef={sourcePostRef ?? undefined}
-              postSummary={sourcePostSummary}
-              context={sourceContext ?? undefined}
-              showFullContent={true}
-              readOnly
-              bodyLineClamp={3}
-              showOpenGraphPreview={false}
-            />
-          ) : sourcePostRef?.postId ? (
-            <div className="border-border rounded-xl border px-3 py-2">
-              <p className="text-sm font-medium">
-                Replying to{" "}
-                {sourcePostRef.authorHandle
-                  ? `@${sourcePostRef.authorHandle}`
-                  : "this post"}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Source post preview is unavailable right now.
-              </p>
-            </div>
-          ) : null}
-
-          <ReplyComposer
-            replyTo={{
-              tweet: replyToTweet as never,
-              users: replyUsers,
-            }}
-            currentUser={currentUser ?? FALLBACK_CURRENT_USER}
-            initialContent={buildSerializedTextState(draftContent ?? "")}
-            initialMediaUploads={initialMediaUploads}
-            placeholder="Type here."
-            previewMode
-            disabled
-            showCharacterCount={false}
-            showToolbar
-            showMediaUpload
-            toolbarConfig={PREVIEW_TOOLBAR_CONFIG}
-            toolbarPlacement="bottom"
-            submitButtonVariant="icon"
-            editorAreaClassName="min-h-0 text-sm"
-            showMediaDescription
-            showOpenGraphPreview={false}
-            className="border-border pointer-events-none rounded-lg border p-2 opacity-90 select-none"
-          />
-        </div>
+      <div className="border-border overflow-hidden rounded-xl border">
+        {previewContent}
       </div>
 
       <InlineFeatureStrip

@@ -11,6 +11,7 @@ import { mergeLocalEngagementIntoTweet } from "@/shared/lib/twitter/mergeViewerS
 import { Button } from "@/shared/ui/components/Button";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
+import { cn } from "@/shared/lib/utils";
 
 export interface ThreadAwareTwitterReplyBodyProps {
   tweetId: string;
@@ -18,6 +19,15 @@ export interface ThreadAwareTwitterReplyBodyProps {
   initialTweet?: TweetType | null;
   overlayCommented?: boolean;
   renderComposerSection: (tweet: TweetType) => React.ReactNode;
+  loadingContainerClassName?: string;
+  errorClassName?: string;
+  timelineContainerClassName?: string;
+  repliesContainerClassName?: string;
+  loadMoreContainerClassName?: string;
+  showRepliesAfterComposer?: boolean;
+  showLoadMoreReplies?: boolean;
+  showFocusedTweetFullContent?: boolean;
+  focusedTweetBodyLineClamp?: number;
 }
 
 export function ThreadAwareTwitterReplyBody({
@@ -26,6 +36,15 @@ export function ThreadAwareTwitterReplyBody({
   initialTweet,
   overlayCommented = false,
   renderComposerSection,
+  loadingContainerClassName,
+  errorClassName,
+  timelineContainerClassName,
+  repliesContainerClassName,
+  loadMoreContainerClassName,
+  showRepliesAfterComposer = true,
+  showLoadMoreReplies = true,
+  showFocusedTweetFullContent = true,
+  focusedTweetBodyLineClamp,
 }: ThreadAwareTwitterReplyBodyProps) {
   const fetchConversation = useAction(api.socialapi.getConversationContext);
   const fetchConversationRef = React.useRef(fetchConversation);
@@ -204,7 +223,7 @@ export function ThreadAwareTwitterReplyBody({
 
   if (tweetLoading) {
     return (
-      <div className="mx-4 space-y-3">
+      <div className={cn("mx-4 space-y-3", loadingContainerClassName)}>
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-20 w-full" />
       </div>
@@ -213,7 +232,7 @@ export function ThreadAwareTwitterReplyBody({
 
   if (!displayTweet) {
     return (
-      <div className="text-muted-foreground mx-4 text-sm">
+      <div className={cn("text-muted-foreground mx-4 text-sm", errorClassName)}>
         {tweetError || "Unable to load this post."}
       </div>
     );
@@ -221,7 +240,7 @@ export function ThreadAwareTwitterReplyBody({
 
   return (
     <>
-      <div className="mx-4 mb-0">
+      <div className={cn("mx-4 mb-0", timelineContainerClassName)}>
         {isInitialConversationLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-24 w-full" />
@@ -241,7 +260,16 @@ export function ThreadAwareTwitterReplyBody({
               >
                 <Tweet
                   tweet={conversationTweet}
-                  showFullContent={conversationTweet.id_str === tweetId}
+                  showFullContent={
+                    conversationTweet.id_str === tweetId
+                      ? showFocusedTweetFullContent
+                      : false
+                  }
+                  bodyLineClamp={
+                    conversationTweet.id_str === tweetId
+                      ? focusedTweetBodyLineClamp
+                      : undefined
+                  }
                   showThread={false}
                 />
               </article>
@@ -257,8 +285,8 @@ export function ThreadAwareTwitterReplyBody({
 
       {renderComposerSection(displayTweet)}
 
-      {timelineAfterComposer.length > 0 ? (
-        <div className="divide-y">
+      {showRepliesAfterComposer && timelineAfterComposer.length > 0 ? (
+        <div className={cn("divide-y", repliesContainerClassName)}>
           {timelineAfterComposer.map((conversationTweet) => (
             <article key={conversationTweet.id_str} className="px-4 pt-4 pb-2">
               <Tweet tweet={conversationTweet} showThread={true} />
@@ -267,8 +295,8 @@ export function ThreadAwareTwitterReplyBody({
         </div>
       ) : null}
 
-      {nextRepliesCursor ? (
-        <div className="px-4 pt-2">
+      {showLoadMoreReplies && nextRepliesCursor ? (
+        <div className={cn("px-4 pt-2", loadMoreContainerClassName)}>
           <Button
             size="xs"
             className="w-full"
