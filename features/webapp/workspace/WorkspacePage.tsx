@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -179,6 +179,12 @@ export default function WorkspacePage() {
         : createEmptyWorkspaceFormValues(),
     [workspace]
   );
+  const workspaceFormVersion = workspace
+    ? `${workspace._id}:${workspace.updatedAt}`
+    : workspace === null
+      ? "no-workspace"
+      : "loading";
+  const lastSyncedWorkspaceVersionRef = useRef<string | null>(null);
   const formFieldClassName = "space-y-0";
   const formLabelClassName = "mb-2.5 block";
   const formDescriptionClassName = "mt-1.5 text-xs";
@@ -188,11 +194,23 @@ export default function WorkspacePage() {
     resolver: zodResolver(
       workspacePageFormSchema
     ) as unknown as Resolver<WorkspacePageFormValues>,
-    values: defaultValues,
-    resetOptions: { keepDirtyValues: true, keepErrors: true },
+    defaultValues,
     mode: "onSubmit",
     reValidateMode: "onChange",
   });
+  const { reset } = form;
+
+  useEffect(() => {
+    if (isEditing) {
+      return;
+    }
+    if (lastSyncedWorkspaceVersionRef.current === workspaceFormVersion) {
+      return;
+    }
+
+    reset(defaultValues);
+    lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
+  }, [defaultValues, isEditing, reset, workspaceFormVersion]);
   const selectedUseCaseKey = useWatch({
     control: form.control,
     name: "useCaseKey",
@@ -251,9 +269,17 @@ export default function WorkspacePage() {
       }
 
       await updateWorkspaceSettings(mutationArgs);
+      reset({
+        ...data,
+        name: data.name.trim(),
+        seedDescription: data.seedDescription.trim(),
+        improvedDescription: data.improvedDescription.trim(),
+        sourceUrl: data.sourceUrl?.trim() || "",
+        icps: mutationArgs.icps ?? data.icps,
+      });
+      lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
       toast.success("Workspace updated");
       setIsEditing(false);
-      form.reset(data);
     } catch (error) {
       logger.error("Workspace save failed", error);
       toast.error("Could not save", {
@@ -263,10 +289,20 @@ export default function WorkspacePage() {
     }
   };
 
+  const handleStartEditing = () => {
+    if (!workspace) return;
+    reset(workspaceDocToFormValues(workspace));
+    lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
+    setIsEditing(true);
+  };
+
   const handleCancel = () => {
     if (workspace) {
-      form.reset(workspaceDocToFormValues(workspace));
+      reset(workspaceDocToFormValues(workspace));
+    } else {
+      reset(createEmptyWorkspaceFormValues());
     }
+    lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(false);
   };
 
@@ -329,15 +365,23 @@ export default function WorkspacePage() {
     setRefineOpen(false);
     setRefineThreadId(null);
     setRefineSessionId(null);
+    if (workspace) {
+      reset(workspaceDocToFormValues(workspace));
+    }
+    lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(false);
-  }, []);
+  }, [reset, workspace, workspaceFormVersion]);
 
   const handleRefineComplete = useCallback(() => {
     setRefineOpen(false);
     setRefineThreadId(null);
     setRefineSessionId(null);
+    if (workspace) {
+      reset(workspaceDocToFormValues(workspace));
+    }
+    lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(false);
-  }, []);
+  }, [reset, workspace, workspaceFormVersion]);
 
   const editedLabel = workspace
     ? format(new Date(workspace.updatedAt), "MMM d")
@@ -438,7 +482,7 @@ export default function WorkspacePage() {
                       <Button
                         variant="ghost"
                         size="xs"
-                        onClick={() => setIsEditing(true)}
+                        onClick={handleStartEditing}
                       >
                         <EditIcon className="fill-current" />
                         Edit
