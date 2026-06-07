@@ -2,12 +2,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/shared/ui/components/Button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/shared/ui/components/Accordion";
 import { Card, CardContent } from "@/shared/ui/components/Card";
 import { InlineFeatureStrip } from "@/shared/ui/components/InlineFeatureStrip";
 import {
@@ -231,9 +225,27 @@ export function WorkspaceInputStep({
     switch (phase) {
       case "collecting_input":
         return {
-          title: "Describe it. Agent will find them.",
-          description:
-            "Agent will find the right people based on what you share.",
+          title: "Describe what Agent should look for",
+          description: (
+            <>
+              <span className="text-foreground font-medium">
+                Paste a website
+              </span>
+              , or describe the{" "}
+              <span className="text-foreground font-medium">
+                traits and signals
+              </span>{" "}
+              that matter. Agent will generate{" "}
+              <span className="text-foreground font-medium">
+                {profileLabelPlural.toLowerCase()}
+              </span>{" "}
+              for you to{" "}
+              <span className="text-foreground font-medium">
+                review and approve
+              </span>{" "}
+              before searching starts.
+            </>
+          ),
         };
       case "generating_icps":
         return {
@@ -265,39 +277,72 @@ export function WorkspaceInputStep({
         };
       default:
         return {
-          title: "Describe it. Agent will find them.",
-          description:
-            "Agent will find the right people based on what you share.",
+          title: "Describe what Agent should look for",
+          description: (
+            <>
+              Agent will generate{" "}
+              <span className="text-foreground font-medium">
+                {profileLabelPlural.toLowerCase()}
+              </span>{" "}
+              for you to{" "}
+              <span className="text-foreground font-medium">
+                review and approve
+              </span>{" "}
+              before searching starts.
+            </>
+          ),
         };
     }
-  }, [entityPluralLower, phase, previewReadyCount, useCase.entityPlural]);
+  }, [
+    entityPluralLower,
+    phase,
+    previewReadyCount,
+    profileLabelPlural,
+    useCase.entityPlural,
+  ]);
 
   const mainContent = useMemo(() => {
     switch (phase) {
       case "collecting_input":
         return (
           <section
-            aria-labelledby="great-descriptions-label"
-            className="mt-4 space-y-2 px-4"
+            aria-labelledby="example-descriptions-label"
+            className="mt-4 space-y-3 px-4"
           >
-            <p
-              id="great-descriptions-label"
-              className="text-muted-foreground text-xs"
-            >
-              Great descriptions
-            </p>
-            <Accordion type="multiple">
+            <div className="space-y-0.5">
+              <p
+                id="example-descriptions-label"
+                className="text-foreground text-sm font-semibold"
+              >
+                Example descriptions
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Click one to use it as a starting point.
+              </p>
+            </div>
+            <div className="space-y-2">
               {exampleDescriptions.map((example) => (
-                <AccordionItem key={example.id} value={example.id}>
-                  <AccordionTrigger className="py-3 text-left text-base font-medium hover:no-underline">
+                <button
+                  key={example.id}
+                  type="button"
+                  className="border-border bg-background hover:bg-accent/60 focus-visible:ring-ring w-full rounded-lg border px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+                  onClick={() => {
+                    onInputModeChange("manual");
+                    if (sourceUrl) {
+                      onSourceUrlChange(null);
+                    }
+                    onInputValueChange(example.description);
+                  }}
+                >
+                  <span className="text-foreground block text-sm font-medium">
                     {example.title}
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0 pb-3 text-sm leading-6">
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-sm leading-6">
                     {example.description}
-                  </AccordionContent>
-                </AccordionItem>
+                  </span>
+                </button>
               ))}
-            </Accordion>
+            </div>
           </section>
         );
       case "generating_icps":
@@ -405,10 +450,14 @@ export function WorkspaceInputStep({
   }, [
     exampleDescriptions,
     generatedProfiles,
+    onInputModeChange,
+    onInputValueChange,
     onOpenPreviewProfile,
+    onSourceUrlChange,
     phase,
     previewProspects,
     profileLabelPlural,
+    sourceUrl,
     useCase.entityPlural,
   ]);
 
@@ -511,8 +560,9 @@ export function WorkspaceInputStep({
               disabled={isPromptDisabled}
             >
               <PromptInputTextarea
+                autoFocus
                 className="px-1 pt-0.5 text-sm"
-                placeholder="Describe or paste a link..."
+                placeholder="Paste a website or describe what Agent should use..."
                 inlineAutocompleteContext={{
                   surfaceLabel: "workspace_onboarding_input",
                   platform: "generic",
