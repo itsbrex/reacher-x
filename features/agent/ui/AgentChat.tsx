@@ -1640,6 +1640,7 @@ export function AgentChat({
           disabled={isComposerLocked}
         >
           <PromptInputTextarea
+            autoFocus
             className="px-1 pt-0.5 text-sm"
             placeholder={
               displayMessages.length > 0
