@@ -25,7 +25,7 @@ export const getUserStatus = createTool({
   ): Promise<{
     firstName?: string;
     hasWorkspace: boolean;
-    needsV4Migration: boolean;
+    workspaceSetupComplete: boolean;
     inSetupFlow: boolean;
     setupSessionMode?: "first_workspace" | "new_workspace";
     setupSessionStatus?: string;
@@ -52,7 +52,7 @@ export const getUserStatus = createTool({
     if (!ctx.userId) {
       return {
         hasWorkspace: false,
-        needsV4Migration: false,
+        workspaceSetupComplete: false,
         inSetupFlow: Boolean(setupSession),
         setupSessionMode: setupSession?.mode,
         setupSessionStatus: setupSession?.status,
@@ -88,7 +88,7 @@ export const getUserStatus = createTool({
       return {
         firstName: user?.firstName,
         hasWorkspace: false,
-        needsV4Migration: false,
+        workspaceSetupComplete: false,
         inSetupFlow: Boolean(setupSession),
         setupSessionMode: setupSession?.mode,
         setupSessionStatus: setupSession?.status,
@@ -112,12 +112,12 @@ export const getUserStatus = createTool({
 
     // A workspace is only complete once the agent-ready setup data exists.
     const hasIcps = Array.isArray(workspace.icps) && workspace.icps.length > 0;
-    const needsV4Migration = !hasRequiredWorkspaceAgentData(workspace);
+    const workspaceSetupComplete = hasRequiredWorkspaceAgentData(workspace);
 
     return {
       firstName: user?.firstName,
       hasWorkspace: true,
-      needsV4Migration,
+      workspaceSetupComplete,
       inSetupFlow: Boolean(setupSession),
       setupSessionMode: setupSession?.mode,
       setupSessionStatus: setupSession?.status,

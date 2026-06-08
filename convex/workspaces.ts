@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import {
-  createDefaultWorkspaceArgsValidator,
   updateWorkspaceArgsValidator,
   updateWorkspaceSettingsArgsValidator,
   commitWorkspaceRefineArgsValidator,
@@ -194,44 +193,6 @@ export const getWorkspaceSetupStatus = query({
         ...getResolvedFitScoreRange(workspace),
       },
     };
-  },
-});
-
-/**
- * Legacy mutation that can only update an existing default workspace draft.
- * New workspaces must be created via the approved setup flow.
- */
-export const createDefaultWorkspace = mutation({
-  args: createDefaultWorkspaceArgsValidator,
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx, { notFoundMessage: "User not found" });
-    const existingDefault = await getDefaultWorkspaceForUser(ctx, user._id);
-
-    if (existingDefault) {
-      // Update existing default workspace (do not overwrite name here)
-      const updateData: {
-        description: string;
-        updatedAt: number;
-        descriptionSource?: "manual" | "url";
-        sourceUrl?: string;
-        lastGeneratedAt?: number;
-      } = {
-        description: args.description,
-        updatedAt: getCurrentUTCTimestamp(),
-      };
-      if (args.descriptionSource)
-        updateData.descriptionSource = args.descriptionSource;
-      if (args.sourceUrl) updateData.sourceUrl = args.sourceUrl;
-      if (args.lastGeneratedAt !== undefined)
-        updateData.lastGeneratedAt = args.lastGeneratedAt;
-
-      await ctx.db.patch(existingDefault._id, updateData);
-      return existingDefault._id;
-    }
-
-    throw new Error(
-      "Workspace setup must be completed in the setup flow before a workspace can be created"
-    );
   },
 });
 

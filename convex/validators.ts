@@ -636,14 +636,6 @@ export const setupProspectOriginValidator = v.union(
   v.literal("manual")
 );
 
-export const createDefaultWorkspaceArgsValidator = v.object({
-  description: v.string(),
-  name: v.optional(workspaceNameValidator),
-  descriptionSource: v.optional(v.union(v.literal("manual"), v.literal("url"))),
-  sourceUrl: v.optional(v.string()),
-  lastGeneratedAt: v.optional(v.number()),
-});
-
 export const updateWorkspaceArgsValidator = v.object({
   workspaceId: v.id("workspaces"),
   name: v.optional(workspaceNameValidator),

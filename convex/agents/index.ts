@@ -72,7 +72,7 @@ const setupLanguageModel = wrapLanguageModel({
  *
  * Flows:
  * 1. New User: Greet → Get URL/Description → Analyze → Generate ICPs → Approve → Create Workspace
- * 2. v3→v4 Migration: Detect → Show existing → Generate ICPs → Approve → Update Workspace
+ * 2. Incomplete first workspace: Greet → Get URL/Description → Generate ICPs → Approve → Create Workspace
  * 3. New Workspace: Same as #1 but creates new instead of default
  *
  * @see AGENT_CONTEXT.txt for detailed flow documentation

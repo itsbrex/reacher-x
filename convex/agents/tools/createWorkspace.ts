@@ -1,23 +1,18 @@
 // convex/agents/tools/createWorkspace.ts
-// Create or update workspace with v4 fields and auto-start prospecting
+// Create workspace with approved setup fields and auto-start prospecting
 
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal, components } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { icpSchema } from "./schemas";
-import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import {
   createOnboardingArtifact,
   type AgentArtifactEnvelope,
 } from "../../../shared/lib/json-render/agentArtifacts";
 import { WORKSPACE_NAME_CONSTRAINTS } from "../../../shared/lib/utils/validation/validation";
-import {
-  assertValidWorkspaceName,
-  normalizeWorkspaceNameForSuggestion,
-} from "../../lib/workspaceNameHelpers";
+import { assertValidWorkspaceName } from "../../lib/workspaceNameHelpers";
 import { getSetupThreadTitle } from "../../lib/setupThreadHelpers";
-import { hasRequiredWorkspaceAgentData } from "../../lib/workspaceSetup";
 import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "../../../shared/lib/workspaceUseCases";
 import { resolveSetupThreadState } from "./workspaceSetupContext";
 import { isTerminalSetupSessionStatus } from "../../lib/setupSessionCore";
@@ -27,14 +22,12 @@ import { isTerminalSetupSessionStatus } from "../../lib/setupSessionCore";
 // ============================================================================
 
 /**
- * Creates or updates a workspace with the approved description and ICPs.
- * If user has an existing incomplete default workspace, update it.
- * Otherwise create a new one.
+ * Creates a workspace with the approved description and ICPs.
  * After success, automatically starts the prospecting workflow.
  */
 export const createWorkspace = createTool({
   description:
-    "Create or update a workspace with the approved business description and ICPs. ONLY call this after the user explicitly approves the generated content by saying something like 'looks good' or 'create workspace'. This will also start finding prospects automatically.",
+    "Create a workspace with the approved business description and ICPs. ONLY call this after the user explicitly approves the generated content by saying something like 'looks good' or 'create workspace'. This will also start finding prospects automatically.",
   args: z.object({
     name: z
       .string()
@@ -110,40 +103,39 @@ export const createWorkspace = createTool({
         }
       }
 
-      // Reuse an existing incomplete default workspace instead of creating
-      // another record for the same setup flow.
-      const existingDefault = await ctx.runQuery(
-        internal.workspaces.getDefaultWorkspaceByUserId,
-        { userId }
-      );
       const setupThreadState = await resolveSetupThreadState(ctx, ctx.threadId);
       const resolvedUseCaseKey =
-        setupThreadState?.useCaseKey ??
-        existingDefault?.useCaseKey ??
-        DEFAULT_WORKSPACE_USE_CASE_KEY;
-      const shouldForceCreateNewWorkspace =
-        setupThreadState?.mode === "newWorkspace";
-      const shouldReuseIncompleteWorkspace =
-        existingDefault !== null &&
-        existingDefault !== undefined &&
-        !hasRequiredWorkspaceAgentData(
-          existingDefault as typeof existingDefault & {
-            improvedDescription?: string | undefined;
-            icps?: typeof existingDefault.icps;
-          }
-        );
-      const incompleteDefaultWorkspace = shouldReuseIncompleteWorkspace
-        ? existingDefault
-        : null;
+        setupThreadState?.useCaseKey ?? DEFAULT_WORKSPACE_USE_CASE_KEY;
 
       let workspaceId: Id<"workspaces">;
-      let isUpdate = false;
-      let finalWorkspaceName = normalizedWorkspaceName;
+      const isUpdate = false;
+      const finalWorkspaceName = normalizedWorkspaceName;
 
-      if (!shouldForceCreateNewWorkspace && incompleteDefaultWorkspace) {
-        // Update existing incomplete workspace instead of creating new
-        await ctx.runMutation(internal.workspaces.updateWorkspaceInternal, {
-          workspaceId: incompleteDefaultWorkspace._id,
+      const workspaceEligibility = await ctx.runQuery(
+        internal.plans.getWorkspaceCreationEligibilityByUserId,
+        { userId }
+      );
+      if (!workspaceEligibility.allowed) {
+        return {
+          success: false,
+          error:
+            workspaceEligibility.reason ??
+            "Workspace limit reached for your current plan.",
+          errorCode: "limit_reached",
+          eligibility: {
+            tier: workspaceEligibility.tier,
+            used: workspaceEligibility.used,
+            limit: workspaceEligibility.limit,
+            remaining: workspaceEligibility.remaining,
+          },
+        };
+      }
+
+      workspaceId = await ctx.runMutation(
+        internal.workspaces.createWorkspaceInternal,
+        {
+          userId,
+          name: normalizedWorkspaceName,
           description: args.improvedDescription,
           seedDescription: args.seedDescription,
           improvedDescription: args.improvedDescription,
@@ -151,52 +143,9 @@ export const createWorkspace = createTool({
           sourceUrl: args.sourceUrl,
           descriptionSource: args.descriptionSource,
           useCaseKey: resolvedUseCaseKey,
-          setupCompletedAt: getCurrentUTCTimestamp(),
-        });
-        workspaceId = incompleteDefaultWorkspace._id;
-        isUpdate = true;
-        finalWorkspaceName = normalizeWorkspaceNameForSuggestion(
-          incompleteDefaultWorkspace.name,
-          normalizedWorkspaceName
-        );
-      } else {
-        const workspaceEligibility = await ctx.runQuery(
-          internal.plans.getWorkspaceCreationEligibilityByUserId,
-          { userId }
-        );
-        if (!workspaceEligibility.allowed) {
-          return {
-            success: false,
-            error:
-              workspaceEligibility.reason ??
-              "Workspace limit reached for your current plan.",
-            errorCode: "limit_reached",
-            eligibility: {
-              tier: workspaceEligibility.tier,
-              used: workspaceEligibility.used,
-              limit: workspaceEligibility.limit,
-              remaining: workspaceEligibility.remaining,
-            },
-          };
+          isDefault: true,
         }
-
-        // Create new workspace
-        workspaceId = await ctx.runMutation(
-          internal.workspaces.createWorkspaceInternal,
-          {
-            userId,
-            name: normalizedWorkspaceName,
-            description: args.improvedDescription,
-            seedDescription: args.seedDescription,
-            improvedDescription: args.improvedDescription,
-            icps: args.icps,
-            sourceUrl: args.sourceUrl,
-            descriptionSource: args.descriptionSource,
-            useCaseKey: resolvedUseCaseKey,
-            isDefault: true,
-          }
-        );
-      }
+      );
 
       let setupSessionId: Id<"workspaceSetupSessions"> | null = null;
       if (ctx.threadId) {

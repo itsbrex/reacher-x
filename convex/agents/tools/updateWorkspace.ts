@@ -16,12 +16,12 @@ import { isTerminalSetupSessionStatus } from "../../lib/setupSessionCore";
 // ============================================================================
 
 /**
- * Updates an existing workspace with v4 fields (improved description and ICPs).
- * Use for v3 → v4 migration or when user wants to update their workspace.
+ * Updates an existing workspace with improved description and ICPs.
+ * Use when a user explicitly wants to update their workspace.
  */
 export const updateWorkspace = createTool({
   description:
-    "Update an existing workspace with improved description and ICPs. Use this for v3 → v4 migration or when updating an existing workspace. ONLY call after user approval.",
+    "Update an existing workspace with improved description and ICPs when the user explicitly wants to update their workspace. ONLY call after user approval.",
   args: z.object({
     workspaceId: z.string().describe("The workspace ID to update"),
     seedDescription: z

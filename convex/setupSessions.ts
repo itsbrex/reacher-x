@@ -1033,17 +1033,6 @@ export const startSetupSession = mutation({
     }
 
     const resolvedUseCaseKey = resolveWorkspaceUseCaseKey(args.useCaseKey);
-    const existingDefaultWorkspace = await getDefaultWorkspaceForUser(
-      ctx,
-      user._id
-    );
-    // Always reuse the user's default workspace for first_workspace setup so
-    // reset/discard flows never provision a second workspace (free tier limit).
-    const existingWorkspaceId =
-      args.mode === "first_workspace" && existingDefaultWorkspace
-        ? existingDefaultWorkspace._id
-        : undefined;
-
     const threadTitle =
       args.mode === "new_workspace"
         ? "Workspace setup draft"
@@ -1061,10 +1050,10 @@ export const startSetupSession = mutation({
 
     const now = getCurrentUTCTimestamp();
     const draftOrdinal = await resolveNextSetupDraftOrdinal(ctx.db, user._id);
-    const entitlementSlot =
-      existingDefaultWorkspace && args.mode === "first_workspace"
-        ? await resolveWorkspaceEntitlementSlot(ctx, existingDefaultWorkspace)
-        : await resolveNextEntitlementSlotForUser(ctx, user._id);
+    const entitlementSlot = await resolveNextEntitlementSlotForUser(
+      ctx,
+      user._id
+    );
     const sessionId = await ctx.db.insert("workspaceSetupSessions", {
       userId: user._id,
       mode: args.mode,
@@ -1072,7 +1061,6 @@ export const startSetupSession = mutation({
       setupThreadId: threadId,
       useCaseKey: resolvedUseCaseKey,
       draftOrdinal,
-      existingWorkspaceId,
       entitlementSlot,
       lastUserActionAt: now,
       lastActiveAt: now,
