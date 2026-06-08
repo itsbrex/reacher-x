@@ -255,9 +255,26 @@ export function WorkspaceInputStep({
         };
       case "awaiting_icp_approval":
         return {
-          title: "Refine until it feels right",
-          description:
-            "Review these ideal profiles. Edit the description below and generate again if needed.",
+          title: "Review the ideal profiles",
+          description: (
+            <>
+              <span className="text-foreground font-medium">Approve them</span>{" "}
+              if they look right. Agent will{" "}
+              <span className="text-foreground font-medium">
+                use these profiles
+              </span>{" "}
+              to find real{" "}
+              <span className="text-foreground font-medium">
+                {entityPluralLower}
+              </span>{" "}
+              and{" "}
+              <span className="text-foreground font-medium">
+                show you a preview
+              </span>{" "}
+              before setup finishes. Edit the description below to generate
+              again.
+            </>
+          ),
         };
       case "provisioning_preview_workspace":
         return {
@@ -501,13 +518,13 @@ export function WorkspaceInputStep({
                           <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
                         </div>
                         <p className="text-sm font-medium">
-                          Happy with these ideal profiles?
+                          Approve these ideal profiles?
                         </p>
                       </>
                     }
                     trailing={
                       <Button size="xs" onClick={onConfirmIdealProfiles}>
-                        Yes
+                        Approve
                       </Button>
                     }
                   />
