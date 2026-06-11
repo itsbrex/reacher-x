@@ -5,14 +5,14 @@ import {
   ArrowOutwardIcon,
   ChangeHistoryIcon,
 } from "@/shared/ui/components/icons";
-import { ThemedFigureVideo } from "../ThemedFigureVideo";
-import type { VideoAssetKey } from "../../../lib/videoAssets";
+import { InteractiveMockupFigure } from "../InteractiveMockupFigure";
+import type { LandingMockupAssetKey } from "../../../lib/mockupAssets";
 
 interface StepBlockProps {
   stepLabel?: string;
   heading: string;
   description: string | React.ReactNode;
-  videoAssetKey: VideoAssetKey;
+  mockupAssetKey: LandingMockupAssetKey;
   ctaLabel?: string;
   ctaHref?: string;
   learnMoreLabel?: string;
@@ -25,7 +25,7 @@ export function StepBlock({
   stepLabel,
   heading,
   description,
-  videoAssetKey,
+  mockupAssetKey,
   ctaLabel = "Start reaching",
   ctaHref = "/login",
   learnMoreLabel = "Learn more",
@@ -75,12 +75,12 @@ export function StepBlock({
         </div>
       </div>
 
-      {/* Video — 7 columns */}
+      {/* Product mockup — 7 columns */}
       <div
         className={cn("md:col-span-7", reversed ? "md:order-1" : "md:order-2")}
       >
-        <ThemedFigureVideo
-          videoAssetKey={videoAssetKey}
+        <InteractiveMockupFigure
+          mockupAssetKey={mockupAssetKey}
           ariaLabel={heading}
           figureClassName="aspect-[4/3] w-full"
           className="h-full w-full"

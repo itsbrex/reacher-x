@@ -16,13 +16,13 @@ export function InControlSection() {
         <StepBlock
           heading="Do it yourself. Or delegate to Agent."
           description="You can manually reply to people, send DMs, and engage with their posts all from inside ReacherX. Or ask Agent to generate an outreach plan, or give it a command and have it execute it on your behalf. Either way, nothing sends without your approval."
-          videoAssetKey="control-delegate"
+          mockupAssetKey="landing-image-8"
           reversed={false}
         />
         <StepBlock
           heading="Separate workspaces for separate goals."
           description="Each workspace has its own ideal profiles, pipeline stages, discovered people, outreach history, and agent memory. Run customer prospecting in one workspace, recruiting in another, and investor discovery in a third."
-          videoAssetKey="control-workspaces"
+          mockupAssetKey="landing-image-9"
           ctaLabel="Create workspace"
           ctaHref="/"
           reversed={true}

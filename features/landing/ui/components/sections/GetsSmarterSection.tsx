@@ -13,21 +13,21 @@ const FEATURES = [
         Your voice is elevated. Not replaced.
       </>
     ),
-    videoAssetKey: "smarter-writes" as const,
+    mockupAssetKey: "landing-image-5" as const,
     reversed: false,
   },
   {
     heading: "Agent has full context on every enriched person.",
     description:
       "Before drafting a reply or DM, Agent reads their recent posts, reviews their enriched profile, and checks your full interaction history with them. It doesn\u2019t send generic templates. Every message is tailored and personalised to get the highest response rate.",
-    videoAssetKey: "smarter-context" as const,
+    mockupAssetKey: "landing-image-6" as const,
     reversed: true,
   },
   {
     heading: "Agent improves from your feedback.",
     description:
       "Every edit, approval, rejection, and skip teaches Agent. It gets better at reaching, qualifying, and writing for the people you care about.",
-    videoAssetKey: "smarter-feedback" as const,
+    mockupAssetKey: "landing-image-7" as const,
     reversed: false,
   },
 ] as const;

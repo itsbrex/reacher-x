@@ -6,7 +6,7 @@ const STEPS = [
     heading: "Describe who you need. Agent gets to work.",
     description:
       "Tell Agent who you need in plain English, or paste a URL. It builds ideal profiles for your use case and asks you to confirm before searching begins.",
-    videoAssetKey: "how-step-1" as const,
+    mockupAssetKey: "landing-image-1" as const,
     reversed: false,
   },
   {
@@ -14,7 +14,7 @@ const STEPS = [
     heading: "Agent searches X/Twitter and LinkedIn 24/7.",
     description:
       "It turns your ideal profiles into search strategies, reaches people based on what they actually post, scores each match from 0\u2013100, filters bots and spam, and keeps running in the background. New matches are surfaced every day.",
-    videoAssetKey: "how-step-2" as const,
+    mockupAssetKey: "landing-image-2" as const,
     reversed: true,
   },
   {
@@ -22,7 +22,7 @@ const STEPS = [
     heading: "Context behind every match.",
     description:
       "Agent looks at what people are actually saying and turns it into context you can use. It finds the signals, moments, and reasons that make someone relevant, then links everything back to the source as proof. Not stale scraped data. Real context from real activity.",
-    videoAssetKey: "how-step-3" as const,
+    mockupAssetKey: "landing-image-3" as const,
     reversed: false,
   },
   {
@@ -30,7 +30,7 @@ const STEPS = [
     heading: "Agent plans. You approve.",
     description:
       "For each person, Agent creates a multi-step engagement or outreach plan. You review every draft and approve every action. Nothing is sent without you.",
-    videoAssetKey: "how-step-4" as const,
+    mockupAssetKey: "landing-image-4" as const,
     reversed: true,
   },
 ] as const;
