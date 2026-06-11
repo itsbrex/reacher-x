@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -38,6 +39,7 @@ import {
   PendingProspectsFeedBar,
   ProspectCard,
   ProspectCardSkeleton,
+  ProspectListEmptyState,
   ProspectListFilterPanel,
   ProspectListSortPanel,
   ProspectPanelRenderer,
@@ -57,6 +59,7 @@ import {
   createDefaultProspectListFilters,
   getProspectListFilterArgs,
 } from "@/features/prospects/lib/prospectListFilters";
+import { getProspectPipelineEmptyStateCopy } from "@/features/prospects/lib/prospectEmptyStateCopy";
 import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectListSort";
 import { WorkspaceSystemStatusFeedBar } from "@/features/webapp/ui/components/WorkspaceSystemStatusFeedBar";
 
@@ -86,6 +89,12 @@ type WorkspaceSetupStatus =
 
 type TabType = "new" | "contacted" | "in_progress";
 type ProspectSummary = Doc<"prospectSummaries">;
+type ProspectStageCounts = Record<TabType, number>;
+type TabAttentionState = Record<TabType, boolean>;
+type StageCountBaseline = {
+  scopeKey: string | null;
+  counts: Partial<ProspectStageCounts>;
+};
 type PaginationStatus =
   | "LoadingFirstPage"
   | "CanLoadMore"
@@ -94,12 +103,20 @@ type PaginationStatus =
 
 const TAB_DEFINITIONS: {
   id: TabType;
-  status: ProspectSummary["status"];
+  status: TabType;
 }[] = [
   { id: "new", status: "new" },
   { id: "contacted", status: "contacted" },
   { id: "in_progress", status: "in_progress" },
 ];
+
+function createEmptyTabAttention(): TabAttentionState {
+  return {
+    new: false,
+    contacted: false,
+    in_progress: false,
+  };
+}
 
 export default function ProspectsPage() {
   const router = useRouter();
@@ -109,8 +126,13 @@ export default function ProspectsPage() {
   const { clearStack } = usePanelStack();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<TabType>("new");
+  const stageCountBaselineRef = useRef<StageCountBaseline>({
+    scopeKey: null,
+    counts: {},
+  });
   const [searchQuery, setSearchQuery] = useState("");
-  const browseMode = searchQuery.trim() === "";
+  const trimmedSearchQuery = searchQuery.trim();
+  const browseMode = trimmedSearchQuery === "";
   const visibilityMode = "ready_only" as const;
   const canGoBack = useCanGoBack();
   const entitiesLower = entityPlural.toLowerCase();
@@ -211,6 +233,100 @@ export default function ProspectsPage() {
   const appliedFilterArgs = useMemo(
     () => getProspectListFilterArgs(appliedFilters),
     [appliedFilters]
+  );
+  const stageCounts = useQuery(
+    api.prospectSummaries.getWorkspaceProspectStageCounts,
+    workspaceId && fitScoreRange
+      ? {
+          workspaceId,
+          fitScoreMin: appliedFilterArgs.fitScoreMin,
+          fitScoreMax: appliedFilterArgs.fitScoreMax,
+          platform: appliedFilterArgs.platform,
+          prospectType: appliedFilterArgs.prospectType,
+          createdAfterMs: appliedFilterArgs.createdAfterMs,
+          createdBeforeMs: appliedFilterArgs.createdBeforeMs,
+          visibilityMode,
+          searchQuery: trimmedSearchQuery || undefined,
+        }
+      : "skip"
+  ) as ProspectStageCounts | undefined;
+  const stageCountScopeKey = useMemo(
+    () =>
+      [
+        workspaceId,
+        visibilityMode,
+        appliedFilterArgs.fitScoreMin,
+        appliedFilterArgs.fitScoreMax,
+        appliedFilterArgs.platform ?? "all",
+        appliedFilterArgs.prospectType ?? "both",
+        appliedFilterArgs.createdAfterMs ?? "none",
+        appliedFilterArgs.createdBeforeMs ?? "none",
+        trimmedSearchQuery,
+      ].join("|"),
+    [
+      workspaceId,
+      visibilityMode,
+      appliedFilterArgs.fitScoreMin,
+      appliedFilterArgs.fitScoreMax,
+      appliedFilterArgs.platform,
+      appliedFilterArgs.prospectType,
+      appliedFilterArgs.createdAfterMs,
+      appliedFilterArgs.createdBeforeMs,
+      trimmedSearchQuery,
+    ]
+  );
+
+  const tabAttention = useMemo<TabAttentionState>(() => {
+    if (!stageCounts) {
+      return createEmptyTabAttention();
+    }
+
+    const baseline = stageCountBaselineRef.current;
+    if (baseline.scopeKey !== stageCountScopeKey) {
+      baseline.scopeKey = stageCountScopeKey;
+      baseline.counts = { ...stageCounts };
+      return createEmptyTabAttention();
+    }
+
+    return {
+      new:
+        activeTab !== "new" &&
+        stageCounts.new > (baseline.counts.new ?? stageCounts.new),
+      contacted:
+        activeTab !== "contacted" &&
+        stageCounts.contacted >
+          (baseline.counts.contacted ?? stageCounts.contacted),
+      in_progress:
+        activeTab !== "in_progress" &&
+        stageCounts.in_progress >
+          (baseline.counts.in_progress ?? stageCounts.in_progress),
+    };
+  }, [
+    activeTab,
+    stageCountScopeKey,
+    stageCounts,
+  ]);
+
+  const handleTabChange = useCallback(
+    (tab: TabType) => {
+      if (stageCounts) {
+        const baseline = stageCountBaselineRef.current;
+        const baselineCounts =
+          baseline.scopeKey === stageCountScopeKey ? baseline.counts : {};
+
+        stageCountBaselineRef.current = {
+          scopeKey: stageCountScopeKey,
+          counts: {
+            ...baselineCounts,
+            [activeTab]: stageCounts[activeTab],
+            [tab]: stageCounts[tab],
+          },
+        };
+      }
+
+      setActiveTab(tab);
+    },
+    [activeTab, stageCountScopeKey, stageCounts]
   );
 
   const newProspectsQuery = usePaginatedQuery(
@@ -496,13 +612,19 @@ export default function ProspectsPage() {
   const showSortAsPrimaryPanel = isSortPanelOpen;
   const showProspectPanel =
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
-  const hasAnyProspects =
-    newProspectsQuery.results.length > 0 ||
-    contactedProspectsQuery.results.length > 0 ||
-    inProgressProspectsQuery.results.length > 0;
-  const showEmptyState = browseMode && !isLoading && !hasAnyProspects;
+  const showEmptyState =
+    browseMode && !isLoading && displayProspects.length === 0;
   const showSearchNoMatch =
     !browseMode && !isSearchLoading && displayProspects.length === 0;
+  const emptyStateCopy = useMemo(
+    () =>
+      getProspectPipelineEmptyStateCopy({
+        entityPlural,
+        stageLabels,
+        stage: activeTabStatus,
+      }),
+    [activeTabStatus, entityPlural, stageLabels]
+  );
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 md:flex-row md:items-stretch">
@@ -548,8 +670,10 @@ export default function ProspectsPage() {
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   activeTab={activeTab}
-                  onTabChange={setActiveTab}
+                  onTabChange={handleTabChange}
                   tabs={tabs}
+                  tabCounts={stageCounts}
+                  tabAttention={tabAttention}
                   searchPlaceholder={`Search ${entitiesLower}...`}
                   filterActiveCount={activeFilterCount}
                   sortActive={isSortActive}
@@ -585,15 +709,11 @@ export default function ProspectsPage() {
                       <ProspectCardSkeleton />
                     </div>
                   ) : showEmptyState ? (
-                    <div className="flex h-full items-center justify-center py-16">
-                      <div className="text-muted-foreground text-center">
-                        <FramePersonIcon className="fill-muted-foreground mx-auto mb-3 size-12" />
-                        <p className="font-medium">No {entitiesLower} yet</p>
-                        <p className="mt-1 text-sm">
-                          Start searching to find your ideal {entitiesLower}
-                        </p>
-                      </div>
-                    </div>
+                    <ProspectListEmptyState
+                      title={emptyStateCopy.title}
+                      description={emptyStateCopy.description}
+                      icon={<FramePersonIcon className="size-6 fill-current" />}
+                    />
                   ) : showSearchNoMatch ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">
                       No {entitiesLower} in{" "}
@@ -691,6 +811,8 @@ interface ProspectsToolbarProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   tabs: Array<{ id: TabType; label: string }>;
+  tabCounts?: ProspectStageCounts;
+  tabAttention: TabAttentionState;
   searchPlaceholder: string;
   filterActiveCount: number;
   sortActive: boolean;
@@ -705,6 +827,8 @@ function ProspectsToolbar({
   activeTab,
   onTabChange,
   tabs,
+  tabCounts,
+  tabAttention,
   searchPlaceholder,
   filterActiveCount,
   sortActive,
@@ -722,17 +846,53 @@ function ProspectsToolbar({
       />
 
       {/* Tabs + Filter/Sort */}
-      <nav className="mt-3 flex items-center justify-between">
+      <nav className="mt-3 flex min-w-0 items-center justify-between gap-2">
         <Tabs
           value={activeTab}
           onValueChange={(v) => onTabChange(v as TabType)}
+          className="min-w-0"
         >
-          <TabsList size="sm">
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id} size="sm">
-                {tab.label}
-              </TabsTrigger>
-            ))}
+          <TabsList size="sm" className="h-9 max-w-full p-1">
+            {tabs.map((tab) => {
+              const count = tabCounts?.[tab.id];
+              const hasCount = typeof count === "number" && count > 0;
+              const hasAttention =
+                hasCount && tabAttention[tab.id] && tab.id !== activeTab;
+
+              return (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  size="sm"
+                  aria-label={[
+                    tab.label,
+                    hasCount ? `${count} total` : null,
+                    hasAttention ? "updated" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                  className="h-7 gap-1.5 px-2.5 py-0 leading-none"
+                >
+                  <span className="leading-none">{tab.label}</span>
+                  {hasCount ? (
+                    <span
+                      className={cn(
+                        "inline-flex h-4 items-center gap-1 text-xs font-medium leading-none tabular-nums text-muted-foreground",
+                        hasAttention &&
+                          "animate-notification-bump text-foreground"
+                      )}
+                    >
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        ·
+                      </span>
+                      <span className="font-mono leading-none tabular-nums">
+                        {count.toLocaleString()}
+                      </span>
+                    </span>
+                  ) : null}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
         </Tabs>
 

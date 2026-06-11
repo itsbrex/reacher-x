@@ -47,6 +47,8 @@ export {
 } from "./prospect-card";
 
 export { PendingProspectsFeedBar } from "./PendingProspectsFeedBar";
+export { ProspectListEmptyState } from "./ProspectListEmptyState";
+export type { ProspectListEmptyStateProps } from "./ProspectListEmptyState";
 export { ProspectListFilterPanel } from "./ProspectListFilterPanel";
 export { ProspectListSortPanel } from "./ProspectListSortPanel";
 

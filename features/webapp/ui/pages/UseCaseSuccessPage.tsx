@@ -25,6 +25,7 @@ import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import {
   ProspectCard,
   ProspectCardSkeleton,
+  ProspectListEmptyState,
   ProspectListFilterPanel,
   ProspectListSortPanel,
   ProspectPanelRenderer,
@@ -47,6 +48,7 @@ import {
   createDefaultProspectListFilters,
   getProspectListFilterArgs,
 } from "@/features/prospects/lib/prospectListFilters";
+import { getProspectSuccessEmptyStateCopy } from "@/features/prospects/lib/prospectEmptyStateCopy";
 import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectListSort";
 
 type ProspectSummary = Doc<"prospectSummaries">;
@@ -62,15 +64,23 @@ interface UseCaseSuccessPageProps {
 
 export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   const router = useRouter();
-  const { entitySingular, pageLabels, routes } = useActiveUseCaseLabels();
+  const { entityPlural, pageLabels, routes, stageLabels } =
+    useActiveUseCaseLabels();
   const { isLoading: isWorkspaceLoading } = useWorkspace();
   const { openProspect, prospectId } = useProspectProfile();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const browseMode = searchQuery.trim() === "";
-  const entitySingularLower = entitySingular.toLowerCase();
   const successLabelLower = pageLabels.converts.toLowerCase();
-  const successEmptyDescription = `When a ${entitySingularLower} reaches ${successLabelLower}, it will appear here.`;
+  const successEmptyStateCopy = useMemo(
+    () =>
+      getProspectSuccessEmptyStateCopy({
+        entityPlural,
+        successLabel: pageLabels.converts,
+        stageLabels,
+      }),
+    [entityPlural, pageLabels.converts, stageLabels]
+  );
   const isCanonicalRoute = slug === routes.successSlug;
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
 
@@ -292,17 +302,11 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
                       <ProspectCardSkeleton />
                     </div>
                   ) : showEmptyState ? (
-                    <div className="flex h-full items-center justify-center py-16">
-                      <div className="text-muted-foreground text-center">
-                        <AccountBoxIcon className="fill-muted-foreground mx-auto mb-3 size-12" />
-                        <p className="font-medium">
-                          No {successLabelLower} yet
-                        </p>
-                        <p className="mt-1 text-sm">
-                          {successEmptyDescription}
-                        </p>
-                      </div>
-                    </div>
+                    <ProspectListEmptyState
+                      title={successEmptyStateCopy.title}
+                      description={successEmptyStateCopy.description}
+                      icon={<AccountBoxIcon className="size-6 fill-current" />}
+                    />
                   ) : showSearchNoMatch ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">
                       No {successLabelLower} match your search

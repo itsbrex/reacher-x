@@ -49,11 +49,21 @@ export type ListWorkspaceProspectSummariesArgs = {
   paginationOpts: PaginationOpts;
 };
 
+type ProspectStageCountStatus = Extract<
+  Doc<"prospects">["status"],
+  "new" | "contacted" | "in_progress"
+>;
+
 const TYPE_SORT_CURSOR_PREFIX = "ptsp1:";
 const CREATED_SORT_CURSOR_PREFIX = "pcsp1:";
 const TYPE_SORT_SCAN_LIMIT = 3000;
 const CREATED_SORT_SCAN_LIMIT = 3000;
 const ACTIONABLE_FALLBACK_SCAN_LIMIT = 500;
+const PROSPECT_STAGE_COUNT_STATUSES: ProspectStageCountStatus[] = [
+  "new",
+  "contacted",
+  "in_progress",
+];
 
 function applyAdditionalFilters<T extends { filter: (...args: any[]) => any }>(
   query: T,
@@ -1070,6 +1080,191 @@ export async function listWorkspaceProspectSummariesPage(
     .order(scoreOrder)
     .paginate(paginationOpts);
 }
+
+async function countWorkspaceProspectSummariesByStatus(
+  db: SummaryDb,
+  args: Omit<ListWorkspaceProspectSummariesArgs, "paginationOpts" | "sortBy"> & {
+    status: ProspectStageCountStatus;
+  }
+) {
+  const { workspaceId, status } = args;
+  const trimmedSearch = args.searchQuery?.trim();
+  const visibilityMode = resolveVisibilityMode(args);
+  const readyOnly = visibilityMode === "ready_only";
+  const actionableOnly = visibilityMode === "actionable_only";
+  const { fitScoreMin, fitScoreMax } = await resolveWorkspaceFitRange({
+    db,
+    workspaceId,
+    fitScoreMin: args.fitScoreMin,
+    fitScoreMax: args.fitScoreMax,
+  });
+
+  const countRows = async (rows: Doc<"prospectSummaries">[]) => {
+    if (!actionableOnly) {
+      return rows.length;
+    }
+
+    let count = 0;
+    for (const row of rows) {
+      if (await resolveProspectSummaryActionableReady(db, row)) {
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  if (trimmedSearch) {
+    const rows = await db
+      .query("prospectSummaries")
+      .withSearchIndex("search_prospect_summaries", (q) =>
+        q
+          .search("searchText", trimmedSearch)
+          .eq("workspaceId", workspaceId)
+          .eq("status", status)
+      )
+      .filter((q) => {
+        const clauses = [
+          q.gte(q.field("sortQualificationScore"), fitScoreMin),
+          q.lte(q.field("sortQualificationScore"), fitScoreMax),
+        ];
+
+        if (args.prospectType !== undefined) {
+          clauses.push(q.eq(q.field("prospectType"), args.prospectType));
+        }
+        if (args.createdAfterMs !== undefined) {
+          clauses.push(
+            q.gte(q.field("prospectCreatedAt"), Math.round(args.createdAfterMs))
+          );
+        }
+        if (args.createdBeforeMs !== undefined) {
+          clauses.push(
+            q.lt(q.field("prospectCreatedAt"), Math.round(args.createdBeforeMs))
+          );
+        }
+        if (readyOnly) {
+          clauses.push(q.eq(q.field("readyQualifiedEnriched"), true));
+        }
+        if (args.platform !== undefined) {
+          clauses.push(q.eq(q.field("platform"), args.platform));
+        }
+
+        return q.and(...clauses);
+      })
+      .collect();
+
+    return await countRows(rows);
+  }
+
+  if (args.platform !== undefined && readyOnly) {
+    return (
+      await applyAdditionalFilters(
+        db
+          .query("prospectSummaries")
+          .withIndex("by_workspace_platform_status_ready_score", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("platform", args.platform!)
+              .eq("status", status)
+              .eq("readyQualifiedEnriched", true)
+              .gte("sortQualificationScore", fitScoreMin)
+              .lte("sortQualificationScore", fitScoreMax)
+          ),
+        args
+      ).collect()
+    ).length;
+  }
+
+  if (args.platform !== undefined) {
+    const rows = await applyAdditionalFilters(
+      db
+        .query("prospectSummaries")
+        .withIndex("by_workspace_platform_status_score", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("platform", args.platform!)
+            .eq("status", status)
+            .gte("sortQualificationScore", fitScoreMin)
+            .lte("sortQualificationScore", fitScoreMax)
+        ),
+      args
+    ).collect();
+
+    return await countRows(rows);
+  }
+
+  if (readyOnly) {
+    return (
+      await applyAdditionalFilters(
+        db
+          .query("prospectSummaries")
+          .withIndex("by_workspace_status_ready_score", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("status", status)
+              .eq("readyQualifiedEnriched", true)
+              .gte("sortQualificationScore", fitScoreMin)
+              .lte("sortQualificationScore", fitScoreMax)
+          ),
+        args
+      ).collect()
+    ).length;
+  }
+
+  const rows = await applyAdditionalFilters(
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_status_score", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("status", status)
+          .gte("sortQualificationScore", fitScoreMin)
+          .lte("sortQualificationScore", fitScoreMax)
+      ),
+    args
+  ).collect();
+
+  return await countRows(rows);
+}
+
+export const getWorkspaceProspectStageCounts = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    platform: v.optional(prospectPlatformValidator),
+    prospectType: v.optional(prospectTypeValidator),
+    qualifiedOnly: v.optional(v.boolean()),
+    visibilityMode: v.optional(prospectVisibilityModeValidator),
+    fitScoreMin: v.optional(v.number()),
+    fitScoreMax: v.optional(v.number()),
+    createdAfterMs: v.optional(v.number()),
+    createdBeforeMs: v.optional(v.number()),
+    searchQuery: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx, { notFoundMessage: "User not found" });
+    await requireOwnedWorkspace(ctx, args.workspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage: "Not authorized to view this workspace",
+    });
+
+    const counts = {
+      new: 0,
+      contacted: 0,
+      in_progress: 0,
+    };
+
+    await Promise.all(
+      PROSPECT_STAGE_COUNT_STATUSES.map(async (status) => {
+        counts[status] = await countWorkspaceProspectSummariesByStatus(ctx.db, {
+          ...args,
+          status,
+        });
+      })
+    );
+
+    return counts;
+  },
+});
 
 export const getWorkspaceFitScoreHistogram = query({
   args: {
