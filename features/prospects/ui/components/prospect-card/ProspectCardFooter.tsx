@@ -15,6 +15,12 @@ import { useActiveUseCaseLabels } from "@/shared/hooks";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { resolveQualificationPresentation } from "@/features/prospects/lib/qualificationUi";
 
+const compactBadgeClassName =
+  "h-[22px] gap-1 overflow-hidden rounded-md py-0 font-normal leading-none";
+const compactMonoClassName = "font-mono !leading-none";
+const compactFitBarClassName = "font-mono text-[10px] !leading-none";
+const compactFitPercentClassName = "mb-1.5 font-mono text-xs !leading-none";
+
 interface ProspectCardFooterProps {
   qualificationStatus?: Doc<"prospects">["qualificationStatus"];
   qualificationScore?: number;
@@ -95,7 +101,7 @@ function FitBar({
 
   return (
     <span
-      className={cn("font-mono text-[8px] tracking-tight", className)}
+      className={cn(compactFitBarClassName, "tracking-tight", className)}
       aria-label={`${percentage}% fit`}
     >
       {bar}
@@ -151,7 +157,10 @@ export function ProspectCardFooter({
     <footer className="overflow-hidden">
       <div className="scrollbar-none scroll-fade-effect-x flex items-center gap-2 overflow-x-auto">
         {qualificationPresentation.showCardBadge && (
-          <div className="text-foreground border-border flex shrink-0 items-center gap-1 overflow-hidden rounded-md border px-2.5 py-0.5">
+          <Badge
+            variant="outline"
+            className={compactBadgeClassName}
+          >
             <Flag2Icon
               className={cn(
                 "size-3.5 shrink-0",
@@ -159,28 +168,34 @@ export function ProspectCardFooter({
               )}
               aria-hidden
             />
-            <span className="font-mono text-xs">
+            <span className={compactMonoClassName}>
               {qualificationPresentation.cardLabelText}
             </span>
-          </div>
+          </Badge>
         )}
         {qualificationScore !== undefined && (
-          <div className="text-foreground border-border flex shrink-0 items-center gap-1 overflow-hidden rounded-md border px-2.5 py-0.5">
+          <Badge
+            variant="outline"
+            className={compactBadgeClassName}
+          >
             <FitBar percentage={qualificationScore} isHovered={isHovered} />
             <AnimatedPercent
               key={animationKey}
               value={animatedValue}
-              className="text-xs"
+              className={cn(
+                compactFitPercentClassName,
+                "[&_*]:!leading-none [&_number-flow-react]:!h-3"
+              )}
               srLabel={`${entitySingular} fit score`}
               suffix="% fit"
               animateOnMount={false}
             />
-          </div>
+          </Badge>
         )}
         {finance && (
           <Badge
             variant="outline"
-            className="shrink-0 gap-1 rounded-md font-normal"
+            className={cn("shrink-0", compactBadgeClassName)}
           >
             {/* <DollarSignIcon className="size-3" aria-hidden /> */}
             {finance}
@@ -189,7 +204,7 @@ export function ProspectCardFooter({
         {location && (
           <Badge
             variant="outline"
-            className="shrink-0 gap-1 rounded-md font-normal"
+            className={cn("shrink-0", compactBadgeClassName)}
           >
             {/* <MapPinIcon className="size-3" aria-hidden /> */}
             {location}
