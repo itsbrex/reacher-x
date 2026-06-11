@@ -228,21 +228,15 @@ export function WorkspaceInputStep({
           title: "Describe what Agent should look for",
           description: (
             <>
-              <span className="text-foreground font-medium">
-                Paste a website
-              </span>
+              <span className="text-foreground">Paste a website</span>
               , or describe the{" "}
-              <span className="text-foreground font-medium">
-                traits and signals
-              </span>{" "}
+              <span className="text-foreground">traits and signals</span>{" "}
               that matter. Agent will generate{" "}
-              <span className="text-foreground font-medium">
+              <span className="text-foreground">
                 {profileLabelPlural.toLowerCase()}
               </span>{" "}
               for you to{" "}
-              <span className="text-foreground font-medium">
-                review and approve
-              </span>{" "}
+              <span className="text-foreground">review and approve</span>{" "}
               before searching starts.
             </>
           ),

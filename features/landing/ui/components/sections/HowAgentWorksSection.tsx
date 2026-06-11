@@ -19,9 +19,9 @@ const STEPS = [
   },
   {
     stepLabel: "Step #3",
-    heading: "Real context from real posts.",
+    heading: "Context behind every match.",
     description:
-      "Agent reads people\u2019s posts and extracts what matters: pain points, buying signals, and company details, each linked to the original post as proof. Not scraped data from a stale database. Live intelligence from what people are actually saying.",
+      "Agent looks at what people are actually saying and turns it into context you can use. It finds the signals, moments, and reasons that make someone relevant, then links everything back to the source as proof. Not stale scraped data. Real context from real activity.",
     videoAssetKey: "how-step-3" as const,
     reversed: false,
   },

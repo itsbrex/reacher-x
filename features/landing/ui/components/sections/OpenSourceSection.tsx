@@ -195,8 +195,8 @@ export function OpenSourceSection() {
         id="open-source-heading"
         className="font-pixel-square mb-12 text-center text-4xl font-bold md:mb-16 md:text-5xl"
       >
-        Ads are closed source. <br className="hidden md:block" />
-        Agent is open source.
+        Other tools are closed-source. <br className="hidden md:block" />
+        Agent is open-source.
       </h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {CARDS.map(({ title, description, linkLabel, href, pattern }) => (

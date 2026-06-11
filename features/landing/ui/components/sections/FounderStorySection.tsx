@@ -25,19 +25,22 @@ export function FounderStorySection() {
             Three years. One goal.
           </h3>
           <p className="text-base leading-relaxed">
-            I started ReacherX because ads felt broken. The people you need
-            already exist, posting their problems, asking for help, and looking
-            for what you&apos;re building. They are not missing. They are just
-            hard to reach.
+            I started ReacherX because finding the right people should not be
+            this hard. Customers, candidates, investors, partners, creators,
+            community members, or anyone else you need, they already exist
+            somewhere on the internet. You should be able to say who you are
+            looking for, and get the people who match.
           </p>
           <p className="text-base leading-relaxed">
             Three years in, it has been harder than I imagined. But I&apos;m
             still here, still building, still shipping.
           </p>
           <p className="text-base leading-relaxed">
-            ReacherX is open source because I believe in Open Source as a
-            philosophy; the best tools are built in the open. If it helps you
-            reach the people you need, the effort is worth it.
+            ReacherX is open source because I believe developers are the ones
+            who change how software works. This space has been locked inside
+            closed systems and messy workflows for too long. It should become an
+            open ecosystem where people build, share, improve, and push the
+            whole thing forward.
           </p>
           <footer className="pt-4">
             <p className="text-foreground font-medium">&mdash; Salman</p>
