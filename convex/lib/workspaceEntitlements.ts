@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { PLAN_LIMITS } from "./planConstants";
+import { isPaidPlanTier, PLAN_LIMITS } from "./planConstants";
 import { getOrCreateUserPlan } from "./planCore";
 import { isTerminalSetupSessionStatus } from "./setupSessionCore";
 
@@ -23,6 +23,10 @@ export function isEntitlementSlotAccessible(args: {
   entitlementSlot: number | null | undefined;
   tier: keyof typeof PLAN_LIMITS;
 }): boolean {
+  if (!isPaidPlanTier(args.tier)) {
+    return true;
+  }
+
   const slot = args.entitlementSlot ?? 1;
   return slot <= getWorkspaceSlotLimitForTier(args.tier);
 }

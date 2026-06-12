@@ -35,6 +35,8 @@ import {
   isLinkedInActionKey,
   isSocialDmActionKey,
 } from "./lib/twitterActionCatalog";
+import { getOrCreateUserPlan } from "./lib/planCore";
+import { isPaidPlanTier } from "./lib/planConstants";
 
 const LINKEDIN_DM_TEXT_MAX = 8000;
 
@@ -365,6 +367,11 @@ export const approveActionRequestInternal = internalMutation({
       throw new Error("Social action request is no longer pending approval");
     }
 
+    const plan = await getOrCreateUserPlan(ctx, request.userId);
+    if (!isPaidPlanTier(plan.tier)) {
+      throw new Error("Upgrade plan to approve and execute social actions.");
+    }
+
     await ctx.db.patch(actionRequestId, {
       status: "approved",
       approvedAt: getCurrentUTCTimestamp(),
@@ -548,6 +555,11 @@ export const updatePendingActionRequestDraft = mutation({
     }
     if (request.status !== "pending_approval") {
       throw new Error("Social action request is no longer pending approval");
+    }
+
+    const plan = await getOrCreateUserPlan(ctx, request.userId);
+    if (!isPaidPlanTier(plan.tier)) {
+      throw new Error("Upgrade plan to approve and execute social actions.");
     }
 
     const trimmedContent = args.content.trim();

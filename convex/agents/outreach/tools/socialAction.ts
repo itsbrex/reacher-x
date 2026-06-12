@@ -197,6 +197,35 @@ export const socialAction = createTool({
     const isXPostLikeAction =
       args.action === "reply_to_post" || args.action === "create_post";
     const userId = ctx.userId as Id<"users"> | null;
+    if (!userId) {
+      return {
+        success: false,
+        executed: false,
+        pendingApproval: false,
+        actionKey: args.action,
+        title: "Social action unavailable",
+        message: "Social actions require an authenticated user.",
+        error: "No authenticated user available",
+      };
+    }
+
+    const paidEligibility = await ctx.runQuery(
+      internal.plans.getPaidFeatureEligibilityByUserId,
+      { userId }
+    );
+    if (!paidEligibility.allowed) {
+      return {
+        success: false,
+        executed: false,
+        pendingApproval: false,
+        actionKey: args.action,
+        title: "Upgrade plan",
+        message:
+          paidEligibility.reason ?? "Upgrade plan to use social actions.",
+        error: "Plan required",
+      };
+    }
+
     if (isXPostLikeAction && normalizedText && userId) {
       const limit = await getEffectivePostLimitForAgentUser(ctx, userId);
       const limitError = getPostTextLimitError(normalizedText, limit);

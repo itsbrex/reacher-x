@@ -252,13 +252,15 @@ cp .env.example .env.local
 
 #### Required for Billing
 
-| Variable                     | Service                   | What It Does                 |
-| :--------------------------- | :------------------------ | :--------------------------- |
-| `POLAR_ORGANIZATION_TOKEN`   | [Polar](https://polar.sh) | Subscription management      |
-| `POLAR_PRODUCT_BASE_MONTHLY` | Polar                     | Base tier monthly product ID |
-| `POLAR_PRODUCT_BASE_YEARLY`  | Polar                     | Base tier yearly product ID  |
-| `POLAR_PRODUCT_PRO_MONTHLY`  | Polar                     | Pro tier monthly product ID  |
-| `POLAR_PRODUCT_PRO_YEARLY`   | Polar                     | Pro tier yearly product ID   |
+| Variable                      | Service                   | What It Does                  |
+| :---------------------------- | :------------------------ | :---------------------------- |
+| `POLAR_ORGANIZATION_TOKEN`    | [Polar](https://polar.sh) | Subscription management       |
+| `POLAR_PRODUCT_HOBBY_MONTHLY` | Polar                     | Hobby tier monthly product ID |
+| `POLAR_PRODUCT_HOBBY_YEARLY`  | Polar                     | Hobby tier yearly product ID  |
+| `POLAR_PRODUCT_BASE_MONTHLY`  | Polar                     | Base tier monthly product ID  |
+| `POLAR_PRODUCT_BASE_YEARLY`   | Polar                     | Base tier yearly product ID   |
+| `POLAR_PRODUCT_PRO_MONTHLY`   | Polar                     | Pro tier monthly product ID   |
+| `POLAR_PRODUCT_PRO_YEARLY`    | Polar                     | Pro tier yearly product ID    |
 
 #### Optional
 

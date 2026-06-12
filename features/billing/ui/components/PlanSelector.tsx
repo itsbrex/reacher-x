@@ -26,10 +26,9 @@ export type PlanSelectorMode = "onboarding" | "plans";
 
 export interface PlanSelectorProps {
   mode: PlanSelectorMode;
-  currentTier: "free" | "base" | "pro";
-  onSelectFree: () => void | Promise<void>;
+  currentTier: "free" | "hobby" | "base" | "pro";
   onUpgradePaid: (selection: {
-    tier: "base" | "pro";
+    tier: "hobby" | "base" | "pro";
     billing: BillingPeriod;
   }) => void;
   isStartingCheckout?: boolean;
@@ -39,14 +38,19 @@ export interface PlanSelectorProps {
 
 function visibleTiersForMode(
   mode: PlanSelectorMode,
-  currentTier: "free" | "base" | "pro"
+  currentTier: "free" | "hobby" | "base" | "pro"
 ): typeof ONBOARDING_PLAN_TIERS {
   if (mode === "onboarding") {
     return currentTier === "base"
       ? ONBOARDING_PLAN_TIERS.filter((t) => t.id === "pro")
-      : ONBOARDING_PLAN_TIERS;
+      : currentTier === "hobby"
+        ? ONBOARDING_PLAN_TIERS.filter((t) => t.id === "base" || t.id === "pro")
+        : ONBOARDING_PLAN_TIERS;
   }
   if (currentTier === "free") {
+    return ONBOARDING_PLAN_TIERS;
+  }
+  if (currentTier === "hobby") {
     return ONBOARDING_PLAN_TIERS.filter(
       (t) => t.id === "base" || t.id === "pro"
     );
@@ -66,14 +70,6 @@ function PlanPriceBlock({
   billing: BillingPeriod;
   amountOverride?: number | null;
 }) {
-  if (tier.id === "hobby") {
-    return (
-      <p className="text-2xl font-semibold tracking-tight" aria-live="polite">
-        Free
-      </p>
-    );
-  }
-
   const periodKey = billing === "monthly" ? "monthly" : "yearly";
   const amount = amountOverride ?? tier.pricing[periodKey].amount;
   if (amount == null) {
@@ -112,7 +108,6 @@ function PlanTierCard({
   tier,
   billing,
   amountOverride,
-  onSelectFree,
   onUpgradePaid,
   disabled,
   mode,
@@ -120,9 +115,8 @@ function PlanTierCard({
   tier: OnboardingPlanTierConfig;
   billing: BillingPeriod;
   amountOverride?: number | null;
-  onSelectFree: () => void | Promise<void>;
   onUpgradePaid: (selection: {
-    tier: "base" | "pro";
+    tier: "hobby" | "base" | "pro";
     billing: BillingPeriod;
   }) => void;
   disabled?: boolean;
@@ -173,35 +167,22 @@ function PlanTierCard({
           ))}
         </ul>
 
-        {tier.id === "hobby" ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="w-full"
-            disabled={disabled}
-            onClick={() => void onSelectFree()}
-          >
-            Start for free — no credit card needed
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="xs"
-            className="w-full"
-            disabled={amountForCta == null || disabled}
-            onClick={() =>
-              onUpgradePaid({
-                tier: tier.id === "base" ? "base" : "pro",
-                billing,
-              })
-            }
-          >
-            {amountForCta != null
-              ? `Upgrade for ${formatPlanPriceLabel(amountForCta, billing)}`
-              : "Upgrade"}
-          </Button>
-        )}
+        <Button
+          type="button"
+          size="xs"
+          className="w-full"
+          disabled={amountForCta == null || disabled}
+          onClick={() =>
+            onUpgradePaid({
+              tier: tier.id,
+              billing,
+            })
+          }
+        >
+          {amountForCta != null
+            ? `Upgrade for ${formatPlanPriceLabel(amountForCta, billing)}`
+            : "Upgrade plan"}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -210,7 +191,6 @@ function PlanTierCard({
 export function PlanSelector({
   mode,
   currentTier,
-  onSelectFree,
   onUpgradePaid,
   isStartingCheckout = false,
   hideMarketingHeadline = false,
@@ -223,6 +203,16 @@ export function PlanSelector({
   );
 
   const livePricing = {
+    hobby: {
+      monthly:
+        productsQuery.data?.hobbyMonthly?.prices?.[0]?.priceAmount != null
+          ? productsQuery.data.hobbyMonthly.prices[0].priceAmount / 100
+          : undefined,
+      yearly:
+        productsQuery.data?.hobbyYearly?.prices?.[0]?.priceAmount != null
+          ? productsQuery.data.hobbyYearly.prices[0].priceAmount / 100
+          : undefined,
+    },
     base: {
       monthly:
         productsQuery.data?.baseMonthly?.prices?.[0]?.priceAmount != null
@@ -301,7 +291,7 @@ export function PlanSelector({
               variant="outline-strong"
               className="border-muted-foreground text-muted-foreground group-data-[state=active]:border-foreground group-data-[state=active]:text-foreground"
             >
-              Save 20%
+              2 months free
             </Badge>
           </TabsTrigger>
         </TabsList>
@@ -315,11 +305,10 @@ export function PlanSelector({
             billing={billing}
             mode={mode}
             amountOverride={
-              tier.id === "base" || tier.id === "pro"
+              tier.id === "hobby" || tier.id === "base" || tier.id === "pro"
                 ? livePricing[tier.id]?.[billing]
                 : undefined
             }
-            onSelectFree={onSelectFree}
             onUpgradePaid={onUpgradePaid}
             disabled={isStartingCheckout}
           />

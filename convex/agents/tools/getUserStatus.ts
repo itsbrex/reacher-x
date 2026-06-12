@@ -7,6 +7,7 @@ import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { hasRequiredWorkspaceAgentData } from "../../lib/workspaceSetup";
 import { buildSetupFlowState } from "../../lib/setupFlowCore";
+import { isPaidPlanTier, type PlanTier } from "../../lib/planConstants";
 
 // ============================================================================
 // Tool
@@ -35,7 +36,7 @@ export const getUserStatus = createTool({
     visibleSteps?: Array<{ id: string; label: string; stepNumber: number }>;
     googleConnected: boolean;
     xConnected: boolean;
-    planTier: "free" | "base" | "pro";
+    planTier: PlanTier;
     workspaces: Array<{ id: string; name: string; role: "owner" }>;
     workspaceId?: string;
     workspaceName?: string;
@@ -80,7 +81,7 @@ export const getUserStatus = createTool({
       ? buildSetupFlowState({
           status: setupSession.status,
           requiresConnections: !(googleConnected && flowContext.xConnected),
-          requiresPlan: flowContext.planTier !== "pro",
+          requiresPlan: !isPaidPlanTier(flowContext.planTier),
         })
       : null;
 

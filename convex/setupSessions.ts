@@ -63,6 +63,7 @@ import {
 } from "./lib/setupFlowCore";
 import { PREVIEW_BATCH_LIMITS } from "./lib/previewBatchLimits";
 import { isProspectReadyQualifiedEnriched } from "./lib/readModelHelpers";
+import { isPaidPlanTier } from "./lib/planConstants";
 
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
 type ViewerCtx = QueryCtx | MutationCtx;
@@ -404,7 +405,7 @@ async function toPublicSetupSessionState(
   const flowState = buildSetupFlowState({
     status: session.status,
     requiresConnections: !(googleConnected && connectionState.xConnected),
-    requiresPlan: planTier !== "pro",
+    requiresPlan: !isPaidPlanTier(planTier),
   });
 
   return {
@@ -1643,7 +1644,7 @@ export const approveSetupGeneration = mutation({
     );
     const nextStatus = getNextSetupStatusAfterProvisioning({
       requiresConnections: !flowContext.xConnected,
-      requiresPlan: flowContext.planTier !== "pro",
+      requiresPlan: !isPaidPlanTier(flowContext.planTier),
     });
 
     await ctx.db.patch(args.sessionId, {
@@ -1701,7 +1702,7 @@ export const completeSetupConnections = mutation({
     const now = getCurrentUTCTimestamp();
     const planTier = await getUserPlanTier(ctx.db, user._id);
     const nextStatus = getNextSetupStatusAfterConnections({
-      requiresPlan: planTier !== "pro",
+      requiresPlan: !isPaidPlanTier(planTier),
     });
 
     await ctx.db.patch(args.sessionId, {

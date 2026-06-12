@@ -739,6 +739,7 @@ export const sendWelcomeEmailArgsValidator = v.object({
 // v4: Plan tier validator
 export const planTierValidator = v.union(
   v.literal("free"),
+  v.literal("hobby"),
   v.literal("base"),
   v.literal("pro")
 );

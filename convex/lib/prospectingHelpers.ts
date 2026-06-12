@@ -3,26 +3,31 @@
 
 import { QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { PLAN_LIMITS, type PlanTier } from "./planConstants";
 
 /**
  * Tier limit configurations
  */
 export const TIER_LIMITS = {
   free: {
-    prospectsPerWorkspace: 100,
-    maxWorkspaces: 1,
+    prospectsPerWorkspace: PLAN_LIMITS.free.prospectsLimit,
+    maxWorkspaces: PLAN_LIMITS.free.workspacesLimit,
+  },
+  hobby: {
+    prospectsPerWorkspace: PLAN_LIMITS.hobby.prospectsLimit,
+    maxWorkspaces: PLAN_LIMITS.hobby.workspacesLimit,
   },
   base: {
-    prospectsPerWorkspace: 1000,
-    maxWorkspaces: 2,
+    prospectsPerWorkspace: PLAN_LIMITS.base.prospectsLimit,
+    maxWorkspaces: PLAN_LIMITS.base.workspacesLimit,
   },
   pro: {
-    prospectsPerWorkspace: -1, // -1 = unlimited
-    maxWorkspaces: 5,
+    prospectsPerWorkspace: PLAN_LIMITS.pro.prospectsLimit,
+    maxWorkspaces: PLAN_LIMITS.pro.workspacesLimit,
   },
 } as const;
 
-export type Tier = keyof typeof TIER_LIMITS;
+export type Tier = PlanTier;
 
 /**
  * Batch size limits for cost and rate limit control.

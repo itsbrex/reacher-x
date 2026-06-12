@@ -7,6 +7,15 @@ import { Id } from "../_generated/dataModel";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { PLAN_LIMITS, type PlanTier, type UserPlan } from "./planConstants";
 
+function normalizePlanLimits<T extends UserPlan>(plan: T): T {
+  const limits = PLAN_LIMITS[plan.tier];
+  return {
+    ...plan,
+    prospectsLimit: limits.prospectsLimit,
+    workspacesLimit: limits.workspacesLimit,
+  };
+}
+
 /**
  * Get or create a user's plan (defaults to free tier)
  * Always returns a valid plan object (never null)
@@ -21,7 +30,20 @@ export async function getOrCreateUserPlan(
     .first();
 
   if (existingPlan) {
-    return existingPlan as UserPlan;
+    const normalizedPlan = normalizePlanLimits(existingPlan as UserPlan);
+    const limitsChanged =
+      existingPlan.prospectsLimit !== normalizedPlan.prospectsLimit ||
+      existingPlan.workspacesLimit !== normalizedPlan.workspacesLimit;
+
+    if (limitsChanged && "patch" in ctx.db) {
+      await (ctx as MutationCtx).db.patch(existingPlan._id, {
+        prospectsLimit: normalizedPlan.prospectsLimit,
+        workspacesLimit: normalizedPlan.workspacesLimit,
+        updatedAt: getCurrentUTCTimestamp(),
+      });
+    }
+
+    return normalizedPlan;
   }
 
   // Only create if we have mutation context

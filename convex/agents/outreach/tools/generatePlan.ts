@@ -166,6 +166,19 @@ export const generatePlan = createTool({
         };
       }
 
+      const paidEligibility = await ctx.runQuery(
+        internal.plans.getPaidFeatureEligibilityByUserId,
+        { userId }
+      );
+      if (!paidEligibility.allowed) {
+        return {
+          success: false,
+          message:
+            paidEligibility.reason ?? "Upgrade plan to create outreach plans.",
+          error: "Plan required",
+        };
+      }
+
       const threadContext = await extractProspectThreadContext(
         ctx,
         "generatePlan"

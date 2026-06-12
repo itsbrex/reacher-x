@@ -10,6 +10,7 @@ import {
   getOrCreateUserPlan,
   canAddProspects,
   canCreateWorkspace,
+  canUsePaidFeatures,
   getPlanUsageSummary,
   PLAN_LIMITS,
   type PlanTier,
@@ -125,6 +126,15 @@ export const getWorkspaceCreationEligibilityByUserId = internalQuery({
       consumeEntitlementSlot: args.consumeEntitlementSlot,
       excludeSetupSessionId: args.excludeSetupSessionId,
     });
+  },
+});
+
+export const getPaidFeatureEligibilityByUserId = internalQuery({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return canUsePaidFeatures(ctx, args.userId);
   },
 });
 

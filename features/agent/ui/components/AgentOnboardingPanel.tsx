@@ -91,7 +91,6 @@ export function AgentOnboardingPanel({
     api.setupSessions.approveSetupGeneration
   );
   const confirmSetupIcps = useMutation(api.setupSessions.confirmSetupIcps);
-  const selectSetupPlan = useMutation(api.setupSessions.selectSetupPlan);
   const selectSetupPreference = useMutation(
     api.setupSessions.selectSetupPreference
   );
@@ -490,31 +489,9 @@ export function AgentOnboardingPanel({
 
   const handlePlanChoice = useCallback(
     async (
-      choice: "free" | "base" | "pro",
+      choice: "hobby" | "base" | "pro",
       billingPeriod: "monthly" | "yearly" = "monthly"
     ) => {
-      if (choice === "free") {
-        if (!sessionId) {
-          toast.error("Setup draft is still loading", {
-            description: "Please wait a moment and try again.",
-          });
-          return;
-        }
-
-        try {
-          await selectSetupPlan({
-            sessionId,
-            planChoice: "free",
-          });
-        } catch (error) {
-          toast.error("Could not save plan step", {
-            description:
-              error instanceof Error ? error.message : "Please try again.",
-          });
-        }
-        return;
-      }
-
       if (typeof window === "undefined") {
         return;
       }
@@ -545,7 +522,7 @@ export function AgentOnboardingPanel({
         setIsStartingCheckout(false);
       }
     },
-    [selectSetupPlan, sessionId, startCheckoutFlow, threadId]
+    [startCheckoutFlow, threadId]
   );
 
   const handleCompletePreferences = useCallback(async () => {
@@ -684,7 +661,6 @@ export function AgentOnboardingPanel({
       case "plan":
         return (
           <PlanStep
-            onSelectFree={() => void handlePlanChoice("free")}
             onUpgradePaid={({ tier, billing }) =>
               void handlePlanChoice(tier, billing)
             }

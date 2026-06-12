@@ -359,7 +359,13 @@ export const Header = React.forwardRef<HTMLElement, HeaderProps>(
 
     // Tier badge label
     const tierLabel =
-      tier === "free" ? "Free" : tier === "base" ? "Base" : "Pro";
+      tier === "free"
+        ? "Plan required"
+        : tier === "hobby"
+          ? "Hobby"
+          : tier === "base"
+            ? "Base"
+            : "Pro";
 
     // Theme toggle group
     const themeToggle = (

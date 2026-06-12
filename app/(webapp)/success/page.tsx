@@ -24,7 +24,9 @@ function SuccessContent() {
   const sessionIdParam = searchParams.get("sessionId");
   const tierParam = searchParams.get("tier");
   const selectedTier =
-    tierParam === "base" || tierParam === "pro" ? tierParam : null;
+    tierParam === "hobby" || tierParam === "base" || tierParam === "pro"
+      ? tierParam
+      : null;
   const returnTo = searchParams.get("returnTo");
   const selectSetupPlanFromRedirect = useMutation(
     api.setupSessions.selectSetupPlanFromRedirect
@@ -56,6 +58,8 @@ function SuccessContent() {
   const billingReady =
     selectedTier != null
       ? plan?.tier === selectedTier ||
+        (selectedTier === "hobby" &&
+          (plan?.tier === "base" || plan?.tier === "pro")) ||
         (selectedTier === "base" && plan?.tier === "pro")
       : subscription?.status === "active";
   const isSetupResume = Boolean(setupThreadId || sessionIdParam);

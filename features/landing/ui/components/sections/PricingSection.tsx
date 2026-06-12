@@ -77,14 +77,6 @@ function PriceDisplay({
   tier: OnboardingPlanTierConfig;
   billing: BillingPeriod;
 }) {
-  if (tier.id === "hobby") {
-    return (
-      <p className="text-3xl font-semibold tracking-tight" aria-live="polite">
-        Free
-      </p>
-    );
-  }
-
   const amount = tier.pricing[billing].amount;
   if (amount == null) return null;
 
@@ -117,10 +109,11 @@ function PriceDisplay({
 }
 
 const PLAN_TIER_TO_PRICING_TIER = {
-  free: "hobby",
+  free: null,
+  hobby: "hobby",
   base: "base",
   pro: "pro",
-} as const satisfies Record<string, OnboardingPlanTierConfig["id"]>;
+} as const satisfies Record<string, OnboardingPlanTierConfig["id"] | null>;
 
 const PRICING_TIER_RANK = {
   hobby: 0,
@@ -160,17 +153,11 @@ function TierCard({
     PRICING_TIER_RANK[tier.id] < PRICING_TIER_RANK[currentTierId];
   const ctaHref = !isAuthenticated
     ? "/login"
-    : tier.id === "hobby" || isLowerThanCurrentPlan
+    : isLowerThanCurrentPlan
       ? PLANS_PATH
       : getPlansUpgradeHref();
 
   const ctaLabel = (() => {
-    if (tier.id === "hobby") {
-      return isAuthenticated
-        ? "Manage plan"
-        : "Start for free \u2014 no credit card needed";
-    }
-
     if (isLowerThanCurrentPlan) {
       return "Manage plan";
     }
@@ -180,8 +167,7 @@ function TierCard({
       : "Upgrade";
   })();
 
-  const ctaVariant =
-    tier.id === "hobby" || isLowerThanCurrentPlan ? "outline" : "default";
+  const ctaVariant = isLowerThanCurrentPlan ? "outline" : "default";
 
   const cta = (() => {
     if (isCheckingCurrentPlan) {
@@ -414,7 +400,7 @@ export function PricingSection({
                 variant="outline-strong"
                 className="border-muted-foreground text-muted-foreground group-data-[state=active]:border-foreground group-data-[state=active]:text-foreground"
               >
-                Save 20%
+                2 months free
               </Badge>
             </TabsTrigger>
           </TabsList>

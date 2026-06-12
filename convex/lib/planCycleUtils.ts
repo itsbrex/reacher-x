@@ -38,7 +38,7 @@ export function getUtcMonthBounds(now: number): {
 
 /**
  * Paid tiers with an active subscription use Polar period boundaries.
- * Free tier (and missing subscription) use UTC calendar months.
+ * Internal unpaid fallback (and missing subscription) use UTC calendar months.
  */
 export function computeUsageCycleWindow(args: {
   now: number;

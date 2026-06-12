@@ -204,7 +204,14 @@ function AvatarDropdown({
   const tier = plan?.tier ?? "free";
   const isFree = tier === "free";
   const isHighestTier = tier === "pro";
-  const tierLabel = tier === "free" ? "Free" : tier === "base" ? "Base" : "Pro";
+  const tierLabel =
+    tier === "free"
+      ? "Plan required"
+      : tier === "hobby"
+        ? "Hobby"
+        : tier === "base"
+          ? "Base"
+          : "Pro";
   const showUpgradeCta =
     tier !== "pro" &&
     (isFree || workspaceCreationEligibility?.allowed === false);

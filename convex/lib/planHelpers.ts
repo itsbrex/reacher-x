@@ -12,6 +12,7 @@ import {
   getWorkspaceSlotLimitForTier,
 } from "./workspaceEntitlements";
 import { readStoredQualifiedProspectUsageSnapshot } from "./planUsageState";
+import { isPaidPlanTier, type PlanTier } from "./planConstants";
 
 // Re-export constants and types from planConstants for backward compatibility
 export { PLAN_LIMITS, type PlanTier, type UserPlan } from "./planConstants";
@@ -27,12 +28,35 @@ type WorkspaceCreationEligibilityOptions = {
 
 export type WorkspaceCreationEligibility = {
   allowed: boolean;
-  tier: "free" | "base" | "pro";
+  tier: PlanTier;
   used: number;
   limit: number;
   remaining: number;
   reason?: string;
 };
+
+export type PaidFeatureEligibility = {
+  allowed: boolean;
+  tier: PlanTier;
+  reason?: string;
+};
+
+export async function canUsePaidFeatures(
+  ctx: PlanCtx,
+  userId: Id<"users">
+): Promise<PaidFeatureEligibility> {
+  const plan = await getOrCreateUserPlan(ctx, userId);
+
+  if (!isPaidPlanTier(plan.tier)) {
+    return {
+      allowed: false,
+      tier: plan.tier,
+      reason: "Upgrade plan to continue using Agent.",
+    };
+  }
+
+  return { allowed: true, tier: plan.tier };
+}
 
 export async function getWorkspaceCount(
   ctx: PlanCtx,
@@ -72,6 +96,14 @@ export async function canAddProspects(
 ): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
   const usage = await getCurrentQualifiedProspectUsage(ctx, userId);
 
+  if (!isPaidPlanTier(usage.tier)) {
+    return {
+      allowed: false,
+      reason: "Upgrade plan to continue using Agent.",
+      remaining: 0,
+    };
+  }
+
   // Unlimited
   if (usage.limit === -1) {
     return { allowed: true };
@@ -106,6 +138,17 @@ export async function canCreateWorkspace(
   });
   const used = [...reservedSlots].filter((slot) => slot <= limit).length;
   const remaining = Math.max(0, limit - used);
+
+  if (!isPaidPlanTier(plan.tier)) {
+    return {
+      allowed: false,
+      tier: plan.tier,
+      used,
+      limit,
+      remaining: 0,
+      reason: "Upgrade plan to create a workspace.",
+    };
+  }
 
   if (remaining <= 0) {
     return {

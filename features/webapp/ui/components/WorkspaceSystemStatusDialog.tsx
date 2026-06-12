@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { OnboardingProgressCard } from "@/features/agent/ui/components/OnboardingProgressCard";
-import { useActiveUseCaseLabels } from "@/shared/hooks";
+import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
 import {
   Dialog,
   DialogContent,
@@ -33,9 +33,20 @@ export type WorkspaceSystemStatus = {
 
 export function useWorkspaceSystemStatusCopy(status: WorkspaceSystemStatus) {
   const { activeUseCase, entityPlural } = useActiveUseCaseLabels();
+  const planQuery = useQueryWithStatus(api.plans.getCurrentPlan);
   const entityPluralLower = entityPlural.toLowerCase();
+  const requiresPlan =
+    planQuery.data?.tier === "free" && status.issueReason === "limit_reached";
 
   return useMemo(() => {
+    if (requiresPlan) {
+      return {
+        tooltip: "Upgrade plan",
+        title: `Upgrade plan to keep △ Agent discovering and qualifying ${entityPluralLower}.`,
+        meta: `${activeUseCase.displayName} billing`,
+      };
+    }
+
     if (status.mode === "running") {
       return {
         tooltip: "△ Agent is active",
@@ -91,6 +102,7 @@ export function useWorkspaceSystemStatusCopy(status: WorkspaceSystemStatus) {
   }, [
     activeUseCase.displayName,
     entityPluralLower,
+    requiresPlan,
     status.issueReason,
     status.mode,
     status.pauseReason,

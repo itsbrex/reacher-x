@@ -123,7 +123,7 @@ export function PlansPage() {
 
   const startCheckout = React.useCallback(
     async (selection: {
-      tier: "base" | "pro";
+      tier: "hobby" | "base" | "pro";
       billing: "monthly" | "yearly";
     }) => {
       if (typeof window === "undefined") return;
@@ -173,9 +173,6 @@ export function PlansPage() {
         mode="plans"
         currentTier={tier}
         hideMarketingHeadline
-        onSelectFree={async () => {
-          void setUpgradeParam(null);
-        }}
         onUpgradePaid={(selection) => startCheckout(selection)}
       />
     </div>

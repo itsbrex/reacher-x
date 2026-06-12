@@ -7,7 +7,7 @@ import { ONBOARDING_PLAN_TIERS } from "@/features/agent/ui/components/onboarding
 import { Check } from "lucide-react";
 
 type PlanSummary = {
-  tier: "free" | "base" | "pro";
+  tier: "free" | "hobby" | "base" | "pro";
   expiresAt?: number;
 };
 
@@ -29,14 +29,16 @@ export interface ActivePlanSectionProps {
   isPaid: boolean;
 }
 
-function tierTitle(tier: "free" | "base" | "pro"): string {
-  if (tier === "free") return "Free";
+function tierTitle(tier: "free" | "hobby" | "base" | "pro"): string {
+  if (tier === "free") return "Plan required";
+  if (tier === "hobby") return "Hobby";
   if (tier === "base") return "Base";
   return "Pro";
 }
 
-function tierLabel(tier: "free" | "base" | "pro"): string {
-  if (tier === "free") return "Hobby";
+function tierLabel(tier: "free" | "hobby" | "base" | "pro"): string {
+  if (tier === "free") return "Plan required";
+  if (tier === "hobby") return "Hobby";
   if (tier === "base") return "Base";
   return "Pro";
 }
@@ -87,7 +89,9 @@ export function ActivePlanSection({
             {tierTitle(tier)}
           </h2>
         </div>
-        <Badge variant="outline">Active</Badge>
+        <Badge variant="outline">
+          {isPaid ? "Active" : "Upgrade required"}
+        </Badge>
       </div>
 
       {tier !== "free" && (intervalLabel || renewalLabel) ? (
@@ -126,10 +130,10 @@ export function ActivePlanSection({
             Upgrade
           </Button>
         ) : null}
-        {tier === "base" ? (
+        {tier === "hobby" || tier === "base" ? (
           <>
             <Button type="button" size="xs" onClick={onUpgradeToPro}>
-              Upgrade to Pro
+              {tier === "hobby" ? "Upgrade plan" : "Upgrade to Pro"}
             </Button>
             {isPaid ? (
               <Button

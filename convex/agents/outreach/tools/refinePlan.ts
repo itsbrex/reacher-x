@@ -160,6 +160,18 @@ export const refinePlan = createTool({
           error: "User not authenticated",
         };
       }
+      const paidEligibility = await ctx.runQuery(
+        internal.plans.getPaidFeatureEligibilityByUserId,
+        { userId }
+      );
+      if (!paidEligibility.allowed) {
+        return {
+          success: false,
+          message:
+            paidEligibility.reason ?? "Upgrade plan to update outreach plans.",
+          error: "Plan required",
+        };
+      }
       const repairedTaskResult = normalizedTasks
         ? await repairOverLimitCommentTasks({
             ctx,

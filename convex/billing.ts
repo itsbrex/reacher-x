@@ -6,17 +6,26 @@ import type { ActionCtx } from "./_generated/server";
 import { action } from "./lib/functionBuilders";
 
 function resolvePolarProductId(args: {
-  tier: "base" | "pro";
+  tier: "hobby" | "base" | "pro";
   billingPeriod: "monthly" | "yearly";
 }) {
-  const productId =
-    args.tier === "base"
-      ? args.billingPeriod === "monthly"
+  const productId = (() => {
+    if (args.tier === "hobby") {
+      return args.billingPeriod === "monthly"
+        ? process.env.POLAR_PRODUCT_HOBBY_MONTHLY
+        : process.env.POLAR_PRODUCT_HOBBY_YEARLY;
+    }
+
+    if (args.tier === "base") {
+      return args.billingPeriod === "monthly"
         ? process.env.POLAR_PRODUCT_BASE_MONTHLY
-        : process.env.POLAR_PRODUCT_BASE_YEARLY
-      : args.billingPeriod === "monthly"
-        ? process.env.POLAR_PRODUCT_PRO_MONTHLY
-        : process.env.POLAR_PRODUCT_PRO_YEARLY;
+        : process.env.POLAR_PRODUCT_BASE_YEARLY;
+    }
+
+    return args.billingPeriod === "monthly"
+      ? process.env.POLAR_PRODUCT_PRO_MONTHLY
+      : process.env.POLAR_PRODUCT_PRO_YEARLY;
+  })();
 
   if (!productId) {
     throw new Error("Polar product is not configured for that plan.");
@@ -82,7 +91,7 @@ async function ensurePolarCustomerLinkedForUser(
 
 export const startCheckoutFlow = action({
   args: {
-    tier: v.union(v.literal("base"), v.literal("pro")),
+    tier: v.union(v.literal("hobby"), v.literal("base"), v.literal("pro")),
     billingPeriod: v.union(v.literal("monthly"), v.literal("yearly")),
     source: v.union(
       v.literal("onboarding_plan"),

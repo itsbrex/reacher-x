@@ -25,10 +25,15 @@ export interface OnboardingPlanTierConfig {
   };
 }
 
-/** Yearly amounts assume 20% off the annualized monthly list (see Figma: Yearly · Save 20%). */
+/** Yearly amounts charge 10 months for 12 months of access. */
+const HOBBY_MONTHLY = 9.99;
 const BASE_MONTHLY = 49.99;
 const PRO_MONTHLY = 99.99;
 const PRO_COMPARE_MONTHLY = 199.99;
+
+function yearlyWithTwoMonthsFree(monthlyAmount: number): number {
+  return Number((monthlyAmount * 10).toFixed(2));
+}
 
 export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
   {
@@ -43,15 +48,15 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
       "Email support",
     ],
     pricing: {
-      monthly: { amount: null },
-      yearly: { amount: null },
+      monthly: { amount: HOBBY_MONTHLY },
+      yearly: { amount: yearlyWithTwoMonthsFree(HOBBY_MONTHLY) },
     },
   },
   {
     id: "base",
     title: "Base",
     subtitle: "For individuals running outreach regularly.",
-    featureLeadIn: "Everything in Free, plus:",
+    featureLeadIn: "Everything in Hobby, plus:",
     features: [
       "1000 qualified prospects / month",
       "2 workspaces",
@@ -60,7 +65,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     ],
     pricing: {
       monthly: { amount: BASE_MONTHLY },
-      yearly: { amount: Number((BASE_MONTHLY * 12 * 0.8).toFixed(2)) },
+      yearly: { amount: yearlyWithTwoMonthsFree(BASE_MONTHLY) },
     },
   },
   {
@@ -78,7 +83,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     ],
     pricing: {
       monthly: { amount: PRO_MONTHLY },
-      yearly: { amount: Number((PRO_MONTHLY * 12 * 0.8).toFixed(2)) },
+      yearly: { amount: yearlyWithTwoMonthsFree(PRO_MONTHLY) },
       strikethroughMonthly: PRO_COMPARE_MONTHLY,
       strikethroughYearly: Number((PRO_COMPARE_MONTHLY * 12).toFixed(2)),
     },

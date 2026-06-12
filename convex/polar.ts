@@ -31,6 +31,8 @@ export const polar = new Polar(components.polar, {
   // Product keys for Polar's internal tracking (optional)
   // We use product UUIDs directly in syncSubscriptionToUserPlan
   products: {
+    hobbyMonthly: process.env.POLAR_PRODUCT_HOBBY_MONTHLY ?? "",
+    hobbyYearly: process.env.POLAR_PRODUCT_HOBBY_YEARLY ?? "",
     baseMonthly: process.env.POLAR_PRODUCT_BASE_MONTHLY ?? "",
     baseYearly: process.env.POLAR_PRODUCT_BASE_YEARLY ?? "",
     proMonthly: process.env.POLAR_PRODUCT_PRO_MONTHLY ?? "",
@@ -134,6 +136,8 @@ export const syncSubscriptionToUserPlan = internalMutation({
   },
   handler: async (ctx, args) => {
     // Get product IDs from environment variables
+    const hobbyMonthlyId = process.env.POLAR_PRODUCT_HOBBY_MONTHLY;
+    const hobbyYearlyId = process.env.POLAR_PRODUCT_HOBBY_YEARLY;
     const baseMonthlyId = process.env.POLAR_PRODUCT_BASE_MONTHLY;
     const baseYearlyId = process.env.POLAR_PRODUCT_BASE_YEARLY;
     const proMonthlyId = process.env.POLAR_PRODUCT_PRO_MONTHLY;
@@ -143,12 +147,15 @@ export const syncSubscriptionToUserPlan = internalMutation({
      * Maps Polar product UUIDs to internal plan tiers.
      *
      * Environment variables provide the product UUIDs from Polar dashboard:
+     * - POLAR_PRODUCT_HOBBY_MONTHLY / POLAR_PRODUCT_HOBBY_YEARLY → "hobby" tier
      * - POLAR_PRODUCT_BASE_MONTHLY / POLAR_PRODUCT_BASE_YEARLY → "base" tier
      * - POLAR_PRODUCT_PRO_MONTHLY / POLAR_PRODUCT_PRO_YEARLY → "pro" tier
      *
      * If the productId doesn't match any known UUID, defaults to "free" tier.
      */
     const tierMap: Record<string, PlanTier> = {};
+    if (hobbyMonthlyId) tierMap[hobbyMonthlyId] = "hobby";
+    if (hobbyYearlyId) tierMap[hobbyYearlyId] = "hobby";
     if (baseMonthlyId) tierMap[baseMonthlyId] = "base";
     if (baseYearlyId) tierMap[baseYearlyId] = "base";
     if (proMonthlyId) tierMap[proMonthlyId] = "pro";
@@ -169,7 +176,7 @@ export const syncSubscriptionToUserPlan = internalMutation({
       }
     }
 
-    console.info(
+    console.log(
       `[Polar] Syncing subscription for user ${args.userId}: productId=${args.productId}, tier=${tier}, status=${args.status}, expiresAt=${expiresAt}`
     );
 

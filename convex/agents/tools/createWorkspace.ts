@@ -63,7 +63,7 @@ export const createWorkspace = createTool({
     error?: string;
     errorCode?: "limit_reached" | "unauthorized" | "unknown";
     eligibility?: {
-      tier: "free" | "base" | "pro";
+      tier: "free" | "hobby" | "base" | "pro";
       used: number;
       limit: number;
       remaining: number;

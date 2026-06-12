@@ -41,6 +41,7 @@ import {
 import { QUALIFICATION_THRESHOLD } from "../shared/lib/qualificationConstants";
 import { deleteWorkspaceCascade } from "./lib/deleteWorkspaceCascade";
 import { decrementWorkspaceCount, getOrCreateUserPlan } from "./lib/planCore";
+import { isPaidPlanTier } from "./lib/planConstants";
 import type { Id } from "./_generated/dataModel";
 import {
   getFirstAccessibleWorkspaceForUser,
@@ -676,6 +677,7 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
       }
     );
     const capacityBlocked = limitState.limitReached;
+    const paidPlanActive = isPaidPlanTier(limitState.tier);
 
     if (capacityBlocked) {
       if (workspace.prospectingWorkflowStatus === "running") {
@@ -749,7 +751,11 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
           );
         }
 
-        if (needsEnrichment && !prospect.enrichmentWorkflowId) {
+        if (
+          paidPlanActive &&
+          needsEnrichment &&
+          !prospect.enrichmentWorkflowId
+        ) {
           await ctx.runAction(internal.workflows.enrichment.startEnrichment, {
             prospectId: prospect._id,
             workspaceId: args.workspaceId,

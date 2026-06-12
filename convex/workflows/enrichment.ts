@@ -1093,6 +1093,26 @@ export const startEnrichment = internalAction({
     force: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<{ workId: string }> => {
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
+      {
+        prospectId: args.prospectId,
+      }
+    );
+    if (!prospect) {
+      return { workId: "" };
+    }
+
+    const paidEligibility = await ctx.runQuery(
+      internal.plans.getPaidFeatureEligibilityByUserId,
+      {
+        userId: prospect.userId,
+      }
+    );
+    if (!paidEligibility.allowed) {
+      return { workId: "" };
+    }
+
     const claimToken = createEnrichmentClaimToken(String(args.prospectId));
     const claimResult = await ctx.runMutation(
       internal.prospects.claimEnrichmentWorkflowIdInternal,

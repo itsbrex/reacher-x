@@ -6,7 +6,11 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { PLAN_LIMITS } from "./lib/planConstants";
 
-const paidTesterTierValidator = v.union(v.literal("base"), v.literal("pro"));
+const paidTesterTierValidator = v.union(
+  v.literal("hobby"),
+  v.literal("base"),
+  v.literal("pro")
+);
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();

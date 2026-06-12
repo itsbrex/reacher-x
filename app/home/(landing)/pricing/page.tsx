@@ -14,11 +14,11 @@ import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "@/shared/lib/workspaceUseCases";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple, transparent pricing for ReacherX. Start free, upgrade when you're ready.",
+    "Simple, transparent pricing for ReacherX. Choose a plan and start your Agent.",
   openGraph: {
     title: "Pricing",
     description:
-      "Simple, transparent pricing for ReacherX. Start free, upgrade when you're ready.",
+      "Simple, transparent pricing for ReacherX. Choose a plan and start your Agent.",
     images: ["/og-default.jpg"],
     url: "https://reacherx.com/home/pricing",
     type: "website",
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pricing",
     description:
-      "Simple, transparent pricing for ReacherX. Start free, upgrade when you're ready.",
+      "Simple, transparent pricing for ReacherX. Choose a plan and start your Agent.",
     images: ["/og-default.jpg"],
   },
 };

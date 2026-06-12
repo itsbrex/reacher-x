@@ -6,16 +6,14 @@ import { PlanSelector } from "@/features/billing/ui/components/PlanSelector";
 import type { BillingPeriod } from "./planStepConfig";
 
 export interface PlanStepProps {
-  onSelectFree: () => void | Promise<void>;
   onUpgradePaid: (selection: {
-    tier: "base" | "pro";
+    tier: "hobby" | "base" | "pro";
     billing: BillingPeriod;
   }) => void;
   isStartingCheckout?: boolean;
 }
 
 export function PlanStep({
-  onSelectFree,
   onUpgradePaid,
   isStartingCheckout = false,
 }: PlanStepProps) {
@@ -26,7 +24,6 @@ export function PlanStep({
     <PlanSelector
       mode="onboarding"
       currentTier={planTier}
-      onSelectFree={onSelectFree}
       onUpgradePaid={onUpgradePaid}
       isStartingCheckout={isStartingCheckout}
     />
