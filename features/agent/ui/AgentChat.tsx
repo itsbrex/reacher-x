@@ -186,8 +186,8 @@ export interface AgentChatProps {
   onOpenPlanPanel?: () => void;
   /** Open the current prospect profile */
   onViewProfile?: () => void;
-  /** Open the current prospect's X/Twitter DM panel */
-  onOpenDmPanel?: () => void;
+  /** Open the current prospect's platform conversation panel */
+  onOpenDmPanel?: (platform?: "twitter" | "linkedin") => void;
   /** Setup route: open the onboarding side panel (e.g. from inline card Continue) */
   onOpenSetupOnboardingPanel?: () => void;
   /**
@@ -943,7 +943,7 @@ interface ChatHeaderProps {
   /** When the open prospect is archived, New thread is disabled; History stays available. */
   prospectArchived?: boolean;
   onViewProfile?: () => void;
-  onOpenDmPanel?: () => void;
+  onOpenDmPanel?: (platform?: "twitter" | "linkedin") => void;
   dmEligibility?: {
     enabled: boolean;
     reasonLabel: string;
@@ -965,6 +965,8 @@ function ChatHeader({
   const showButtons = onHistoryClick !== undefined;
   const setupIncomplete = !isSetupComplete;
   const newThreadDisabled = setupIncomplete || prospectArchived;
+  const resolvedDmPlatform =
+    dmPlatform === "linkedin" ? "linkedin" : "twitter";
 
   return (
     <header className="bg-background sticky top-0 right-0 left-0 z-10 flex h-10 shrink-0 items-center justify-between border-b py-2 pr-4 pl-2.5">
@@ -1049,7 +1051,11 @@ function ChatHeader({
                 {onOpenDmPanel && dmEligibility && (
                   <DropdownMenuItem
                     disabled={!dmEligibility.enabled}
-                    onClick={dmEligibility.enabled ? onOpenDmPanel : undefined}
+                    onClick={
+                      dmEligibility.enabled
+                        ? () => onOpenDmPanel(resolvedDmPlatform)
+                        : undefined
+                    }
                     title={
                       !dmEligibility.enabled
                         ? dmEligibility.reasonLabel
@@ -1057,7 +1063,7 @@ function ChatHeader({
                     }
                   >
                     <MailIcon className="fill-current" aria-hidden />
-                    {dmPlatform === "linkedin"
+                    {resolvedDmPlatform === "linkedin"
                       ? "Message on LinkedIn"
                       : "DM on X/Twitter"}
                   </DropdownMenuItem>
@@ -1298,8 +1304,13 @@ export function AgentChat({
     () => (prospect ? getProspectDisplayData(prospect) : null),
     [prospect]
   );
+  const prospectPlatform =
+    prospect?.platform === "linkedin" || prospect?.platform === "twitter"
+      ? prospect.platform
+      : null;
   const dmState = useProspectDmState(prospectId, {
-    platform: prospect?.platform === "linkedin" ? "linkedin" : "twitter",
+    enabled: Boolean(prospectId && prospectPlatform),
+    platform: prospectPlatform ?? "twitter",
   });
   const emptyPromptPlaceholder = useMemo(() => {
     if (!prospectId) {
@@ -1474,7 +1485,7 @@ export function AgentChat({
         onNewThread={onNewThread}
         onViewProfile={onViewProfile}
         onOpenDmPanel={onOpenDmPanel}
-        dmPlatform={prospect?.platform ?? null}
+        dmPlatform={prospectPlatform}
         dmEligibility={
           dmState.data?.eligibility
             ? {

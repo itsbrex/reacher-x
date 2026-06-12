@@ -57,6 +57,7 @@ export interface AgentDynamicPanelProps {
   targetTweetId?: string | null;
   requestedMode?: AgentPanelMode | null;
   requestedKind?: "post" | "dm";
+  requestedDmPlatform?: "twitter" | "linkedin" | null;
   /** Post data passed from the inline card click, used as fallback when the
    *  backend query hasn't resolved a task yet. */
   fallbackPost?: {
@@ -160,6 +161,51 @@ function DraftSyncStatusLine({
   );
 }
 
+function ConversationPanelLoadingSkeleton({
+  onBack,
+  className,
+}: {
+  onBack: () => void;
+  className?: string;
+}) {
+  return (
+    <aside
+      className={cn(
+        "flex h-full min-h-0 w-full max-w-[520px] flex-1 overflow-hidden md:min-w-0",
+        className
+      )}
+    >
+      <PageLayout className="flex h-full max-w-[520px] flex-col md:w-full md:max-w-[520px]">
+        <PageHeader title="Messages" onBack={onBack} />
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="pb-4">
+          <PageContent className="space-y-4 px-4 py-4">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-10 w-3/5 self-start rounded-[20px]" />
+                <Skeleton className="h-6 w-2/5 self-start rounded-[20px]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Skeleton className="bg-foreground/10 h-10 w-1/2 self-end rounded-[20px]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-10 w-4/5 self-start rounded-[20px]" />
+                <Skeleton className="h-6 w-2/5 self-start rounded-[20px]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Skeleton className="bg-foreground/10 h-10 w-3/5 self-end rounded-[20px]" />
+                <Skeleton className="bg-foreground/10 h-6 w-1/3 self-end rounded-[20px]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-10 w-1/2 self-start rounded-[20px]" />
+              </div>
+            </div>
+          </PageContent>
+        </ScrollArea>
+      </PageLayout>
+    </aside>
+  );
+}
+
 export function AgentDynamicPanel({
   prospectId,
   taskId,
@@ -167,6 +213,7 @@ export function AgentDynamicPanel({
   targetTweetId,
   requestedMode,
   requestedKind = "post",
+  requestedDmPlatform,
   fallbackPost,
   onViewProfile,
   onViewTwitterProfile,
@@ -343,6 +390,12 @@ export function AgentDynamicPanel({
     actionPanelData?.actionKey === "linkedin_send_message" ||
     actionPanelData?.actionKey ===
       "linkedin_send_message_existing_conversation";
+  const isDmPlatformPending =
+    isExplicitDmRequest &&
+    !actionRequestId &&
+    !taskId &&
+    requestedDmPlatform !== "twitter" &&
+    requestedDmPlatform !== "linkedin";
   const isDmPanel =
     isExplicitDmRequest ||
     taskPanelKind === "dm" ||
@@ -656,10 +709,20 @@ export function AgentDynamicPanel({
         ? "Posted reply"
         : "Post";
 
+  if (isDmPlatformPending) {
+    return (
+      <ConversationPanelLoadingSkeleton
+        onBack={onClose}
+        className={className}
+      />
+    );
+  }
+
   if (isDmPanel) {
     const dmPlatform =
       actionPanelData?.platform === "linkedin" ||
-      taskPanelPlatform === "linkedin"
+      taskPanelPlatform === "linkedin" ||
+      requestedDmPlatform === "linkedin"
         ? "linkedin"
         : "twitter";
 

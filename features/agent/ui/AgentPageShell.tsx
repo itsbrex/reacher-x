@@ -422,26 +422,41 @@ export function AgentPageShell() {
     });
   }, [closeProspect, prospectId, setParams, setRightPanelSessionActive]);
 
-  const handleOpenDmPanel = useCallback(() => {
-    if (!prospectId) return;
+  const handleOpenDmPanel = useCallback(
+    (platform?: "twitter" | "linkedin") => {
+      if (!prospectId) return;
 
-    setProspectPanelSessionProspectId(null);
-    closeProspect();
-    setHistoryOpen(false);
-    setRightPanelSessionActive(true);
-    setCardPayload({
-      kind: "dm",
-      platform: "twitter",
+      const requestedPlatform =
+        platform ??
+        (agentProspectQuery.data?.platform === "linkedin"
+          ? "linkedin"
+          : "twitter");
+
+      setProspectPanelSessionProspectId(null);
+      closeProspect();
+      setHistoryOpen(false);
+      setRightPanelSessionActive(true);
+      setCardPayload({
+        kind: "dm",
+        platform: requestedPlatform,
+        prospectId,
+      });
+      setParams({
+        panel: "dm",
+        panelState: null,
+        taskId: null,
+        actionRequestId: null,
+        targetTweetId: null,
+      });
+    },
+    [
+      agentProspectQuery.data?.platform,
+      closeProspect,
       prospectId,
-    });
-    setParams({
-      panel: "dm",
-      panelState: null,
-      taskId: null,
-      actionRequestId: null,
-      targetTweetId: null,
-    });
-  }, [closeProspect, prospectId, setParams, setRightPanelSessionActive]);
+      setParams,
+      setRightPanelSessionActive,
+    ]
+  );
 
   const handleClosePanel = useCallback(() => {
     setRightPanelSessionActive(false);
@@ -674,6 +689,13 @@ export function AgentPageShell() {
               : cardPayload?.kind === "dm"
                 ? "dm"
                 : "post"
+          }
+          requestedDmPlatform={
+            cardPayload?.kind === "dm"
+              ? cardPayload.platform
+              : isDmPanelRequested
+                ? agentProspectQuery.data?.platform
+                : undefined
           }
           fallbackPost={
             cardPayload && cardPayload.kind !== "dm"

@@ -424,9 +424,9 @@ export function XConversationPanel({
                     </Alert>
                   ) : null}
                   {isRefreshing ? (
-                    <p className="text-muted-foreground text-xs">
-                      Refreshing conversation…
-                    </p>
+                    <span className="sr-only" aria-live="polite">
+                      Refreshing conversation
+                    </span>
                   ) : null}
                   {renderedMessages.length === 0 ? (
                     <div className="mx-auto flex w-full max-w-sm flex-col items-center px-4 pt-6 text-center">
