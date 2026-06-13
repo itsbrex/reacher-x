@@ -729,42 +729,40 @@ export function Header({ githubStarsCount }: { githubStarsCount: number }) {
         scrolled ? "border-border border-b" : "border-b border-transparent"
       )}
     >
-      <div className="mx-auto flex w-full max-w-[1288px] items-center justify-between px-4">
-        {/* Left side: Brand + separator + nav */}
-        <div className="flex items-center gap-4">
+      <div className="relative mx-auto grid w-full max-w-[1288px] grid-cols-[1fr_auto_1fr] items-center px-4">
+        {/* Left side: Brand */}
+        <div className="flex min-w-0 items-center gap-4 justify-self-start">
           <LandingWordmark />
-
-          <Separator orientation="vertical" className="hidden h-6 md:block" />
-
-          {/* Desktop nav */}
-          <nav
-            className="hidden items-center gap-6 md:flex"
-            aria-label="Main navigation"
-          >
-            {NAV_LINKS.map(({ href, label, isAnchor }) => {
-              const active = isLinkActive(href, pathname);
-              const cls = cn(
-                "text-sm font-medium transition-colors underline-offset-[6px] decoration-2",
-                active
-                  ? "text-foreground underline"
-                  : "text-muted-foreground hover:text-foreground"
-              );
-
-              return isAnchor ? (
-                <a key={href} href={href} className={cls}>
-                  {label}
-                </a>
-              ) : (
-                <Link key={href} href={href} className={cls}>
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
+        {/* Desktop nav */}
+        <nav
+          className="hidden items-center gap-6 justify-self-center md:flex"
+          aria-label="Main navigation"
+        >
+          {NAV_LINKS.map(({ href, label, isAnchor }) => {
+            const active = isLinkActive(href, pathname);
+            const cls = cn(
+              "text-sm font-medium transition-colors underline-offset-[6px] decoration-2",
+              active
+                ? "text-foreground underline"
+                : "text-muted-foreground hover:text-foreground"
+            );
+
+            return isAnchor ? (
+              <a key={href} href={href} className={cls}>
+                {label}
+              </a>
+            ) : (
+              <Link key={href} href={href} className={cls}>
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
         {/* Desktop right side */}
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden min-w-[184px] items-center justify-end gap-2 justify-self-end md:flex">
           <GitHubButton starsCount={githubStarsCount} />
           <Separator orientation="vertical" className="h-6" />
 
