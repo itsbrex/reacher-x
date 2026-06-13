@@ -59,5 +59,12 @@ async function RecentThreadsSectionContent({
     );
   }
 
-  return <RecentThreads threads={recentThreads} size="md" bordered={false} />;
+  return (
+    <RecentThreads
+      threads={recentThreads}
+      size="md"
+      bordered={false}
+      className="md:grid-cols-2"
+    />
+  );
 }

@@ -4,13 +4,8 @@ import { connection } from "next/server";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
 import { Separator } from "@/shared/ui/components/Separator";
 
-import { Badge } from "@/shared/ui/components/Badge";
 import Link from "next/link";
 
-import { buttonVariants } from "@/shared/ui/components/Button";
-import { FigureVideo } from "@/features/landing/ui/components/FigureVideo";
-import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
-import { PromoCounter } from "@/features/landing/ui/components/PromoCounter";
 import { notFound } from "next/navigation";
 import { ThreadCard } from "@/features/threads/ui/components/ThreadCard";
 import { RecentThreads } from "@/features/threads/ui/components/RecentThreads";
@@ -89,7 +84,7 @@ export default async function ThreadDetailPage(props: {
         href="/home/threads"
         className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-0"
       >
-        <h1 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-2xl font-medium duration-300 md:text-3xl">
+        <h1 className="font-pixel-square ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-2xl font-bold duration-300 md:text-3xl">
           <span className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-muted-foreground inline-block rotate-180 transform-gpu duration-300 hover:translate-x-1">
             ➞
           </span>{" "}
@@ -114,7 +109,7 @@ export default async function ThreadDetailPage(props: {
         </section>
         <Separator orientation="horizontal" className="block md:hidden" />
         <aside className="space-y-6">
-          <section className="px-4 md:px-0">
+          <section className="px-4 pb-6 md:px-0 md:pb-0">
             <h3 className="text-2xl font-medium">Author.</h3>
             <UserProfileCard
               className="mt-4"
@@ -129,57 +124,12 @@ export default async function ThreadDetailPage(props: {
             />
           </section>
           <Separator orientation="horizontal" />
-          <section
-            id="hero"
-            aria-labelledby="hero-heading"
-            className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] grid grid-cols-1 gap-y-4 px-4 duration-300 md:px-0"
-          >
-            <div>
-              <Badge>✧ Now supports LinkedIn</Badge>
-              <hgroup className="mt-4 space-y-2">
-                <h2 id="hero-heading" className="text-3xl font-medium">
-                  AI search engine to find potential customers on the web.
-                </h2>
-                <p className="text-muted-foreground text-base font-medium">
-                  Get access to people who need your{" "}
-                  <span className="text-foreground">product/service</span> right
-                  now. A{" "}
-                  <span className="text-foreground">
-                    better, faster, and cheaper
-                  </span>{" "}
-                  solution than ads to reach your audience.
-                </p>
-              </hgroup>
-              <Link
-                href="/"
-                className={`${buttonVariants({ variant: "default" })} mt-4`}
-              >
-                Start finding customers
-                <ArrowOutwardIcon className="fill-current" />
-              </Link>
-              <br />
-              <small className="text-muted-foreground mt-2 block text-sm">
-                <span className="text-foreground font-medium">1 year free</span>{" "}
-                for first <PromoCounter className="inline" />
-              </small>
-            </div>
-            <FigureVideo
-              mp4Url="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NgsGo9xphdWDIlwzXNZkSCAxQUf6RmpKqgTG2"
-              ariaLabel="ReacherX video"
-              figureClassName="order-last col-span-12 aspect-square md:order-0 portrait:md:col-span-12 landscape:md:col-span-5"
-              className="aspect-square h-full w-full rounded-none"
-              posterUrl="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NLqiC8RfThnvNigGByTM95kYptFD4PjuRd82a"
-              initialPreload="metadata"
-            />
-          </section>
-
-          <Separator orientation="horizontal" />
           <section>
             <h3 className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] px-4 text-2xl font-medium duration-300 md:px-0">
               Recent threads.
             </h3>
             {recentThreads.length > 0 ? (
-              <RecentThreads threads={recentThreads} />
+              <RecentThreads className="mt-4" threads={recentThreads} />
             ) : null}
           </section>
         </aside>

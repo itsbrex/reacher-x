@@ -26,7 +26,7 @@ export function RecentThreads({
   }
 
   return (
-    <div className={cn("grid grid-cols-1 gap-6 md:grid-cols-2", className)}>
+    <div className={cn("grid grid-cols-1 gap-6", className)}>
       {threads.map((thread) => {
         const firstTweet = thread.tweets[0];
         return (

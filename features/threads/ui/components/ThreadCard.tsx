@@ -150,8 +150,7 @@ export const ThreadCard = React.forwardRef<HTMLElement, ThreadCardProps>(
     );
 
     const rightColumnClass = cn(
-      bordered ? "pb-0" : "pb-4",
-      !bordered && "pb-4",
+      "pb-4",
       !bordered && size === "sm" && "md:pb-4",
       !bordered && size === "md" && "md:pb-6",
       !bordered && size === "lg" && "md:pb-12"
