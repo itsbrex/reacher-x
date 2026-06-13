@@ -56,6 +56,7 @@ export const setupSessionWorkflow = workflowManager.define({
         case "awaiting_input":
         case "awaiting_icp_confirmation":
         case "awaiting_preview_confirmation":
+        case "preview_search_in_progress":
         case "awaiting_connections":
         case "awaiting_plan":
         case "awaiting_preferences": {

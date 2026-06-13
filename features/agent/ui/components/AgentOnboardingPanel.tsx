@@ -235,7 +235,8 @@ export function AgentOnboardingPanel({
     if (
       setupSession?.status !== "generating_profiles" &&
       setupSession?.status !== "provisioning_preview_workspace" &&
-      setupSession?.status !== "discovering_preview_prospects"
+      setupSession?.status !== "discovering_preview_prospects" &&
+      setupSession?.status !== "preview_search_in_progress"
     ) {
       setIsSubmittingInput(false);
     }
@@ -578,7 +579,8 @@ export function AgentOnboardingPanel({
     isCompletingPreferences ||
     setupSession?.status === "generating_profiles" ||
     setupSession?.status === "provisioning_preview_workspace" ||
-    setupSession?.status === "discovering_preview_prospects";
+    setupSession?.status === "discovering_preview_prospects" ||
+    setupSession?.status === "preview_search_in_progress";
   const canCompleteInputStep =
     setupSession?.inputPhase === "awaiting_icp_approval" ||
     setupSession?.inputPhase === "awaiting_preview_approval";
@@ -737,6 +739,7 @@ export function AgentOnboardingPanel({
                         "provisioning_preview_workspace" ||
                       setupSession?.status ===
                         "discovering_preview_prospects" ||
+                      setupSession?.status === "preview_search_in_progress" ||
                       isSubmittingInput
                     }
                     onClick={() => void handleInputStepDone()}
@@ -765,6 +768,7 @@ export function AgentOnboardingPanel({
                         "provisioning_preview_workspace" ||
                       setupSession?.status ===
                         "discovering_preview_prospects" ||
+                      setupSession?.status === "preview_search_in_progress" ||
                       isSubmittingInput
                     }
                     onClick={() => void handleInputStepDone()}
@@ -847,7 +851,8 @@ export function AgentOnboardingPanel({
                     !previousVisibleStep ||
                     isCompletingPreferences ||
                     setupSession?.status === "provisioning_preview_workspace" ||
-                    setupSession?.status === "discovering_preview_prospects"
+                    setupSession?.status === "discovering_preview_prospects" ||
+                    setupSession?.status === "preview_search_in_progress"
                   }
                   onClick={() => {
                     if (previousVisibleStep) {
@@ -867,6 +872,7 @@ export function AgentOnboardingPanel({
                         "provisioning_preview_workspace" ||
                       setupSession?.status ===
                         "discovering_preview_prospects" ||
+                      setupSession?.status === "preview_search_in_progress" ||
                       (setupSession?.status !== "awaiting_preferences" &&
                         setupSession?.status !== "ready")
                     }

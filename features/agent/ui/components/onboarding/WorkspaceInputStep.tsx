@@ -48,6 +48,7 @@ type SetupInputPhase =
   | "awaiting_icp_approval"
   | "provisioning_preview_workspace"
   | "discovering_preview_prospects"
+  | "preview_search_in_progress"
   | "awaiting_preview_approval"
   | null;
 
@@ -119,7 +120,9 @@ export function WorkspaceInputStep({
     phase === "provisioning_preview_workspace" ||
     phase === "discovering_preview_prospects";
   const showAutoFillState = isReadingUrl;
-  const showPromptComposer = phase !== "provisioning_preview_workspace";
+  const showPromptComposer =
+    phase !== "provisioning_preview_workspace" &&
+    phase !== "preview_search_in_progress";
   const isPromptDisabled = showAutoFillState || showLoadingState;
   const trimmedInput = inputValue.trim();
   const urlFromWholeInput = getUrlFromWholeValue(trimmedInput);
@@ -279,12 +282,21 @@ export function WorkspaceInputStep({
       case "discovering_preview_prospects":
         return {
           title: `Finding ${useCase.entityPlural}`,
-          description: `We’re matching and enriching real ${entityPluralLower} against the approved ideal profiles. ${Math.min(previewReadyCount, 5)}/5 ready.`,
+          description:
+            previewReadyCount > 0
+              ? `${previewReadyCount} preview ${previewReadyCount === 1 ? "profile is" : "profiles are"} ready. We’re checking the latest matches now.`
+              : `We’re matching and enriching real ${entityPluralLower} against the approved ideal profiles.`,
+        };
+      case "preview_search_in_progress":
+        return {
+          title: "Search is still running",
+          description:
+            "This audience needs a deeper search. We’ll keep looking in the background and notify you here when preview profiles are ready. Check back in about 1 hour.",
         };
       case "awaiting_preview_approval":
         return {
           title: `Preview ${useCase.entityPlural}`,
-          description: `Review the ${entityPluralLower} we found. ${Math.min(previewReadyCount, 5)}/5 ready.`,
+          description: `Review the ${entityPluralLower} we found. ${previewReadyCount} ready.`,
         };
       default:
         return {
@@ -426,11 +438,29 @@ export function WorkspaceInputStep({
                 );
               })}
               {Array.from({
-                length: Math.max(1, 5 - previewProspects.length),
+                length: Math.max(1, 3 - previewProspects.length),
               }).map((_, index) => (
                 <ProspectCardSkeleton key={`preview-skeleton-${index}`} />
               ))}
             </div>
+          </section>
+        );
+      case "preview_search_in_progress":
+        return (
+          <section className="space-y-3 px-4" aria-live="polite">
+            <p className="text-muted-foreground text-xs font-medium">
+              Background search
+            </p>
+            <Card className="shadow-none">
+              <CardContent className="space-y-3 p-4">
+                <AsciiSpinnerText text="Searching for stronger matches..." />
+                <p className="text-muted-foreground text-sm leading-6">
+                  We’re doing a deeper pass now. You can leave this screen and
+                  come back in about 1 hour; we’ll notify you here as soon as
+                  preview profiles are ready.
+                </p>
+              </CardContent>
+            </Card>
           </section>
         );
       case "awaiting_preview_approval":
@@ -545,13 +575,13 @@ export function WorkspaceInputStep({
                           <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
                         </div>
                         <p className="text-sm font-medium">
-                          Happy with the results?
+                          Continue with these profiles?
                         </p>
                       </>
                     }
                     trailing={
                       <Button size="xs" onClick={onApprovePreviewPeople}>
-                        Yes
+                        Continue
                       </Button>
                     }
                   />

@@ -605,6 +605,7 @@ export const setupSessionStatusValidator = v.union(
   v.literal("awaiting_icp_confirmation"),
   v.literal("provisioning_preview_workspace"),
   v.literal("discovering_preview_prospects"),
+  v.literal("preview_search_in_progress"),
   v.literal("awaiting_preview_confirmation"),
   v.literal("awaiting_connections"),
   v.literal("awaiting_plan"),
@@ -1002,6 +1003,7 @@ export const outreachNotificationTypeValidator = v.union(
   v.literal("social_action_request"),
   v.literal("social_action_completed"),
   v.literal("social_action_failed"),
+  v.literal("setup_preview_ready"),
   v.literal("plan_completed"),
   v.literal("error")
 );

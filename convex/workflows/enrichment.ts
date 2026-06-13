@@ -1179,7 +1179,10 @@ export const scheduleSetupPreviewEnrichmentInternal = internalAction({
     });
     if (
       !session ||
-      session.status !== "discovering_preview_prospects" ||
+      ![
+        "discovering_preview_prospects",
+        "preview_search_in_progress",
+      ].includes(session.status) ||
       session.targetWorkspaceId !== args.workspaceId
     ) {
       return {

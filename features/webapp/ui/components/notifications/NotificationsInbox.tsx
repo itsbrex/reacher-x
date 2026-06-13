@@ -113,6 +113,8 @@ function getNotificationIcon(type: NotificationItem["type"]) {
       return <Repeat2 className="size-4" />;
     case "social_action_completed":
       return <Send className="size-4" />;
+    case "setup_preview_ready":
+      return <CheckCircle className="size-4" />;
     case "social_action_failed":
     case "error":
       return <WarningIcon className="size-4 fill-current" />;

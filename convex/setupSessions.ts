@@ -64,6 +64,7 @@ import {
 import { PREVIEW_BATCH_LIMITS } from "./lib/previewBatchLimits";
 import { isProspectReadyQualifiedEnriched } from "./lib/readModelHelpers";
 import { isPaidPlanTier } from "./lib/planConstants";
+import { upsertNotificationByKey } from "./lib/notificationHelpers";
 
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
 type ViewerCtx = QueryCtx | MutationCtx;
@@ -85,6 +86,7 @@ type SetupPreviewOrchestrationState = {
 };
 
 const PREVIEW_TARGET_COUNT = PREVIEW_BATCH_LIMITS.readyTargetCount;
+const PREVIEW_MIN_READY_COUNT = PREVIEW_BATCH_LIMITS.minReadyCount;
 const SETUP_GREETING_PROMPT = "__INIT__";
 const SETUP_GREETING_LOOKBACK = 25;
 
@@ -342,9 +344,13 @@ async function markPreviewReady(
   previewProspectIds: Id<"prospects">[]
 ) {
   const now = getCurrentUTCTimestamp();
+  const selectedPreviewProspectIds = previewProspectIds.slice(
+    0,
+    PREVIEW_TARGET_COUNT
+  );
   await ctx.db.patch(session._id, {
     status: "awaiting_preview_confirmation",
-    previewProspectIds,
+    previewProspectIds: selectedPreviewProspectIds,
     previewReadyAt: now,
     statusUpdatedAt: now,
     lastAgentActionAt: now,
@@ -353,10 +359,26 @@ async function markPreviewReady(
     errorMessage: undefined,
   });
 
+  if (session.targetWorkspaceId && selectedPreviewProspectIds.length > 0) {
+    await upsertNotificationByKey(ctx, {
+      userId: session.userId,
+      workspaceId: session.targetWorkspaceId,
+      type: "setup_preview_ready",
+      title: "Preview profiles are ready",
+      message:
+        selectedPreviewProspectIds.length === 1
+          ? "We found 1 qualified preview profile. Review it and continue setup."
+          : `We found ${selectedPreviewProspectIds.length} qualified preview profiles. Review them and continue setup.`,
+      targetHref: `/agent/setup?threadId=${encodeURIComponent(session.setupThreadId)}`,
+      notificationKey: `setup-preview-ready:${session._id}:${session.previewRevision ?? 0}`,
+      threadId: session.setupThreadId,
+    });
+  }
+
   await maybeSignalStateChanged(ctx, {
     ...session,
     status: "awaiting_preview_confirmation",
-    previewProspectIds,
+    previewProspectIds: selectedPreviewProspectIds,
     previewReadyAt: now,
     statusUpdatedAt: now,
     lastAgentActionAt: now,
@@ -2112,6 +2134,7 @@ export const startPreviewWorkflowInternal = internalAction({
 
     if (
       session.status !== "discovering_preview_prospects" &&
+      session.status !== "preview_search_in_progress" &&
       session.status !== "awaiting_preview_confirmation"
     ) {
       return { workflowId: "" };
@@ -2170,7 +2193,9 @@ export const resumePreviewWorkflowIfNeededInternal = internalAction({
       !session ||
       !session.targetWorkspaceId ||
       typeof session.previewRevision !== "number" ||
-      session.status !== "discovering_preview_prospects" ||
+      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
+        session.status
+      ) ||
       session.previewReadyAt
     ) {
       return { resumed: false };
@@ -2185,7 +2210,7 @@ export const resumePreviewWorkflowIfNeededInternal = internalAction({
       { sessionId }
     );
 
-    if (orchestrationState.readyCount >= PREVIEW_TARGET_COUNT) {
+    if (orchestrationState.readyCount >= PREVIEW_MIN_READY_COUNT) {
       await ctx.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId,
         previewProspectIds: orchestrationState.rankedReadyIds.slice(
@@ -2551,11 +2576,9 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
     );
     if (
       !session ||
-      !["discovering_preview_prospects", "awaiting_input"].includes(
+      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
         session.status
       ) ||
-      (session.status === "awaiting_input" &&
-        session.errorCode !== "preview_discovery_failed") ||
       session.previewReadyAt
     ) {
       return {
@@ -2567,11 +2590,8 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
     const orchestrationState = buildSetupPreviewOrchestrationState(
       await listSetupPreviewProspects(ctx.db, session)
     );
-    if (orchestrationState.readyCount < PREVIEW_TARGET_COUNT) {
-      if (
-        session.status === "discovering_preview_prospects" &&
-        !session.previewWorkflowId
-      ) {
+    if (orchestrationState.readyCount < PREVIEW_MIN_READY_COUNT) {
+      if (!session.previewWorkflowId) {
         await ctx.scheduler.runAfter(
           0,
           internal.setupSessions.resumePreviewWorkflowIfNeededInternal,
@@ -2755,7 +2775,9 @@ export const markPreviewDiscoveryFailedInternal = internalMutation({
     const session = await ctx.db.get(sessionId);
     if (
       !session ||
-      session.status !== "discovering_preview_prospects" ||
+      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
+        session.status
+      ) ||
       session.previewReadyAt
     ) {
       return;
@@ -2763,15 +2785,71 @@ export const markPreviewDiscoveryFailedInternal = internalMutation({
 
     const now = getCurrentUTCTimestamp();
     await ctx.db.patch(sessionId, {
-      status: "awaiting_input",
+      status: "preview_search_in_progress",
       previewWorkflowId: undefined,
-      previewProspectIds: undefined,
       previewReadyAt: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
       statusUpdatedAt: now,
-      errorCode: "preview_discovery_failed",
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+
+    console.info("[Setup] Preview discovery needs more time", {
+      sessionId: String(sessionId),
       errorMessage,
+    });
+
+    await maybeSignalStateChanged(ctx, {
+      ...session,
+      status: "preview_search_in_progress",
+      previewWorkflowId: undefined,
+      previewReadyAt: undefined,
+      lastAgentActionAt: now,
+      lastActiveAt: now,
+      statusUpdatedAt: now,
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+  },
+});
+
+export const markPreviewSearchInProgressInternal = internalMutation({
+  args: {
+    sessionId: v.id("workspaceSetupSessions"),
+  },
+  handler: async (ctx, { sessionId }) => {
+    const session = await ctx.db.get(sessionId);
+    if (
+      !session ||
+      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
+        session.status
+      ) ||
+      session.previewReadyAt
+    ) {
+      return;
+    }
+
+    const now = getCurrentUTCTimestamp();
+    await ctx.db.patch(sessionId, {
+      status: "preview_search_in_progress",
+      previewWorkflowId: undefined,
+      lastAgentActionAt: now,
+      lastActiveAt: now,
+      statusUpdatedAt: now,
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+
+    await maybeSignalStateChanged(ctx, {
+      ...session,
+      status: "preview_search_in_progress",
+      previewWorkflowId: undefined,
+      lastAgentActionAt: now,
+      lastActiveAt: now,
+      statusUpdatedAt: now,
+      errorCode: undefined,
+      errorMessage: undefined,
     });
   },
 });

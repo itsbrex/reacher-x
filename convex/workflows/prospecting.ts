@@ -16,7 +16,8 @@
 import { v } from "convex/values";
 import { workflow } from "../lib/workflow";
 import { internal, api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
 import {
   internalQuery,
   internalMutation,
@@ -26,7 +27,10 @@ import { BATCH_LIMITS } from "../lib/prospectingHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
 import { getCurrentQualifiedProspectUsage } from "../lib/planHelpers";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
-import type { TwitterPost } from "../integrations/twitter/searchPosts";
+import type {
+  TwitterPost,
+  TwitterUser,
+} from "../integrations/twitter/searchPosts";
 import type { LinkedInPost } from "../integrations/linkedin/searchPosts";
 import type { LinkedInPerson } from "../integrations/linkedin/searchPeople";
 import {
@@ -1209,6 +1213,278 @@ export const searchLinkedInInternal = internalAction({
   },
 });
 
+type PreviewSimilarProfileStats = {
+  seedUserId: string;
+  seedScreenName?: string;
+  success: boolean;
+  usersFound: number;
+  saved: number;
+  error?: string;
+};
+
+type PreviewSimilarEvidenceStats = {
+  screenName: string;
+  success: boolean;
+  postsFound: number;
+  matchedKeywords: string[];
+  error?: string;
+};
+
+function getTwitterUserId(user: TwitterUser | undefined): string | null {
+  if (!user) {
+    return null;
+  }
+
+  if (typeof user.id_str === "string" && user.id_str.trim().length > 0) {
+    return user.id_str.trim();
+  }
+
+  if (typeof user.id === "number") {
+    return String(user.id);
+  }
+
+  return null;
+}
+
+function getTwitterSeedUsers(posts: TwitterPost[]): TwitterUser[] {
+  const seen = new Set<string>();
+  const users: TwitterUser[] = [];
+
+  for (const post of posts) {
+    const userId = getTwitterUserId(post.user);
+    if (!userId || seen.has(userId)) {
+      continue;
+    }
+
+    seen.add(userId);
+    users.push({
+      ...post.user,
+      id_str: userId,
+    });
+  }
+
+  return users.slice(0, PREVIEW_BATCH_LIMITS.similarProfileSeedLimit);
+}
+
+function getPreviewEvidenceKeywords(workspace: Doc<"workspaces">): string[] {
+  return dedupeQueries(
+    (workspace.icps ?? []).flatMap((icp) => [
+      icp.title,
+      ...(icp.qualificationKeywords ?? []),
+      ...icp.painPoints,
+    ])
+  ).slice(0, 12);
+}
+
+function findKeywordMatches(text: string, keywords: string[]): string[] {
+  const normalizedText = text.toLowerCase();
+  return keywords.filter((keyword) =>
+    normalizedText.includes(keyword.toLowerCase())
+  );
+}
+
+function getTwitterPostText(post: TwitterPost): string {
+  return post.full_text ?? post.text ?? "";
+}
+
+async function expandPreviewSimilarProfiles(args: {
+  ctx: ActionCtx;
+  workspace: Doc<"workspaces">;
+  sessionId: Id<"workspaceSetupSessions">;
+  previewRevision: number;
+  seedPosts: TwitterPost[];
+  matchedQueriesByPostId: Record<string, string[]>;
+}): Promise<{
+  saved: number;
+  similarStats: PreviewSimilarProfileStats[];
+  evidenceStats: PreviewSimilarEvidenceStats[];
+}> {
+  const seedUsers = getTwitterSeedUsers(args.seedPosts);
+  const evidenceKeywords = getPreviewEvidenceKeywords(args.workspace);
+  const seenUserIds = new Set(
+    seedUsers
+      .map((user) => getTwitterUserId(user))
+      .filter((userId): userId is string => Boolean(userId))
+  );
+  const seedQueriesByUserId = new Map<string, string[]>();
+
+  for (const post of args.seedPosts) {
+    const seedUserId = getTwitterUserId(post.user);
+    if (!seedUserId) {
+      continue;
+    }
+
+    seedQueriesByUserId.set(
+      seedUserId,
+      dedupeQueries([
+        ...(seedQueriesByUserId.get(seedUserId) ?? []),
+        ...(args.matchedQueriesByPostId[post.id_str] ?? []),
+      ])
+    );
+  }
+
+  const similarStats: PreviewSimilarProfileStats[] = [];
+  const evidenceStats: PreviewSimilarEvidenceStats[] = [];
+  const prospectsToSave: Array<{
+    platform: "twitter";
+    externalId: string;
+    data: Record<string, unknown>;
+    evidencePosts?: TwitterPost[];
+    matchedKeywords?: string[];
+    matchReason: string;
+    discoverySource: "search_people";
+    discoveryContext: {
+      matchedQueries?: string[];
+      matchedReason?: string;
+      discoverySnippet?: string;
+    };
+    origin: "setup_preview";
+    setupSessionId: Id<"workspaceSetupSessions">;
+    setupRevision: number;
+  }> = [];
+  let evidenceProfilesSearched = 0;
+
+  for (const seedUser of seedUsers) {
+    const seedUserId = getTwitterUserId(seedUser);
+    if (!seedUserId) {
+      continue;
+    }
+
+    const similarResult = await args.ctx.runAction(
+      api.integrations.twitter.similarProfiles.getSimilarProfiles,
+      {
+        userId: seedUserId,
+      }
+    );
+    const similarUsers = similarResult.users.slice(
+      0,
+      PREVIEW_BATCH_LIMITS.similarProfilesPerSeed
+    );
+    let savedForSeed = 0;
+
+    for (const similarUser of similarUsers) {
+      const similarUserId = getTwitterUserId(similarUser);
+      if (
+        !similarUserId ||
+        seenUserIds.has(similarUserId) ||
+        similarUser.protected
+      ) {
+        continue;
+      }
+
+      seenUserIds.add(similarUserId);
+      const screenName = similarUser.screen_name;
+      let evidencePosts: TwitterPost[] = [];
+      let evidenceMatchedKeywords: string[] = [];
+
+      if (
+        screenName &&
+        evidenceKeywords.length > 0 &&
+        evidenceProfilesSearched <
+          PREVIEW_BATCH_LIMITS.similarProfileEvidenceProfiles
+      ) {
+        evidenceProfilesSearched += 1;
+        const evidenceResult = await args.ctx.runAction(
+          api.integrations.twitter.searchUserPosts.searchUserPosts,
+          {
+            screenName,
+            keywords: evidenceKeywords,
+            maxPosts: PREVIEW_BATCH_LIMITS.similarProfileEvidencePostsPerProfile,
+          }
+        );
+        evidencePosts = evidenceResult.posts;
+        evidenceMatchedKeywords = evidenceResult.matchedKeywords;
+        evidenceStats.push({
+          screenName,
+          success: evidenceResult.success,
+          postsFound: evidenceResult.posts.length,
+          matchedKeywords: evidenceResult.matchedKeywords,
+          error: evidenceResult.error,
+        });
+      }
+
+      const profileMatches = findKeywordMatches(
+        `${similarUser.name} ${similarUser.description ?? ""}`,
+        evidenceKeywords
+      );
+      if (evidencePosts.length === 0 && profileMatches.length === 0) {
+        continue;
+      }
+
+      const seedQueries = seedQueriesByUserId.get(seedUserId) ?? [];
+      const matchedKeywords = dedupeQueries([
+        ...evidenceMatchedKeywords,
+        ...profileMatches,
+        ...seedQueries,
+      ]).slice(0, 8);
+      const discoverySnippet =
+        evidencePosts[0] != null
+          ? getTwitterPostText(evidencePosts[0])
+          : similarUser.description;
+      const matchedReason = `Similar to @${seedUser.screen_name} from preview search`;
+
+      prospectsToSave.push({
+        platform: "twitter",
+        externalId: similarUserId,
+        data: {
+          user: similarUser,
+          similarProfile: {
+            source: "socialapi_similar_profiles",
+            seedUserId,
+            seedScreenName: seedUser.screen_name,
+          },
+        },
+        evidencePosts: evidencePosts.length > 0 ? evidencePosts : undefined,
+        matchedKeywords,
+        matchReason: matchedReason,
+        discoverySource: "search_people",
+        discoveryContext: {
+          matchedQueries: matchedKeywords,
+          matchedReason,
+          discoverySnippet,
+        },
+        origin: "setup_preview",
+        setupSessionId: args.sessionId,
+        setupRevision: args.previewRevision,
+      });
+      savedForSeed += 1;
+    }
+
+    similarStats.push({
+      seedUserId,
+      seedScreenName: seedUser.screen_name,
+      success: similarResult.success,
+      usersFound: similarResult.users.length,
+      saved: savedForSeed,
+      error: similarResult.error,
+    });
+  }
+
+  if (prospectsToSave.length === 0) {
+    return {
+      saved: 0,
+      similarStats,
+      evidenceStats,
+    };
+  }
+
+  const saveResult = await args.ctx.runMutation(
+    internal.prospects.createProspectsBatch,
+    {
+      userId: args.workspace.userId,
+      workspaceId: args.workspace._id,
+      processingMode: "preview",
+      prospects: prospectsToSave,
+    }
+  );
+
+  return {
+    saved: saveResult.created + saveResult.updated,
+    similarStats,
+    evidenceStats,
+  };
+}
+
 export const runPreviewDiscoveryBurstInternal = internalAction({
   args: {
     workspaceId: v.id("workspaces"),
@@ -1389,9 +1665,68 @@ export const runPreviewDiscoveryBurstInternal = internalAction({
             matchedQueriesByPostId: {} as Record<string, string[]>,
           };
 
+    const similarExpansion =
+      twitterResult.posts.length > 0
+        ? await expandPreviewSimilarProfiles({
+            ctx,
+            workspace,
+            sessionId: args.sessionId,
+            previewRevision: args.previewRevision,
+            seedPosts: twitterResult.posts,
+            matchedQueriesByPostId: twitterResult.matchedQueriesByPostId,
+          }).catch((error) => {
+            console.error(
+              `[Preview] ${workspaceLogContext} Similar-profile expansion failed:`,
+              error
+            );
+            return {
+              saved: 0,
+              similarStats: [] as PreviewSimilarProfileStats[],
+              evidenceStats: [] as PreviewSimilarEvidenceStats[],
+            };
+          })
+        : {
+            saved: 0,
+            similarStats: [] as PreviewSimilarProfileStats[],
+            evidenceStats: [] as PreviewSimilarEvidenceStats[],
+          };
+
+    const prospectsFound = twitterResult.saved + similarExpansion.saved;
+    const recordedAt = getCurrentUTCTimestamp();
+    await ctx
+      .runMutation(internal.memory.recordMemoryWorkflowEventInternal, {
+        workspaceId: args.workspaceId,
+        eventType: "query_search_executed",
+        sourceType: "workflow_event",
+        sourceId: `setup-preview:${args.sessionId}:${args.previewRevision}:${recordedAt}`,
+        workflowName: "previewWorkflow",
+        payload: {
+          mode: "setup_preview",
+          sessionId: String(args.sessionId),
+          previewRevision: args.previewRevision,
+          generatedSocialQueries: socialQueries.length,
+          acceptedQueries: acceptedQueries.length,
+          twitterQueries,
+          twitterQueryStats: twitterResult.queryStats,
+          twitterPostsFound: twitterResult.posts.length,
+          twitterSaved: twitterResult.saved,
+          similarProfilesSaved: similarExpansion.saved,
+          similarProfileStats: similarExpansion.similarStats,
+          similarProfileEvidenceStats: similarExpansion.evidenceStats,
+          prospectsFound,
+        },
+        eventKey: `setup-preview-search:${args.sessionId}:${args.previewRevision}:${recordedAt}`,
+      })
+      .catch((error) => {
+        console.warn(
+          `[Preview] ${workspaceLogContext} Failed to record preview search debug event`,
+          error
+        );
+      });
+
     return {
-      prospectsFound: twitterResult.saved,
-      twitterSaved: twitterResult.saved,
+      prospectsFound,
+      twitterSaved: prospectsFound,
       linkedinSaved: 0,
       twitterQueryCount: twitterQueries.length,
       linkedinPostQueryCount: 0,

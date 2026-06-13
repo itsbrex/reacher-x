@@ -55,6 +55,14 @@ function getPreviewReadyOrInFlightCount(
   return state.readyCount + state.inFlightEnrichmentCount + state.enqueuedCount;
 }
 
+function hasEnoughPreviewReady(state: Pick<PreviewSchedulingState, "readyCount">) {
+  return state.readyCount >= PREVIEW_BATCH_LIMITS.minReadyCount;
+}
+
+function selectPreviewProspectIds(state: Pick<PreviewOrchestrationState, "rankedReadyIds">) {
+  return state.rankedReadyIds.slice(0, PREVIEW_BATCH_LIMITS.readyTargetCount);
+}
+
 export const previewWorkflow = workflow.define({
   args: {
     sessionId: v.id("workspaceSetupSessions"),
@@ -110,6 +118,7 @@ export const previewWorkflow = workflow.define({
 
     if (
       session.status !== "discovering_preview_prospects" &&
+      session.status !== "preview_search_in_progress" &&
       session.status !== "awaiting_preview_confirmation"
     ) {
       return {
@@ -154,20 +163,16 @@ export const previewWorkflow = workflow.define({
       { sessionId: args.sessionId }
     );
 
-    if (
-      orchestrationState.readyCount >= PREVIEW_BATCH_LIMITS.readyTargetCount
-    ) {
+    if (hasEnoughPreviewReady(orchestrationState)) {
+      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds: orchestrationState.rankedReadyIds.slice(
-          0,
-          PREVIEW_BATCH_LIMITS.readyTargetCount
-        ),
+        previewProspectIds,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: PREVIEW_BATCH_LIMITS.readyTargetCount,
+        readyCount: previewProspectIds.length,
         prospectsFound: 0,
       };
     }
@@ -200,20 +205,16 @@ export const previewWorkflow = workflow.define({
       { sessionId: args.sessionId }
     );
 
-    if (
-      orchestrationState.readyCount >= PREVIEW_BATCH_LIMITS.readyTargetCount
-    ) {
+    if (hasEnoughPreviewReady(orchestrationState)) {
+      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds: orchestrationState.rankedReadyIds.slice(
-          0,
-          PREVIEW_BATCH_LIMITS.readyTargetCount
-        ),
+        previewProspectIds,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: PREVIEW_BATCH_LIMITS.readyTargetCount,
+        readyCount: previewProspectIds.length,
         prospectsFound: 0,
       };
     }
@@ -223,7 +224,7 @@ export const previewWorkflow = workflow.define({
     const qualifiedCandidateBuffer =
       getPreviewQualifiedCandidateBuffer(initialScheduling);
 
-    if (readyOrInFlightCount >= PREVIEW_BATCH_LIMITS.readyTargetCount) {
+    if (readyOrInFlightCount >= PREVIEW_BATCH_LIMITS.minReadyCount) {
       console.info(
         `[Preview] ${workspaceLogContext} waiting for preview enrichment`,
         {
@@ -243,7 +244,7 @@ export const previewWorkflow = workflow.define({
       };
     }
 
-    if (qualifiedCandidateBuffer >= PREVIEW_BATCH_LIMITS.readyTargetCount) {
+    if (qualifiedCandidateBuffer >= PREVIEW_BATCH_LIMITS.minReadyCount) {
       console.info(
         `[Preview] ${workspaceLogContext} waiting for preview qualification`,
         {
@@ -294,20 +295,16 @@ export const previewWorkflow = workflow.define({
       }
     );
 
-    if (
-      orchestrationState.readyCount >= PREVIEW_BATCH_LIMITS.readyTargetCount
-    ) {
+    if (hasEnoughPreviewReady(orchestrationState)) {
+      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds: orchestrationState.rankedReadyIds.slice(
-          0,
-          PREVIEW_BATCH_LIMITS.readyTargetCount
-        ),
+        previewProspectIds,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: PREVIEW_BATCH_LIMITS.readyTargetCount,
+        readyCount: previewProspectIds.length,
         prospectsFound,
       };
     }
@@ -324,7 +321,7 @@ export const previewWorkflow = workflow.define({
     });
 
     if (
-      postDiscoveryReadyOrInFlightCount >= PREVIEW_BATCH_LIMITS.readyTargetCount
+      postDiscoveryReadyOrInFlightCount >= PREVIEW_BATCH_LIMITS.minReadyCount
     ) {
       return {
         status: "completed" as const,
@@ -336,8 +333,7 @@ export const previewWorkflow = workflow.define({
     }
 
     if (
-      postDiscoveryQualifiedCandidateBuffer >=
-      PREVIEW_BATCH_LIMITS.readyTargetCount
+      postDiscoveryQualifiedCandidateBuffer >= PREVIEW_BATCH_LIMITS.minReadyCount
     ) {
       return {
         status: "completed" as const,
@@ -477,22 +473,18 @@ export const handlePreviewWorkflowComplete = internalMutation({
         pendingQualificationCount: orchestrationState.pendingQualificationCount,
       });
 
-      if (
-        orchestrationState.readyCount >= PREVIEW_BATCH_LIMITS.readyTargetCount
-      ) {
+      if (hasEnoughPreviewReady(orchestrationState)) {
+        const previewProspectIds = selectPreviewProspectIds(orchestrationState);
         await ctx.runMutation(internal.setupSessions.markPreviewReadyInternal, {
           sessionId: args.context.sessionId,
-          previewProspectIds: orchestrationState.rankedReadyIds.slice(
-            0,
-            PREVIEW_BATCH_LIMITS.readyTargetCount
-          ),
+          previewProspectIds,
         });
         return;
       }
 
       if (
-        readyOrInFlightCount >= PREVIEW_BATCH_LIMITS.readyTargetCount ||
-        qualifiedCandidateBuffer >= PREVIEW_BATCH_LIMITS.readyTargetCount
+        readyOrInFlightCount >= PREVIEW_BATCH_LIMITS.minReadyCount ||
+        qualifiedCandidateBuffer >= PREVIEW_BATCH_LIMITS.minReadyCount
       ) {
         console.info("[Preview] Holding preview open after retry exhaustion", {
           sessionId: String(args.context.sessionId),
@@ -502,15 +494,28 @@ export const handlePreviewWorkflowComplete = internalMutation({
             orchestrationState.pendingQualificationCount,
           inFlightEnrichmentCount: orchestrationState.inFlightEnrichmentCount,
         });
+        await ctx.scheduler.runAfter(
+          PREVIEW_BATCH_LIMITS.interCycleDelayMs,
+          internal.setupSessions.resumePreviewWorkflowIfNeededInternal,
+          {
+            sessionId: args.context.sessionId,
+          }
+        );
         return;
       }
 
       await ctx.runMutation(
-        internal.setupSessions.markPreviewDiscoveryFailedInternal,
+        internal.setupSessions.markPreviewSearchInProgressInternal,
         {
           sessionId: args.context.sessionId,
-          errorMessage:
-            "I couldn't find enough matching people for the preview quickly enough. Please refine the workspace description and try again.",
+        }
+      );
+      await ctx.scheduler.runAfter(
+        PREVIEW_BATCH_LIMITS.backgroundRetryDelayMs,
+        internal.setupSessions.startPreviewWorkflowInternal,
+        {
+          sessionId: args.context.sessionId,
+          discoveryAttempt: 0,
         }
       );
     }

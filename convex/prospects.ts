@@ -765,6 +765,7 @@ export const createProspectsBatch = internalMutation({
         setupRevision: v.optional(v.number()),
         externalId: v.string(),
         data: v.any(),
+        evidencePosts: v.optional(v.array(v.any())),
         matchReason: v.optional(v.string()),
         matchedKeywords: v.optional(v.array(v.string())),
         discoverySource: v.optional(prospectDiscoverySourceValidator),
@@ -844,10 +845,20 @@ export const createProspectsBatch = internalMutation({
         existingByExternalId;
 
       if (existing) {
+        const providedEvidencePosts = p.evidencePosts;
         const nextEvidencePosts =
-          p.platform === "linkedin"
-            ? sanitizeProspectEvidencePostsForWorkflow([p.data], "linkedin")
-            : [p.data];
+          providedEvidencePosts !== undefined
+            ? p.platform === "linkedin"
+              ? sanitizeProspectEvidencePostsForWorkflow(
+                  providedEvidencePosts,
+                  "linkedin"
+                )
+              : providedEvidencePosts
+            : p.discoverySource === "search_post"
+              ? p.platform === "linkedin"
+                ? sanitizeProspectEvidencePostsForWorkflow([p.data], "linkedin")
+                : [p.data]
+              : undefined;
         const shouldKeepExistingOrigin =
           processingMode === "preview" && existing.origin !== "setup_preview";
         const nextOrigin = shouldKeepExistingOrigin
@@ -913,7 +924,7 @@ export const createProspectsBatch = internalMutation({
             qualificationStatus: nextQualificationStatus,
             qualifiedAt: nextQualifiedAt,
             evidencePosts:
-              p.discoverySource === "search_post"
+              nextEvidencePosts !== undefined
                 ? mergeEvidencePosts(existing.evidencePosts, nextEvidencePosts)
                 : existing.evidencePosts,
           },
@@ -968,11 +979,18 @@ export const createProspectsBatch = internalMutation({
           continue;
         }
         const nextEvidencePosts =
-          p.discoverySource === "search_post"
+          p.evidencePosts !== undefined
             ? p.platform === "linkedin"
-              ? sanitizeProspectEvidencePostsForWorkflow([p.data], "linkedin")
-              : [p.data]
-            : undefined;
+              ? sanitizeProspectEvidencePostsForWorkflow(
+                  p.evidencePosts,
+                  "linkedin"
+                )
+              : p.evidencePosts
+            : p.discoverySource === "search_post"
+              ? p.platform === "linkedin"
+                ? sanitizeProspectEvidencePostsForWorkflow([p.data], "linkedin")
+                : [p.data]
+              : undefined;
         const initialQualificationStatus = p.qualificationStatus ?? "pending";
         const initialQualifiedAt =
           initialQualificationStatus === "qualified" ? now : undefined;

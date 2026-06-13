@@ -145,6 +145,11 @@ export function useOutreachNotificationToast() {
           description: notification.message,
           ...commonOptions,
         });
+      } else if (notification.type === "setup_preview_ready") {
+        toast.success(notification.title, {
+          description: notification.message,
+          ...commonOptions,
+        });
       } else if (notification.type === "social_action_failed") {
         toast.error(notification.title, {
           description: notification.message,

@@ -24,6 +24,7 @@ export type SetupInputPhase =
   | "awaiting_icp_approval"
   | "provisioning_preview_workspace"
   | "discovering_preview_prospects"
+  | "preview_search_in_progress"
   | "awaiting_preview_approval"
   | null;
 
@@ -52,6 +53,7 @@ export function getSetupStatusStepId(status: SetupStatus): SetupVisibleStepId {
     case "awaiting_icp_confirmation":
     case "provisioning_preview_workspace":
     case "discovering_preview_prospects":
+    case "preview_search_in_progress":
     case "awaiting_preview_confirmation":
     case "failed":
     case "discarded":
@@ -141,6 +143,8 @@ export function getSetupInputPhase(
       return "provisioning_preview_workspace";
     case "discovering_preview_prospects":
       return "discovering_preview_prospects";
+    case "preview_search_in_progress":
+      return "preview_search_in_progress";
     case "awaiting_preview_confirmation":
       return "awaiting_preview_approval";
     default:

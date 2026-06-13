@@ -66,6 +66,7 @@ import type * as integrations_twitter_getProfile from "../integrations/twitter/g
 import type * as integrations_twitter_getThread from "../integrations/twitter/getThread.js";
 import type * as integrations_twitter_searchPosts from "../integrations/twitter/searchPosts.js";
 import type * as integrations_twitter_searchUserPosts from "../integrations/twitter/searchUserPosts.js";
+import type * as integrations_twitter_similarProfiles from "../integrations/twitter/similarProfiles.js";
 import type * as interactions from "../interactions.js";
 import type * as interactionsActions from "../interactionsActions.js";
 import type * as keywords from "../keywords.js";
@@ -269,6 +270,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/twitter/getThread": typeof integrations_twitter_getThread;
   "integrations/twitter/searchPosts": typeof integrations_twitter_searchPosts;
   "integrations/twitter/searchUserPosts": typeof integrations_twitter_searchUserPosts;
+  "integrations/twitter/similarProfiles": typeof integrations_twitter_similarProfiles;
   interactions: typeof interactions;
   interactionsActions: typeof interactionsActions;
   keywords: typeof keywords;

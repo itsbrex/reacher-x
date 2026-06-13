@@ -336,9 +336,9 @@ Aim for 25-40 characters. Shorter is better for search matching.
 
 Return three separate groups:
 1. twitterQueries
-- Natural first-person phrasing
-- Conversational, emotional, post-like wording
-- Frustration, intent, recommendation, or help-seeking language
+- Natural first-person phrasing plus short role/profile/company/topic terms
+- Conversational pain, intent, recommendation, or help-seeking language
+- Profile-fit terms that can lead to seed accounts for expansion
 
 2. linkedinPostQueries
 - Short professional or topical phrases
@@ -421,7 +421,7 @@ ${formatDiscoveryContextBlock(discoveryContext)}
 Return grouped queries that are net-new relative to the operational memory above.
 
 When Twitter is requested:
-- generate post-like, first-person phrasing
+- generate a balanced mix of post-like first-person phrasing and short role, company, profile, or topical terms
 
 When LinkedIn is requested:
 - generate linkedinPostQueries as short professional/topic phrases
