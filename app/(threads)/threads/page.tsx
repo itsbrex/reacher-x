@@ -1,4 +1,4 @@
-// app/(landing)/threads/page.tsx
+// app/(threads)/threads/page.tsx
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
@@ -17,7 +17,7 @@ export const metadata = {
     title: "🆁 | Threads",
     description: "Browse recent threads to stay updated on ReacherX.",
     images: ["/og-default.jpg"],
-    url: "https://reacherx.com/home/threads",
+    url: "https://reacherx.com/threads",
     type: "website",
   },
   twitter: {
@@ -90,7 +90,7 @@ async function ThreadsListSection({
           size="lg"
           bordered={true}
           showThread={false}
-          clickHref={`/home/threads/${thread.threadId}`}
+          clickHref={`/threads/${thread.threadId}`}
         />
       ))}
     </>

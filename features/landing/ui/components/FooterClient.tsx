@@ -36,8 +36,8 @@ const FOOTER_COLUMNS = [
   {
     title: "Product",
     links: [
-      { label: "Use cases", href: "/home/use-cases" },
-      { label: "Pricing", href: "/home/pricing" },
+      { label: "Use cases", href: "/use-cases" },
+      { label: "Pricing", href: "/pricing" },
       {
         label: "Changelog",
         href: "https://github.com/VecterAI/reacher-x/releases/",
@@ -47,7 +47,7 @@ const FOOTER_COLUMNS = [
   {
     title: "Resources",
     links: [
-      { label: "Threads", href: "/home/threads" },
+      { label: "Threads", href: "/threads" },
       { label: "Contact", href: "mailto:support@reacherx.com" },
     ],
   },

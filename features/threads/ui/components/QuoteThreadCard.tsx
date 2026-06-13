@@ -97,7 +97,7 @@ export const QuoteThreadCard: React.FC<QuoteThreadCardProps> = ({
     const id =
       tweet?.conversation_id_str || tweet?.id_str || String(tweet?.id || "");
     if (!id) return;
-    router.push(`/home/threads/${id}`);
+    router.push(`/threads/${id}`);
   };
 
   if (loading) {

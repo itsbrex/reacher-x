@@ -1,4 +1,4 @@
-import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
+import { authkit, handleAuthkitProxy } from "@workos-inc/authkit-nextjs";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PATH_PATTERNS = [
@@ -6,6 +6,9 @@ const PUBLIC_PATH_PATTERNS = [
   /^\/logout$/,
   /^\/callback$/,
   /^\/home(?:\/.*)?$/,
+  /^\/threads(?:\/.*)?$/,
+  /^\/use-cases$/,
+  /^\/pricing$/,
   /^\/api\/describe-url$/,
   /^\/api\/opengraph$/,
   /^\/post\/x\/[^/]+$/,
@@ -23,16 +26,16 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/" && !session.user) {
     const homeUrl = new URL("/home", request.url);
     homeUrl.search = search;
-    return handleAuthkitHeaders(request, headers, { redirect: homeUrl });
+    return handleAuthkitProxy(request, headers, { redirect: homeUrl });
   }
 
   if (!isPublicPath(pathname) && !session.user && authorizationUrl) {
-    return handleAuthkitHeaders(request, headers, {
+    return handleAuthkitProxy(request, headers, {
       redirect: authorizationUrl,
     });
   }
 
-  return handleAuthkitHeaders(request, headers);
+  return handleAuthkitProxy(request, headers);
 }
 
 export const config = {

@@ -20,7 +20,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${BASE_URL}/home/threads`,
+      url: `${BASE_URL}/use-cases`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${BASE_URL}/pricing`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${BASE_URL}/threads`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.8,
@@ -39,7 +51,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     )) as string[];
 
     const threadUrls = threadIds.map((id) => ({
-      url: `${BASE_URL}/home/threads/${id}`,
+      url: `${BASE_URL}/threads/${id}`,
       lastModified: new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.5,

@@ -11,6 +11,8 @@ type GitHubRepositoryResponse = {
 };
 
 export async function getGitHubStarsCount(): Promise<number> {
+  "use cache";
+
   try {
     const response = await fetch(GITHUB_REPO_API_URL, {
       cache: "force-cache",

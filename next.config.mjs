@@ -8,6 +8,21 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/home/threads/:path*",
+        destination: "/threads/:path*",
+        permanent: true,
+      },
+      {
+        source: "/home/use-cases",
+        destination: "/use-cases",
+        permanent: true,
+      },
+      {
+        source: "/home/pricing",
+        destination: "/pricing",
+        permanent: true,
+      },
+      {
         source:
           "/:slug(prospects|candidates|partners|investors|participants|creators|potential-members|guests)",
         destination: "/",

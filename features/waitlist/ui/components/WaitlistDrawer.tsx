@@ -81,7 +81,7 @@ export function WaitlistDrawer() {
                     Join Discord ↗
                   </Link>
                   <NavLink
-                    href="/home/threads"
+                    href="/threads"
                     size="lg"
                     className="text-muted-foreground mt-4 mb-4 block font-normal md:mb-0"
                     activeClassName="underline font-medium text-primary"

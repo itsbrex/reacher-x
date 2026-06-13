@@ -30,7 +30,7 @@ export function RecentThreadsSection({
 
       <div className="mt-8 text-center">
         <Link
-          href="/home/threads"
+          href="/threads"
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             "rounded-full"

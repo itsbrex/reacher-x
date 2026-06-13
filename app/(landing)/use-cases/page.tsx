@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     description:
       "One agent that adapts to who you need. Customers, candidates, investors, partners, and more.",
     images: ["/og-default.jpg"],
-    url: "https://reacherx.com/home/use-cases",
+    url: "https://reacherx.com/use-cases",
     type: "website",
   },
   twitter: {

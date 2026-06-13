@@ -1,4 +1,4 @@
-// app/home/threads/[threadId]/page.tsx
+// app/(threads)/threads/[threadId]/page.tsx
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { UserProfileCard } from "@/features/landing/ui/components/UserProfileCard";
@@ -42,7 +42,7 @@ export async function generateMetadata({
       title,
       description,
       images: [ogImage],
-      url: `https://reacherx.com/home/threads/${threadId}`,
+      url: `https://reacherx.com/threads/${threadId}`,
       type: "article",
     },
     twitter: {
@@ -81,7 +81,7 @@ export default async function ThreadDetailPage(props: {
   return (
     <div className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] mx-auto mt-4 w-full max-w-[1288px] duration-300 md:mt-12 md:px-4">
       <Link
-        href="/home/threads"
+        href="/threads"
         className="ease-[cubic-bezier(0.25, 1, 0.5, 1)] ml-4 block w-fit duration-300 md:ml-0"
       >
         <h1 className="font-pixel-square ease-[cubic-bezier(0.25, 1, 0.5, 1)] text-2xl font-bold duration-300 md:text-3xl">

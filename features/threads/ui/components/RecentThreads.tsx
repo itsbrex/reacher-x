@@ -37,7 +37,7 @@ export function RecentThreads({
             staticTweet={firstTweet}
             size={size}
             bordered={bordered}
-            clickHref={`/home/threads/${thread.threadId}`}
+            clickHref={`/threads/${thread.threadId}`}
           />
         );
       })}

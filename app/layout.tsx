@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { ConvexClientProvider } from "./ConvexClientProvider";
-import { PostHogProvider } from "./home/PostHogProvider";
+import { PostHogProvider } from "./PostHogProvider";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
 import { Toaster } from "@/shared/ui/components/Sonner";
 import MediaChromeYTTemplate from "@/shared/ui/components/MediaChromeYTTemplate";
