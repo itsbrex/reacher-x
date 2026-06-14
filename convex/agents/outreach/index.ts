@@ -6,7 +6,11 @@ import { Agent, type ContextHandler } from "@convex-dev/agent";
 import { wrapLanguageModel } from "ai";
 import { components, internal } from "../../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { REASONING_MODEL } from "../../lib/ai";
+import {
+  AGENT_PROVIDER_OPTIONS,
+  REASONING_MODEL,
+  getOpenRouterExtraBody,
+} from "../../lib/ai";
 import {
   openRouterMetadataMiddleware,
   sanitizeProviderMetadataForConvex,
@@ -79,7 +83,9 @@ function getOpenRouterProvider() {
 
 const openrouter = getOpenRouterProvider();
 const outreachLanguageModel = wrapLanguageModel({
-  model: openrouter(REASONING_MODEL) as any,
+  model: openrouter(REASONING_MODEL, {
+    extraBody: getOpenRouterExtraBody(AGENT_PROVIDER_OPTIONS),
+  }) as any,
   middleware: openRouterMetadataMiddleware,
 });
 

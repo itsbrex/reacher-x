@@ -6,7 +6,7 @@
 // Used by: workflows/enrichment.ts, agents/tools/enrichProspect.ts
 
 import { z } from "zod";
-import { robustGenerateObject } from "./ai";
+import { robustGenerateObject, type ModelRouting } from "./ai";
 import { formatLargeNumber } from "../../shared/lib/utils/encoding/format";
 import { extractLinkedInUsername } from "../../shared/lib/utils/url/socialProfiles";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
@@ -247,6 +247,7 @@ async function extractAllEnrichmentData(params: {
   evidencePosts: EvidencePost[];
   icpPainPoints: string[];
   workspaceName: string;
+  routing?: ModelRouting;
 }): Promise<{
   prospectType: ProspectType;
   title: string;
@@ -262,8 +263,14 @@ async function extractAllEnrichmentData(params: {
     postIds?: string[];
   };
 }> {
-  const { platform, profileData, evidencePosts, icpPainPoints, workspaceName } =
-    params;
+  const {
+    platform,
+    profileData,
+    evidencePosts,
+    icpPainPoints,
+    workspaceName,
+    routing = "reasoning",
+  } = params;
 
   // Build profile summary for the LLM
   const profileSummary = buildProfileSummary(profileData, platform);
@@ -299,6 +306,7 @@ Analyze and extract all enrichment data.`;
       prompt,
       temperature: 0.3,
       maxRetries: 2,
+      routing,
     });
 
     return {
@@ -375,8 +383,10 @@ export async function enrichTwitterProfile(params: {
   evidencePosts: EvidencePost[];
   icps: ICP[];
   workspaceName: string;
+  routing?: ModelRouting;
 }): Promise<EnrichmentResult> {
-  const { profile, extendedBio, evidencePosts, icps, workspaceName } = params;
+  const { profile, extendedBio, evidencePosts, icps, workspaceName, routing } =
+    params;
 
   try {
     // Collect all ICP pain points
@@ -392,6 +402,7 @@ export async function enrichTwitterProfile(params: {
       evidencePosts,
       icpPainPoints,
       workspaceName,
+      routing,
     });
 
     // Map results to EnrichmentResult
@@ -473,6 +484,7 @@ export async function enrichLinkedInProfile(params: {
   evidencePosts: EvidencePost[];
   icps: ICP[];
   workspaceName: string;
+  routing?: ModelRouting;
 }): Promise<EnrichmentResult> {
   const {
     profile,
@@ -481,6 +493,7 @@ export async function enrichLinkedInProfile(params: {
     evidencePosts,
     icps,
     workspaceName,
+    routing,
   } = params;
 
   try {
@@ -531,6 +544,7 @@ export async function enrichLinkedInProfile(params: {
       evidencePosts,
       icpPainPoints,
       workspaceName,
+      routing,
     });
 
     // Map results to EnrichmentResult

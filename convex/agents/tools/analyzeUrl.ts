@@ -154,6 +154,7 @@ Extract the business/product name, description, target audience, key problems so
         prompt: userPrompt,
         temperature: 0.5,
         maxRetries: 2,
+        routing: "fast",
       });
 
       console.info(

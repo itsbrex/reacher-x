@@ -46,6 +46,7 @@ export const runQualificationCore = internalAction({
     relevantMemories: v.optional(v.array(v.string())),
     similarQualifiedCases: v.optional(v.array(v.string())),
     similarDisqualifiedCases: v.optional(v.array(v.string())),
+    routing: v.optional(v.union(v.literal("fast"), v.literal("reasoning"))),
   },
   handler: async (_ctx, args) => {
     const result = await qualifyProspectCore({
@@ -59,6 +60,7 @@ export const runQualificationCore = internalAction({
       relevantMemories: args.relevantMemories,
       similarQualifiedCases: args.similarQualifiedCases,
       similarDisqualifiedCases: args.similarDisqualifiedCases,
+      routing: args.routing,
     });
 
     return result;
@@ -287,6 +289,7 @@ export const qualificationWorkflow = workflow.define({
         relevantMemories: learningContext.relevantMemories,
         similarQualifiedCases: learningContext.similarQualifiedCases,
         similarDisqualifiedCases: learningContext.similarDisqualifiedCases,
+        routing: isSetupPreview ? "fast" : "reasoning",
       }
     );
 

@@ -8,7 +8,7 @@
 // The LLM evaluates ICP fit, engagement, authenticity holistically.
 
 import { z } from "zod";
-import { robustGenerateObject } from "./ai";
+import { robustGenerateObject, type ModelRouting } from "./ai";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import type { WorkspaceUseCaseKey } from "../../shared/lib/workspaceUseCases";
 import { QUALIFICATION_THRESHOLD as SHARED_QUALIFICATION_THRESHOLD } from "../../shared/lib/qualificationConstants";
@@ -142,6 +142,7 @@ export async function qualifyProspectCore(params: {
   relevantMemories?: string[];
   similarQualifiedCases?: string[];
   similarDisqualifiedCases?: string[];
+  routing?: ModelRouting;
 }): Promise<QualificationResult> {
   const {
     evidencePosts,
@@ -153,6 +154,7 @@ export async function qualifyProspectCore(params: {
     relevantMemories,
     similarQualifiedCases,
     similarDisqualifiedCases,
+    routing = "reasoning",
   } = params;
   const now = getCurrentUTCTimestamp();
   const currentUtcDate = formatUtcDate(now);
@@ -216,6 +218,7 @@ Evaluate this prospect against the ICP.`;
       schema: llmQualificationSchema,
       system: buildQualificationPrompt(useCaseKey),
       prompt,
+      routing,
     });
 
     console.info("[qualifyProspectCore] LLM qualification result:", {

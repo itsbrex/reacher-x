@@ -232,6 +232,7 @@ export const qualifyProspect = createTool({
         totalKeywords: keywords.length,
         profileData: profileData as Record<string, unknown>,
         useCaseKey: workspace.useCaseKey,
+        routing: "fast",
       });
 
       // 5. Update prospect in database

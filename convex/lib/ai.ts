@@ -3,9 +3,22 @@
 // Docs: https://openrouter.ai/docs
 
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateObject, generateText } from "ai";
+import { generateObject, generateText, type JSONValue } from "ai";
 import type { z } from "zod";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
+
+type OpenRouterProviderRouting = Record<string, JSONValue> & {
+  only?: string[];
+  order?: string[];
+  allow_fallbacks?: boolean;
+  require_parameters?: boolean;
+};
+
+export type OpenRouterProviderOptions = {
+  openrouter: Record<string, JSONValue> & {
+    provider: OpenRouterProviderRouting;
+  };
+};
 
 // ============================================================================
 // Provider Factory
@@ -15,10 +28,10 @@ import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
  * Creates an OpenRouter provider instance.
  *
  * OpenRouter provides:
- * - Auto-routing: `openrouter/auto` selects the best model per request
- * - Model fallbacks: Automatic failover to backup models
- * - Usage tracking: Token counts and cost per request
- * - Structured outputs: For generateObject calls
+ * - Provider routing for speed-focused inference
+ * - Model/provider fallbacks
+ * - Usage tracking and selected provider metadata
+ * - Structured outputs
  *
  * @see https://openrouter.ai/docs/guides/overview/principles
  *
@@ -29,7 +42,8 @@ import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
  *
  * const provider = createAIProvider();
  * const { text } = await generateText({
- *   model: provider(MODELS.AUTO),
+ *   model: provider(MODELS.KIMI_K2_6),
+ *   providerOptions: AGENT_PROVIDER_OPTIONS,
  *   prompt: 'Hello!',
  * });
  * ```
@@ -59,98 +73,75 @@ export function createAIProvider() {
 // Model Identifiers
 // ============================================================================
 
-/**
- * Available models via OpenRouter.
- *
- * AUTO: Let OpenRouter choose the best model based on the task
- * @see https://openrouter.ai/docs/guides/features/routers/auto-router
- * @see https://openrouter.ai/models for valid model IDs
- */
+/** Available models via OpenRouter. */
 export const MODELS = {
-  // Auto-routing - OpenRouter selects the best model
-  AUTO: "openrouter/auto",
-
-  // ============================================================================
-  // Primary Models (2025) - Use these for new code
-  // ============================================================================
-
-  // Gemini 3 Flash - Best for document analysis, data extraction, qualification
-  // Excels at processing large amounts of data and structured outputs
-  GEMINI_3_FLASH: "google/gemini-3-flash-preview",
-
-  // Kimi K2 Thinking - Best for agentic conversations, multi-turn chat
-  // Optimized for 200-300 tool calls, 256k context
-  KIMI_K2: "moonshotai/kimi-k2-thinking",
-
-  // Claude Haiku 4.5 - Excellent tool calling and coding
-  CLAUDE_HAIKU_45: "anthropic/claude-haiku-4.5",
-
-  // GPT-5.4 Nano - OpenAI's recommended default for new speed/cost-sensitive workloads
-  GPT_54_NANO: "openai/gpt-5.4-nano",
-
-  // GPT-5 Nano - Smallest and fastest GPT-5 variant
-  GPT_5_NANO: "openai/gpt-5-nano",
-
-  // GPT OSS - Good for data analysis
+  KIMI_K2_6: "moonshotai/kimi-k2.6",
   GPT_OSS: "openai/gpt-oss-120b",
-
-  // Grok 4.1 Fast - Fast alternative
-  GROK_41_FAST: "x-ai/grok-4.1-fast",
-
-  // ============================================================================
-  // Cost-Effective Models - For fallbacks and simple tasks
-  // ============================================================================
-
-  // Gemini 2.5 Flash-Lite - Cheapest option
-  GEMINI_25_FLASH_LITE: "google/gemini-2.5-flash-lite",
-
-  // DeepSeek R1 - Best value for reasoning
-  DEEPSEEK_R1: "deepseek/deepseek-r1",
-
-  // Mistral Medium 3 - Good balance
-  MISTRAL_MEDIUM_3: "mistralai/mistral-medium-3",
-
-  // ============================================================================
-  // Legacy models - Kept for backward compatibility
-  // ============================================================================
-  CLAUDE_SONNET: "anthropic/claude-3.5-sonnet",
-  CLAUDE_HAIKU: "anthropic/claude-3-5-haiku",
-  GPT_4O: "openai/gpt-4o",
-  GPT_4O_MINI: "openai/gpt-4o-mini",
-  GEMINI_PRO: "google/gemini-2.0-flash-001",
-  GEMINI_FLASH: "google/gemini-2.0-flash-lite-001",
-  GROK: "x-ai/grok-3-mini-beta",
 } as const;
 
 export type ModelId = (typeof MODELS)[keyof typeof MODELS];
 
-/**
- * Default model - uses AUTO routing for optimal selection.
- * OpenRouter will choose the best model based on:
- * - Task complexity
- * - Cost efficiency
- * - Speed requirements
- */
-export const DEFAULT_MODEL = MODELS.AUTO;
+export const OPENROUTER_PROVIDERS = {
+  BASETEN: "Baseten",
+  DECART: "Decart",
+  CEREBRAS: "Cerebras",
+} as const;
 
 /**
- * Model for complex reasoning tasks (ICP generation, analysis, agents).
- * Kimi K2 is optimized for agentic conversations with 200+ tool calls stability.
+ * Kimi K2.6 is the primary high-intelligence model for agent/chat and
+ * non-onboarding generation, with provider fallback on the same model.
  */
-export const REASONING_MODEL = MODELS.KIMI_K2;
+export const REASONING_MODEL = MODELS.KIMI_K2_6;
 
 /**
- * Model for simple/fast tasks (greetings, short responses).
- * Uses Gemini 2.5 Flash-Lite for maximum cost efficiency.
+ * GPT-OSS 120B on Cerebras is used where raw throughput is the main UX lever:
+ * onboarding structured tasks, autocomplete, and fast draft repair.
  */
-export const FAST_MODEL = MODELS.GEMINI_25_FLASH_LITE;
+export const FAST_MODEL = MODELS.GPT_OSS;
 
-/**
- * Model for inline autocomplete.
- * Fixed to a fast, low-latency model instead of AUTO to reduce routing delay.
- * GPT-5.4 Nano is a better latency/quality default than the older GPT-5 Nano.
- */
-export const AUTOCOMPLETE_MODEL = MODELS.GPT_54_NANO;
+export const AUTOCOMPLETE_MODEL = MODELS.GPT_OSS;
+
+export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
+  openrouter: {
+    provider: {
+      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.DECART],
+      allow_fallbacks: true,
+    },
+  },
+};
+
+export type ModelRouting = "fast" | "reasoning";
+
+export function getOpenRouterExtraBody(
+  providerOptions: OpenRouterProviderOptions
+): Record<string, JSONValue> {
+  return providerOptions.openrouter;
+}
+
+function getModelForRouting(routing: ModelRouting) {
+  if (routing === "fast") {
+    return {
+      model: MODELS.GPT_OSS,
+      providerOptions: CEREBRAS_PROVIDER_OPTIONS,
+      providerLabel: OPENROUTER_PROVIDERS.CEREBRAS,
+    };
+  }
+
+  return {
+    model: MODELS.KIMI_K2_6,
+    providerOptions: AGENT_PROVIDER_OPTIONS,
+    providerLabel: `${OPENROUTER_PROVIDERS.BASETEN}/${OPENROUTER_PROVIDERS.DECART}`,
+  };
+}
+
+export const CEREBRAS_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
+  openrouter: {
+    provider: {
+      only: [OPENROUTER_PROVIDERS.CEREBRAS],
+      require_parameters: true,
+    },
+  },
+};
 
 // ============================================================================
 // Usage Extraction
@@ -169,6 +160,7 @@ export function extractUsage(result: {
     totalTokens?: number;
   };
 
+  providerMetadata?: any;
   experimental_providerMetadata?: any;
 }): {
   inputTokens: number;
@@ -176,9 +168,12 @@ export function extractUsage(result: {
   totalTokens: number;
   cost?: number;
   modelSelected?: string;
+  providerSelected?: string;
 } {
   const usage = result.usage || {};
-  const metadata = result.experimental_providerMetadata?.openrouter;
+  const metadata =
+    result.providerMetadata?.openrouter ??
+    result.experimental_providerMetadata?.openrouter;
 
   // OpenRouter returns cost as a decimal string, so parse it
   const rawCost = metadata?.usage?.cost;
@@ -193,31 +188,13 @@ export function extractUsage(result: {
     totalTokens: usage.totalTokens || 0,
     cost,
     modelSelected: metadata?.model,
+    providerSelected: metadata?.provider,
   };
 }
 
 // ============================================================================
 // Robust Structured Output Generation
 // ============================================================================
-
-/**
- * Models known to work well with structured outputs / JSON schema.
- * Gemini 2.5 Flash-Lite is the cheapest option with excellent structured output support.
- * Cost: $0.10/$0.40 per 1M tokens (80% cheaper than GPT-4o-mini).
- */
-// Gemini 3 Flash is excellent for document analysis and structured outputs
-export const STRUCTURED_OUTPUT_MODEL = MODELS.GEMINI_3_FLASH;
-
-/**
- * Fallback models for structured outputs if primary fails.
- * Claude Haiku 4.5 is best at tool calling, included as reliable fallback.
- */
-const STRUCTURED_OUTPUT_FALLBACKS = [
-  MODELS.GEMINI_25_FLASH_LITE, // Cheap fallback
-  MODELS.CLAUDE_HAIKU_45, // Best tool calling
-  MODELS.GPT_OSS, // Good for data analysis
-  MODELS.MISTRAL_MEDIUM_3, // Strong performance
-];
 
 interface RobustGenerateObjectOptions<T> {
   /** Operation name for logging */
@@ -234,17 +211,14 @@ interface RobustGenerateObjectOptions<T> {
   maxRetries?: number;
   /** Initial delay between retries in ms (default: 500) */
   initialDelayMs?: number;
+  /** fast = Cerebras GPT-OSS, reasoning = Kimi K2.6 with provider fallback */
+  routing?: ModelRouting;
 }
 
 /**
- * Robustly generates a structured object using AI with:
- * - Automatic retries with exponential backoff
- * - Model fallback (tries Gemini 2.5 Flash-Lite → Mistral Medium 3 → DeepSeek R1 → Claude Haiku 4.5)
- * - Comprehensive logging
- *
- * This solves the "No object generated: could not parse response" errors
- * by using models better suited for structured outputs and retrying on failures.
- * Uses cost-optimized models to minimize expenses (80-90% cheaper than GPT-4o/Claude Sonnet).
+ * Robustly generates a structured object with explicit model routing.
+ * Onboarding paths use fast Cerebras inference; normal/background reasoning
+ * paths use Kimi K2.6 with same-model provider fallback.
  */
 export async function robustGenerateObject<T>({
   operation,
@@ -254,6 +228,7 @@ export async function robustGenerateObject<T>({
   temperature = 0.5,
   maxRetries = 2,
   initialDelayMs = 500,
+  routing = "reasoning",
 }: RobustGenerateObjectOptions<T>): Promise<{
   object: T;
   model: string;
@@ -261,69 +236,62 @@ export async function robustGenerateObject<T>({
   providerMetadata?: unknown;
 }> {
   const provider = createAIProvider();
-  const modelsToTry = [STRUCTURED_OUTPUT_MODEL, ...STRUCTURED_OUTPUT_FALLBACKS];
+  const modelConfig = getModelForRouting(routing);
 
   let lastError: Error | null = null;
 
-  for (const modelId of modelsToTry) {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const startTime = getCurrentUTCTimestamp();
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const startTime = getCurrentUTCTimestamp();
 
-      try {
-        console.info(
-          `[AI] ${operation} attempt ${attempt + 1}/${maxRetries} using ${modelId}`
-        );
+    try {
+      console.info(
+        `[AI] ${operation} attempt ${attempt + 1}/${maxRetries} using ${modelConfig.model} via ${modelConfig.providerLabel}`
+      );
 
-        const result = await generateObject({
-          model: provider(modelId) as any,
-          schema,
-          system,
-          prompt,
-          temperature,
-        });
+      const result = await generateObject({
+        model: provider(modelConfig.model) as any,
+        schema,
+        system,
+        prompt,
+        temperature,
+        providerOptions: modelConfig.providerOptions,
+      });
 
-        const durationMs = getCurrentUTCTimestamp() - startTime;
-        const usageInfo = extractUsage(result);
+      const durationMs = getCurrentUTCTimestamp() - startTime;
+      const usageInfo = extractUsage(result);
 
-        console.info(
-          `[AI] ${operation} completed using ${modelId} in ${durationMs}ms`,
-          usageInfo.totalTokens ? `(${usageInfo.totalTokens} tokens)` : ""
-        );
+      console.info(
+        `[AI] ${operation} completed using ${usageInfo.modelSelected ?? modelConfig.model} via ${usageInfo.providerSelected ?? modelConfig.providerLabel} in ${durationMs}ms`,
+        usageInfo.totalTokens ? `(${usageInfo.totalTokens} tokens)` : ""
+      );
 
-        return {
-          object: result.object,
-          model: modelId,
-          usage: usageInfo,
-          providerMetadata: (result as { providerMetadata?: unknown })
-            .providerMetadata,
-        };
-      } catch (error) {
-        const durationMs = getCurrentUTCTimestamp() - startTime;
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        lastError = error instanceof Error ? error : new Error(errorMessage);
+      return {
+        object: result.object,
+        model: usageInfo.modelSelected ?? modelConfig.model,
+        usage: usageInfo,
+        providerMetadata: (result as { providerMetadata?: unknown })
+          .providerMetadata,
+      };
+    } catch (error) {
+      const durationMs = getCurrentUTCTimestamp() - startTime;
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      lastError = error instanceof Error ? error : new Error(errorMessage);
 
-        console.warn(
-          `[AI] ${operation} attempt ${attempt + 1} failed on ${modelId}:`,
-          errorMessage,
-          `(${durationMs}ms)`
-        );
+      console.warn(
+        `[AI] ${operation} attempt ${attempt + 1} failed on ${modelConfig.model}:`,
+        errorMessage,
+        `(${durationMs}ms)`
+      );
 
-        // Wait before retrying (exponential backoff)
-        if (attempt < maxRetries - 1) {
-          const delay = initialDelayMs * Math.pow(2, attempt);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
+      if (attempt < maxRetries - 1) {
+        const delay = initialDelayMs * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-
-    console.warn(
-      `[AI] ${operation} exhausted retries on ${modelId}, trying next model`
-    );
   }
 
-  // All models failed
-  console.error(`[AI] ${operation} failed on all models:`, lastError?.message);
+  console.error(`[AI] ${operation} failed:`, lastError?.message);
   throw lastError || new Error("Failed to generate structured output");
 }
 
@@ -337,6 +305,7 @@ export async function generateTextWithJsonParse<T>({
   system,
   prompt,
   temperature = 0.5,
+  routing = "fast",
 }: RobustGenerateObjectOptions<T>): Promise<{
   object: T;
   model: string;
@@ -344,7 +313,7 @@ export async function generateTextWithJsonParse<T>({
   providerMetadata?: unknown;
 }> {
   const provider = createAIProvider();
-  const model = STRUCTURED_OUTPUT_MODEL;
+  const modelConfig = getModelForRouting(routing);
   const startTime = getCurrentUTCTimestamp();
 
   try {
@@ -353,10 +322,11 @@ export async function generateTextWithJsonParse<T>({
     );
 
     const result = await generateText({
-      model: provider(model) as any,
+      model: provider(modelConfig.model) as any,
       system: `${system}\n\nIMPORTANT: You MUST respond with ONLY valid JSON that matches the required schema. No markdown, no explanations, just the JSON object.`,
       prompt: `${prompt}\n\nRespond with ONLY a valid JSON object. No markdown code blocks, no explanations.`,
       temperature,
+      providerOptions: modelConfig.providerOptions,
     });
 
     // Try to extract JSON from the response
@@ -381,10 +351,12 @@ export async function generateTextWithJsonParse<T>({
       `[AI] ${operation} JSON parsing fallback succeeded in ${durationMs}ms`
     );
 
+    const usage = extractUsage(result);
+
     return {
       object: validated,
-      model,
-      usage: extractUsage(result),
+      model: usage.modelSelected ?? modelConfig.model,
+      usage,
       providerMetadata: (result as { providerMetadata?: unknown })
         .providerMetadata,
     };

@@ -5,7 +5,12 @@ import { v } from "convex/values";
 import { action } from "./lib/functionBuilders";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { AUTOCOMPLETE_MODEL, createAIProvider, extractUsage } from "./lib/ai";
+import {
+  AUTOCOMPLETE_MODEL,
+  CEREBRAS_PROVIDER_OPTIONS,
+  createAIProvider,
+  extractUsage,
+} from "./lib/ai";
 import { getStyleMemoryCategory } from "./lib/styleSourceCore";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { getWorkspaceUseCase } from "../shared/lib/workspaceUseCases";
@@ -353,6 +358,7 @@ Rules:
       prompt,
       temperature: 0.15,
       maxOutputTokens: INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS,
+      providerOptions: CEREBRAS_PROVIDER_OPTIONS,
     });
 
     const normalizedSuggestion = normalizeInlineAutocompleteSuggestion({

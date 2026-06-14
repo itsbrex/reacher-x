@@ -3,7 +3,11 @@
 import { generateText } from "ai";
 import { internal } from "../../../_generated/api";
 import type { Id } from "../../../_generated/dataModel";
-import { createAIProvider, FAST_MODEL } from "../../../lib/ai";
+import {
+  CEREBRAS_PROVIDER_OPTIONS,
+  FAST_MODEL,
+  createAIProvider,
+} from "../../../lib/ai";
 import type { EffectivePostTextLimit } from "../../../../shared/lib/twitter/xPostTextLimit";
 import { getPostTextLimitError } from "../../../../shared/lib/twitter/xPostTextLimit";
 
@@ -81,6 +85,7 @@ export async function shortenDraftToEffectiveXLimit(args: {
     const result = await generateText({
       model: openRouter(FAST_MODEL),
       temperature: 0.2,
+      providerOptions: CEREBRAS_PROVIDER_OPTIONS,
       prompt: `Rewrite this X reply so it keeps the same intent, tone, and concrete detail, but is shorter.
 
 Rules:

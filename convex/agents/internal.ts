@@ -277,6 +277,7 @@ Only return net-new keywords in uncovered themes when memory indicates existing 
         prompt: userPrompt,
         temperature: 0.7,
         maxRetries: 2,
+        routing: args.workspaceId ? "reasoning" : "fast",
       });
 
       const durationMs = getCurrentUTCTimestamp() - startTime;
@@ -438,6 +439,7 @@ If a platform is not requested, return an empty array for that group.`;
         prompt: userPrompt,
         temperature: 0.8,
         maxRetries: 2,
+        routing: args.workspaceId ? "reasoning" : "fast",
       });
 
       const durationMs = getCurrentUTCTimestamp() - startTime;

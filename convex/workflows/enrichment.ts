@@ -152,6 +152,7 @@ export const runTwitterEnrichmentCore = internalAction({
       })
     ),
     workspaceName: v.string(),
+    routing: v.optional(v.union(v.literal("fast"), v.literal("reasoning"))),
   },
   handler: async (_ctx, args) => {
     const result = await enrichTwitterProfile({
@@ -160,6 +161,7 @@ export const runTwitterEnrichmentCore = internalAction({
       evidencePosts: args.evidencePosts,
       icps: args.icps,
       workspaceName: args.workspaceName,
+      routing: args.routing,
     });
 
     // Return serializable result (EnrichmentResult)
@@ -193,6 +195,7 @@ export const runLinkedInEnrichmentCore = internalAction({
       })
     ),
     workspaceName: v.string(),
+    routing: v.optional(v.union(v.literal("fast"), v.literal("reasoning"))),
   },
   handler: async (_ctx, args) => {
     const result = await enrichLinkedInProfile({
@@ -202,6 +205,7 @@ export const runLinkedInEnrichmentCore = internalAction({
       evidencePosts: args.evidencePosts,
       icps: args.icps,
       workspaceName: args.workspaceName,
+      routing: args.routing,
     });
 
     // Return serializable result (EnrichmentResult)
@@ -393,6 +397,7 @@ export const enrichmentWorkflow = workflow.define({
         includeExtendedBio: !useFastPreviewPath,
         includeFinanceSearch: !useFastPreviewPath,
         forcePartial: useFastPreviewPath,
+        routing: isSetupPreview ? "fast" : "reasoning",
       });
     } else if (platform === "linkedin") {
       preparedResult = await enrichLinkedInProspect(step, {
@@ -401,6 +406,7 @@ export const enrichmentWorkflow = workflow.define({
         qualificationEvidence,
         icps,
         workspaceName,
+        routing: isSetupPreview ? "fast" : "reasoning",
       });
     } else {
       await step.runMutation(internal.prospects.clearEnrichmentWorkflowId, {
@@ -663,6 +669,7 @@ async function enrichTwitterProspect(
     includeExtendedBio?: boolean;
     includeFinanceSearch?: boolean;
     forcePartial?: boolean;
+    routing?: "fast" | "reasoning";
   }
 ) {
   const {
@@ -673,6 +680,7 @@ async function enrichTwitterProspect(
     includeExtendedBio = true,
     includeFinanceSearch = true,
     forcePartial = false,
+    routing,
   } = params;
   const workspaceLogContext = formatWorkspaceLogContext({ workspaceName });
 
@@ -696,6 +704,7 @@ async function enrichTwitterProspect(
         evidencePosts: workflowSafeEvidence,
         icps,
         workspaceName,
+        routing,
       }
     );
     const finalResult = rehydrateEnrichmentResultEvidence(
@@ -786,6 +795,7 @@ async function enrichTwitterProspect(
       evidencePosts: workflowSafeEvidence,
       icps,
       workspaceName,
+      routing,
     }
   );
   const finalResult = rehydrateEnrichmentResultEvidence(
@@ -817,10 +827,17 @@ async function enrichLinkedInProspect(
     qualificationEvidence: EvidencePost[];
     icps: ICP[];
     workspaceName: string;
+    routing?: "fast" | "reasoning";
   }
 ) {
-  const { prospect, prospectData, qualificationEvidence, icps, workspaceName } =
-    params;
+  const {
+    prospect,
+    prospectData,
+    qualificationEvidence,
+    icps,
+    workspaceName,
+    routing,
+  } = params;
   const workspaceLogContext = formatWorkspaceLogContext({ workspaceName });
 
   const { username, profileUrn } =
@@ -838,6 +855,7 @@ async function enrichLinkedInProspect(
         evidencePosts: workflowSafeEvidence,
         icps,
         workspaceName,
+        routing,
       }
     );
     return {
@@ -988,6 +1006,7 @@ async function enrichLinkedInProspect(
       evidencePosts: workflowSafeEvidence,
       icps,
       workspaceName,
+      routing,
     }
   );
   return {
@@ -1179,10 +1198,9 @@ export const scheduleSetupPreviewEnrichmentInternal = internalAction({
     });
     if (
       !session ||
-      ![
-        "discovering_preview_prospects",
-        "preview_search_in_progress",
-      ].includes(session.status) ||
+      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
+        session.status
+      ) ||
       session.targetWorkspaceId !== args.workspaceId
     ) {
       return {

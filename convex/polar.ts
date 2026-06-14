@@ -176,7 +176,7 @@ export const syncSubscriptionToUserPlan = internalMutation({
       }
     }
 
-    console.log(
+    console.info(
       `[Polar] Syncing subscription for user ${args.userId}: productId=${args.productId}, tier=${tier}, status=${args.status}, expiresAt=${expiresAt}`
     );
 

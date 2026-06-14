@@ -90,6 +90,7 @@ Requirements:
       prompt,
       temperature: 0.2,
       maxRetries: 2,
+      routing: "fast",
     });
 
     return sanitizeDescription(object.description);
@@ -102,6 +103,7 @@ Requirements:
           "You turn website content into a short, clear business description for an onboarding form.",
         prompt,
         temperature: 0.2,
+        routing: "fast",
       });
 
       return sanitizeDescription(object.description);

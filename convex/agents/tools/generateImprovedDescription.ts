@@ -102,6 +102,7 @@ Create:
         prompt: userPrompt,
         temperature: 0.6,
         maxRetries: 2,
+        routing: "fast",
       });
 
       console.info(
