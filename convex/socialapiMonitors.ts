@@ -12,7 +12,10 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { getUserFromIdentity } from "./lib/userUtils";
 import { formatWorkspaceLogContext } from "./lib/logHelpers";
-import { retrier } from "./lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "./lib/retrier";
 import { acquireSocialApiBudget } from "./lib/socialApiBudget";
 import {
   monitorStatusValidator,
@@ -521,7 +524,7 @@ export const createMonitor = action({
 
     try {
       // Use retrier to run the API call with automatic retry
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.socialapiMonitors.createMonitorApiCall,
         {
@@ -536,7 +539,7 @@ export const createMonitor = action({
       // Poll for completion
       let result: CreateMonitorApiResult | null = null;
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
@@ -634,7 +637,7 @@ export const deleteMonitor = action({
 
     try {
       // Use retrier to run the API call with automatic retry
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.socialapiMonitors.deleteMonitorApiCall,
         { monitorId: args.monitorId }
@@ -642,7 +645,7 @@ export const deleteMonitor = action({
 
       // Poll for completion
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
@@ -835,7 +838,7 @@ export const createMonitorInternal = internalAction({
 
     try {
       // Use retrier to run the API call with automatic retry
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.socialapiMonitors.createMonitorApiCall,
         {
@@ -850,7 +853,7 @@ export const createMonitorInternal = internalAction({
       // Poll for completion
       let result: CreateMonitorApiResult | null = null;
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;

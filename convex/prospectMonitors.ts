@@ -9,7 +9,10 @@ import {
 } from "./lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { retrier } from "./lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "./lib/retrier";
 import { acquireSocialApiBudget } from "./lib/socialApiBudget";
 import { monitorStatusValidator } from "./validators";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -301,7 +304,7 @@ export const createProspectMonitor = internalAction({
 
     try {
       // Use retrier for the API call
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.prospectMonitors.createUserTweetsMonitorApiCall,
         {
@@ -314,7 +317,7 @@ export const createProspectMonitor = internalAction({
       // Poll for completion
       let result: CreateMonitorApiResult | null = null;
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
@@ -404,7 +407,7 @@ export const deleteProspectMonitor = internalAction({
   handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
     try {
       // Use retrier for the API call
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.prospectMonitors.deleteMonitorApiCall,
         { monitorId: args.monitorId }
@@ -412,7 +415,7 @@ export const deleteProspectMonitor = internalAction({
 
       // Poll for completion
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;

@@ -4,7 +4,10 @@ import { v } from "convex/values";
 import type { RunId } from "@convex-dev/action-retrier";
 import { action, internalAction } from "../../lib/functionBuilders";
 import { internal } from "../../_generated/api";
-import { retrier } from "../../lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "../../lib/retrier";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import { requestLinkdApiData } from "./linkdapiClient";
 
@@ -209,7 +212,7 @@ export const searchBatch = action({
       const runIdPromise = new Promise<RunId>((resolve, reject) => {
         void (async () => {
           try {
-            const runId = await retrier.run(
+            const runId = await runRetriedAction(
               ctx,
               internal.integrations.linkedin.searchPeople.searchInternal,
               {
@@ -291,7 +294,7 @@ export const searchBatch = action({
           const maxAttempts = 120;
 
           while (pollAttempts < maxAttempts) {
-            const status = await retrier.status(ctx, activeRunId!);
+            const status = await getRetriedActionStatus(ctx, activeRunId!);
             if (status.type === "inProgress") {
               await new Promise((resolve) => setTimeout(resolve, 500));
               pollAttempts += 1;
@@ -353,7 +356,7 @@ export const searchBatch = action({
           }
 
           const nextMode = attempts[attemptIndex + 1];
-          activeRunId = await retrier.run(
+          activeRunId = await runRetriedAction(
             ctx,
             internal.integrations.linkedin.searchPeople.searchInternal,
             {

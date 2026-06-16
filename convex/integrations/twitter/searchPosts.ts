@@ -6,7 +6,10 @@
 import { action, internalAction } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
-import { retrier } from "../../lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "../../lib/retrier";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import type { RunId } from "@convex-dev/action-retrier";
@@ -344,7 +347,7 @@ export const search = action({
 
     try {
       // Use retrier to run the internal action with automatic retry
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.integrations.twitter.searchPosts.searchInternal,
         {
@@ -357,7 +360,7 @@ export const search = action({
       // Poll for completion
       let result: InternalSearchResult | null = null;
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
@@ -494,7 +497,7 @@ export const searchRaw = action({
     }
 
     try {
-      const runId = await retrier.run(
+      const runId = await runRetriedAction(
         ctx,
         internal.integrations.twitter.searchPosts.searchInternal,
         {
@@ -506,7 +509,7 @@ export const searchRaw = action({
 
       let result: InternalSearchResult | null = null;
       while (true) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
@@ -654,7 +657,7 @@ export const searchBatch = action({
         void (async () => {
           try {
             await new Promise((r) => setTimeout(r, delay));
-            const runId = await retrier.run(
+            const runId = await runRetriedAction(
               ctx,
               internal.integrations.twitter.searchPosts.searchInternal,
               {
@@ -723,7 +726,7 @@ export const searchBatch = action({
         const maxAttempts = 120; // 60 seconds max wait
 
         while (attempts < maxAttempts) {
-          const status = await retrier.status(ctx, runId);
+          const status = await getRetriedActionStatus(ctx, runId);
           if (status.type === "inProgress") {
             await new Promise((resolve) => setTimeout(resolve, 500));
             attempts++;
@@ -866,7 +869,7 @@ export const searchRawBatch = action({
           try {
             await new Promise((r) => setTimeout(r, delay));
             resolve(
-              await retrier.run(
+              await runRetriedAction(
                 ctx,
                 internal.integrations.twitter.searchPosts.searchInternal,
                 {
@@ -944,7 +947,7 @@ export const searchRawBatch = action({
       let result: InternalSearchResult | null = null;
       let attempts = 0;
       while (attempts < 120) {
-        const status = await retrier.status(ctx, runId);
+        const status = await getRetriedActionStatus(ctx, runId);
         if (status.type === "inProgress") {
           await new Promise((resolve) => setTimeout(resolve, 500));
           attempts += 1;

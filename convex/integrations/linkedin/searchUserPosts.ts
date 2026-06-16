@@ -6,7 +6,10 @@
 import { action, internalAction } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
-import { retrier } from "../../lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "../../lib/retrier";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import { requestLinkdApiData } from "./linkdapiClient";
@@ -253,7 +256,7 @@ export const searchUserPosts = action({
 
         // Try with past-month filter first
         const postsNeeded = maxPosts - deduplicatePosts(allPosts).length;
-        const runId = await retrier.run(
+        const runId = await runRetriedAction(
           ctx,
           internal.integrations.linkedin.searchUserPosts
             .searchUserPostsInternal,
@@ -271,7 +274,7 @@ export const searchUserPosts = action({
         const maxAttempts = 60; // 30 seconds max
 
         while (attempts < maxAttempts) {
-          const status = await retrier.status(ctx, runId);
+          const status = await getRetriedActionStatus(ctx, runId);
           if (status.type === "inProgress") {
             await new Promise((r) => setTimeout(r, 500));
             attempts++;
@@ -289,7 +292,7 @@ export const searchUserPosts = action({
           // Fallback: try without date filter
           const fallbackPostsNeeded =
             maxPosts - deduplicatePosts(allPosts).length;
-          const fallbackRunId = await retrier.run(
+          const fallbackRunId = await runRetriedAction(
             ctx,
             internal.integrations.linkedin.searchUserPosts
               .searchUserPostsInternal,
@@ -298,7 +301,7 @@ export const searchUserPosts = action({
 
           attempts = 0;
           while (attempts < maxAttempts) {
-            const status = await retrier.status(ctx, fallbackRunId);
+            const status = await getRetriedActionStatus(ctx, fallbackRunId);
             if (status.type === "inProgress") {
               await new Promise((r) => setTimeout(r, 500));
               attempts++;

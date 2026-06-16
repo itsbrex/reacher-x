@@ -6,7 +6,10 @@
 import { action, internalAction } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
-import { retrier } from "../../lib/retrier";
+import {
+  getRetriedActionStatus,
+  runRetriedAction,
+} from "../../lib/retrier";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import type { RunId } from "@convex-dev/action-retrier";
@@ -325,7 +328,7 @@ export const search = action({
       let finalError = "Unknown error";
 
       for (const attempt of attempts) {
-        const runId = await retrier.run(
+        const runId = await runRetriedAction(
           ctx,
           internal.integrations.linkedin.searchPosts.searchInternal,
           {
@@ -340,7 +343,7 @@ export const search = action({
 
         let result: InternalSearchResult | null = null;
         while (true) {
-          const status = await retrier.status(ctx, runId);
+          const status = await getRetriedActionStatus(ctx, runId);
           if (status.type === "inProgress") {
             await new Promise((resolve) => setTimeout(resolve, 500));
             continue;
@@ -525,7 +528,7 @@ export const searchBatch = action({
       const runIdPromise = new Promise<RunId>((resolve, reject) => {
         void (async () => {
           try {
-            const runId = await retrier.run(
+            const runId = await runRetriedAction(
               ctx,
               internal.integrations.linkedin.searchPosts.searchInternal,
               {
@@ -621,7 +624,7 @@ export const searchBatch = action({
           const maxAttempts = 120;
 
           while (pollAttempts < maxAttempts) {
-            const status = await retrier.status(ctx, activeRunId!);
+            const status = await getRetriedActionStatus(ctx, activeRunId!);
             if (status.type === "inProgress") {
               await new Promise((resolve) => setTimeout(resolve, 500));
               pollAttempts += 1;
@@ -680,7 +683,7 @@ export const searchBatch = action({
           }
 
           const nextAttempt = attempts[attemptIndex + 1];
-          activeRunId = await retrier.run(
+          activeRunId = await runRetriedAction(
             ctx,
             internal.integrations.linkedin.searchPosts.searchInternal,
             {
