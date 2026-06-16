@@ -313,7 +313,7 @@ export const outreachAgent = new Agent(components.agent, {
   name: "Outreach Agent",
   languageModel: outreachLanguageModel,
   // Enable vector search on message history per docs/convex/agent-usage.md
-  textEmbeddingModel: getTextEmbeddingModel() as any,
+  embeddingModel: getTextEmbeddingModel(),
   instructions: buildOutreachAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
   tools: outreachAgentBaseTools,
   // Allow multi-step for complex plan refinement
