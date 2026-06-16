@@ -39,6 +39,21 @@ export async function getCurrentWorkspaceSlotLimit(
   return getWorkspaceSlotLimitForTier(plan.tier);
 }
 
+export function doesWorkspaceReserveEntitlementSlot(
+  workspace: Pick<WorkspaceDoc, "setupCompletedAt">
+): boolean {
+  return typeof workspace.setupCompletedAt === "number";
+}
+
+export function doesSetupSessionReserveEntitlementSlot(
+  session: Pick<SetupSessionDoc, "mode" | "status">
+): boolean {
+  return (
+    session.mode === "new_workspace" &&
+    !isTerminalSetupSessionStatus(session.status)
+  );
+}
+
 async function listUserWorkspacesByCreation(
   ctx: EntitlementCtx,
   userId: Id<"users">
@@ -75,7 +90,9 @@ export async function resolveWorkspaceEntitlementSlot(
     return workspace.entitlementSlot;
   }
 
-  const workspaces = await listUserWorkspacesByCreation(ctx, workspace.userId);
+  const workspaces = (
+    await listUserWorkspacesByCreation(ctx, workspace.userId)
+  ).filter(doesWorkspaceReserveEntitlementSlot);
   const fallbackIndex = workspaces.findIndex(
     (item) => item._id === workspace._id
   );
@@ -109,7 +126,9 @@ export async function resolveSetupSessionEntitlementSlot(
     }
   }
 
-  const workspaces = await listUserWorkspacesByCreation(ctx, session.userId);
+  const workspaces = (
+    await listUserWorkspacesByCreation(ctx, session.userId)
+  ).filter(doesWorkspaceReserveEntitlementSlot);
   const sessions = await listUserSetupSessionsByCreation(ctx, session.userId);
   const newWorkspaceDrafts = sessions.filter(
     (candidate) =>
@@ -137,6 +156,9 @@ export async function getReservedEntitlementSlots(
   const reserved = new Set<number>();
 
   for (const workspace of workspaces) {
+    if (!doesWorkspaceReserveEntitlementSlot(workspace)) {
+      continue;
+    }
     reserved.add(await resolveWorkspaceEntitlementSlot(ctx, workspace));
   }
 
@@ -144,10 +166,7 @@ export async function getReservedEntitlementSlots(
     if (session._id === options?.excludeSetupSessionId) {
       continue;
     }
-    if (isTerminalSetupSessionStatus(session.status)) {
-      continue;
-    }
-    if (session.mode !== "new_workspace") {
+    if (!doesSetupSessionReserveEntitlementSlot(session)) {
       continue;
     }
     reserved.add(await resolveSetupSessionEntitlementSlot(ctx, session));

@@ -44,11 +44,11 @@ import { decrementWorkspaceCount, getOrCreateUserPlan } from "./lib/planCore";
 import { isPaidPlanTier } from "./lib/planConstants";
 import type { Id } from "./_generated/dataModel";
 import {
+  doesSetupSessionReserveEntitlementSlot,
+  doesWorkspaceReserveEntitlementSlot,
   getFirstAccessibleWorkspaceForUser,
   isWorkspaceAccessibleForUser,
   resolveNextEntitlementSlotForUser,
-  resolveSetupSessionEntitlementSlot,
-  resolveWorkspaceEntitlementSlot,
 } from "./lib/workspaceEntitlements";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
 import { INACTIVITY_PAUSE_AFTER_MS } from "../shared/lib/workspaceSystem";
@@ -1034,81 +1034,191 @@ export const getAccessibleDefaultWorkspaceInternal = internalQuery({
   },
 });
 
+async function reconcileWorkspaceEntitlementsForUser(
+  ctx: MutationCtx,
+  userId: Id<"users">
+) {
+  const workspaces = await ctx.db
+    .query("workspaces")
+    .withIndex("by_user_id", (q) => q.eq("userId", userId))
+    .collect();
+  const sessions = await ctx.db
+    .query("workspaceSetupSessions")
+    .withIndex("by_user_last_active", (q) => q.eq("userId", userId))
+    .collect();
+  const now = getCurrentUTCTimestamp();
+
+  const reservingWorkspaces = workspaces
+    .filter(doesWorkspaceReserveEntitlementSlot)
+    .sort((a, b) => a._creationTime - b._creationTime);
+  let nextEntitlementSlot = 1;
+
+  for (const workspace of reservingWorkspaces) {
+    const entitlementSlot = nextEntitlementSlot;
+    nextEntitlementSlot += 1;
+    if (workspace.entitlementSlot === entitlementSlot) {
+      continue;
+    }
+    await ctx.db.patch(workspace._id, {
+      entitlementSlot,
+      updatedAt: now,
+    });
+  }
+
+  const reservingSetupSessions = sessions
+    .filter(doesSetupSessionReserveEntitlementSlot)
+    .sort((a, b) => a._creationTime - b._creationTime);
+
+  for (const session of reservingSetupSessions) {
+    const entitlementSlot = nextEntitlementSlot;
+    nextEntitlementSlot += 1;
+    if (session.entitlementSlot !== entitlementSlot) {
+      await ctx.db.patch(session._id, {
+        entitlementSlot,
+        lastActiveAt: session.lastActiveAt ?? now,
+      });
+    }
+    if (session.targetWorkspaceId && !session.existingWorkspaceId) {
+      const provisionedWorkspace = await ctx.db.get(session.targetWorkspaceId);
+      if (
+        provisionedWorkspace &&
+        provisionedWorkspace.userId === userId &&
+        !provisionedWorkspace.setupCompletedAt &&
+        provisionedWorkspace.entitlementSlot !== entitlementSlot
+      ) {
+        await ctx.db.patch(provisionedWorkspace._id, {
+          entitlementSlot,
+          updatedAt: now,
+        });
+      }
+    }
+  }
+
+  const rawDefaultWorkspace = await getRawDefaultWorkspaceForUser(ctx, userId);
+  const accessibleDefaultWorkspace = await getDefaultWorkspaceForUser(
+    ctx,
+    userId
+  );
+
+  if (
+    rawDefaultWorkspace &&
+    !(await isWorkspaceAccessibleForUser(ctx, rawDefaultWorkspace))
+  ) {
+    await ctx.db.patch(rawDefaultWorkspace._id, {
+      isDefault: false,
+      updatedAt: now,
+    });
+    if (
+      accessibleDefaultWorkspace &&
+      accessibleDefaultWorkspace._id !== rawDefaultWorkspace._id
+    ) {
+      await ctx.db.patch(accessibleDefaultWorkspace._id, {
+        isDefault: true,
+        updatedAt: now,
+      });
+    }
+  } else if (!rawDefaultWorkspace) {
+    const fallbackWorkspace = await getFirstAccessibleWorkspaceForUser(
+      ctx,
+      userId
+    );
+    if (fallbackWorkspace) {
+      await ctx.db.patch(fallbackWorkspace._id, {
+        isDefault: true,
+        updatedAt: now,
+      });
+    }
+  }
+}
+
 export const reconcileWorkspaceEntitlementsForUserInternal = internalMutation({
   args: {
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const workspaces = await ctx.db
-      .query("workspaces")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .collect();
-    const sessions = await ctx.db
-      .query("workspaceSetupSessions")
-      .withIndex("by_user_last_active", (q) => q.eq("userId", args.userId))
-      .collect();
-    const now = getCurrentUTCTimestamp();
-
-    for (const workspace of workspaces) {
-      if (typeof workspace.entitlementSlot === "number") {
-        continue;
-      }
-      await ctx.db.patch(workspace._id, {
-        entitlementSlot: await resolveWorkspaceEntitlementSlot(ctx, workspace),
-        updatedAt: now,
-      });
-    }
-
-    for (const session of sessions) {
-      if (typeof session.entitlementSlot === "number") {
-        continue;
-      }
-      await ctx.db.patch(session._id, {
-        entitlementSlot: await resolveSetupSessionEntitlementSlot(ctx, session),
-        lastActiveAt: session.lastActiveAt ?? now,
-      });
-    }
-
-    const rawDefaultWorkspace = await getRawDefaultWorkspaceForUser(
-      ctx,
-      args.userId
-    );
-    const accessibleDefaultWorkspace = await getDefaultWorkspaceForUser(
-      ctx,
-      args.userId
-    );
-
-    if (
-      rawDefaultWorkspace &&
-      !(await isWorkspaceAccessibleForUser(ctx, rawDefaultWorkspace))
-    ) {
-      await ctx.db.patch(rawDefaultWorkspace._id, {
-        isDefault: false,
-        updatedAt: now,
-      });
-      if (
-        accessibleDefaultWorkspace &&
-        accessibleDefaultWorkspace._id !== rawDefaultWorkspace._id
-      ) {
-        await ctx.db.patch(accessibleDefaultWorkspace._id, {
-          isDefault: true,
-          updatedAt: now,
-        });
-      }
-    } else if (!rawDefaultWorkspace) {
-      const fallbackWorkspace = await getFirstAccessibleWorkspaceForUser(
-        ctx,
-        args.userId
-      );
-      if (fallbackWorkspace) {
-        await ctx.db.patch(fallbackWorkspace._id, {
-          isDefault: true,
-          updatedAt: now,
-        });
-      }
-    }
+    await reconcileWorkspaceEntitlementsForUser(ctx, args.userId);
   },
 });
+
+export const cleanupDiscardedSetupProvisionalWorkspacesForUserInternal =
+  internalMutation({
+    args: {
+      userId: v.id("users"),
+      cursor: v.optional(v.string()),
+      batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+      const batchSize = Math.max(1, Math.min(25, args.batchSize ?? 10));
+      const page = await ctx.db
+        .query("workspaceSetupSessions")
+        .withIndex("by_user_status", (q) =>
+          q.eq("userId", args.userId).eq("status", "discarded")
+        )
+        .paginate({
+          cursor: args.cursor ?? null,
+          numItems: batchSize,
+        });
+
+      for (const session of page.page) {
+        if (session.mode !== "new_workspace" || !session.targetWorkspaceId) {
+          continue;
+        }
+        if (session.existingWorkspaceId) {
+          continue;
+        }
+
+        const workspace = await ctx.db.get(session.targetWorkspaceId);
+        if (
+          !workspace ||
+          workspace.userId !== args.userId ||
+          workspace.setupCompletedAt
+        ) {
+          continue;
+        }
+
+        await deleteWorkspaceCascade(ctx, workspace._id);
+        await reconcileWorkspaceEntitlementsForUser(ctx, args.userId);
+
+        if (!page.isDone) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.workspaces
+              .cleanupDiscardedSetupProvisionalWorkspacesForUserInternal,
+            {
+              userId: args.userId,
+              cursor: page.continueCursor,
+              batchSize,
+            }
+          );
+        }
+
+        return {
+          deletedCount: 1,
+          scheduled: !page.isDone,
+        };
+      }
+
+      await reconcileWorkspaceEntitlementsForUser(ctx, args.userId);
+
+      if (!page.isDone) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.workspaces
+            .cleanupDiscardedSetupProvisionalWorkspacesForUserInternal,
+          {
+            userId: args.userId,
+            cursor: page.continueCursor,
+            batchSize,
+          }
+        );
+      }
+
+      return {
+        deletedCount: 0,
+        scheduled: !page.isDone,
+      };
+    },
+  });
 
 /**
  * Persist an internal onboarding issue state on a workspace.

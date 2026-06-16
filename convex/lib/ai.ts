@@ -83,6 +83,7 @@ export type ModelId = (typeof MODELS)[keyof typeof MODELS];
 
 export const OPENROUTER_PROVIDERS = {
   BASETEN: "baseten",
+  WANDB_FP4: "wandb/fp4",
   DECART: "decart",
   CEREBRAS: "cerebras",
 } as const;
@@ -92,7 +93,7 @@ const REASONING_MODEL_TIMEOUT_MS = 45_000;
 
 /**
  * Kimi K2.6 is the primary high-intelligence model for agent/chat and
- * non-onboarding generation, with provider fallback on the same model.
+ * non-onboarding generation, constrained to stable ordered providers.
  */
 export const REASONING_MODEL = MODELS.KIMI_K2_6;
 
@@ -107,13 +108,36 @@ export const AUTOCOMPLETE_MODEL = MODELS.GPT_OSS;
 export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
   openrouter: {
     provider: {
-      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.DECART],
-      allow_fallbacks: true,
+      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
+      allow_fallbacks: false,
+      require_parameters: true,
     },
   },
 };
 
 export type ModelRouting = "fast" | "reasoning";
+type JsonFailureLogLevel = "error" | "warn" | "info";
+
+function logJsonFailure(level: JsonFailureLogLevel, ...args: unknown[]) {
+  if (level === "info") {
+    console.info(...args);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn(...args);
+    return;
+  }
+
+  console.error(...args);
+}
+
+function logJsonAttemptFailure(
+  level: JsonFailureLogLevel,
+  ...args: unknown[]
+) {
+  logJsonFailure(level === "info" ? "info" : "warn", ...args);
+}
 
 export function getOpenRouterExtraBody(
   providerOptions: OpenRouterProviderOptions
@@ -134,7 +158,7 @@ function getModelForRouting(routing: ModelRouting) {
   return {
     model: MODELS.KIMI_K2_6,
     providerOptions: AGENT_PROVIDER_OPTIONS,
-    providerLabel: `${OPENROUTER_PROVIDERS.BASETEN}/${OPENROUTER_PROVIDERS.DECART}`,
+    providerLabel: `${OPENROUTER_PROVIDERS.BASETEN}/${OPENROUTER_PROVIDERS.WANDB_FP4}`,
     timeoutMs: REASONING_MODEL_TIMEOUT_MS,
   };
 }
@@ -252,6 +276,11 @@ interface RobustGenerateObjectOptions<T> {
   routing?: ModelRouting;
   /** Optional repair step before Zod validation for known provider edge cases. */
   normalizeParsed?: (value: unknown) => unknown;
+  /**
+   * Defaults to error/warn. Use info for optional AI steps whose callers
+   * intentionally recover with deterministic fallback data.
+   */
+  failureLogLevel?: JsonFailureLogLevel;
 }
 
 /**
@@ -269,6 +298,7 @@ export async function robustGenerateObject<T>({
   initialDelayMs = 500,
   routing = "reasoning",
   normalizeParsed,
+  failureLogLevel = "error",
 }: RobustGenerateObjectOptions<T>): Promise<{
   object: T;
   model: string;
@@ -287,11 +317,13 @@ export async function robustGenerateObject<T>({
         initialDelayMs,
         routing,
         normalizeParsed,
+        failureLogLevel,
       });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      console.warn(
+      logJsonAttemptFailure(
+        failureLogLevel,
         `[AI] ${operation} fast JSON generation failed; falling back to reasoning route:`,
         errorMessage
       );
@@ -306,6 +338,7 @@ export async function robustGenerateObject<T>({
         initialDelayMs,
         routing: "reasoning",
         normalizeParsed,
+        failureLogLevel,
       });
     }
   }
@@ -320,6 +353,7 @@ export async function robustGenerateObject<T>({
     initialDelayMs,
     routing,
     normalizeParsed,
+    failureLogLevel,
   });
 }
 
@@ -337,6 +371,7 @@ export async function generateTextWithJsonParse<T>({
   initialDelayMs = 500,
   routing = "fast",
   normalizeParsed,
+  failureLogLevel = "error",
 }: RobustGenerateObjectOptions<T>): Promise<{
   object: T;
   model: string;
@@ -393,7 +428,8 @@ export async function generateTextWithJsonParse<T>({
         error instanceof Error ? error.message : "Unknown error";
       lastError = error instanceof Error ? error : new Error(errorMessage);
 
-      console.warn(
+      logJsonAttemptFailure(
+        failureLogLevel,
         `[AI] ${operation} JSON attempt ${attempt + 1} failed on ${modelConfig.model}:`,
         errorMessage,
         `(${durationMs}ms)`
@@ -406,7 +442,8 @@ export async function generateTextWithJsonParse<T>({
     }
   }
 
-  console.error(
+  logJsonFailure(
+    failureLogLevel,
     `[AI] ${operation} JSON generation failed:`,
     lastError?.message
   );

@@ -14,11 +14,12 @@ export function isSetupPreviewFastPathEnabled() {
 }
 
 export const PREVIEW_BATCH_LIMITS = {
-  readyTargetCount: 5,
+  readyTargetCount: 3,
   minReadyCount: 1,
   previewEnrichmentWindow: 8,
   socialQueriesPerCycle: 15,
   twitterSearchBatch: 10,
+  twitterGraphSeedSearchBatch: 5,
   maxCyclesPerPreviewRun: 3,
   interCycleDelayMs: 1500,
   // Keep searching shortly after the UI moves into the "check back later" state.

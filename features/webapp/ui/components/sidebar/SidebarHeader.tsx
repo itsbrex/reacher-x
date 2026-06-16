@@ -91,7 +91,7 @@ export function SidebarHeader() {
   const plan = planQuery.data;
   const shellState = shellStateQuery.data;
   const workspaceCreationEligibility = workspaceCreationEligibilityQuery.data;
-  const { modal, requestNewWorkspace } = useNewWorkspaceDraftFlow({
+  const { activeDraft, modal, requestNewWorkspace } = useNewWorkspaceDraftFlow({
     enabled: isAuthenticated && !locked,
   });
 
@@ -116,6 +116,9 @@ export function SidebarHeader() {
   const isFree = !plan || plan.tier === "free";
   const isHighestTier = plan?.tier === HIGHEST_TIER;
   const canCreateWorkspace = workspaceCreationEligibility?.allowed === true;
+  const hasActiveNewWorkspaceDraft = activeDraft?.mode === "new_workspace";
+  const canRequestWorkspaceDraft =
+    !isFree && (canCreateWorkspace || hasActiveNewWorkspaceDraft);
   const hasLockedItems = shellState?.showUnlockCta ?? false;
   const workspaceName =
     switcherItems.find((candidate) => candidate.value === selectedWorkspaceId)
@@ -239,27 +242,8 @@ export function SidebarHeader() {
       );
     }
 
-    // Free user or paid at limit (not highest tier) → "New workspace" opens pricing
-    if (isFree || (!canCreateWorkspace && !isHighestTier)) {
-      return (
-        <div className="border-t p-1">
-          <button
-            type="button"
-            className="focus:bg-accent focus:text-accent-foreground flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              openPlansUpgrade();
-            }}
-          >
-            <AddIcon className="h-4 w-4 shrink-0 fill-current" />
-            New workspace
-          </button>
-        </div>
-      );
-    }
-
-    // Paid, under limit → "New workspace" starts draft
-    if (canCreateWorkspace) {
+    // Paid user with capacity, or with an existing draft to resolve.
+    if (canRequestWorkspaceDraft) {
       return (
         <div className="border-t p-1">
           <button
@@ -269,6 +253,25 @@ export function SidebarHeader() {
             onPointerDown={(e) => {
               e.preventDefault();
               void requestNewWorkspace();
+            }}
+          >
+            <AddIcon className="h-4 w-4 shrink-0 fill-current" />
+            New workspace
+          </button>
+        </div>
+      );
+    }
+
+    // Free user or paid at limit (not highest tier) → "New workspace" opens pricing
+    if (isFree || !isHighestTier) {
+      return (
+        <div className="border-t p-1">
+          <button
+            type="button"
+            className="focus:bg-accent focus:text-accent-foreground flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              openPlansUpgrade();
             }}
           >
             <AddIcon className="h-4 w-4 shrink-0 fill-current" />
@@ -300,6 +303,7 @@ export function SidebarHeader() {
     isFree,
     isHighestTier,
     canCreateWorkspace,
+    canRequestWorkspaceDraft,
     locked,
     isSwitchingWorkspace,
     openPlansUpgrade,
@@ -321,6 +325,22 @@ export function SidebarHeader() {
 
   // Collapsed state
   if (isCollapsed) {
+    if (canRequestWorkspaceDraft) {
+      return (
+        <SidebarHeaderBase>
+          <Button
+            size="icon"
+            className="h-8 w-8"
+            variant="secondary"
+            disabled={locked}
+            onClick={() => void requestNewWorkspace()}
+          >
+            <AddIcon className="fill-current" />
+          </Button>
+        </SidebarHeaderBase>
+      );
+    }
+
     if (isHighestTier && !canCreateWorkspace) {
       return (
         <SidebarHeaderBase>
@@ -334,22 +354,6 @@ export function SidebarHeader() {
             }}
           >
             <MailIcon className="fill-current" />
-          </Button>
-        </SidebarHeaderBase>
-      );
-    }
-
-    if (isHighestTier && canCreateWorkspace) {
-      return (
-        <SidebarHeaderBase>
-          <Button
-            size="icon"
-            className="h-8 w-8"
-            variant="secondary"
-            disabled={locked}
-            onClick={() => void requestNewWorkspace()}
-          >
-            <AddIcon className="fill-current" />
           </Button>
         </SidebarHeaderBase>
       );
@@ -373,7 +377,21 @@ export function SidebarHeader() {
 
   // --- Top button ---
   let topButton: React.ReactNode = null;
-  if (isHighestTier && !canCreateWorkspace) {
+  if (canRequestWorkspaceDraft) {
+    // Paid user with capacity, or with an existing draft to resolve.
+    topButton = (
+      <Button
+        variant="secondary"
+        size="sm"
+        className="w-full"
+        disabled={locked}
+        onClick={() => void requestNewWorkspace()}
+      >
+        <AddIcon className="fill-current" />
+        New workspace
+      </Button>
+    );
+  } else if (isHighestTier && !canCreateWorkspace) {
     // Pro at limit → Request custom limit
     topButton = (
       <Button
@@ -387,20 +405,6 @@ export function SidebarHeader() {
       >
         <MailIcon className="fill-current" />
         Request custom limit
-      </Button>
-    );
-  } else if (isHighestTier && canCreateWorkspace) {
-    // Pro, under limit → New workspace
-    topButton = (
-      <Button
-        variant="secondary"
-        size="sm"
-        className="w-full"
-        disabled={locked}
-        onClick={() => void requestNewWorkspace()}
-      >
-        <AddIcon className="fill-current" />
-        New workspace
       </Button>
     );
   } else {

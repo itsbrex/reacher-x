@@ -23,7 +23,10 @@ import {
   internalMutation,
   internalAction,
 } from "../lib/functionBuilders";
-import { BATCH_LIMITS } from "../lib/prospectingHelpers";
+import {
+  BATCH_LIMITS,
+  buildPreviewTwitterRawGraphSeedQueries,
+} from "../lib/prospectingHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
 import { getCurrentQualifiedProspectUsage } from "../lib/planHelpers";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
@@ -41,6 +44,7 @@ import {
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { formatWorkspaceLogContext } from "../lib/logHelpers";
 import { isWorkspaceInactive } from "../lib/workspaceSystem";
+import { getTwitterPostId } from "../../shared/lib/twitter/contracts";
 
 type QueryMetadataRecord = {
   query: string;
@@ -57,6 +61,24 @@ type LinkedInQueueItem = {
   value: string;
 };
 
+type TwitterQueryStat = {
+  query: string;
+  postsFound: number;
+  success: boolean;
+  error?: string;
+};
+
+type TwitterSearchResult = {
+  saved: number;
+  queryStats: TwitterQueryStat[];
+  posts: TwitterPost[];
+  matchedQueriesByPostId: Record<string, string[]>;
+};
+
+type TwitterSearchMode = "exact" | "raw";
+
+const PREVIEW_GRAPH_SEED_LOOKBACK_MS = 2 * 365 * 24 * 60 * 60 * 1000;
+
 function dedupeQueries(queries: string[]): string[] {
   const seen = new Set<string>();
   const deduped: string[] = [];
@@ -71,6 +93,53 @@ function dedupeQueries(queries: string[]): string[] {
   }
 
   return deduped;
+}
+
+function createEmptyTwitterSearchResult(): TwitterSearchResult {
+  return {
+    saved: 0,
+    queryStats: [],
+    posts: [],
+    matchedQueriesByPostId: {},
+  };
+}
+
+function getPreviewGraphSeedSinceTimestampSeconds() {
+  return Math.floor(
+    (getCurrentUTCTimestamp() - PREVIEW_GRAPH_SEED_LOOKBACK_MS) / 1000
+  );
+}
+
+function mergeTwitterSearchResults(
+  results: TwitterSearchResult[]
+): TwitterSearchResult {
+  const postsById = new Map<string, TwitterPost>();
+  const matchedQueriesByPostId: Record<string, string[]> = {};
+
+  for (const result of results) {
+    for (const post of result.posts) {
+      const postId = getTwitterPostId(post);
+      if (!postId) {
+        continue;
+      }
+
+      if (!postsById.has(postId)) {
+        postsById.set(postId, post);
+      }
+
+      matchedQueriesByPostId[postId] = dedupeQueries([
+        ...(matchedQueriesByPostId[postId] ?? []),
+        ...(result.matchedQueriesByPostId[postId] ?? []),
+      ]);
+    }
+  }
+
+  return {
+    saved: results.reduce((total, result) => total + result.saved, 0),
+    queryStats: results.flatMap((result) => result.queryStats),
+    posts: Array.from(postsById.values()),
+    matchedQueriesByPostId,
+  };
 }
 
 function isTruthyEnv(value: string | undefined) {
@@ -875,21 +944,9 @@ export const searchTwitterInternal = internalAction({
     ),
     setupSessionId: v.optional(v.id("workspaceSetupSessions")),
     setupRevision: v.optional(v.number()),
+    searchMode: v.optional(v.union(v.literal("exact"), v.literal("raw"))),
   },
-  handler: async (
-    ctx,
-    args
-  ): Promise<{
-    saved: number;
-    queryStats: Array<{
-      query: string;
-      postsFound: number;
-      success: boolean;
-      error?: string;
-    }>;
-    posts: TwitterPost[];
-    matchedQueriesByPostId: Record<string, string[]>;
-  }> => {
+  handler: async (ctx, args): Promise<TwitterSearchResult> => {
     // Get workspace for userId
     const workspace = await ctx.runQuery(internal.workspaces.getById, {
       workspaceId: args.workspaceId,
@@ -904,19 +961,29 @@ export const searchTwitterInternal = internalAction({
       workspaceName: workspace.name,
     });
 
-    // Search Twitter
-    const result = await ctx.runAction(
-      api.integrations.twitter.searchPosts.searchBatch,
-      {
-        queries: args.queries,
-        type: "Latest",
-        maxQueriesPerBatch: 10,
-      }
-    );
+    const searchMode: TwitterSearchMode = args.searchMode ?? "exact";
+    const result =
+      searchMode === "raw"
+        ? await ctx.runAction(
+            api.integrations.twitter.searchPosts.searchRawBatch,
+            {
+              queries: args.queries,
+              type: "Latest",
+              maxQueriesPerBatch: 10,
+            }
+          )
+        : await ctx.runAction(
+            api.integrations.twitter.searchPosts.searchBatch,
+            {
+              queries: args.queries,
+              type: "Latest",
+              maxQueriesPerBatch: 10,
+            }
+          );
 
     if (!result.success || !result.posts?.length) {
       console.info(
-        `[Prospecting] ${workspaceLogContext} Twitter search: no posts found`
+        `[Prospecting] ${workspaceLogContext} Twitter ${searchMode} search: no posts found`
       );
       return {
         saved: 0,
@@ -954,7 +1021,7 @@ export const searchTwitterInternal = internalAction({
     );
 
     console.info(
-      `[Prospecting] ${workspaceLogContext} Twitter: saved ${saveResult.created + saveResult.updated} prospects`
+      `[Prospecting] ${workspaceLogContext} Twitter ${searchMode}: saved ${saveResult.created + saveResult.updated} prospects`
     );
     return {
       saved: saveResult.created + saveResult.updated,
@@ -1389,7 +1456,8 @@ async function expandPreviewSimilarProfiles(args: {
           {
             screenName,
             keywords: evidenceKeywords,
-            maxPosts: PREVIEW_BATCH_LIMITS.similarProfileEvidencePostsPerProfile,
+            maxPosts:
+              PREVIEW_BATCH_LIMITS.similarProfileEvidencePostsPerProfile,
           }
         );
         evidencePosts = evidenceResult.posts;
@@ -1616,54 +1684,67 @@ export const runPreviewDiscoveryBurstInternal = internalAction({
         )
         .map((item: QueryMetadataRecord) => item.query),
     ]).slice(0, PREVIEW_BATCH_LIMITS.twitterSearchBatch);
+    const twitterQueryKeys = new Set(
+      twitterQueries.map((query) => query.toLowerCase())
+    );
+    const twitterGraphSeedQueries = buildPreviewTwitterRawGraphSeedQueries(
+      workspace,
+      {
+        sinceTimestampSeconds: getPreviewGraphSeedSinceTimestampSeconds(),
+      }
+    )
+      .filter((query) => !twitterQueryKeys.has(query.toLowerCase()))
+      .slice(0, PREVIEW_BATCH_LIMITS.twitterGraphSeedSearchBatch);
 
     console.info(
-      `[Preview] ${workspaceLogContext} running legacy-style preview discovery burst`,
+      `[Preview] ${workspaceLogContext} running preview discovery burst`,
       {
         revision: args.previewRevision,
         twitterQueryCount: twitterQueries.length,
+        twitterGraphSeedQueryCount: twitterGraphSeedQueries.length,
       }
     );
 
-    const twitterResult =
-      twitterQueries.length > 0
-        ? await ctx
-            .runAction(internal.workflows.prospecting.searchTwitterInternal, {
-              workspaceId: args.workspaceId,
-              queries: twitterQueries,
-              processingMode: "preview",
-              prospectOrigin: "setup_preview",
-              setupSessionId: args.sessionId,
-              setupRevision: args.previewRevision,
-            })
-            .catch((error) => {
-              console.error(
-                `[Preview] ${workspaceLogContext} Twitter search failed:`,
-                error
-              );
-              return {
-                saved: 0,
-                queryStats: [] as Array<{
-                  query: string;
-                  postsFound: number;
-                  success: boolean;
-                  error?: string;
-                }>,
-                posts: [] as TwitterPost[],
-                matchedQueriesByPostId: {} as Record<string, string[]>,
-              };
-            })
-        : {
-            saved: 0,
-            queryStats: [] as Array<{
-              query: string;
-              postsFound: number;
-              success: boolean;
-              error?: string;
-            }>,
-            posts: [] as TwitterPost[],
-            matchedQueriesByPostId: {} as Record<string, string[]>,
-          };
+    const runPreviewTwitterSearch = async (
+      queries: string[],
+      label: string,
+      searchMode: TwitterSearchMode = "exact"
+    ): Promise<TwitterSearchResult> => {
+      if (queries.length === 0) {
+        return createEmptyTwitterSearchResult();
+      }
+
+      return await ctx
+        .runAction(internal.workflows.prospecting.searchTwitterInternal, {
+          workspaceId: args.workspaceId,
+          queries,
+          processingMode: "preview",
+          prospectOrigin: "setup_preview",
+          setupSessionId: args.sessionId,
+          setupRevision: args.previewRevision,
+          searchMode,
+        })
+        .catch((error) => {
+          console.error(
+            `[Preview] ${workspaceLogContext} ${label} failed:`,
+            error
+          );
+          return createEmptyTwitterSearchResult();
+        });
+    };
+
+    const [primaryTwitterResult, graphSeedTwitterResult] = await Promise.all([
+      runPreviewTwitterSearch(twitterQueries, "Twitter search"),
+      runPreviewTwitterSearch(
+        twitterGraphSeedQueries,
+        "Twitter graph seed search",
+        "raw"
+      ),
+    ]);
+    const twitterResult = mergeTwitterSearchResults([
+      primaryTwitterResult,
+      graphSeedTwitterResult,
+    ]);
 
     const similarExpansion =
       twitterResult.posts.length > 0
@@ -1707,9 +1788,18 @@ export const runPreviewDiscoveryBurstInternal = internalAction({
           generatedSocialQueries: socialQueries.length,
           acceptedQueries: acceptedQueries.length,
           twitterQueries,
+          twitterGraphSeedQueries,
+          twitterPrimarySearchMode: "exact",
+          twitterGraphSeedSearchMode: "raw",
           twitterQueryStats: twitterResult.queryStats,
+          twitterPrimaryQueryStats: primaryTwitterResult.queryStats,
+          twitterGraphSeedQueryStats: graphSeedTwitterResult.queryStats,
+          twitterPrimaryPostsFound: primaryTwitterResult.posts.length,
+          twitterGraphSeedPostsFound: graphSeedTwitterResult.posts.length,
           twitterPostsFound: twitterResult.posts.length,
           twitterSaved: twitterResult.saved,
+          twitterPrimarySaved: primaryTwitterResult.saved,
+          twitterGraphSeedSaved: graphSeedTwitterResult.saved,
           similarProfilesSaved: similarExpansion.saved,
           similarProfileStats: similarExpansion.similarStats,
           similarProfileEvidenceStats: similarExpansion.evidenceStats,
@@ -1728,7 +1818,7 @@ export const runPreviewDiscoveryBurstInternal = internalAction({
       prospectsFound,
       twitterSaved: prospectsFound,
       linkedinSaved: 0,
-      twitterQueryCount: twitterQueries.length,
+      twitterQueryCount: twitterQueries.length + twitterGraphSeedQueries.length,
       linkedinPostQueryCount: 0,
       linkedinPeopleQueryCount: 0,
     };

@@ -65,6 +65,7 @@ import { PREVIEW_BATCH_LIMITS } from "./lib/previewBatchLimits";
 import { isProspectReadyQualifiedEnriched } from "./lib/readModelHelpers";
 import { isPaidPlanTier } from "./lib/planConstants";
 import { upsertNotificationByKey } from "./lib/notificationHelpers";
+import { deleteWorkspaceCascade } from "./lib/deleteWorkspaceCascade";
 
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
 type ViewerCtx = QueryCtx | MutationCtx;
@@ -78,11 +79,13 @@ type SetupPreviewProgressState = {
 
 type SetupPreviewOrchestrationState = {
   readyCount: number;
+  discoveredCandidateCount: number;
   qualifiedCount: number;
   pendingQualificationCount: number;
   inFlightEnrichmentCount: number;
   rankedQualifiedIds: Id<"prospects">[];
   rankedReadyIds: Id<"prospects">[];
+  rankedPreviewIds: Id<"prospects">[];
 };
 
 const PREVIEW_TARGET_COUNT = PREVIEW_BATCH_LIMITS.readyTargetCount;
@@ -120,10 +123,12 @@ type SetupSessionPublicState = {
   targetWorkspaceId: Id<"workspaces"> | null;
   existingWorkspaceId: Id<"workspaces"> | null;
   previewProspectIds: Id<"prospects">[];
+  previewDiscoveryStartedAt: number | null;
   previewReadyAt: number | null;
   previewApprovedAt: number | null;
   previewProgress: SetupPreviewProgressState;
   hasGeneration: boolean;
+  statusUpdatedAt: number;
   errorMessage: string | null;
 };
 
@@ -206,7 +211,7 @@ async function listSetupPreviewProspects(
 }
 
 function buildPreviewProgressState(
-  session: Pick<SetupSessionDoc, "previewProspectIds">,
+  selectedCount: number,
   prospects: Array<
     Pick<Doc<"prospects">, "qualificationStatus" | "enrichmentStatus">
   >
@@ -227,8 +232,37 @@ function buildPreviewProgressState(
     discoveredCount: prospects.length,
     qualifiedCount,
     enrichedCount,
-    selectedCount: session.previewProspectIds?.length ?? 0,
+    selectedCount,
   };
+}
+
+function isSelectableSetupPreviewCandidate(
+  prospect: Pick<Doc<"prospects">, "status" | "qualificationStatus">
+) {
+  return (
+    prospect.status !== "archived" &&
+    prospect.qualificationStatus !== "disqualified"
+  );
+}
+
+function mergeRankedPreviewCandidateGroups(
+  groups: Array<Array<Doc<"prospects">>>
+): Array<Doc<"prospects">> {
+  const seen = new Set<string>();
+  const merged: Array<Doc<"prospects">> = [];
+
+  for (const group of groups) {
+    for (const prospect of group) {
+      const key = String(prospect._id);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(prospect);
+    }
+  }
+
+  return merged;
 }
 
 function buildSetupPreviewOrchestrationState(
@@ -237,8 +271,11 @@ function buildSetupPreviewOrchestrationState(
   const activeProspects = prospects.filter(
     (prospect) => prospect.status !== "archived"
   );
+  const selectableProspects = activeProspects.filter(
+    isSelectableSetupPreviewCandidate
+  );
   const rankedQualifiedProspects = sortPreviewCandidates(
-    activeProspects.filter(
+    selectableProspects.filter(
       (prospect) => prospect.qualificationStatus === "qualified"
     )
   );
@@ -247,6 +284,12 @@ function buildSetupPreviewOrchestrationState(
       isProspectReadyQualifiedEnriched(prospect)
     )
   );
+  const rankedDiscoveredProspects = sortPreviewCandidates(selectableProspects);
+  const rankedPreviewProspects = mergeRankedPreviewCandidateGroups([
+    rankedReadyProspects,
+    rankedQualifiedProspects,
+    rankedDiscoveredProspects,
+  ]);
 
   let pendingQualificationCount = 0;
   let inFlightEnrichmentCount = 0;
@@ -270,6 +313,7 @@ function buildSetupPreviewOrchestrationState(
 
   return {
     readyCount: rankedReadyProspects.length,
+    discoveredCandidateCount: rankedPreviewProspects.length,
     qualifiedCount: rankedQualifiedProspects.length,
     pendingQualificationCount,
     inFlightEnrichmentCount,
@@ -277,36 +321,8 @@ function buildSetupPreviewOrchestrationState(
       (prospect) => prospect._id
     ),
     rankedReadyIds: rankedReadyProspects.map((prospect) => prospect._id),
+    rankedPreviewIds: rankedPreviewProspects.map((prospect) => prospect._id),
   };
-}
-
-function isProspectInSetupPreviewWindow(
-  session: Pick<
-    SetupSessionDoc,
-    | "_id"
-    | "targetWorkspaceId"
-    | "previewDiscoveryStartedAt"
-    | "previewRevision"
-  >,
-  prospect: Pick<
-    Doc<"prospects">,
-    "workspaceId" | "_creationTime" | "setupSessionId" | "setupRevision"
-  >
-) {
-  if (
-    typeof session.previewRevision === "number" &&
-    prospect.setupSessionId &&
-    prospect.setupSessionId === session._id
-  ) {
-    return prospect.setupRevision === session.previewRevision;
-  }
-
-  return (
-    Boolean(session.targetWorkspaceId) &&
-    Boolean(session.previewDiscoveryStartedAt) &&
-    prospect.workspaceId === session.targetWorkspaceId &&
-    prospect._creationTime >= (session.previewDiscoveryStartedAt ?? 0)
-  );
 }
 
 function sortPreviewCandidates(
@@ -322,20 +338,41 @@ function sortPreviewCandidates(
   });
 }
 
+function getLiveSetupPreviewCandidateIds(
+  prospects: Array<Doc<"prospects">>
+): Id<"prospects">[] {
+  return buildSetupPreviewOrchestrationState(prospects).rankedPreviewIds.slice(
+    0,
+    PREVIEW_TARGET_COUNT
+  );
+}
+
+function resolveSetupPreviewCandidateIds(
+  session: Pick<SetupSessionDoc, "previewProspectIds" | "status">,
+  prospects: Array<Doc<"prospects">>
+): Id<"prospects">[] {
+  const liveCandidateIds = getLiveSetupPreviewCandidateIds(prospects);
+  if (session.status === "awaiting_preview_confirmation") {
+    return liveCandidateIds;
+  }
+  return session.previewProspectIds?.length
+    ? session.previewProspectIds
+    : liveCandidateIds;
+}
+
 async function getSetupPreviewCandidateIds(
   db: ViewerCtx["db"],
   session: SetupSessionDoc
 ) {
-  if (session.previewProspectIds?.length) {
+  if (
+    session.status !== "awaiting_preview_confirmation" &&
+    session.previewProspectIds?.length
+  ) {
     return session.previewProspectIds;
   }
 
   const prospects = await listSetupPreviewProspects(db, session);
-  return sortPreviewCandidates(
-    prospects.filter((prospect) => isProspectReadyQualifiedEnriched(prospect))
-  )
-    .slice(0, PREVIEW_TARGET_COUNT)
-    .map((prospect) => prospect._id);
+  return resolveSetupPreviewCandidateIds(session, prospects);
 }
 
 async function markPreviewReady(
@@ -367,8 +404,8 @@ async function markPreviewReady(
       title: "Preview profiles are ready",
       message:
         selectedPreviewProspectIds.length === 1
-          ? "We found 1 qualified preview profile. Review it and continue setup."
-          : `We found ${selectedPreviewProspectIds.length} qualified preview profiles. Review them and continue setup.`,
+          ? "We found 1 preview profile. Review it and continue setup."
+          : `We found ${selectedPreviewProspectIds.length} preview profiles. Review them and continue setup.`,
       targetHref: `/agent/setup?threadId=${encodeURIComponent(session.setupThreadId)}`,
       notificationKey: `setup-preview-ready:${session._id}:${session.previewRevision ?? 0}`,
       threadId: session.setupThreadId,
@@ -429,6 +466,10 @@ async function toPublicSetupSessionState(
     requiresConnections: !(googleConnected && connectionState.xConnected),
     requiresPlan: !isPaidPlanTier(planTier),
   });
+  const previewCandidateIds = resolveSetupPreviewCandidateIds(
+    session,
+    previewRows
+  );
 
   return {
     sessionId: session._id,
@@ -461,11 +502,16 @@ async function toPublicSetupSessionState(
     planChoice: session.planChoice ?? null,
     targetWorkspaceId: session.targetWorkspaceId ?? null,
     existingWorkspaceId: session.existingWorkspaceId ?? null,
-    previewProspectIds: session.previewProspectIds ?? [],
+    previewProspectIds: previewCandidateIds,
+    previewDiscoveryStartedAt: session.previewDiscoveryStartedAt ?? null,
     previewReadyAt: session.previewReadyAt ?? null,
     previewApprovedAt: session.previewApprovedAt ?? null,
-    previewProgress: buildPreviewProgressState(session, previewRows),
+    previewProgress: buildPreviewProgressState(
+      previewCandidateIds.length,
+      previewRows
+    ),
     hasGeneration: hasSetupGenerationData(session),
+    statusUpdatedAt: session.statusUpdatedAt,
     errorMessage: session.errorMessage ?? null,
   };
 }
@@ -905,46 +951,6 @@ export const getSetupPreviewSummaries = query({
   },
 });
 
-export const getSetupPreviewProspect = query({
-  args: {
-    prospectId: v.id("prospects"),
-    sessionId: v.optional(v.id("workspaceSetupSessions")),
-    threadId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const user = await requireViewerUser(ctx);
-
-    let session: SetupSessionDoc | null = null;
-    if (args.sessionId) {
-      session = await requireOwnedSetupSession(ctx, args.sessionId, user._id);
-    } else if (args.threadId) {
-      session = await getOwnedSetupSessionByThreadId(
-        ctx,
-        args.threadId,
-        user._id
-      );
-    } else {
-      session = await getAccessibleActiveSetupSessionForUser(ctx, user._id, {
-        includeRefine: false,
-      });
-    }
-
-    if (!session) {
-      return null;
-    }
-
-    const prospect = await ctx.db.get(args.prospectId);
-    if (!prospect || prospect.userId !== user._id) {
-      return null;
-    }
-    if (!isProspectInSetupPreviewWindow(session, prospect)) {
-      return null;
-    }
-
-    return prospect;
-  },
-});
-
 export const getSetupBootstrapState = query({
   args: {},
   handler: async (ctx) => {
@@ -1058,6 +1064,18 @@ export const startSetupSession = mutation({
         threadId: activeSession.setupThreadId,
         reused: true,
       };
+    }
+
+    if (args.mode === "new_workspace") {
+      const eligibility = await ctx.runQuery(
+        internal.plans.getWorkspaceCreationEligibilityByUserId,
+        {
+          userId: user._id,
+        }
+      );
+      if (!eligibility.allowed) {
+        throw new Error(eligibility.reason ?? "Workspace limit reached");
+      }
     }
 
     const resolvedUseCaseKey = resolveWorkspaceUseCaseKey(args.useCaseKey);
@@ -1290,13 +1308,34 @@ export const discardSetupSession = mutation({
     const now = getCurrentUTCTimestamp();
 
     const linkedWorkspaceIds = new Set<Id<"workspaces">>();
+    const deletedProvisionedWorkspaceIds = new Set<Id<"workspaces">>();
     if (session.targetWorkspaceId) {
       linkedWorkspaceIds.add(session.targetWorkspaceId);
     }
     if (session.existingWorkspaceId) {
       linkedWorkspaceIds.add(session.existingWorkspaceId);
     }
+
+    if (
+      session.mode === "new_workspace" &&
+      session.targetWorkspaceId &&
+      !session.existingWorkspaceId
+    ) {
+      const provisionedWorkspace = await ctx.db.get(session.targetWorkspaceId);
+      if (
+        provisionedWorkspace &&
+        provisionedWorkspace.userId === user._id &&
+        !provisionedWorkspace.setupCompletedAt
+      ) {
+        await deleteWorkspaceCascade(ctx, provisionedWorkspace._id);
+        deletedProvisionedWorkspaceIds.add(provisionedWorkspace._id);
+      }
+    }
+
     for (const workspaceId of linkedWorkspaceIds) {
+      if (deletedProvisionedWorkspaceIds.has(workspaceId)) {
+        continue;
+      }
       const workspace = await ctx.db.get(workspaceId);
       if (workspace?.onboardingThreadId === session.setupThreadId) {
         await ctx.db.patch(workspaceId, {
@@ -1305,6 +1344,13 @@ export const discardSetupSession = mutation({
         });
       }
     }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workspaces.reconcileWorkspaceEntitlementsForUserInternal,
+      {
+        userId: user._id,
+      }
+    );
 
     await ctx.db.patch(args.sessionId, {
       status: "discarded",
@@ -1583,7 +1629,11 @@ export const approveSetupGeneration = mutation({
     if (!session.targetWorkspaceId) {
       throw new Error("Preview workspace has not been provisioned yet.");
     }
-    if (!session.previewProspectIds?.length) {
+    const approvedPreviewProspectIds = await getSetupPreviewCandidateIds(
+      ctx.db,
+      session
+    );
+    if (approvedPreviewProspectIds.length === 0) {
       throw new Error(
         "Preview people are still loading. Please wait a moment."
       );
@@ -1596,18 +1646,19 @@ export const approveSetupGeneration = mutation({
         sessionId: args.sessionId,
         workspaceId: session.targetWorkspaceId,
         previewRevision,
-        approvedProspectIds: session.previewProspectIds,
+        approvedProspectIds: approvedPreviewProspectIds,
       }
     );
 
     const approvedPreviewProspects = await Promise.all(
-      session.previewProspectIds.map((prospectId) => ctx.db.get(prospectId))
+      approvedPreviewProspectIds.map((prospectId) => ctx.db.get(prospectId))
     );
     for (const prospect of approvedPreviewProspects) {
       if (
         !prospect ||
         prospect.workspaceId !== session.targetWorkspaceId ||
-        prospect.enrichmentStatus !== "partial"
+        prospect.qualificationStatus !== "qualified" ||
+        prospect.enrichmentStatus === "enriched"
       ) {
         continue;
       }
@@ -1628,6 +1679,7 @@ export const approveSetupGeneration = mutation({
       await ctx.db.patch(args.sessionId, {
         status: "discarded",
         previewWorkflowId: undefined,
+        previewProspectIds: approvedPreviewProspectIds,
         discardedAt: now,
         previewApprovedAt: now,
         statusUpdatedAt: now,
@@ -1638,6 +1690,7 @@ export const approveSetupGeneration = mutation({
         ...session,
         status: "discarded",
         previewWorkflowId: undefined,
+        previewProspectIds: approvedPreviewProspectIds,
         discardedAt: now,
         previewApprovedAt: now,
         statusUpdatedAt: now,
@@ -1677,6 +1730,7 @@ export const approveSetupGeneration = mutation({
     await ctx.db.patch(args.sessionId, {
       status: nextStatus,
       previewWorkflowId: undefined,
+      previewProspectIds: approvedPreviewProspectIds,
       previewApprovedAt: now,
       statusUpdatedAt: now,
       lastUserActionAt: now,
@@ -1687,6 +1741,7 @@ export const approveSetupGeneration = mutation({
       ...session,
       status: nextStatus,
       previewWorkflowId: undefined,
+      previewProspectIds: approvedPreviewProspectIds,
       previewApprovedAt: now,
       statusUpdatedAt: now,
       lastUserActionAt: now,
@@ -2217,10 +2272,10 @@ export const resumePreviewWorkflowIfNeededInternal = internalAction({
       { sessionId }
     );
 
-    if (orchestrationState.readyCount >= PREVIEW_MIN_READY_COUNT) {
+    if (orchestrationState.rankedPreviewIds.length >= PREVIEW_MIN_READY_COUNT) {
       await ctx.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId,
-        previewProspectIds: orchestrationState.rankedReadyIds.slice(
+        previewProspectIds: orchestrationState.rankedPreviewIds.slice(
           0,
           PREVIEW_TARGET_COUNT
         ),
@@ -2522,9 +2577,7 @@ export const getSetupPreviewCandidateIdsInternal = internalQuery({
     }
 
     const prospects = await listSetupPreviewProspects(ctx.db, session);
-    return sortPreviewCandidates(
-      prospects.filter((prospect) => isProspectReadyQualifiedEnriched(prospect))
-    ).map((prospect) => prospect._id);
+    return buildSetupPreviewOrchestrationState(prospects).rankedPreviewIds;
   },
 });
 
@@ -2544,7 +2597,11 @@ export const getSetupPreviewProgressInternal = internalQuery({
     }
 
     const prospects = await listSetupPreviewProspects(ctx.db, session);
-    return buildPreviewProgressState(session, prospects);
+    const previewCandidateIds = resolveSetupPreviewCandidateIds(
+      session,
+      prospects
+    );
+    return buildPreviewProgressState(previewCandidateIds.length, prospects);
   },
 });
 
@@ -2557,11 +2614,13 @@ export const getSetupPreviewOrchestrationStateInternal = internalQuery({
     if (!session) {
       return {
         readyCount: 0,
+        discoveredCandidateCount: 0,
         qualifiedCount: 0,
         pendingQualificationCount: 0,
         inFlightEnrichmentCount: 0,
         rankedQualifiedIds: [] as Id<"prospects">[],
         rankedReadyIds: [] as Id<"prospects">[],
+        rankedPreviewIds: [] as Id<"prospects">[],
       };
     }
 
@@ -2609,7 +2668,7 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
     const orchestrationState = buildSetupPreviewOrchestrationState(
       await listSetupPreviewProspects(ctx.db, session)
     );
-    if (orchestrationState.readyCount < PREVIEW_MIN_READY_COUNT) {
+    if (orchestrationState.rankedPreviewIds.length < PREVIEW_MIN_READY_COUNT) {
       if (!session.previewWorkflowId) {
         await ctx.scheduler.runAfter(
           0,
@@ -2621,11 +2680,11 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
       }
       return {
         updated: false,
-        selectedCount: orchestrationState.readyCount,
+        selectedCount: orchestrationState.rankedPreviewIds.length,
       };
     }
 
-    const selectedIds = orchestrationState.rankedReadyIds.slice(
+    const selectedIds = orchestrationState.rankedPreviewIds.slice(
       0,
       PREVIEW_TARGET_COUNT
     );

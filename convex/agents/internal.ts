@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { z } from "zod";
 import { internal } from "../_generated/api";
 import { robustGenerateObject } from "../lib/ai";
+import { isRecord } from "../lib/typeGuards";
 import {
   prospectPlatformValidator,
   workspaceUseCaseKeyValidator,
@@ -38,6 +39,7 @@ const socialQueriesSchema = z.object({
 });
 
 type GeneratedSocialQuery = z.infer<typeof socialQueryItemSchema>;
+type SocialQueriesObject = z.infer<typeof socialQueriesSchema>;
 type SocialQueryMetadata = {
   query: string;
   sourceKeyword?: string;
@@ -48,23 +50,266 @@ type SocialQueryMetadata = {
   legacyCompatibilitySource: boolean;
 };
 
+const MAX_SOCIAL_QUERY_CHARS = 40;
+const MAX_SOCIAL_QUERY_ITEMS_PER_GROUP = 15;
+const PEOPLE_QUERY_HINTS = [
+  "architect",
+  "consultant",
+  "cto",
+  "designer",
+  "developer",
+  "director",
+  "engineer",
+  "founder",
+  "head",
+  "lead",
+  "manager",
+  "marketer",
+  "owner",
+  "president",
+  "recruiter",
+  "specialist",
+  "vp",
+] as const;
+
+function normalizeSearchText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeSocialQueryText(value: string) {
+  const normalized = normalizeSearchText(value);
+  if (normalized.length <= MAX_SOCIAL_QUERY_CHARS) {
+    return normalized;
+  }
+
+  const clipped = normalized.slice(0, MAX_SOCIAL_QUERY_CHARS).trimEnd();
+  const lastSpace = clipped.lastIndexOf(" ");
+  return (lastSpace >= 16 ? clipped.slice(0, lastSpace) : clipped).trimEnd();
+}
+
 function dedupeQueryItems(items: GeneratedSocialQuery[]) {
   const seen = new Set<string>();
   const deduped: GeneratedSocialQuery[] = [];
 
   for (const item of items) {
-    const query = item.query.trim();
+    const query = normalizeSocialQueryText(item.query);
     if (!query) continue;
     const key = query.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push({
       query,
-      sourceKeyword: item.sourceKeyword?.trim() || undefined,
+      sourceKeyword: item.sourceKeyword
+        ? normalizeSearchText(item.sourceKeyword) || undefined
+        : undefined,
     });
   }
 
   return deduped;
+}
+
+function normalizeSocialQueryItemPayload(value: unknown): unknown {
+  if (typeof value === "string") {
+    return { query: normalizeSocialQueryText(value) };
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    query:
+      typeof value.query === "string"
+        ? normalizeSocialQueryText(value.query)
+        : value.query,
+    sourceKeyword:
+      typeof value.sourceKeyword === "string"
+        ? normalizeSearchText(value.sourceKeyword)
+        : value.sourceKeyword,
+  };
+}
+
+function normalizeSocialQueryArrayPayload(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .slice(0, MAX_SOCIAL_QUERY_ITEMS_PER_GROUP)
+    .map(normalizeSocialQueryItemPayload);
+}
+
+function normalizeSocialQueriesPayload(value: unknown): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    twitterQueries: normalizeSocialQueryArrayPayload(value.twitterQueries),
+    linkedinPostQueries: normalizeSocialQueryArrayPayload(
+      value.linkedinPostQueries
+    ),
+    linkedinPeopleQueries: normalizeSocialQueryArrayPayload(
+      value.linkedinPeopleQueries
+    ),
+    reasoning:
+      typeof value.reasoning === "string"
+        ? value.reasoning
+        : "Converted keywords into platform discovery queries.",
+  };
+}
+
+function isLikelyPeopleQuery(query: string) {
+  const normalized = query.toLowerCase();
+  return PEOPLE_QUERY_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function copyQueryItems(items: GeneratedSocialQuery[]) {
+  return items.map((item) => ({ ...item }));
+}
+
+function buildKeywordFallbackSocialQueries(args: {
+  keywords: string[];
+  includeTwitter: boolean;
+  includeLinkedIn: boolean;
+}): SocialQueriesObject {
+  const baseQueries = dedupeQueryItems(
+    args.keywords.map((keyword) => ({
+      query: keyword,
+      sourceKeyword: keyword,
+    }))
+  ).slice(0, MAX_SOCIAL_QUERY_ITEMS_PER_GROUP);
+  const peopleQueries = baseQueries.filter((item) =>
+    isLikelyPeopleQuery(item.query)
+  );
+
+  return {
+    twitterQueries: args.includeTwitter ? copyQueryItems(baseQueries) : [],
+    linkedinPostQueries: args.includeLinkedIn ? copyQueryItems(baseQueries) : [],
+    linkedinPeopleQueries: args.includeLinkedIn
+      ? copyQueryItems(peopleQueries)
+      : [],
+    reasoning:
+      "AI query conversion was unavailable, so discovery is using keyword-based fallback queries.",
+  };
+}
+
+function buildSocialQueryActionResult(args: {
+  object: SocialQueriesObject;
+  includeTwitter: boolean;
+  includeLinkedIn: boolean;
+}): {
+  success: true;
+  socialQueries: string[];
+  queriesByPlatform: {
+    twitter: string[];
+    linkedin: {
+      posts: string[];
+      people: string[];
+    };
+  };
+  queryMetadata: SocialQueryMetadata[];
+  reasoning: string;
+} {
+  const twitterQueries = args.includeTwitter
+    ? dedupeQueryItems(args.object.twitterQueries)
+    : [];
+  const linkedinPostQueries = args.includeLinkedIn
+    ? dedupeQueryItems(args.object.linkedinPostQueries)
+    : [];
+  const linkedinPeopleQueries = args.includeLinkedIn
+    ? dedupeQueryItems(args.object.linkedinPeopleQueries)
+    : [];
+
+  const metadataMap = new Map<string, SocialQueryMetadata>();
+  const appendMetadata = (
+    items: GeneratedSocialQuery[],
+    metadata: Omit<SocialQueryMetadata, "query" | "sourceKeyword">
+  ) => {
+    for (const item of items) {
+      const key = item.query.toLowerCase();
+      const existing = metadataMap.get(key);
+      if (existing) {
+        const platformTargets = Array.from(
+          new Set<"twitter" | "linkedin">([
+            ...existing.platformTargets,
+            ...metadata.platformTargets,
+          ])
+        );
+        const linkedinSurfaceTargets = Array.from(
+          new Set<"posts" | "people">([
+            ...(existing.linkedinSurfaceTargets ?? []),
+            ...(metadata.linkedinSurfaceTargets ?? []),
+          ])
+        );
+        const mergedMetadata: SocialQueryMetadata = {
+          ...existing,
+          platformTargets,
+        };
+
+        if (linkedinSurfaceTargets.length > 0) {
+          mergedMetadata.linkedinSurfaceTargets = linkedinSurfaceTargets;
+          if (linkedinSurfaceTargets.length === 1) {
+            mergedMetadata.linkedinSurface = linkedinSurfaceTargets[0];
+          } else {
+            delete mergedMetadata.linkedinSurface;
+          }
+        }
+
+        metadataMap.set(key, mergedMetadata);
+        continue;
+      }
+
+      metadataMap.set(key, {
+        query: item.query,
+        sourceKeyword: item.sourceKeyword,
+        ...metadata,
+      });
+    }
+  };
+
+  appendMetadata(twitterQueries, {
+    platformTargets: ["twitter"],
+    queryStyle: "natural_phrase",
+    legacyCompatibilitySource: true,
+  });
+  appendMetadata(linkedinPostQueries, {
+    platformTargets: ["linkedin"],
+    linkedinSurface: "posts",
+    linkedinSurfaceTargets: ["posts"],
+    queryStyle: "professional_keyword",
+    legacyCompatibilitySource: true,
+  });
+  appendMetadata(linkedinPeopleQueries, {
+    platformTargets: ["linkedin"],
+    linkedinSurface: "people",
+    linkedinSurfaceTargets: ["people"],
+    queryStyle: "role_title",
+    legacyCompatibilitySource: true,
+  });
+
+  // LEGACY COMPAT: keep a flattened socialQueries array until all
+  // consumers read queriesByPlatform/queryMetadata and historical
+  // social_query rows without per-platform metadata have been aged out.
+  const socialQueries = Array.from(metadataMap.values()).map(
+    (item) => item.query
+  );
+
+  return {
+    success: true,
+    socialQueries,
+    queriesByPlatform: {
+      twitter: twitterQueries.map((item) => item.query),
+      linkedin: {
+        posts: linkedinPostQueries.map((item) => item.query),
+        people: linkedinPeopleQueries.map((item) => item.query),
+      },
+    },
+    queryMetadata: Array.from(metadataMap.values()),
+    reasoning: args.object.reasoning,
+  };
 }
 
 type DiscoveryGenerationContext = {
@@ -437,9 +682,11 @@ If a platform is not requested, return an empty array for that group.`;
         schema: socialQueriesSchema,
         system: buildSocialQueryPrompt(args.useCaseKey),
         prompt: userPrompt,
-        temperature: 0.8,
-        maxRetries: 2,
-        routing: args.workspaceId ? "reasoning" : "fast",
+        temperature: 0.45,
+        maxRetries: 1,
+        routing: "fast",
+        normalizeParsed: normalizeSocialQueriesPayload,
+        failureLogLevel: "info",
       });
 
       const durationMs = getCurrentUTCTimestamp() - startTime;
@@ -456,91 +703,32 @@ If a platform is not requested, return an empty array for that group.`;
         "ms"
       );
 
-      const twitterQueries = includeTwitter
-        ? dedupeQueryItems(object.twitterQueries)
-        : [];
-      const linkedinPostQueries = includeLinkedIn
-        ? dedupeQueryItems(object.linkedinPostQueries)
-        : [];
-      const linkedinPeopleQueries = includeLinkedIn
-        ? dedupeQueryItems(object.linkedinPeopleQueries)
-        : [];
-
-      const metadataMap = new Map<string, SocialQueryMetadata>();
-      const appendMetadata = (
-        items: GeneratedSocialQuery[],
-        metadata: Omit<SocialQueryMetadata, "query" | "sourceKeyword">
-      ) => {
-        for (const item of items) {
-          const key = item.query.toLowerCase();
-          if (metadataMap.has(key)) {
-            continue;
-          }
-
-          metadataMap.set(key, {
-            query: item.query,
-            sourceKeyword: item.sourceKeyword,
-            ...metadata,
-          });
-        }
-      };
-
-      appendMetadata(twitterQueries, {
-        platformTargets: ["twitter"],
-        queryStyle: "natural_phrase",
-        legacyCompatibilitySource: true,
+      return buildSocialQueryActionResult({
+        object,
+        includeTwitter,
+        includeLinkedIn,
       });
-      appendMetadata(linkedinPostQueries, {
-        platformTargets: ["linkedin"],
-        linkedinSurface: "posts",
-        linkedinSurfaceTargets: ["posts"],
-        queryStyle: "professional_keyword",
-        legacyCompatibilitySource: true,
-      });
-      appendMetadata(linkedinPeopleQueries, {
-        platformTargets: ["linkedin"],
-        linkedinSurface: "people",
-        linkedinSurfaceTargets: ["people"],
-        queryStyle: "role_title",
-        legacyCompatibilitySource: true,
-      });
-
-      // LEGACY COMPAT: keep a flattened socialQueries array until all
-      // consumers read queriesByPlatform/queryMetadata and historical
-      // social_query rows without per-platform metadata have been aged out.
-      const socialQueries = Array.from(metadataMap.values()).map(
-        (item) => item.query
-      );
-
-      return {
-        success: true,
-        socialQueries,
-        queriesByPlatform: {
-          twitter: twitterQueries.map((item) => item.query),
-          linkedin: {
-            posts: linkedinPostQueries.map((item) => item.query),
-            people: linkedinPeopleQueries.map((item) => item.query),
-          },
-        },
-        queryMetadata: Array.from(metadataMap.values()),
-        reasoning: object.reasoning,
-      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      console.error(
-        "[convertToSocialQueries] Failed:",
+      console.info(
+        "[convertToSocialQueries] AI conversion failed; using keyword fallback:",
         errorMessage,
         "after",
         getCurrentUTCTimestamp() - startTime,
         "ms"
       );
 
-      return {
-        success: false,
-        error: `Failed to convert keywords: ${errorMessage}`,
-      };
+      return buildSocialQueryActionResult({
+        object: buildKeywordFallbackSocialQueries({
+          keywords: args.keywords,
+          includeTwitter,
+          includeLinkedIn,
+        }),
+        includeTwitter,
+        includeLinkedIn,
+      });
     }
   },
 });

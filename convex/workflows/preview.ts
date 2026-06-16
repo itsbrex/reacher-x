@@ -22,11 +22,13 @@ type PreviewWorkflowResult = {
 
 type PreviewOrchestrationState = {
   readyCount: number;
+  discoveredCandidateCount: number;
   qualifiedCount: number;
   pendingQualificationCount: number;
   inFlightEnrichmentCount: number;
   rankedQualifiedIds: Id<"prospects">[];
   rankedReadyIds: Id<"prospects">[];
+  rankedPreviewIds: Id<"prospects">[];
 };
 
 type PreviewSchedulingState = {
@@ -55,12 +57,16 @@ function getPreviewReadyOrInFlightCount(
   return state.readyCount + state.inFlightEnrichmentCount + state.enqueuedCount;
 }
 
-function hasEnoughPreviewReady(state: Pick<PreviewSchedulingState, "readyCount">) {
-  return state.readyCount >= PREVIEW_BATCH_LIMITS.minReadyCount;
+function hasEnoughPreviewReady(
+  state: Pick<PreviewOrchestrationState, "rankedPreviewIds">
+) {
+  return state.rankedPreviewIds.length >= PREVIEW_BATCH_LIMITS.minReadyCount;
 }
 
-function selectPreviewProspectIds(state: Pick<PreviewOrchestrationState, "rankedReadyIds">) {
-  return state.rankedReadyIds.slice(0, PREVIEW_BATCH_LIMITS.readyTargetCount);
+function selectPreviewProspectIds(
+  state: Pick<PreviewOrchestrationState, "rankedPreviewIds">
+) {
+  return state.rankedPreviewIds.slice(0, PREVIEW_BATCH_LIMITS.readyTargetCount);
 }
 
 export const previewWorkflow = workflow.define({
