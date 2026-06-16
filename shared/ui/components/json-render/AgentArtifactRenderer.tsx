@@ -251,6 +251,7 @@ function ProfilePreviewArtifactCard({
   ) : (
     <InlineProfilePreviewCard
       variant={props.variant}
+      prospectId={props.prospectId}
       platform={props.platform}
       profileData={asRecord(props.profileData) ?? {}}
       label={props.label}

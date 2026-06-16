@@ -179,12 +179,16 @@ function getAnimatedPartsFromFormattedCount(value: number): {
 export function TwitterProfilePanel({
   className,
   prospectId,
-  onOpenConversation,
+  onOpenConversationAction,
+  onBackAction,
+  disableMobileDrawer = false,
 }: {
   className?: string;
   mobile?: boolean;
   prospectId?: string;
-  onOpenConversation?: () => void;
+  onOpenConversationAction?: () => void;
+  onBackAction?: () => void;
+  disableMobileDrawer?: boolean;
 }) {
   const {
     isOpen,
@@ -204,7 +208,7 @@ export function TwitterProfilePanel({
   } = useProfile();
   const isMobile = useIsMobile();
   const dmState = useProspectDmState(prospectId, {
-    enabled: Boolean(prospectId && onOpenConversation),
+    enabled: Boolean(prospectId && onOpenConversationAction),
     platform: "twitter",
   });
 
@@ -276,6 +280,11 @@ export function TwitterProfilePanel({
     return null;
   }
 
+  const handleBack = () => {
+    closeProfile();
+    onBackAction?.();
+  };
+
   const panel = (
     <aside
       className={cn(
@@ -286,7 +295,7 @@ export function TwitterProfilePanel({
       <PageLayout className="flex h-full flex-col md:w-full">
         <PageHeader
           title="Profile"
-          onBack={closeProfile}
+          onBack={handleBack}
           titleSuffix={
             <div className="text-muted-foreground flex items-center gap-1 text-xs">
               <span aria-hidden>·</span>
@@ -445,7 +454,7 @@ export function TwitterProfilePanel({
                           primaryLabel={relationship?.primaryLabel}
                           onRelationshipChange={() => refreshProfileDisplay()}
                           conversationAction={
-                            onOpenConversation ? (
+                            onOpenConversationAction ? (
                               <Button
                                 variant="outline"
                                 size="xsIcon"
@@ -453,7 +462,7 @@ export function TwitterProfilePanel({
                                 disabled={!dmEligibility.enabled}
                                 onClick={
                                   dmEligibility.enabled
-                                    ? onOpenConversation
+                                    ? onOpenConversationAction
                                     : undefined
                                 }
                                 title={
@@ -623,9 +632,9 @@ export function TwitterProfilePanel({
     </aside>
   );
 
-  if (isMobile) {
+  if (isMobile && !disableMobileDrawer) {
     return (
-      <Drawer open onOpenChange={(open) => !open && closeProfile()}>
+      <Drawer open onOpenChange={(open) => !open && handleBack()}>
         <DrawerContent className="mt-0 flex h-dvh max-h-dvh">
           <div className="flex h-full w-full flex-col">
             <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto">

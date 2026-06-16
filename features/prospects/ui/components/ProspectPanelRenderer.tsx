@@ -131,7 +131,7 @@ export function ProspectPanelRenderer({
           <TwitterProfilePanel
             className={className}
             prospectId={twitterProfileProspectId}
-            onOpenConversation={
+            onOpenConversationAction={
               twitterProfileProspectId
                 ? () => {
                     pushPanel("platform-conversation", {

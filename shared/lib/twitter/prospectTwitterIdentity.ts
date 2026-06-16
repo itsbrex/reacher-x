@@ -22,6 +22,12 @@ function asBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
 /** Numeric X user id when present on enriched prospect data (`id_str` / `rest_id`). */
 function readTwitterUserId(user: Record<string, unknown>): string | undefined {
   const idStr = asString(user.id_str);
@@ -42,8 +48,15 @@ export type ProspectTwitterIdentity = {
   username?: string;
   displayName: string;
   title?: string;
+  bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   profileUrl?: string;
+  websiteUrl?: string;
+  location?: string;
+  followersCount?: number;
+  followingCount?: number;
+  joinedAt?: string;
   verified?: boolean;
   canDm?: boolean;
   /** X user id for API participant_id when enrichment stored it */
@@ -54,29 +67,31 @@ export type ProspectTwitterIdentity = {
  * @param prospect - Typically `Doc<"prospects">` or a plain object with the same fields
  */
 export function resolveProspectTwitterIdentity(
-  prospect: Record<string, unknown>
+  prospect: unknown
 ): ProspectTwitterIdentity {
-  const data = asRecord(prospect.data);
-  const socialProfiles = asRecord(prospect.socialProfiles);
+  const prospectRecord = asRecord(prospect) ?? {};
+  const data = asRecord(prospectRecord.data);
+  const socialProfiles = asRecord(prospectRecord.socialProfiles);
   const twitterSocial = asRecord(socialProfiles?.twitter);
   const user = asRecord(data?.user);
   const username =
     asString(user?.screen_name) ??
     asString(twitterSocial?.username) ??
     extractTwitterUsername(asString(twitterSocial?.url) ?? "") ??
-    extractTwitterUsername(asString(prospect.profileUrl) ?? "");
+    extractTwitterUsername(asString(prospectRecord.profileUrl) ?? "");
   const avatarUrl =
     asString(user?.profile_image_url_https) ??
     asString(user?.profile_image_url) ??
-    asString(prospect.avatarUrl);
+    asString(prospectRecord.avatarUrl);
   const displayName =
-    asString(prospect.displayName) ??
+    asString(prospectRecord.displayName) ??
     asString(user?.name) ??
     username ??
     "Unknown";
   const profileUrl = username
     ? `https://x.com/${username}`
     : asString(twitterSocial?.url);
+  const bio = asString(user?.description);
   const verified =
     asBoolean(user?.verified) ??
     (typeof user?.verified_type === "string" && user.verified_type !== "none");
@@ -91,9 +106,16 @@ export function resolveProspectTwitterIdentity(
   return {
     username,
     displayName,
-    title: asString(prospect.title),
+    title: asString(prospectRecord.title),
+    bio,
     avatarUrl,
+    bannerUrl: asString(user?.profile_banner_url),
     profileUrl,
+    websiteUrl: asString(user?.url),
+    location: asString(user?.location),
+    followersCount: asNumber(user?.followers_count),
+    followingCount: asNumber(user?.friends_count),
+    joinedAt: asString(user?.created_at),
     verified,
     canDm,
     userId,

@@ -50,20 +50,18 @@ import {
   LinkIcon,
   MailIcon,
   MoreHorizIcon,
-  NewReleasesIcon,
   OpenInNewIcon,
 } from "@/shared/ui/components/icons";
-import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import type { LinkedInProfileData } from "@/shared/lib/linkedin/profile";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import {
   base64UrlEncodeUtf8,
   cn,
-  formatLargeNumber,
   getCurrentUTCTimestamp,
 } from "@/shared/lib/utils";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
 import { useLinkedInPostEngagementMerge } from "@/shared/hooks/useLinkedInPostEngagementMerge";
+import { LinkedInProfileSummaryHeader } from "./LinkedInProfileSummaryHeader";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -129,21 +127,6 @@ function normalizeLinkedInDisplayText(text?: string): string {
     .replace(/\\n/g, "\n")
     .replace(/\\r/g, "\n")
     .trim();
-}
-
-function getAnimatedParts(value: number): {
-  value: number;
-  suffix?: string;
-  decimals: number;
-} {
-  const formatted = formatLargeNumber(value);
-  const match = /^(\d+(?:\.\d+)?)([A-Za-z]*)$/.exec(formatted);
-  if (!match) return { value, decimals: 0 };
-  return {
-    value: Number(match[1]),
-    suffix: match[2] || undefined,
-    decimals: /\.\d/.test(match[1]) ? 1 : 0,
-  };
 }
 
 function dedupeLinkedInPosts(posts: UnifiedPost[]): UnifiedPost[] {
@@ -510,16 +493,6 @@ export function LinkedInProfilePanel({
       ? `https://linkedin.com/in/${profileData.username}`
       : undefined);
 
-  const currentPosition = profileData?.positions?.find((p) => p.isCurrent);
-
-  const primaryWebsite =
-    profileData?.contact?.websites?.[0] ||
-    (profileData?.currentCompany?.website
-      ? { url: profileData.currentCompany.website, category: "COMPANY" }
-      : undefined);
-
-  const followerParts = getAnimatedParts(profileData?.followerCount ?? 0);
-  const connectionParts = getAnimatedParts(profileData?.connectionCount ?? 0);
   const recentPosts = React.useMemo(
     () => profileData?.recentPosts ?? [],
     [profileData?.recentPosts]
@@ -892,285 +865,118 @@ export function LinkedInProfilePanel({
   // Profile header (hero)
   // -----------------------------------------------------------------------
   const profileHeader = profileData ? (
-    <section className="border-b pb-4" aria-label="Profile summary">
-      {/* Banner */}
-      {profileData.backgroundImageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={profileData.backgroundImageUrl}
-          alt={`${profileData.displayName} banner`}
-          className="h-44 w-full border-b object-cover"
-        />
-      ) : (
-        <div className="bg-muted h-44 w-full border-b" aria-hidden="true" />
-      )}
+    <LinkedInProfileSummaryHeader
+      profile={{
+        ...profileData,
+        profileUrl,
+      }}
+      actions={
+        <>
+          <Button
+            size="xs"
+            variant={connectionState === "connected" ? "outline" : "default"}
+            disabled={
+              pendingConnectionAction ||
+              isRelationshipStatusPending ||
+              isRelationshipActionUnavailable ||
+              connectionState === "pending" ||
+              (profileData.viewerAccountConnected === true && !prospectId)
+            }
+            title={
+              isRelationshipActionUnavailable
+                ? "Could not verify this LinkedIn relationship right now."
+                : undefined
+            }
+            onClick={() => void handleConnectionAction()}
+          >
+            {pendingConnectionAction
+              ? "Connecting..."
+              : profileData.viewerAccountConnected !== true
+                ? "Connect account"
+                : isRelationshipStatusPending
+                  ? "Checking..."
+                  : isRelationshipActionUnavailable
+                    ? "Unavailable"
+                    : connectionState === "connected"
+                      ? "Connected"
+                      : connectionState === "pending"
+                        ? "Pending"
+                        : "Connect"}
+          </Button>
 
-      <div className="mx-4 -mt-7 space-y-3">
-        {/* Avatar */}
-        <header className="space-y-3">
-          <Avatar className="ring-border ring-offset-background size-12 ring-1 ring-offset-2">
-            {profileData.profilePictureUrl ? (
-              <AvatarImage
-                src={profileData.profilePictureUrl}
-                alt={profileData.displayName}
-              />
-            ) : null}
-            <AvatarFallback>
-              {profileData.firstName?.charAt(0).toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-
-          {/* Name + badge + location + actions */}
-          <div className="space-y-2">
-            {/* Row 1: Name + action buttons */}
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-1">
-                {profileUrl ? (
-                  <Link
-                    href={profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block min-w-0 truncate text-sm font-medium hover:underline"
-                    title={profileData.displayName}
-                  >
-                    {profileData.displayName}
-                  </Link>
-                ) : (
-                  <span className="text-sm font-medium">
-                    {profileData.displayName}
-                  </span>
-                )}
-                {profileData.isPremium ? (
-                  <NewReleasesIcon
-                    className="size-3.5 shrink-0 fill-current"
-                    aria-hidden="true"
-                  />
-                ) : null}
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  size="xs"
-                  variant={
-                    connectionState === "connected" ? "outline" : "default"
-                  }
-                  disabled={
-                    pendingConnectionAction ||
-                    isRelationshipStatusPending ||
-                    isRelationshipActionUnavailable ||
-                    connectionState === "pending" ||
-                    (profileData.viewerAccountConnected === true && !prospectId)
-                  }
-                  title={
-                    isRelationshipActionUnavailable
-                      ? "Could not verify this LinkedIn relationship right now."
-                      : undefined
-                  }
-                  onClick={() => void handleConnectionAction()}
-                >
-                  {pendingConnectionAction
-                    ? "Connecting..."
-                    : profileData.viewerAccountConnected !== true
-                      ? "Connect account"
-                      : isRelationshipStatusPending
-                        ? "Checking..."
-                        : isRelationshipActionUnavailable
-                          ? "Unavailable"
-                      : connectionState === "connected"
-                        ? "Connected"
-                        : connectionState === "pending"
-                          ? "Pending"
-                          : "Connect"}
-                </Button>
-
-                {/* Message */}
-                {onOpenConversation ? (
-                  <Button
-                    variant="outline"
-                    size="xsIcon"
-                    aria-label="Message on LinkedIn"
-                    onClick={onOpenConversation}
-                  >
-                    <MailIcon className="fill-current" />
-                  </Button>
-                ) : null}
-
-                {/* More menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="xsIcon"
-                      aria-label="Profile menu"
-                    >
-                      <MoreHorizIcon className="fill-current" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {profileUrl ? (
-                      <DropdownMenuItem
-                        onClick={() => window.open(profileUrl, "_blank")}
-                      >
-                        <OpenInNewIcon className="fill-current" />
-                        Open on LinkedIn
-                      </DropdownMenuItem>
-                    ) : null}
-                    {profileUrl ? (
-                      <DropdownMenuItem
-                        onClick={() =>
-                          navigator.clipboard.writeText(profileUrl).then(
-                            () =>
-                              toast.success("Copied!", {
-                                description: "Profile link copied.",
-                              }),
-                            () =>
-                              toast.error("Error!", {
-                                description: "Unable to copy link.",
-                              })
-                          )
-                        }
-                      >
-                        <LinkIcon className="fill-current" />
-                        Copy profile link
-                      </DropdownMenuItem>
-                    ) : null}
-                    {profileData.contact?.emailAddress ? (
-                      <DropdownMenuItem
-                        onClick={() =>
-                          navigator.clipboard
-                            .writeText(profileData.contact!.emailAddress!)
-                            .then(
-                              () =>
-                                toast.success("Copied!", {
-                                  description: "Email copied.",
-                                }),
-                              () =>
-                                toast.error("Error!", {
-                                  description: "Unable to copy email.",
-                                })
-                            )
-                        }
-                      >
-                        <AlternateEmailIcon className="fill-current" />
-                        Copy email address
-                      </DropdownMenuItem>
-                    ) : null}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            {/* Row 2: Headline + Location */}
-            {profileData.headline ? (
-              <p className="text-muted-foreground line-clamp-2 text-sm">
-                {profileData.headline}
-              </p>
-            ) : null}
-            {profileData.location ? (
-              <p className="text-muted-foreground text-xs">
-                {profileData.location}
-              </p>
-            ) : null}
-          </div>
-        </header>
-
-        {/* Stats strip: connections · followers · company · website */}
-        {(() => {
-          const items: React.ReactElement[] = [];
-          if ((profileData.connectionCount ?? 0) > 0) {
-            items.push(
-              <li key="conn" className="inline-flex items-center">
-                <span className="text-foreground font-mono font-medium">
-                  <AnimatedNumber
-                    value={connectionParts.value}
-                    suffix={
-                      connectionParts.suffix
-                        ? `${connectionParts.suffix}+`
-                        : "+"
-                    }
-                    decimals={connectionParts.decimals}
-                    format={{ useGrouping: false }}
-                    animateOnMount
-                  />
-                </span>
-                &nbsp;connections
-              </li>
-            );
-          }
-          if ((profileData.followerCount ?? 0) > 0) {
-            items.push(
-              <li key="foll" className="inline-flex items-center">
-                <span className="text-foreground font-mono font-medium">
-                  <AnimatedNumber
-                    value={followerParts.value}
-                    suffix={followerParts.suffix}
-                    decimals={followerParts.decimals}
-                    format={{ useGrouping: false }}
-                    animateOnMount
-                  />
-                </span>
-                &nbsp;followers
-              </li>
-            );
-          }
-          if (currentPosition) {
-            items.push(
-              <li key="co" className="inline-flex items-center gap-1">
-                {currentPosition.companyLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentPosition.companyLogo}
-                    alt=""
-                    className="size-3.5 rounded-sm object-contain"
-                  />
-                ) : null}
-                <span className="text-foreground font-medium">
-                  {currentPosition.companyName}
-                </span>
-              </li>
-            );
-          }
-          if (primaryWebsite) {
-            items.push(
-              <li key="web" className="inline-flex items-center gap-1">
-                <LinkIcon className="fill-muted-foreground" />
-                <Link
-                  href={primaryWebsite.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-foreground font-mono font-medium hover:underline"
-                  title={primaryWebsite.url}
-                >
-                  {safeHostname(primaryWebsite.url)}
-                </Link>
-              </li>
-            );
-          }
-          if (items.length === 0) return null;
-          return (
-            <ul
-              className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-2 text-sm"
-              role="list"
-              aria-label="Profile stats"
+          {onOpenConversation ? (
+            <Button
+              variant="outline"
+              size="xsIcon"
+              aria-label="Message on LinkedIn"
+              onClick={onOpenConversation}
             >
-              {items.map((item, idx) => (
-                <React.Fragment key={item.key ?? `profile-stat-${idx}`}>
-                  {idx > 0 ? (
-                    <li aria-hidden className="px-0.5">
-                      ·
-                    </li>
-                  ) : null}
-                  {item}
-                </React.Fragment>
-              ))}
-            </ul>
-          );
-        })()}
-      </div>
-    </section>
+              <MailIcon className="fill-current" />
+            </Button>
+          ) : null}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="xsIcon" aria-label="Profile menu">
+                <MoreHorizIcon className="fill-current" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {profileUrl ? (
+                <DropdownMenuItem
+                  onClick={() => window.open(profileUrl, "_blank")}
+                >
+                  <OpenInNewIcon className="fill-current" />
+                  Open on LinkedIn
+                </DropdownMenuItem>
+              ) : null}
+              {profileUrl ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    navigator.clipboard.writeText(profileUrl).then(
+                      () =>
+                        toast.success("Copied!", {
+                          description: "Profile link copied.",
+                        }),
+                      () =>
+                        toast.error("Error!", {
+                          description: "Unable to copy link.",
+                        })
+                    )
+                  }
+                >
+                  <LinkIcon className="fill-current" />
+                  Copy profile link
+                </DropdownMenuItem>
+              ) : null}
+              {profileData.contact?.emailAddress ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    navigator.clipboard
+                      .writeText(profileData.contact!.emailAddress!)
+                      .then(
+                        () =>
+                          toast.success("Copied!", {
+                            description: "Email copied.",
+                          }),
+                        () =>
+                          toast.error("Error!", {
+                            description: "Unable to copy email.",
+                          })
+                      )
+                  }
+                >
+                  <AlternateEmailIcon className="fill-current" />
+                  Copy email address
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      }
+    />
   ) : null;
 
   // -----------------------------------------------------------------------

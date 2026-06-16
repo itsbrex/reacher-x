@@ -90,6 +90,8 @@ const outreachLanguageModel = wrapLanguageModel({
   middleware: openRouterMetadataMiddleware,
 });
 
+const OUTREACH_AGENT_MAX_OUTPUT_TOKENS = 1024;
+
 // ============================================================================
 // Context Handler - Injects prospect data into LLM context
 // Per docs/convex/llm-context.md: Use contextHandler to inject prospect context
@@ -313,6 +315,9 @@ export const outreachAgent = new Agent(components.agent, {
   tools: outreachAgentBaseTools,
   // Allow multi-step for complex plan refinement
   maxSteps: 15,
+  callSettings: {
+    maxOutputTokens: OUTREACH_AGENT_MAX_OUTPUT_TOKENS,
+  },
   contextOptions: {
     recentMessages: 20,
     // Enable hybrid text + vector search per docs/convex/llm-context.md

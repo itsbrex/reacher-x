@@ -107,16 +107,35 @@ export type TwitterProfileSummary = {
 export type LinkedInProfileSummary = {
   kind: "linkedin";
   username?: string;
+  firstName?: string;
   displayName: string;
   avatarUrl?: string;
+  profilePictureUrl?: string;
   bannerUrl?: string;
+  backgroundImageUrl?: string;
   profileUrl?: string;
   headline?: string;
   summary?: string;
   location?: string;
   followerCount?: number;
   connectionCount?: number;
+  isPremium?: boolean;
   currentCompanyName?: string;
+  currentCompanyLogo?: string;
+  currentCompanyWebsite?: string;
+  contact?: {
+    websites?: Array<{ url: string; category?: string }>;
+  };
+  positions?: Array<{
+    companyName: string;
+    companyLogo?: string;
+    isCurrent?: boolean;
+  }>;
+  currentCompany?: {
+    name: string;
+    website?: string;
+    logoUrl?: string;
+  };
 };
 
 export type NormalizedSocialProfile =
@@ -825,20 +844,69 @@ async function fetchLinkedInProfile(
     if (!result) {
       return null;
     }
+    const currentPosition = result.positions.find(
+      (position) => position.isCurrent
+    );
+    const supplemental = await ctx
+      .runAction(api.linkedin.getLinkedInProfileSupplemental, {
+        prospectId: prospect._id as Id<"prospects">,
+        profileUrn: result.urn,
+        username: result.username,
+        providerId: result.urn,
+        currentCompanyId: currentPosition?.companyId,
+        currentCompanyName:
+          result.currentCompany?.name ?? currentPosition?.companyName,
+      })
+      .catch(() => null);
+    const merged = {
+      ...result,
+      ...supplemental,
+      contact: supplemental?.contact ?? result.contact,
+      currentCompany: supplemental?.currentCompany ?? result.currentCompany,
+      featuredPosts: supplemental?.featuredPosts ?? result.featuredPosts,
+      positions: result.positions,
+      recentPosts: result.recentPosts,
+      recentPostsCursor: result.recentPostsCursor,
+    };
+    const mergedCurrentPosition = merged.positions.find(
+      (position) => position.isCurrent
+    );
+    const currentCompany =
+      merged.currentCompany ??
+      (mergedCurrentPosition
+        ? {
+            name: mergedCurrentPosition.companyName,
+            website: mergedCurrentPosition.companyUrl,
+            logoUrl: mergedCurrentPosition.companyLogo,
+          }
+        : undefined);
 
     return {
       kind: "linkedin",
-      username: result.username,
-      displayName: result.displayName,
-      avatarUrl: result.profilePictureUrl,
-      bannerUrl: result.backgroundImageUrl,
-      profileUrl: result.profileUrl,
-      headline: result.headline,
-      summary: result.summary,
-      location: result.location,
-      followerCount: result.followerCount,
-      connectionCount: result.connectionCount,
-      currentCompanyName: result.currentCompany?.name,
+      username: merged.username,
+      firstName: merged.firstName,
+      displayName: merged.displayName,
+      avatarUrl: merged.profilePictureUrl,
+      profilePictureUrl: merged.profilePictureUrl,
+      bannerUrl: merged.backgroundImageUrl,
+      backgroundImageUrl: merged.backgroundImageUrl,
+      profileUrl: merged.profileUrl,
+      headline: merged.headline,
+      summary: merged.summary,
+      location: merged.location,
+      followerCount: merged.followerCount,
+      connectionCount: merged.connectionCount,
+      isPremium: merged.isPremium,
+      currentCompanyName: currentCompany?.name,
+      currentCompanyLogo: currentCompany?.logoUrl,
+      currentCompanyWebsite: currentCompany?.website,
+      contact: merged.contact,
+      positions: merged.positions.map((position) => ({
+        companyName: position.companyName,
+        companyLogo: position.companyLogo,
+        isCurrent: position.isCurrent,
+      })),
+      currentCompany,
     };
   } catch {
     const identity = resolveLinkedInIdentity(prospect);

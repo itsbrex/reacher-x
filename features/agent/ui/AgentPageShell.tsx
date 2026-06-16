@@ -667,7 +667,7 @@ export function AgentPageShell() {
           <TwitterProfilePanel
             className="flex h-full min-h-0 w-full flex-1 flex-col"
             prospectId={prospectId ?? undefined}
-            onOpenConversation={
+            onOpenConversationAction={
               hasProspectContext ? handleOpenDmPanel : undefined
             }
           />

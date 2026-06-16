@@ -98,6 +98,10 @@ export interface ProspectProfilePanelProps {
     posts: unknown[];
     platform: "twitter" | "linkedin";
   }) => void;
+  /** Override X/Twitter profile panel behavior for embedded surfaces */
+  onOpenTwitterProfile?: (username: string) => void;
+  /** Override LinkedIn profile panel behavior for embedded surfaces */
+  onOpenLinkedInProfile?: (args: { prospectId: string; url?: string }) => void;
 }
 
 type ProfileTab =
@@ -115,6 +119,8 @@ export function ProspectProfilePanel({
   disableMobileDrawer = false,
   mode = "default",
   onOpenEvidencePosts,
+  onOpenTwitterProfile,
+  onOpenLinkedInProfile,
 }: ProspectProfilePanelProps) {
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
@@ -126,7 +132,6 @@ export function ProspectProfilePanel({
   const [activeTab, setActiveTab] = React.useState<ProfileTab>("overview");
   const [showFullIntro, setShowFullIntro] = React.useState(false);
   const isMobile = useIsMobile();
-  const isOnboardingPreview = mode === "onboarding_preview";
   const isUiPreview = mode === "ui_preview";
   const isReadOnlyPreview = mode !== "default";
 
@@ -181,25 +186,44 @@ export function ProspectProfilePanel({
   // Handle Twitter button - push Twitter profile panel
   const handleTwitterClick = React.useCallback(
     (username: string) => {
+      if (onOpenTwitterProfile) {
+        onOpenTwitterProfile(username);
+        return;
+      }
+
       void openProfile({ username });
       pushPanel("twitter-profile", { username });
     },
-    [openProfile, pushPanel]
+    [onOpenTwitterProfile, openProfile, pushPanel]
   );
+
+  const handleLinkedInProfileClick = React.useCallback(() => {
+    if (!prospect) {
+      return;
+    }
+
+    if (prospect.id) {
+      if (onOpenLinkedInProfile) {
+        onOpenLinkedInProfile({
+          prospectId: prospect.id,
+          url: prospect.socialProfiles?.linkedin?.url ?? prospect.profileUrl,
+        });
+        return;
+      }
+
+      pushPanel("linkedin-profile", { prospectId: prospect.id });
+      return;
+    }
+
+    const profileUrl =
+      prospect.socialProfiles?.linkedin?.url ?? prospect.profileUrl;
+    if (profileUrl) {
+      window.open(profileUrl, "_blank", "noopener,noreferrer");
+    }
+  }, [onOpenLinkedInProfile, prospect, pushPanel]);
 
   const handleViewPlatformProfile = React.useCallback(() => {
     if (!prospect) return;
-
-    if (isReadOnlyPreview) {
-      if (prospect.platform === "linkedin" && prospect.id) {
-        pushPanel("linkedin-profile", { prospectId: prospect.id });
-        return;
-      }
-      if (prospect.profileUrl) {
-        window.open(prospect.profileUrl, "_blank", "noopener,noreferrer");
-      }
-      return;
-    }
 
     if (prospect.platform === "twitter") {
       const username =
@@ -214,15 +238,15 @@ export function ProspectProfilePanel({
       return;
     }
 
-    if (prospect.platform === "linkedin" && prospect.id) {
-      pushPanel("linkedin-profile", { prospectId: prospect.id });
+    if (prospect.platform === "linkedin") {
+      handleLinkedInProfileClick();
       return;
     }
 
     if (prospect.profileUrl) {
       window.open(prospect.profileUrl, "_blank", "noopener,noreferrer");
     }
-  }, [handleTwitterClick, isReadOnlyPreview, prospect, pushPanel]);
+  }, [handleLinkedInProfileClick, handleTwitterClick, prospect]);
 
   const handleOpenDmPanel = () => {
     if (!prospect?.id) {
@@ -426,12 +450,8 @@ export function ProspectProfilePanel({
                     <section className="px-4 py-4">
                       <SocialProfileLinks
                         profiles={prospect.socialProfiles}
-                        onTwitterClick={
-                          isOnboardingPreview
-                            ? () => handleViewPlatformProfile()
-                            : handleTwitterClick
-                        }
-                        onLinkedInClick={() => handleViewPlatformProfile()}
+                        onTwitterClick={handleTwitterClick}
+                        onLinkedInClick={handleLinkedInProfileClick}
                       />
                     </section>
                   </TabsContent>

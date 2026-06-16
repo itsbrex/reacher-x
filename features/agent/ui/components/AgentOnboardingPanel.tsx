@@ -7,9 +7,11 @@ import { useAction, useMutation } from "convex/react";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
-import { buildSetupPreviewProfileData } from "@/features/agent/lib/setupPreviewProfileData";
+import type { SetupPreviewProfilePanelTarget } from "@/features/agent/lib/setupPreviewProfileData";
 import type { SetupInputMode } from "@/features/agent/lib/setupOnboarding";
-import { EvidencePostsPanel, ProspectProfilePanel } from "@/features/prospects";
+import { LinkedInProfilePanel } from "@/features/prospects";
+import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
+import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
 import { PageContent, PageHeader } from "@/features/webapp/ui/components";
 import {
   useActiveUseCaseLabels,
@@ -51,6 +53,9 @@ type VisibleStepRecord = {
 };
 
 type PanelStepId = (typeof FALLBACK_VISIBLE_STEPS)[number]["id"];
+type PreviewSocialPanel =
+  | { type: "twitter"; prospectId: Id<"prospects">; username: string }
+  | { type: "linkedin"; prospectId: Id<"prospects"> };
 
 const STEP_TITLES: Record<PanelStepId, string> = SETUP_PANEL_STEP_TITLES;
 
@@ -77,6 +82,7 @@ export function AgentOnboardingPanel({
   const { workspace } = useWorkspace();
   const { currentUser, isProvisioning: isViewerProvisioning } =
     useViewerUserRecord();
+  const { openProfile, closeProfile } = useProfile();
   const { activeUseCase, activeUseCaseKey } = useActiveUseCaseLabels();
   const { setupDraft: setupSession, isLoading: isSetupDraftLoading } =
     useSetupThreadDraft(threadId);
@@ -107,14 +113,8 @@ export function AgentOnboardingPanel({
   const canonicalStep = (setupSession?.currentStepId ??
     (embedRefine ? "input" : "use_case")) as PanelStepId;
   const [stepOverride, setStepOverride] = useState<PanelStepId | null>(null);
-  const [openPreviewId, setOpenPreviewId] = useState<Id<"prospects"> | null>(
-    null
-  );
-  const [previewEvidencePanel, setPreviewEvidencePanel] = useState<{
-    title: string;
-    posts: unknown[];
-    platform: "twitter" | "linkedin";
-  } | null>(null);
+  const [previewSocialPanel, setPreviewSocialPanel] =
+    useState<PreviewSocialPanel | null>(null);
   const step =
     stepOverride && visibleStepIds.includes(stepOverride)
       ? stepOverride
@@ -164,25 +164,6 @@ export function AgentOnboardingPanel({
       : "skip"
   );
   const previewSummaries = previewSummariesQuery.data ?? [];
-  const openPreviewProspectQuery = useQueryWithStatus(
-    api.setupSessions.getSetupPreviewProspect,
-    currentUser && openPreviewId
-      ? {
-          prospectId: openPreviewId,
-          sessionId: sessionId ?? undefined,
-          threadId: sessionId ? undefined : (threadId ?? undefined),
-        }
-      : "skip"
-  );
-  const openPreviewProspect = openPreviewProspectQuery.data ?? null;
-  const previewProfile = useMemo(
-    () =>
-      openPreviewProspect
-        ? buildSetupPreviewProfileData(openPreviewProspect)
-        : null,
-    [openPreviewProspect]
-  );
-
   useEffect(() => {
     if (stepOverride && !visibleStepIds.includes(stepOverride)) {
       setStepOverride(null);
@@ -253,17 +234,30 @@ export function AgentOnboardingPanel({
 
   useEffect(() => {
     if (
-      openPreviewId &&
+      previewSocialPanel &&
       (step !== "input" ||
         setupSession?.inputPhase !== "awaiting_preview_approval")
     ) {
-      setOpenPreviewId(null);
+      closeProfile();
+      setPreviewSocialPanel(null);
     }
-  }, [openPreviewId, setupSession?.inputPhase, step]);
+  }, [closeProfile, previewSocialPanel, setupSession?.inputPhase, step]);
 
-  useEffect(() => {
-    setPreviewEvidencePanel(null);
-  }, [openPreviewId]);
+  const handleClosePreviewProfile = useCallback(() => {
+    closeProfile();
+    setPreviewSocialPanel(null);
+  }, [closeProfile]);
+
+  const handleOpenPreviewProfile = useCallback(
+    (target: SetupPreviewProfilePanelTarget) => {
+      closeProfile();
+      setPreviewSocialPanel(target);
+      if (target.type === "twitter") {
+        void openProfile({ username: target.username });
+      }
+    },
+    [closeProfile, openProfile]
+  );
 
   const syncSetupUseCase = useCallback(
     async (
@@ -585,7 +579,7 @@ export function AgentOnboardingPanel({
     setupSession?.inputPhase === "awaiting_icp_approval" ||
     setupSession?.inputPhase === "awaiting_preview_approval";
 
-  if (previewProfile) {
+  if (previewSocialPanel) {
     return (
       <div
         id="rx-onboarding-panel"
@@ -594,22 +588,17 @@ export function AgentOnboardingPanel({
           className
         )}
       >
-        {previewEvidencePanel ? (
-          <EvidencePostsPanel
-            title={previewEvidencePanel.title}
-            posts={previewEvidencePanel.posts}
-            platform={previewEvidencePanel.platform}
-            onBack={() => setPreviewEvidencePanel(null)}
-            readOnly
+        {previewSocialPanel.type === "twitter" ? (
+          <TwitterProfilePanel
+            prospectId={previewSocialPanel.prospectId}
+            onBackAction={handleClosePreviewProfile}
+            disableMobileDrawer
             className="w-full max-w-none border-0"
           />
         ) : (
-          <ProspectProfilePanel
-            prospect={previewProfile}
-            mode="onboarding_preview"
-            onBack={() => setOpenPreviewId(null)}
-            onOpenEvidencePosts={setPreviewEvidencePanel}
-            disableMobileDrawer
+          <LinkedInProfilePanel
+            prospectId={previewSocialPanel.prospectId}
+            onBack={handleClosePreviewProfile}
             className="w-full max-w-none border-0"
           />
         )}
@@ -647,7 +636,18 @@ export function AgentOnboardingPanel({
             generatedProfiles={setupSession?.generatedProfiles ?? []}
             inputPhase={setupSession?.inputPhase ?? "collecting_input"}
             previewProspects={previewSummaries ?? []}
-            previewReadyCount={setupSession?.previewProgress.enrichedCount ?? 0}
+            previewProgress={
+              setupSession?.previewProgress ?? {
+                discoveredCount: 0,
+                qualifiedCount: 0,
+                enrichedCount: 0,
+                selectedCount: 0,
+              }
+            }
+            previewDiscoveryStartedAt={
+              setupSession?.previewDiscoveryStartedAt ?? null
+            }
+            previewStatusUpdatedAt={setupSession?.statusUpdatedAt ?? null}
             errorMessage={setupSession?.errorMessage ?? null}
             onContinue={handleSubmitInput}
             onConfirmIdealProfiles={handleConfirmIdealProfiles}
@@ -655,7 +655,7 @@ export function AgentOnboardingPanel({
             onInputValueChange={setInputValue}
             onInputModeChange={setInputMode}
             onSourceUrlChange={setSourceUrl}
-            onOpenPreviewProfile={setOpenPreviewId}
+            onOpenPreviewProfile={handleOpenPreviewProfile}
           />
         );
       case "connections":

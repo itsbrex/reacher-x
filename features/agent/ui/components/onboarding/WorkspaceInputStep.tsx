@@ -16,24 +16,26 @@ import {
   ArrowUpwardIcon,
   ChangeHistoryIcon,
 } from "@/shared/ui/components/icons";
+import { IdealCustomerProfileCard } from "@/features/prospects";
+import { InlineProfilePreviewCard } from "@/features/agent/ui/components/InlineProfilePreviewCard";
 import {
-  ProspectCard,
-  ProspectCardSkeleton,
-  IdealCustomerProfileCard,
-} from "@/features/prospects";
-import type { ProspectCardRecord } from "@/features/prospects/lib/getProspectDisplayData";
+  buildSetupPreviewProfileData,
+  type SetupPreviewProfilePanelTarget,
+  type SetupPreviewProspectRecord,
+} from "@/features/agent/lib/setupPreviewProfileData";
 import { useUrlDescription } from "@/shared/hooks/useUrlDescription";
 import {
   DESCRIPTION_CONSTRAINTS,
+  cn,
   validateDescription,
 } from "@/shared/lib/utils";
 import { getUrlFromWholeValue } from "@/shared/lib/urls/urlParsing";
-import type { Id } from "@/convex/_generated/dataModel";
 import {
   getWorkspaceUseCase,
   type WorkspaceUseCaseKey,
 } from "@/shared/lib/workspaceUseCases";
 import { getSetupExampleDescriptions } from "@/shared/lib/setupExampleDescriptions";
+import { SetupPreviewProgressTimeline } from "./SetupPreviewProgressTimeline";
 
 type GeneratedIcp = {
   title: string;
@@ -60,8 +62,15 @@ interface WorkspaceInputStepProps {
   useCaseKey: WorkspaceUseCaseKey;
   generatedProfiles: GeneratedIcp[];
   inputPhase: SetupInputPhase | null;
-  previewProspects: ProspectCardRecord[];
-  previewReadyCount: number;
+  previewProspects: SetupPreviewProspectRecord[];
+  previewProgress: {
+    discoveredCount: number;
+    qualifiedCount: number;
+    enrichedCount: number;
+    selectedCount: number;
+  };
+  previewDiscoveryStartedAt: number | null;
+  previewStatusUpdatedAt: number | null;
   errorMessage: string | null;
   onContinue: () => void;
   onConfirmIdealProfiles: () => void;
@@ -69,7 +78,7 @@ interface WorkspaceInputStepProps {
   onInputValueChange: (nextValue: string) => void;
   onInputModeChange: (nextMode: "url" | "manual") => void;
   onSourceUrlChange: (nextUrl: string | null) => void;
-  onOpenPreviewProfile?: (prospectId: Id<"prospects">) => void;
+  onOpenPreviewProfile?: (target: SetupPreviewProfilePanelTarget) => void;
 }
 
 export function WorkspaceInputStep({
@@ -81,7 +90,9 @@ export function WorkspaceInputStep({
   generatedProfiles,
   inputPhase,
   previewProspects,
-  previewReadyCount,
+  previewProgress,
+  previewDiscoveryStartedAt,
+  previewStatusUpdatedAt,
   errorMessage,
   onContinue,
   onConfirmIdealProfiles,
@@ -231,16 +242,16 @@ export function WorkspaceInputStep({
           title: "Describe what Agent should look for",
           description: (
             <>
-              <span className="text-foreground">Paste a website</span>
-              , or describe the{" "}
-              <span className="text-foreground">traits and signals</span>{" "}
-              that matter. Agent will generate{" "}
+              <span className="text-foreground">Paste a website</span>, or
+              describe the{" "}
+              <span className="text-foreground">traits and signals</span> that
+              matter. Agent will generate{" "}
               <span className="text-foreground">
                 {profileLabelPlural.toLowerCase()}
               </span>{" "}
               for you to{" "}
-              <span className="text-foreground">review and approve</span>{" "}
-              before searching starts.
+              <span className="text-foreground">review and approve</span> before
+              searching starts.
             </>
           ),
         };
@@ -275,28 +286,42 @@ export function WorkspaceInputStep({
         };
       case "provisioning_preview_workspace":
         return {
-          title: "Provisioning preview workspace",
-          description:
-            "Agent is creating a real draft workspace so the preview can use live prospect data.",
+          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
+          description: `We’re using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
         };
       case "discovering_preview_prospects":
         return {
-          title: `Finding ${useCase.entityPlural}`,
-          description:
-            previewReadyCount > 0
-              ? `${previewReadyCount} preview ${previewReadyCount === 1 ? "profile is" : "profiles are"} ready. We’re checking the latest matches now.`
-              : `We’re matching and enriching real ${entityPluralLower} against the approved ideal profiles.`,
+          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
+          description: `We’re using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
         };
       case "preview_search_in_progress":
         return {
-          title: "Search is still running",
+          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
           description:
-            "This audience needs a deeper search. We’ll keep looking in the background and notify you here when preview profiles are ready. Check back in about 1 hour.",
+            "This audience needs a deeper search, so Agent is still looking for strong matches.",
         };
       case "awaiting_preview_approval":
         return {
           title: `Preview ${useCase.entityPlural}`,
-          description: `Review the ${entityPluralLower} we found. ${previewReadyCount} ready.`,
+          description: (
+            <>
+              Review the{" "}
+              <span className="text-foreground font-medium">
+                {entityPluralLower}
+              </span>{" "}
+              we found. These are just{" "}
+              <span className="text-foreground font-medium">previews</span>.
+              Agent may swap in{" "}
+              <span className="text-foreground font-medium">
+                stronger matches
+              </span>{" "}
+              while you review. Continue if you&apos;re happy, or{" "}
+              <span className="text-foreground font-medium">
+                update the description and resubmit
+              </span>{" "}
+              to regenerate the ideal profiles.
+            </>
+          ),
         };
       default:
         return {
@@ -316,15 +341,12 @@ export function WorkspaceInputStep({
           ),
         };
     }
-  }, [
-    entityPluralLower,
-    phase,
-    previewReadyCount,
-    profileLabelPlural,
-    useCase.entityPlural,
-  ]);
+  }, [entityPluralLower, phase, profileLabelPlural, useCase.entityPlural]);
 
   const mainContent = useMemo(() => {
+    const setupCardClassName =
+      "border-l-foreground bg-background w-full rounded-none border-y-0 border-r-0 border-l-2 px-4 py-0 text-left transition-colors";
+
     switch (phase) {
       case "collecting_input":
         return (
@@ -348,7 +370,10 @@ export function WorkspaceInputStep({
                 <button
                   key={example.id}
                   type="button"
-                  className="border-border bg-background hover:bg-accent/60 focus-visible:ring-ring w-full rounded-lg border px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+                  className={cn(
+                    setupCardClassName,
+                    "hover:border-l-foreground hover:bg-accent/30 focus-visible:ring-ring focus-visible:border-l-foreground focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+                  )}
                   onClick={() => {
                     onInputModeChange("manual");
                     if (sourceUrl) {
@@ -374,7 +399,10 @@ export function WorkspaceInputStep({
             {Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={`icp-skel-${index}`}
-                className="bg-muted/40 h-28 animate-pulse rounded-xl border"
+                className={cn(
+                  setupCardClassName,
+                  "bg-muted/40 h-24 animate-pulse"
+                )}
               />
             ))}
           </section>
@@ -391,6 +419,7 @@ export function WorkspaceInputStep({
                   key={`${icp.title}-${index}`}
                   profile={icp}
                   maxPainBadges={2}
+                  className="border-l-foreground hover:border-l-foreground rounded-none border-y-0 border-r-0 border-l-2 px-4 py-0 transition-colors"
                 />
               ))}
             </div>
@@ -399,87 +428,63 @@ export function WorkspaceInputStep({
       case "provisioning_preview_workspace":
         return (
           <section className="space-y-3 px-4" aria-live="polite">
-            <p className="text-muted-foreground text-xs font-medium">
-              Preview workspace
-            </p>
-            <Card className="shadow-none">
-              <CardContent className="space-y-3 p-4">
-                <AsciiSpinnerText text="Provisioning preview workspace..." />
-                <p className="text-muted-foreground text-sm leading-6">
-                  We&apos;re creating the real draft workspace and immediately
-                  starting live discovery.
-                </p>
-              </CardContent>
-            </Card>
+            <SetupPreviewProgressTimeline
+              mode="starting"
+              entityPlural={useCase.entityPlural}
+              progress={previewProgress}
+              startedAt={previewDiscoveryStartedAt}
+              stageStartedAt={previewStatusUpdatedAt}
+            />
           </section>
         );
       case "discovering_preview_prospects":
         return (
           <section className="space-y-3 px-4" aria-live="polite">
-            <p className="text-muted-foreground text-xs font-medium">
-              Preview {useCase.entityPlural}
-            </p>
-            <div className="space-y-3">
-              {previewProspects.map((prospect) => {
-                const previewProspectId =
-                  "prospectId" in prospect ? prospect.prospectId : prospect._id;
-                return (
-                  <ProspectCard
-                    key={`setup-preview-${previewProspectId}`}
-                    prospect={prospect}
-                    onClick={
-                      onOpenPreviewProfile
-                        ? () => onOpenPreviewProfile(previewProspectId)
-                        : undefined
-                    }
-                    mode="onboarding_preview"
-                    interactive={Boolean(onOpenPreviewProfile)}
-                  />
-                );
-              })}
-              {Array.from({
-                length: Math.max(1, 3 - previewProspects.length),
-              }).map((_, index) => (
-                <ProspectCardSkeleton key={`preview-skeleton-${index}`} />
-              ))}
-            </div>
+            <SetupPreviewProgressTimeline
+              mode="discovering"
+              entityPlural={useCase.entityPlural}
+              progress={previewProgress}
+              startedAt={previewDiscoveryStartedAt}
+              stageStartedAt={previewDiscoveryStartedAt}
+            />
           </section>
         );
       case "preview_search_in_progress":
         return (
           <section className="space-y-3 px-4" aria-live="polite">
-            <p className="text-muted-foreground text-xs font-medium">
-              Background search
-            </p>
-            <Card className="shadow-none">
-              <CardContent className="space-y-3 p-4">
-                <AsciiSpinnerText text="Searching for stronger matches..." />
-                <p className="text-muted-foreground text-sm leading-6">
-                  We’re doing a deeper pass now. You can leave this screen and
-                  come back in about 1 hour; we’ll notify you here as soon as
-                  preview profiles are ready.
-                </p>
-              </CardContent>
-            </Card>
+            <SetupPreviewProgressTimeline
+              mode="searching"
+              entityPlural={useCase.entityPlural}
+              progress={previewProgress}
+              startedAt={previewDiscoveryStartedAt}
+              stageStartedAt={previewStatusUpdatedAt}
+            />
           </section>
         );
       case "awaiting_preview_approval":
         return (
-          <section className="space-y-2 px-4" aria-label="Preview results">
+          <section className="space-y-3 px-4" aria-label="Preview results">
             {previewProspects.map((prospect) => {
-              const previewProspectId =
-                "prospectId" in prospect ? prospect.prospectId : prospect._id;
+              const previewProfile = buildSetupPreviewProfileData(prospect);
+              const previewTarget = previewProfile.target;
               return (
-                <ProspectCard
-                  key={`setup-preview-${previewProspectId}`}
-                  prospect={prospect}
-                  onClick={
-                    onOpenPreviewProfile
-                      ? () => onOpenPreviewProfile(previewProspectId)
+                <InlineProfilePreviewCard
+                  key={`setup-preview-${prospect._id}`}
+                  variant={previewProfile.variant}
+                  prospectId={prospect._id}
+                  platform={previewProfile.platform}
+                  profileData={previewProfile.profileData}
+                  label={previewProfile.label}
+                  context={previewProfile.context}
+                  interactive={Boolean(onOpenPreviewProfile && previewTarget)}
+                  openOnCardClick
+                  showActions={false}
+                  showFeatureStrip={false}
+                  onOpenPanel={
+                    onOpenPreviewProfile && previewTarget
+                      ? () => onOpenPreviewProfile(previewTarget)
                       : undefined
                   }
-                  mode="onboarding_preview"
-                  interactive={Boolean(onOpenPreviewProfile)}
                 />
               );
             })}
@@ -496,8 +501,11 @@ export function WorkspaceInputStep({
     onOpenPreviewProfile,
     onSourceUrlChange,
     phase,
+    previewDiscoveryStartedAt,
+    previewProgress,
     previewProspects,
     profileLabelPlural,
+    previewStatusUpdatedAt,
     sourceUrl,
     useCase.entityPlural,
   ]);
@@ -507,7 +515,7 @@ export function WorkspaceInputStep({
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 py-4">
           <div>
-            <header className="mb-4 space-y-1 border-b px-4 pb-4">
+            <header className="mb-4 space-y-1 px-4 pb-1">
               <h2 className="text-xl font-semibold">{headerCopy.title}</h2>
               <p className="text-muted-foreground text-sm">
                 {headerCopy.description}

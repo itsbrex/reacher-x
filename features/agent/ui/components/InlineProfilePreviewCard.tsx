@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useAction } from "convex/react";
 import { format } from "date-fns";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Avatar,
   AvatarFallback,
@@ -21,14 +24,20 @@ import {
 } from "@/shared/ui/components/icons";
 import { cn, formatLargeNumber } from "@/shared/lib/utils";
 import { TwitterProfileActionButtons } from "@/features/profile/ui/components/TwitterProfileActionButtons";
+import { LinkedInProfileSummaryHeader } from "@/features/prospects/ui/components/LinkedInProfileSummaryHeader";
+import type { LinkedInProfileSummaryData } from "@/features/prospects/ui/components/LinkedInProfileSummaryHeader";
 
 export interface InlineProfilePreviewCardProps {
   variant: "prospect" | "twitter" | "linkedin";
+  prospectId?: string | null;
   platform?: "twitter" | "linkedin" | null;
   profileData: Record<string, unknown>;
   label?: string | null;
   context?: string | null;
   interactive?: boolean | null;
+  openOnCardClick?: boolean | null;
+  showActions?: boolean | null;
+  showFeatureStrip?: boolean | null;
   onOpenPanel?: () => void;
 }
 
@@ -42,6 +51,21 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null && !Array.isArray(item)
+      )
+    : [];
 }
 
 function formatJoinedAt(joinedAt: string | undefined): string | undefined {
@@ -59,54 +83,156 @@ function formatJoinedAt(joinedAt: string | undefined): string | undefined {
 
 export function InlineProfilePreviewCard({
   variant,
+  prospectId,
   platform,
   profileData,
   label,
   context,
   interactive,
+  openOnCardClick,
+  showActions,
+  showFeatureStrip,
   onOpenPanel,
 }: InlineProfilePreviewCardProps) {
+  const getLinkedInProfile = useAction((api as any).linkedin.getLinkedInProfile);
+  const getLinkedInProfileSupplemental = useAction(
+    (api as any).linkedin.getLinkedInProfileSupplemental
+  );
+  const [hydratedLinkedInProfileState, setHydratedLinkedInProfileState] =
+    React.useState<{
+      prospectId: string;
+      data: Record<string, unknown>;
+    } | null>(null);
   const resolvedPlatform =
     platform ??
     ((asString(profileData.kind) === "linkedin" ? "linkedin" : "twitter") as
       | "twitter"
       | "linkedin");
+  const hydratedLinkedInProfile =
+    resolvedPlatform === "linkedin" &&
+    prospectId &&
+    hydratedLinkedInProfileState?.prospectId === prospectId
+      ? hydratedLinkedInProfileState.data
+      : null;
+  const effectiveProfileData =
+    resolvedPlatform === "linkedin" && hydratedLinkedInProfile
+      ? { ...profileData, ...hydratedLinkedInProfile }
+      : profileData;
+  React.useEffect(() => {
+    if (resolvedPlatform !== "linkedin" || !prospectId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const baseProfile = (await getLinkedInProfile({
+          prospectId: prospectId as Id<"prospects">,
+        })) as Record<string, unknown> | null;
+
+        if (cancelled || !baseProfile) {
+          return;
+        }
+
+        const basePositions = asRecordArray(baseProfile.positions);
+        const baseCurrentPosition =
+          basePositions.find((position) => position.isCurrent === true) ??
+          basePositions[0];
+        const baseCurrentCompany = asRecord(baseProfile.currentCompany);
+        const supplemental = (await getLinkedInProfileSupplemental({
+          prospectId: prospectId as Id<"prospects">,
+          profileUrn: asString(baseProfile.urn),
+          username: asString(baseProfile.username),
+          providerId: asString(baseProfile.urn),
+          currentCompanyId: asString(baseCurrentPosition?.companyId),
+          currentCompanyName:
+            asString(baseCurrentCompany?.name) ??
+            asString(baseCurrentPosition?.companyName),
+        }).catch(() => null)) as Record<string, unknown> | null;
+
+        if (cancelled) {
+          return;
+        }
+
+        setHydratedLinkedInProfileState({
+          prospectId,
+          data: supplemental
+            ? {
+                ...baseProfile,
+                ...supplemental,
+                positions: baseProfile.positions,
+                currentCompany:
+                  supplemental.currentCompany ?? baseProfile.currentCompany,
+                contact: supplemental.contact ?? baseProfile.contact,
+              }
+            : baseProfile,
+        });
+      } catch {
+        if (!cancelled) {
+          setHydratedLinkedInProfileState((current) =>
+            current?.prospectId === prospectId ? null : current
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    getLinkedInProfile,
+    getLinkedInProfileSupplemental,
+    prospectId,
+    resolvedPlatform,
+  ]);
   const displayName =
-    asString(profileData.displayName) ??
-    asString(profileData.name) ??
+    asString(effectiveProfileData.displayName) ??
+    asString(effectiveProfileData.name) ??
     "Unknown";
   const title =
-    asString(profileData.title) ??
-    asString(profileData.headline) ??
-    asString(profileData.bio);
+    asString(effectiveProfileData.title) ??
+    asString(effectiveProfileData.headline) ??
+    asString(effectiveProfileData.bio);
   const avatarUrl =
-    asString(profileData.avatarUrl) ??
-    asString(profileData.profilePictureUrl) ??
-    asString(profileData.profile_image_url_https);
+    asString(effectiveProfileData.avatarUrl) ??
+    asString(effectiveProfileData.profilePictureUrl) ??
+    asString(effectiveProfileData.profilePictureURL) ??
+    asString(effectiveProfileData.profile_image_url_https);
   const bannerUrl =
-    asString(profileData.bannerUrl) ?? asString(profileData.backgroundImageUrl);
+    asString(effectiveProfileData.bannerUrl) ??
+    asString(effectiveProfileData.backgroundImageUrl) ??
+    asString(effectiveProfileData.backgroundImageURL);
   const username =
-    asString(profileData.username) ??
-    asString(profileData.twitterUsername) ??
-    asString(profileData.linkedinUsername);
-  const verified = profileData.verified === true;
-  const location = asString(profileData.location);
-  const websiteUrl = asString(profileData.websiteUrl);
+    asString(effectiveProfileData.username) ??
+    asString(effectiveProfileData.twitterUsername) ??
+    asString(effectiveProfileData.linkedinUsername);
+  const verified =
+    effectiveProfileData.verified === true ||
+    effectiveProfileData.isPremium === true;
+  const location = asString(effectiveProfileData.location);
+  const websiteUrl = asString(effectiveProfileData.websiteUrl);
   const followers =
-    asNumber(profileData.followersCount) ?? asNumber(profileData.followerCount);
-  const following = asNumber(profileData.followingCount);
-  const connections = asNumber(profileData.connectionCount);
-  const joinedAt = asString(profileData.joinedAt);
-  const relationshipBadge = asString(profileData.relationshipBadge);
-  const relationshipPrimaryAction = asString(profileData.relationshipPrimaryAction);
-  const relationshipPrimaryLabel = asString(profileData.relationshipPrimaryLabel);
+    asNumber(effectiveProfileData.followersCount) ??
+    asNumber(effectiveProfileData.followerCount);
+  const following = asNumber(effectiveProfileData.followingCount);
+  const connections = asNumber(effectiveProfileData.connectionCount);
+  const joinedAt = asString(effectiveProfileData.joinedAt);
+  const relationshipBadge = asString(effectiveProfileData.relationshipBadge);
+  const relationshipPrimaryAction = asString(
+    effectiveProfileData.relationshipPrimaryAction
+  );
+  const relationshipPrimaryLabel = asString(
+    effectiveProfileData.relationshipPrimaryLabel
+  );
   const summary =
-    asString(profileData.briefIntro) ??
-    asString(profileData.summary) ??
-    asString(profileData.bio);
-  const relationshipText = asString(profileData.relationshipMessage);
+    asString(effectiveProfileData.briefIntro) ??
+    asString(effectiveProfileData.summary) ??
+    asString(effectiveProfileData.bio);
+  const profileUrl = asString(effectiveProfileData.profileUrl);
+  const relationshipText = asString(effectiveProfileData.relationshipMessage);
   const avatarShape =
-    asString(profileData.prospectType) === "organization"
+    asString(effectiveProfileData.prospectType) === "organization"
       ? "rounded-md"
       : "rounded-full";
   const showBanner = variant !== "prospect";
@@ -126,13 +252,189 @@ export function InlineProfilePreviewCard({
       : "follow";
   const inferredPrimaryLabel =
     inferredPrimaryAction === "unfollow" ? "Unfollow" : "Follow";
+  const canOpenPanel = interactive !== false && Boolean(onOpenPanel);
+  const shouldShowActions = showActions !== false;
+  const shouldShowFeatureStrip = showFeatureStrip !== false;
+  const shouldOpenOnCardClick =
+    openOnCardClick === true && canOpenPanel && !shouldShowActions;
   const handleOpenProfilePanel = React.useCallback(() => {
     onOpenPanel?.();
   }, [onOpenPanel]);
+  const handleCardKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!shouldOpenOnCardClick) {
+        return;
+      }
+      if (event.currentTarget !== event.target) {
+        return;
+      }
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      handleOpenProfilePanel();
+    },
+    [handleOpenProfilePanel, shouldOpenOnCardClick]
+  );
+  const cardInteractionProps: React.HTMLAttributes<HTMLDivElement> =
+    shouldOpenOnCardClick
+      ? {
+          role: "button",
+          tabIndex: 0,
+          "aria-label": `Open ${displayName}'s profile`,
+          onClick: handleOpenProfilePanel,
+          onKeyDown: handleCardKeyDown,
+        }
+      : {};
+  const currentCompany = asRecord(effectiveProfileData.currentCompany);
+  const contact = asRecord(effectiveProfileData.contact);
+  const contactWebsite = asRecordArray(contact?.websites)
+    .map((website) => asString(website.url))
+    .find(Boolean);
+  const positions = asRecordArray(effectiveProfileData.positions);
+  const currentPosition =
+    positions.find((position) => position.isCurrent === true) ?? positions[0];
+  const currentCompanyName =
+    asString(effectiveProfileData.currentCompanyName) ??
+    asString(currentCompany?.name) ??
+    asString(currentPosition?.companyName);
+  const currentCompanyLogo =
+    asString(effectiveProfileData.currentCompanyLogo) ??
+    asString(currentCompany?.logoUrl) ??
+    asString(currentPosition?.companyLogo);
+  const currentCompanyWebsite =
+    asString(effectiveProfileData.currentCompanyWebsite) ??
+    asString(currentCompany?.website) ??
+    contactWebsite ??
+    websiteUrl;
+  const normalizedLinkedInPositions: NonNullable<
+    LinkedInProfileSummaryData["positions"]
+  > = [];
+  for (const position of positions) {
+    const companyName = asString(position.companyName);
+    if (companyName) {
+      const companyLogo = asString(position.companyLogo);
+      normalizedLinkedInPositions.push({
+        companyName,
+        ...(companyLogo ? { companyLogo } : {}),
+        isCurrent: position.isCurrent === true,
+      });
+    }
+  }
+
+  if (!isTwitterVariant) {
+    return (
+      <div className="space-y-3">
+        <div
+          className={cn(
+            "border-border bg-background overflow-hidden rounded-xl border",
+            shouldOpenOnCardClick &&
+              "cursor-pointer transition-colors hover:bg-accent/30 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+          )}
+          {...cardInteractionProps}
+        >
+          <LinkedInProfileSummaryHeader
+            profile={{
+              displayName,
+              firstName: asString(effectiveProfileData.firstName),
+              headline: title,
+              profilePictureUrl: avatarUrl,
+              backgroundImageUrl: bannerUrl,
+              profileUrl,
+              isPremium: verified,
+              location,
+              followerCount: followers,
+              connectionCount: connections,
+              contact: currentCompanyWebsite
+                ? { websites: [{ url: currentCompanyWebsite }] }
+                : undefined,
+              positions:
+                normalizedLinkedInPositions.length > 0
+                  ? normalizedLinkedInPositions
+                  : currentCompanyName
+                    ? [
+                        {
+                          companyName: currentCompanyName,
+                          ...(currentCompanyLogo
+                            ? { companyLogo: currentCompanyLogo }
+                            : {}),
+                          isCurrent: true,
+                        },
+                      ]
+                    : undefined,
+              currentCompany: currentCompanyName
+                ? {
+                    name: currentCompanyName,
+                    logoUrl: currentCompanyLogo,
+                    website: currentCompanyWebsite,
+                  }
+                : undefined,
+            }}
+            actions={
+              shouldShowActions ? (
+                <Button
+                  size="xs"
+                  disabled={!canOpenPanel}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOpenProfilePanel();
+                  }}
+                >
+                  View
+                </Button>
+              ) : null
+            }
+            className={context ? undefined : "border-b-0"}
+            linkName={!shouldOpenOnCardClick}
+          />
+
+          {context ? (
+            <p className="text-muted-foreground px-4 py-3 text-xs">
+              {context}
+            </p>
+          ) : null}
+        </div>
+
+        {shouldShowFeatureStrip ? (
+          <InlineFeatureStrip
+            leading={
+              <>
+                <div className="border-border rounded-md border p-1">
+                  <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
+                </div>
+                <span className="truncate text-sm font-medium">
+                  {(label ?? "Profile").trim()} →
+                </span>
+              </>
+            }
+            trailing={
+              <Button
+                size="xsIcon"
+                variant="outline"
+                disabled={!canOpenPanel}
+                onClick={handleOpenProfilePanel}
+                aria-label={`Open ${(label ?? "profile").trim()}`}
+              >
+                <OpenInNewIcon className="fill-current" />
+              </Button>
+            }
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="border-border bg-background overflow-hidden rounded-xl border">
+      <div
+        className={cn(
+          "border-border bg-background overflow-hidden rounded-xl border",
+          shouldOpenOnCardClick &&
+            "cursor-pointer transition-colors hover:bg-accent/30 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+        )}
+        {...cardInteractionProps}
+      >
         <div
           className={cn(
             "relative border-b",
@@ -196,11 +498,11 @@ export function InlineProfilePreviewCard({
                   ) : null}
                 </div>
 
-                {isTwitterVariant ? (
+                {isTwitterVariant && shouldShowActions ? (
                   <TwitterProfileActionButtons
-                    profileUserId={asString(profileData.userId)}
+                    profileUserId={asString(effectiveProfileData.userId)}
                     username={username}
-                    profileUrl={asString(profileData.profileUrl)}
+                    profileUrl={asString(effectiveProfileData.profileUrl)}
                     primaryAction={
                       relationshipPrimaryAction === "unfollow"
                         ? "unfollow"
@@ -216,16 +518,21 @@ export function InlineProfilePreviewCard({
                           : inferredPrimaryLabel
                     }
                   />
-                ) : (
-                  <div className="flex shrink-0 items-center gap-1">
+                ) : isTwitterVariant ? null : shouldShowActions ? (
+                  <div
+                    className="flex shrink-0 items-center gap-1"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <Button
                       size="xs"
-                      disabled={!interactive}
+                      disabled={!canOpenPanel}
                       onClick={handleOpenProfilePanel}
                     >
                       View
                     </Button>
                   </div>
+                ) : (
+                  null
                 )}
               </div>
 
@@ -305,30 +612,31 @@ export function InlineProfilePreviewCard({
         </div>
       </div>
 
-      <InlineFeatureStrip
-        leading={
-          <>
-            <div className="border-border rounded-md border p-1">
-              <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
-            </div>
-            <span className="truncate text-sm font-medium">
-              {(label ?? "Profile").trim()} →
-            </span>
-          </>
-        }
-        trailing={
-          <>
+      {shouldShowFeatureStrip ? (
+        <InlineFeatureStrip
+          leading={
+            <>
+              <div className="border-border rounded-md border p-1">
+                <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
+              </div>
+              <span className="truncate text-sm font-medium">
+                {(label ?? "Profile").trim()} →
+              </span>
+            </>
+          }
+          trailing={
             <Button
               size="xsIcon"
               variant="outline"
-              disabled={!interactive}
+              disabled={!canOpenPanel}
               onClick={handleOpenProfilePanel}
+              aria-label={`Open ${(label ?? "profile").trim()}`}
             >
               <OpenInNewIcon className="fill-current" />
             </Button>
-          </>
-        }
-      />
+          }
+        />
+      ) : null}
     </div>
   );
 }
