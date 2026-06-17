@@ -603,9 +603,6 @@ export function AgentPageShell() {
     showProspectPanel ||
     showAgentTwitterPanel ||
     (showSetupPanel && !isMobile);
-  const agentChatInstanceKey = isSetupRoute
-    ? "setup"
-    : (prospectId ?? "general");
 
   return (
     <div className="flex h-full min-h-0 w-full">
@@ -620,7 +617,7 @@ export function AgentPageShell() {
       >
         <PageContent className="h-full p-0">
           <AgentChat
-            key={agentChatInstanceKey}
+            key={`${prospectId ?? "setup"}-${threadId ?? "new"}`}
             prospectId={prospectId ?? undefined}
             threadId={threadId ?? undefined}
             action={action ?? undefined}
