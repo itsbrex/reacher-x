@@ -164,9 +164,6 @@ export function AgentOnboardingPanel({
       : "skip"
   );
   const previewSummaries = previewSummariesQuery.data ?? [];
-  const isHydratingSetupDraft =
-    Boolean(threadId) && isSetupDraftLoading && !setupSession;
-
   useEffect(() => {
     if (stepOverride && !visibleStepIds.includes(stepOverride)) {
       setStepOverride(null);
@@ -700,35 +697,29 @@ export function AgentOnboardingPanel({
       <div className="flex h-full min-h-0 w-full flex-col">
         <PageHeader
           title={
-            isHydratingSetupDraft
-              ? "Loading draft"
-              : embedRefine && step === "input"
+            embedRefine && step === "input"
               ? "Your audience"
               : STEP_TITLES[step]
           }
           titleSuffix={
-            embedRefine || isHydratingSetupDraft ? null : (
+            embedRefine ? null : (
               <span className="text-muted-foreground font-mono text-sm">
                 {" "}
                 · {stepNumber}/{stepTotal}
               </span>
             )
           }
-          backDisabled={
-            isHydratingSetupDraft ? true : (embedRefine ? false : headerBackDisabled)
-          }
+          backDisabled={embedRefine ? false : headerBackDisabled}
           className="rounded-none"
           onBack={
-            isHydratingSetupDraft
-              ? undefined
-              : embedRefine && step === "input"
+            embedRefine && step === "input"
               ? () => void onRefineCancel?.()
               : previousVisibleStep
                 ? () => setStepOverride(previousVisibleStep)
                 : handleUseCaseStepHeaderBack
           }
           actions={
-            isHydratingSetupDraft ? undefined : step === "input" ? (
+            step === "input" ? (
               embedRefine ? (
                 <>
                   <Button
@@ -789,7 +780,7 @@ export function AgentOnboardingPanel({
             ) : undefined
           }
         />
-        {!embedRefine && !isHydratingSetupDraft ? (
+        {!embedRefine ? (
           <Progress
             aria-label={`Setup progress: step ${stepNumber} of ${stepTotal}`}
             className="h-0.5 rounded-none border-0"
@@ -797,17 +788,7 @@ export function AgentOnboardingPanel({
             value={progressValue}
           />
         ) : null}
-        {isHydratingSetupDraft ? (
-          <ScrollArea className="min-h-0 flex-1">
-            <PageContent className="space-y-4 px-4 py-4">
-              <Card>
-                <CardContent className="p-4">
-                  <AsciiSpinnerText text="Loading your saved setup draft..." />
-                </CardContent>
-              </Card>
-            </PageContent>
-          </ScrollArea>
-        ) : step === "input" ? (
+        {step === "input" ? (
           <div className="min-h-0 flex-1">{renderStep()}</div>
         ) : step === "connections" ? (
           !isThreadReady ? (
@@ -928,7 +909,7 @@ export function AgentOnboardingPanel({
             </PageContent>
           </ScrollArea>
         )}
-        {!isHydratingSetupDraft && step === "use_case" ? (
+        {step === "use_case" ? (
           <div className="px-4 py-2">
             <Button
               size="xs"
