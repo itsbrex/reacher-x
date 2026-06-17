@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import * as RechartsPrimitive from "recharts";
 import { ChartContainer, type ChartConfig } from "@/shared/ui/components/chart";
 import {
   Card,
@@ -16,9 +15,11 @@ import { cn } from "@/shared/lib/utils";
 // Types
 // ============================================================================
 
-type ChartChildren = React.ComponentProps<
-  typeof RechartsPrimitive.ResponsiveContainer
->["children"];
+type ChartChildren = React.ReactElement<{
+  className?: string;
+  responsive?: boolean;
+  style?: React.CSSProperties;
+}>;
 
 export interface ChartCardProps {
   title: string;
@@ -53,7 +54,7 @@ export const ChartCard = React.memo(function ChartCard({
           config={config}
           className={cn(
             chartHeight,
-            "w-full",
+            "min-w-0 w-full",
             centerChart && "mx-auto",
             chartMaxWidth
           )}
