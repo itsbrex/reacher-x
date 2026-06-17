@@ -6,7 +6,7 @@ import { useQueryStates, parseAsString } from "nuqs";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/shared/lib/utils";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
-import { useAgentProspectQuery } from "../hooks";
+import { useAgentProspectQuery } from "../hooks/useAgentProspectQuery";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import {
   ProspectPanelRenderer,
@@ -18,16 +18,16 @@ import {
   getTweetIdFromPostPayload,
   type AgentPanelMode,
   type InlinePanelOpenPayload,
-} from "../lib";
-import {
-  AgentDynamicPanel,
-  AgentOnboardingPanel,
-  AgentPlanPanel,
-  HistoryPanel,
-} from "./components";
+} from "../lib/panel";
+import { AgentDynamicPanel } from "./components/AgentDynamicPanel";
+import { AgentOnboardingPanel } from "./components/AgentOnboardingPanel";
+import { AgentPlanPanel } from "./components/AgentPlanPanel";
+import { AgentOnboardingPanelSpinner } from "./components/AgentOnboardingPanelSpinner";
+import { HistoryPanel } from "./components/HistoryPanel";
 import { PageLayout, PageContent } from "@/features/webapp/ui/components";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
+import { useSetupThreadDraft } from "@/shared/hooks/useSetupThreadDraft";
 
 export function AgentPageShell() {
   const router = useRouter();
@@ -216,6 +216,10 @@ export function AgentPageShell() {
   const agentProspectQuery = useAgentProspectQuery(prospectId);
   const historyProspectArchived =
     agentProspectQuery.data?.status === "archived";
+  const setupPanelThreadId = effectiveThreadId ?? threadId ?? null;
+  const setupPanelDraft = useSetupThreadDraft(
+    isSetupRoute ? setupPanelThreadId : null
+  );
 
   const setupPanelThreadRef = useRef<string | null | undefined>(undefined);
 
@@ -597,6 +601,11 @@ export function AgentPageShell() {
     !showProspectPanel &&
     !showAgentTwitterPanel;
   const showSetupPanel = isSetupRoute && setupOnboardingPanelOpen;
+  const showSetupPanelSpinner =
+    showSetupPanel &&
+    Boolean(setupPanelThreadId) &&
+    !setupPanelDraft.error &&
+    (setupPanelDraft.isLoading || setupPanelDraft.setupDraft === null);
   const showSetupChatOnly =
     isSetupRoute && isMobile && setupOnboardingPanelOpen;
   const showRightSurface =
@@ -620,7 +629,6 @@ export function AgentPageShell() {
       >
         <PageContent className="h-full p-0">
           <AgentChat
-            key={`${prospectId ?? "setup"}-${threadId ?? "new"}`}
             prospectId={prospectId ?? undefined}
             threadId={threadId ?? undefined}
             action={action ?? undefined}
@@ -725,12 +733,17 @@ export function AgentPageShell() {
         />
       )}
 
-      {showSetupPanel && (
-        <AgentOnboardingPanel
-          threadId={effectiveThreadId ?? threadId ?? null}
-          className={cn(showSetupChatOnly && "border-l-0")}
-        />
-      )}
+      {showSetupPanel &&
+        (showSetupPanelSpinner ? (
+          <AgentOnboardingPanelSpinner
+            className={cn(showSetupChatOnly && "border-l-0")}
+          />
+        ) : (
+          <AgentOnboardingPanel
+            threadId={setupPanelThreadId}
+            className={cn(showSetupChatOnly && "border-l-0")}
+          />
+        ))}
     </div>
   );
 }

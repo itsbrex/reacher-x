@@ -7,7 +7,11 @@
  * Uses useSmoothText from @convex-dev/agent/react for smooth streaming text.
  */
 
-import { useAgentChat, type PendingTurnState, type UIMessage } from "../hooks";
+import {
+  useAgentChat,
+  type PendingTurnState,
+  type UIMessage,
+} from "../hooks/useAgentChat";
 import { useSmoothText } from "@convex-dev/agent/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -163,6 +167,39 @@ interface ProgressStep {
   count?: number;
 }
 
+function buildStableKey(base: string, sequence: Map<string, number>) {
+  const nextCount = (sequence.get(base) ?? 0) + 1;
+  sequence.set(base, nextCount);
+  return `${base}-${nextCount}`;
+}
+
+function getProgressStatusIcon(status: ProgressStep["status"]) {
+  switch (status) {
+    case "completed":
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case "failed":
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    case "running":
+      return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+    default:
+      return <Circle className="text-muted-foreground h-4 w-4" />;
+  }
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  analyzeUrl: "Analyzing website",
+  generateImprovedDescriptionAndICPs: "Generating ICPs",
+  getUserStatus: "Checking account",
+  createWorkspace: "Creating workspace",
+  updateWorkspace: "Updating workspace",
+  searchProspects: "Finding prospects",
+  generateSeedKeywords: "Generating keywords",
+  convertToSocialQueries: "Converting to social queries",
+  getSocialContext: "Fetching social context",
+  displayEntity: "Showing entity",
+  socialAction: "Taking social action",
+};
+
 const AGENT_DISPLAY_NAME = "△ Agent";
 const AGENT_AVATAR_FALLBACK = "△";
 
@@ -209,25 +246,17 @@ export interface AgentChatProps {
 function ProgressStepsDisplay({ progress }: { progress: ProgressStep[] }) {
   if (!progress.length) return null;
 
-  const getStatusIcon = (status: ProgressStep["status"]) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
-      default:
-        return <Circle className="text-muted-foreground h-4 w-4" />;
-    }
-  };
-
   return (
     <div className="bg-muted/30 rounded-lg border p-3">
       <div className="space-y-2">
-        {progress.map((step, idx) => (
-          <div key={idx} className="flex items-start gap-2">
-            <div className="mt-0.5 shrink-0">{getStatusIcon(step.status)}</div>
+        {progress.map((step) => (
+          <div
+            key={`${step.step}-${step.status}-${step.count ?? "none"}-${step.details ?? "none"}`}
+            className="flex items-start gap-2"
+          >
+            <div className="mt-0.5 shrink-0">
+              {getProgressStatusIcon(step.status)}
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span
@@ -299,21 +328,6 @@ function ToolCallVisualization({
   const approvePlan = useMutation(api.outreach.approvePlan);
 
   if (!toolCalls.length) return null;
-
-  // Map tool names to user-friendly labels
-  const toolLabels: Record<string, string> = {
-    analyzeUrl: "Analyzing website",
-    generateImprovedDescriptionAndICPs: "Generating ICPs",
-    getUserStatus: "Checking account",
-    createWorkspace: "Creating workspace",
-    updateWorkspace: "Updating workspace",
-    searchProspects: "Finding prospects",
-    generateSeedKeywords: "Generating keywords",
-    convertToSocialQueries: "Converting to social queries",
-    getSocialContext: "Fetching social context",
-    displayEntity: "Showing entity",
-    socialAction: "Taking social action",
-  };
 
   const renderedToolCallNodes = toolCalls.map((tc, idx) => {
     // Check if this tool result has a progress array (e.g., searchProspects)
@@ -419,7 +433,7 @@ function ToolCallVisualization({
           <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <span className="font-medium">
-              {toolLabels[tc.toolName] || tc.toolName}
+              {TOOL_LABELS[tc.toolName] || tc.toolName}
             </span>
           </div>
           <ProgressStepsDisplay progress={result.progress as ProgressStep[]} />
@@ -440,7 +454,7 @@ function ToolCallVisualization({
 
     // Default: show the Tool component
     const toolPart: ToolPart = {
-      type: toolLabels[tc.toolName] || tc.toolName,
+      type: TOOL_LABELS[tc.toolName] || tc.toolName,
       state:
         tc.state === "call" || tc.state === "partial-call"
           ? "input-streaming"
@@ -718,6 +732,7 @@ function ChatMessage({
   const assistantSources = isAssistant ? extractAssistantSources(message) : [];
   const hasAssistantMetadata =
     Boolean(assistantReasoning) || assistantSources.length > 0;
+  const partKeySequence = new Map<string, number>();
 
   // Extract tool calls from message parts for streaming fallback
   const toolCalls: ToolCallInfo[] = [];
@@ -811,14 +826,14 @@ function ChatMessage({
         {usePartsOrder ? (
           (() => {
             const dedup = new Set<string>();
-            return message.parts!.map((part, idx) => {
+            return message.parts!.map((part) => {
               // Text parts
               if ((part as { type: string }).type === "text") {
                 const text = (part as { text?: string }).text;
                 if (!text?.trim()) return null;
                 return (
                   <MessageContent
-                    key={`text-${idx}`}
+                    key={buildStableKey(`text-${text}`, partKeySequence)}
                     markdown
                     variant="plain"
                     textSize="sm"
@@ -846,7 +861,14 @@ function ChatMessage({
 
                 return (
                   <motion.div
-                    key={`tool-${idx}`}
+                    key={
+                      toolCallId
+                        ? `tool-${toolCallId}`
+                        : buildStableKey(
+                            `tool-${toolName}-${tc.state}`,
+                            partKeySequence
+                          )
+                    }
                     initial={{ opacity: 0, scale: 0.97 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.2 }}
@@ -1286,6 +1308,11 @@ export function AgentChat({
       pendingTurn.phase === "queued" ||
       pendingTurn.phase === "stopping");
   const shouldShowPendingError = pendingTurn?.phase === "failed";
+  const shouldShowHydrationSkeleton =
+    Boolean(threadId) &&
+    messages.length === 0 &&
+    pendingTurn === null &&
+    !error;
 
   const threadModelName = useQuery(
     api.agentTelemetry.getThreadModelName,
@@ -1458,6 +1485,17 @@ export function AgentChat({
 
   // Loading state while initializing - use skeleton UI to prevent CLS
   if (!isInitialized) {
+    return (
+      <ChatSkeleton
+        onBack={onBack}
+        onHistoryClick={onHistoryClick}
+        onNewThread={onNewThread}
+        onOpenDmPanel={onOpenDmPanel}
+      />
+    );
+  }
+
+  if (shouldShowHydrationSkeleton && !showSetupInlineCard) {
     return (
       <ChatSkeleton
         onBack={onBack}
