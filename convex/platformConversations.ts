@@ -171,7 +171,10 @@ export const upsertConversationSnapshotInternal = internalMutation({
       .first();
 
     const sortedMessages = sortMessagesByTime(args.messages);
-    const latestMessage = sortedMessages.at(-1);
+    const latestMessage =
+      sortedMessages.length > 0
+        ? sortedMessages[sortedMessages.length - 1]
+        : undefined;
 
     const conversationPatch = {
       workspaceId: args.workspaceId,
