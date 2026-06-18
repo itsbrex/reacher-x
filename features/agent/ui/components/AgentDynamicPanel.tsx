@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SerializedEditorState } from "lexical";
 import { toast } from "sonner";
@@ -16,14 +16,21 @@ import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Button } from "@/shared/ui/components/Button";
 import { BaseComposer } from "@/features/composer/ui/components/BaseComposer";
+import { ComposerSurfaceSkeleton } from "@/features/composer/ui/components/ComposerSurfaceSkeleton";
 import { ReplyComposer } from "@/features/composer/ui/components/ReplyComposer";
 import type {
   ComposerInitialMediaUpload,
   ComposerMediaKind,
 } from "@/features/composer/types";
 import { XReplyFallbackAlert } from "@/features/composer/ui/components/XReplyFallbackAlert";
-import { Tweet } from "@/features/webapp/ui/components/tweet";
-import { LinkedInPostCard } from "@/features/webapp/ui/components/linkedin/LinkedInPostCard";
+import {
+  Tweet,
+  TweetSkeleton,
+} from "@/features/webapp/ui/components/tweet";
+import {
+  LinkedInPostCard,
+  LinkedInPostCardSkeleton,
+} from "@/features/webapp/ui/components/linkedin";
 import { XConversationPanel } from "@/features/prospects/ui/components/XConversationPanel";
 import { LinkedInConversationPanel } from "@/features/prospects/ui/components/LinkedInConversationPanel";
 import { ThreadAwareTwitterReplyBody } from "@/features/prospects/ui/components/ThreadAwareTwitterReplyBody";
@@ -139,28 +146,6 @@ function resolveMediaKind(
   return isVideoUrl(url) ? "video" : "image";
 }
 
-function DraftSyncStatusLine({
-  status,
-  helperText,
-}: {
-  status: "idle" | "saving" | "error";
-  helperText?: string | null;
-}) {
-  return (
-    <div className="min-h-4 text-xs">
-      {status === "saving" ? (
-        <p className="text-muted-foreground">Saving…</p>
-      ) : status === "error" ? (
-        <p className="text-amber-600">
-          Draft sync failed. We&apos;ll retry on your next edit.
-        </p>
-      ) : helperText ? (
-        <p className="text-muted-foreground">{helperText}</p>
-      ) : null}
-    </div>
-  );
-}
-
 function ConversationPanelLoadingSkeleton({
   onBack,
   className,
@@ -206,6 +191,55 @@ function ConversationPanelLoadingSkeleton({
   );
 }
 
+function PostPanelLoadingSkeleton({
+  platform,
+  mode,
+}: {
+  platform: "twitter" | "linkedin";
+  mode: AgentPanelMode;
+}) {
+  const showComposer = mode === "approval";
+
+  return (
+    <div className="space-y-4 px-4">
+      {platform === "linkedin" ? (
+        <LinkedInPostCardSkeleton />
+      ) : (
+        <TweetSkeleton showThread={true} />
+      )}
+
+      {showComposer ? (
+        <ComposerSurfaceSkeleton submitLabel="Approve" />
+      ) : platform === "linkedin" ? (
+        <LinkedInPostCardSkeleton />
+      ) : (
+        <TweetSkeleton showThread={true} hideThreadLine />
+      )}
+    </div>
+  );
+}
+
+function ComposerSectionLoadingSkeleton() {
+  return (
+    <div className="mx-4 space-y-3">
+      <ComposerSurfaceSkeleton submitLabel="Approve" />
+    </div>
+  );
+}
+
+function TwitterApprovalLoadingState({
+  submitLabel = "Approve",
+}: {
+  submitLabel?: string;
+}) {
+  return (
+    <div className="space-y-4 px-4">
+      <TweetSkeleton showThread={true} />
+      <ComposerSurfaceSkeleton submitLabel={submitLabel} />
+    </div>
+  );
+}
+
 export function AgentDynamicPanel({
   prospectId,
   taskId,
@@ -233,8 +267,8 @@ export function AgentDynamicPanel({
   const { connectionStatus, currentUser: composerCurrentUser } =
     useViewerXComposerIdentity({ enabled: isConvexReady });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDraftEditorFocused, setIsDraftEditorFocused] = useState(false);
   const [currentDraftText, setCurrentDraftText] = useState("");
+  const isDraftEditorFocusedRef = useRef(false);
   const isActionRequestPanel = Boolean(actionRequestId);
   const isExplicitDmRequest = !isActionRequestPanel && requestedKind === "dm";
 
@@ -468,11 +502,15 @@ export function AgentDynamicPanel({
     : taskPanelData?.draft?.content || "";
 
   useEffect(() => {
-    if (isDraftEditorFocused) {
+    if (isDraftEditorFocusedRef.current) {
       return;
     }
     setCurrentDraftText(persistedDraftText);
-  }, [isDraftEditorFocused, persistedDraftText]);
+  }, [persistedDraftText]);
+
+  useEffect(() => {
+    isDraftEditorFocusedRef.current = false;
+  }, [actionRequestId, targetTweetId, taskId]);
 
   const draftSync = useDebouncedDraftSync({
     enabled:
@@ -498,6 +536,25 @@ export function AgentDynamicPanel({
       });
     },
   });
+  const inlineDraftStatus =
+    draftSync.status === "saving" ? (
+      <span className="text-muted-foreground text-xs">Saving</span>
+    ) : draftSync.status === "error" ? (
+      <span
+        className="block w-full truncate text-xs text-amber-600"
+        title="Draft sync failed. We'll retry on your next edit."
+      >
+        Draft sync failed. We&apos;ll retry on your next edit.
+      </span>
+    ) : null;
+  const shouldRenderDraftStatusSlot =
+    mode === "approval" &&
+    (Boolean(actionPanelData?.actionRequestId) ||
+      Boolean(taskPanelData?.resolvedTaskId));
+  const draftStatusSlot =
+    shouldRenderDraftStatusSlot && inlineDraftStatus
+      ? inlineDraftStatus
+      : undefined;
 
   const postedReplyTweet = useMemo(() => {
     if (isActionRequestPanel) {
@@ -708,6 +765,57 @@ export function AgentDynamicPanel({
       : mode === "posted"
         ? "Posted reply"
         : "Post";
+  const loadingPlatform: "twitter" | "linkedin" =
+    fallbackPost?.platform ??
+    actionPanelData?.platform ??
+    taskPanelPlatform ??
+    "twitter";
+  const renderFallbackTaskPreview = () => {
+    if (!fallbackPost) {
+      return null;
+    }
+
+    const resolvedFallbackTwitterSummary =
+      fallbackPost.platform === "twitter"
+        ? (fallbackPost.postSummary ?? summarizeTwitterPost(fallbackPost.postData))
+        : undefined;
+
+    if (
+      fallbackPost.platform === "twitter" &&
+      (fallbackPost.postRef?.postId ?? resolvedFallbackTwitterSummary?.ref.postId)
+    ) {
+      return (
+        <ThreadAwareTwitterReplyBody
+          tweetId={
+            fallbackPost.postRef?.postId ??
+            resolvedFallbackTwitterSummary!.ref.postId
+          }
+          initialTweet={
+            resolvedFallbackTwitterSummary
+              ? (toFallbackTweetFromSummary(
+                  resolvedFallbackTwitterSummary
+                ) as TweetType)
+              : undefined
+          }
+          renderLoadingState={() => (
+            <TwitterApprovalLoadingState submitLabel="Approve" />
+          )}
+          renderComposerSection={() => <ComposerSectionLoadingSkeleton />}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-4 px-4">
+        <LinkedInPostCard
+          post={fallbackPost.postData as UnifiedPost}
+          showFullContent
+          commentBehavior="none"
+        />
+        <ComposerSurfaceSkeleton submitLabel="Approve" />
+      </div>
+    );
+  };
 
   if (isDmPlatformPending) {
     return (
@@ -811,7 +919,7 @@ export function AgentDynamicPanel({
           {mode === "approval" && isEditable ? (
             <div className="rounded-[24px] border p-3">
               <BaseComposer
-                key={`${actionPanelData.actionRequestId}-${actionPanelData.content || ""}-${(actionPanelData.mediaUrls || []).join("|")}-${(actionPanelData.mediaKinds || []).join("|")}`}
+                key={`action-request-composer:${actionPanelData.actionRequestId}`}
                 currentUser={composerCurrentUser}
                 initialContent={initialContent}
                 initialMediaUploads={initialMediaUploads}
@@ -839,17 +947,15 @@ export function AgentDynamicPanel({
                   );
                 }}
                 onEditorFocus={() => {
-                  setIsDraftEditorFocused(true);
+                  isDraftEditorFocusedRef.current = true;
                 }}
                 onEditorBlur={() => {
-                  setIsDraftEditorFocused(false);
+                  isDraftEditorFocusedRef.current = false;
                   void draftSync.flushNow();
                 }}
                 onSubmit={handleSubmit}
+                beforeCounterSlot={draftStatusSlot}
               />
-              <div className="mt-2">
-                <DraftSyncStatusLine status={draftSync.status} />
-              </div>
             </div>
           ) : null}
 
@@ -922,10 +1028,13 @@ export function AgentDynamicPanel({
               ) as TweetType)
             : undefined
         }
+        renderLoadingState={() => (
+          <TwitterApprovalLoadingState submitLabel="Approve" />
+        )}
         renderComposerSection={(tweet) => (
           <div className="mx-4 space-y-3">
             <ReplyComposer
-              key={`${actionPanelData.actionRequestId}-${actionPanelData.content || ""}-${(actionPanelData.mediaUrls || []).join("|")}-${(actionPanelData.mediaKinds || []).join("|")}`}
+              key={`action-request-reply:${actionPanelData.actionRequestId}`}
               initialContent={initialContent}
               initialMediaUploads={initialMediaUploads}
               replyTo={{
@@ -957,15 +1066,15 @@ export function AgentDynamicPanel({
                 setCurrentDraftText(extractTextFromEditorState(content).trim());
               }}
               onEditorFocus={() => {
-                setIsDraftEditorFocused(true);
+                isDraftEditorFocusedRef.current = true;
               }}
               onEditorBlur={() => {
-                setIsDraftEditorFocused(false);
+                isDraftEditorFocusedRef.current = false;
                 void draftSync.flushNow();
               }}
               onSubmit={handleSubmit}
+              beforeCounterSlot={draftStatusSlot}
             />
-            <DraftSyncStatusLine status={draftSync.status} />
             <XReplyFallbackAlert
               postId={sourceTweetId}
               authorHandle={
@@ -1014,11 +1123,14 @@ export function AgentDynamicPanel({
         <ScrollArea className="min-h-0 flex-1" viewportClassName="pb-8">
           <PageContent className="space-y-4 py-4">
             {isPanelLoading ? (
-              <div className="space-y-3 px-4">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-32 w-full" />
-              </div>
+              fallbackPost && !isActionRequestPanel ? (
+                renderFallbackTaskPreview()
+              ) : (
+                <PostPanelLoadingSkeleton
+                  platform={loadingPlatform}
+                  mode={mode}
+                />
+              )
             ) : convexReadyError || activePanelError ? (
               <div className="px-4">
                 <p className="text-sm font-medium">
@@ -1039,19 +1151,28 @@ export function AgentDynamicPanel({
             ) : !taskPanelData && fallbackPost ? (
               fallbackPost.platform === "twitter" &&
               (fallbackPost.postRef?.postId ??
+                summarizeTwitterPost(fallbackPost.postData)?.ref.postId ??
                 fallbackPost.postSummary?.ref.postId) ? (
                 <ThreadAwareTwitterReplyBody
                   tweetId={
                     fallbackPost.postRef?.postId ??
+                    summarizeTwitterPost(fallbackPost.postData)?.ref.postId ??
                     fallbackPost.postSummary!.ref.postId
                   }
                   initialTweet={
-                    fallbackPost.postSummary
+                    (fallbackPost.postSummary ??
+                      summarizeTwitterPost(fallbackPost.postData))
                       ? (toFallbackTweetFromSummary(
-                          fallbackPost.postSummary
+                          (fallbackPost.postSummary ??
+                            summarizeTwitterPost(
+                              fallbackPost.postData
+                            )) as TwitterPostSummary
                         ) as TweetType)
                       : undefined
                   }
+                  renderLoadingState={() => (
+                    <TwitterApprovalLoadingState submitLabel="Reply" />
+                  )}
                   renderComposerSection={(tweet) => (
                     <div className="mx-4 space-y-3">
                       <ReplyComposer
@@ -1109,10 +1230,15 @@ export function AgentDynamicPanel({
                           ) as TweetType)
                         : undefined
                     }
+                    renderLoadingState={() => (
+                      <TwitterApprovalLoadingState
+                        submitLabel={taskReplySubmitButtonText}
+                      />
+                    )}
                     renderComposerSection={(tweet) => (
                       <div className="mx-4 space-y-3">
                         <ReplyComposer
-                          key={`${data.resolvedTaskId}-${data.draft?.content || ""}-${(data.draft?.mediaUrls || []).join("|")}-${(data.draft?.mediaKinds || []).join("|")}`}
+                          key={`task-reply:${data.resolvedTaskId}`}
                           initialContent={initialContent}
                           initialMediaUploads={initialMediaUploads}
                           replyTo={{
@@ -1145,15 +1271,15 @@ export function AgentDynamicPanel({
                             );
                           }}
                           onEditorFocus={() => {
-                            setIsDraftEditorFocused(true);
+                            isDraftEditorFocusedRef.current = true;
                           }}
                           onEditorBlur={() => {
-                            setIsDraftEditorFocused(false);
+                            isDraftEditorFocusedRef.current = false;
                             void draftSync.flushNow();
                           }}
                           onSubmit={handleSubmit}
+                          beforeCounterSlot={draftStatusSlot}
                         />
-                        <DraftSyncStatusLine status={draftSync.status} />
                         <XReplyFallbackAlert
                           postId={originalTweetId}
                           authorHandle={

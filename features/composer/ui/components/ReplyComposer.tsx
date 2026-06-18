@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { SerializedEditorState } from "lexical";
 // import {
 //   DropdownMenu,
@@ -38,6 +39,9 @@ export function ReplyComposer({
   editorAreaClassName,
   showMediaDescription = true,
   showOpenGraphPreview = true,
+  afterEmojiSlot,
+  beforeCounterSlot,
+  submitToolbarStart,
   className,
   inlineAutocompleteContext,
   onContentChange,
@@ -46,26 +50,59 @@ export function ReplyComposer({
   onSubmit,
   // Remove unused onCancel to fix lint error
 }: ReplyComposerProps) {
-  const fallbackReplyUsers = replyTo.users.filter(
-    (user) => user.screenName.trim().length > 0
-  );
   const tweetScreenName = replyTo.tweet.user?.screen_name?.trim() ?? "";
   const tweetName = replyTo.tweet.user?.name?.trim() ?? tweetScreenName;
-  const replyUsers =
-    tweetScreenName.length === 0
-      ? fallbackReplyUsers
-      : fallbackReplyUsers.some(
-            (user) =>
-              user.screenName.trim().toLowerCase() ===
-              tweetScreenName.toLowerCase()
-          )
-        ? fallbackReplyUsers
-        : fallbackReplyUsers.length <= 1
-          ? [{ screenName: tweetScreenName, name: tweetName }]
-          : [
-              { screenName: tweetScreenName, name: tweetName },
-              ...fallbackReplyUsers,
-            ];
+  const replyUsers = React.useMemo(() => {
+    const fallbackReplyUsers = replyTo.users.filter(
+      (user) => user.screenName.trim().length > 0
+    );
+
+    if (tweetScreenName.length === 0) {
+      return fallbackReplyUsers;
+    }
+
+    if (
+      fallbackReplyUsers.some(
+        (user) =>
+          user.screenName.trim().toLowerCase() ===
+          tweetScreenName.toLowerCase()
+      )
+    ) {
+      return fallbackReplyUsers;
+    }
+
+    if (fallbackReplyUsers.length <= 1) {
+      return [{ screenName: tweetScreenName, name: tweetName }];
+    }
+
+    return [
+      { screenName: tweetScreenName, name: tweetName },
+      ...fallbackReplyUsers,
+    ];
+  }, [replyTo.users, tweetName, tweetScreenName]);
+  const headerSecondary = React.useMemo(
+    () =>
+      replyUsers.length > 0 ? (
+        <div className="flex items-center gap-1">
+          <span>Replying to</span>
+          {replyUsers.map((user, index) => (
+            <Link
+              key={user.screenName}
+              href={`https://x.com/${user.screenName}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground font-mono font-medium hover:underline"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`View @${user.screenName}'s profile`}
+            >
+              @{user.screenName}
+              {index < replyUsers.length - 1 && ", "}
+            </Link>
+          ))}
+        </div>
+      ) : undefined,
+    [replyUsers]
+  );
 
   const handleSubmit = async (
     content: SerializedEditorState,
@@ -144,27 +181,10 @@ export function ReplyComposer({
       //     </DropdownMenuContent>
       //   </DropdownMenu>
       // }
-      headerSecondary={
-        replyUsers.length > 0 ? (
-          <div className="flex items-center gap-1">
-            <span>Replying to</span>
-            {replyUsers.map((user, index) => (
-              <Link
-                key={user.screenName}
-                href={`https://x.com/${user.screenName}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground font-mono font-medium hover:underline"
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`View @${user.screenName}'s profile`}
-              >
-                @{user.screenName}
-                {index < replyUsers.length - 1 && ", "}
-              </Link>
-            ))}
-          </div>
-        ) : undefined
-      }
+      headerSecondary={headerSecondary}
+      afterEmojiSlot={afterEmojiSlot}
+      beforeCounterSlot={beforeCounterSlot}
+      submitToolbarStart={submitToolbarStart}
       className={className}
     />
   );

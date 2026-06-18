@@ -8,6 +8,10 @@ import { Checkbox } from "@/shared/ui/components/Checkbox";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { useReplyPanel } from "@/shared/contexts/ReplyPanelContext";
 import { cn, parseText } from "@/shared/lib/utils";
+import type {
+  TwitterPostRef,
+  TwitterPostSummary,
+} from "@/shared/lib/twitter/contracts";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
@@ -37,6 +41,12 @@ export interface TaskItemProps {
   prospectId?: string;
   threadId?: string;
   targetTweetId?: string;
+  originalPost?: {
+    platform: "twitter" | "linkedin";
+    postData?: unknown;
+    postRef?: TwitterPostRef;
+    postSummary?: TwitterPostSummary;
+  } | null;
   mode?: TaskItemMode;
   onApproveTask?: (taskId: string) => void;
   onViewTask?: (payload: {
@@ -44,6 +54,12 @@ export interface TaskItemProps {
     targetTweetId?: string;
     kind?: "post" | "dm";
     panelMode: "approval" | "posted";
+    fallbackPost?: {
+      platform: "twitter" | "linkedin";
+      postData?: unknown;
+      postRef?: TwitterPostRef;
+      postSummary?: TwitterPostSummary;
+    };
   }) => void;
   onClick?: () => void;
   className?: string;
@@ -66,6 +82,7 @@ export function TaskItem({
   prospectId,
   threadId,
   targetTweetId,
+  originalPost,
   mode = "interactive",
   onApproveTask,
   onViewTask,
@@ -134,6 +151,7 @@ export function TaskItem({
       targetTweetId,
       kind: type === "dm" ? "dm" : "post",
       panelMode,
+      fallbackPost: originalPost ?? undefined,
     });
 
     if (onViewTask) {

@@ -266,6 +266,16 @@ export function ProspectPanelRenderer({
             targetTweetId={
               currentPanel.props.targetTweetId as string | undefined
             }
+            fallbackPost={
+              currentPanel.props.fallbackPost as
+                | {
+                    platform: "twitter" | "linkedin";
+                    postData?: unknown;
+                    postRef?: import("@/shared/lib/twitter/contracts").TwitterPostRef;
+                    postSummary?: import("@/shared/lib/twitter/contracts").TwitterPostSummary;
+                  }
+                | undefined
+            }
             requestedMode={
               currentPanel.props.panelMode as AgentPanelMode | undefined
             }

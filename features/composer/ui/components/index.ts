@@ -1,4 +1,5 @@
 export { BaseComposer } from "./BaseComposer";
+export { ComposerSurfaceSkeleton } from "./ComposerSurfaceSkeleton";
 export { ReplyComposer } from "./ReplyComposer";
 export { NoteComposer } from "./NoteComposer";
 export { ComposerToolbar } from "./ComposerToolbar";

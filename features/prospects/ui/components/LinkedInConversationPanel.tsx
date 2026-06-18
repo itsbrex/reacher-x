@@ -41,7 +41,6 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedDraftSync } from "@/features/agent/hooks/useDebouncedDraftSync";
-import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -296,8 +295,6 @@ export function LinkedInConversationPanel({
         isSendingActionRequest ||
         isSendingMessage)) ||
     Boolean(taskMode === "posted");
-  const taskSubmitBlockedByPlan =
-    isTaskBacked && taskMode === "approval" && !taskApprovalReady;
   const shouldDisableTaskSubmit =
     isTaskBacked &&
     !(
@@ -305,16 +302,9 @@ export function LinkedInConversationPanel({
       (taskStatus === "pending" || taskStatus === "executing") &&
       taskApprovalReady
     );
-  const draftStatusHelperText = taskSubmitBlockedByPlan
-    ? "Approve the plan first to send this message."
-    : null;
-  const shouldRenderDraftStatusSlot = isTaskBacked || isPendingApproval;
   const inlineDraftStatus =
     draftSync.status === "saving" ? (
-      <AsciiSpinnerText
-        text="Saving"
-        className="text-muted-foreground text-xs"
-      />
+      <span className="text-muted-foreground text-xs">Saving</span>
     ) : draftSync.status === "error" ? (
       <span
         className="block w-full truncate text-xs text-amber-600"
@@ -323,18 +313,13 @@ export function LinkedInConversationPanel({
         Draft sync failed. We&apos;ll retry on your next edit.
       </span>
     ) : !isTaskBacked && isPendingApproval && isSendingActionRequest ? (
-      <AsciiSpinnerText
-        text="Sending"
-        className="text-muted-foreground text-xs"
-      />
-    ) : draftStatusHelperText ? (
-      <span
-        className="text-muted-foreground block w-full truncate text-xs"
-        title={draftStatusHelperText}
-      >
-        {draftStatusHelperText}
-      </span>
+      <span className="text-muted-foreground text-xs">Sending</span>
     ) : null;
+  const shouldRenderDraftStatusSlot = isTaskBacked || isPendingApproval;
+  const draftStatusSlot =
+    shouldRenderDraftStatusSlot && inlineDraftStatus
+      ? inlineDraftStatus
+      : undefined;
 
   const headerActions = (
     <DropdownMenu>
@@ -647,28 +632,19 @@ export function LinkedInConversationPanel({
                 void draftSync.flushNow();
               }}
               onSubmit={handleSend}
-              afterEmojiSlot={
-                shouldRenderDraftStatusSlot ? (
-                  <div
-                    className="flex h-8 w-28 shrink-0 items-center justify-start overflow-hidden sm:w-40"
-                    aria-live="polite"
-                  >
-                    {inlineDraftStatus ?? (
-                      <span className="block w-full" aria-hidden />
-                    )}
-                  </div>
-                ) : undefined
-              }
+              beforeCounterSlot={draftStatusSlot}
               submitToolbarStart={
                 !isTaskBacked && isPendingApproval ? (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    type="button"
-                    onClick={handleCancelDraft}
-                  >
-                    Cancel
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      type="button"
+                      onClick={handleCancelDraft}
+                    >
+                      Cancel
+                    </Button>
+                  </>
                 ) : undefined
               }
             />

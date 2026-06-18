@@ -16,9 +16,8 @@ import {
   PageContent,
 } from "@/features/webapp/ui/components";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
-import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { usePanelStack } from "../../contexts/PanelStackContext";
-import { Tweet } from "@/features/webapp/ui/components/tweet";
+import { Tweet, TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import type { TwitterPostSummary } from "@/shared/lib/twitter/contracts";
 import { usePostEngagementMerge } from "@/shared/hooks/usePostEngagementMerge";
@@ -248,21 +247,9 @@ export function ConversationPanel({
 function ConversationSkeleton() {
   return (
     <div className="divide-y">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="space-y-3 px-4 py-3">
-          <div className="flex items-start gap-3">
-            <Skeleton className="size-10 shrink-0 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-          </div>
-          <Skeleton className="h-12 w-full" />
-          <div className="flex gap-4">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-3 w-12" />
-          </div>
+      {[1, 2, 3, 4].map((item) => (
+        <div key={item} className="px-4 py-3">
+          <TweetSkeleton showThread={item === 4} />
         </div>
       ))}
     </div>

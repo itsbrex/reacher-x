@@ -411,6 +411,7 @@ function findSourcePostInProspect(
   targetTweetId?: string
 ): {
   platform: "twitter" | "linkedin";
+  sourcePostData?: unknown;
   sourcePostRef?: TwitterPostRef;
   sourcePostSummary?: TwitterPostSummary;
 } | null {
@@ -433,6 +434,7 @@ function findSourcePostInProspect(
     if (candidatePosts.length === 0 && !firstSummary) return null;
     return {
       platform,
+      sourcePostData: candidatePosts[0],
       sourcePostRef:
         platform === "twitter"
           ? getTwitterPostRef(candidatePosts[0])
@@ -451,6 +453,7 @@ function findSourcePostInProspect(
 
   return {
     platform,
+    sourcePostData: matched,
     sourcePostRef:
       platform === "twitter" ? getTwitterPostRef(matched) : undefined,
     sourcePostSummary:
@@ -577,7 +580,46 @@ export const getProspectPlan = query({
       notFoundMessage: "Prospect not found",
       notAuthorizedMessage: "Not authorized to view this prospect",
     });
-    return await getProspectActivePlan(ctx, prospectId);
+    const activePlan = await getProspectActivePlan(ctx, prospectId);
+    if (!activePlan) {
+      return null;
+    }
+
+    const prospect = await ctx.db.get(prospectId);
+    const tasks = activePlan.tasks.map((task) => {
+      const fallbackSource = findSourcePostInProspect(
+        prospect,
+        task.targetTweetId
+      );
+      const sourcePostSummary =
+        task.approvalContext?.sourcePostSummary ??
+        fallbackSource?.sourcePostSummary;
+      const sourcePostRef =
+        task.approvalContext?.sourcePostRef ?? fallbackSource?.sourcePostRef;
+      const sourcePostData = fallbackSource?.sourcePostData;
+      const sourcePlatform =
+        task.approvalContext?.platform ?? fallbackSource?.platform;
+
+      return {
+        ...task,
+        originalPost:
+          task.type === "comment" &&
+          sourcePlatform &&
+          (sourcePostSummary || sourcePostData)
+            ? {
+                platform: sourcePlatform,
+                postRef: sourcePostRef,
+                postSummary: sourcePostSummary,
+                postData: sourcePostData,
+              }
+            : null,
+      };
+    });
+
+    return {
+      plan: activePlan.plan,
+      tasks,
+    };
   },
 });
 
@@ -1327,11 +1369,12 @@ export const getAgentPanelContext = query({
         mediaKinds: normalizeMediaKinds(task.mediaKinds, task.mediaUrls || []),
       },
       originalPost:
-        task.type === "comment" && sourcePostSummary
+        task.type === "comment" && (sourcePostSummary || fallbackSource?.sourcePostData)
           ? {
               platform: sourcePlatform,
               postId: sourcePostId,
               context: sourceContext,
+              postData: fallbackSource?.sourcePostData,
               postRef:
                 approvalContext?.sourcePostRef ?? fallbackSource?.sourcePostRef,
               postSummary: sourcePostSummary,

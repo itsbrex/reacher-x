@@ -163,6 +163,8 @@ interface BaseComposerProps extends ComposerBaseProps {
   headerActionsRight?: React.ReactNode; // right-aligned actions in headerPrimary row
   /** Passed to toolbar: after emoji (e.g. draft save indicator). */
   afterEmojiSlot?: React.ReactNode;
+  /** Passed to toolbar: immediately before the character counter. */
+  beforeCounterSlot?: React.ReactNode;
   /** Passed to toolbar: immediately before submit, after char count (e.g. cancel draft). */
   submitToolbarStart?: React.ReactNode;
   /** When false, hide alt/description UI on media (e.g. X DMs have no media descriptions). Default true. */
@@ -202,6 +204,7 @@ export function BaseComposer({
   headerSecondary,
   headerActionsRight,
   afterEmojiSlot,
+  beforeCounterSlot,
   submitToolbarStart,
   showMediaDescription = true,
   submitDisabled = false,
@@ -818,6 +821,7 @@ export function BaseComposer({
         isBoldActive={formattingState.isBold}
         isItalicActive={formattingState.isItalic}
         afterEmojiSlot={afterEmojiSlot}
+        beforeCounterSlot={beforeCounterSlot}
         submitToolbarStart={submitToolbarStart}
         beforeSubmitSlot={
           showCharacterCount ? (

@@ -308,21 +308,22 @@ export function AgentPageShell() {
       panel || taskId || actionRequestId || panelState || targetTweetId
     );
 
-    if (rightPanelSessionOpenRef.current || !hasPanelQueryParams) {
+    if (!hasPanelQueryParams || !prospectId || rightPanelSessionOpenRef.current) {
       return;
     }
 
-    void setParams(
-      {
-        panel: null,
-        taskId: null,
-        actionRequestId: null,
-        panelState: null,
-        targetTweetId: null,
-      },
-      { history: "replace" }
-    );
-  }, [actionRequestId, panel, panelState, setParams, targetTweetId, taskId]);
+    queueMicrotask(() => {
+      setRightPanelSessionActive(true);
+    });
+  }, [
+    actionRequestId,
+    panel,
+    panelState,
+    prospectId,
+    setRightPanelSessionActive,
+    targetTweetId,
+    taskId,
+  ]);
 
   const handleOpenPanelFromCard = useCallback(
     (payload: InlinePanelOpenPayload) => {
@@ -550,17 +551,38 @@ export function AgentPageShell() {
       targetTweetId: nextTargetTweetId,
       kind,
       panelMode,
+      fallbackPost,
     }: {
       taskId: string;
       targetTweetId?: string;
       kind?: "post" | "dm";
       panelMode: "approval" | "posted";
+      fallbackPost?: {
+        platform: "twitter" | "linkedin";
+        postData?: unknown;
+        postRef?: import("@/shared/lib/twitter/contracts").TwitterPostRef;
+        postSummary?: import("@/shared/lib/twitter/contracts").TwitterPostSummary;
+      };
     }) => {
       setProspectPanelSessionProspectId(null);
       closeProspect();
       setHistoryOpen(false);
       setRightPanelSessionActive(true);
-      setCardPayload(null);
+      setCardPayload(
+        fallbackPost
+          ? {
+              kind: kind === "dm" ? "dm" : "post",
+              platform: fallbackPost.platform,
+              prospectId: prospectId ?? undefined,
+              taskId: nextTaskId,
+              targetTweetId: nextTargetTweetId,
+              panelMode,
+              postData: fallbackPost.postData,
+              postRef: fallbackPost.postRef,
+              postSummary: fallbackPost.postSummary,
+            }
+          : null
+      );
       setParams({
         panel: kind === "dm" ? "dm" : panelMode,
         panelState: panelMode,
@@ -569,7 +591,7 @@ export function AgentPageShell() {
         targetTweetId: nextTargetTweetId ?? null,
       });
     },
-    [closeProspect, setParams, setRightPanelSessionActive]
+    [closeProspect, prospectId, setParams, setRightPanelSessionActive]
   );
 
   const agentRightSurfaceActive =

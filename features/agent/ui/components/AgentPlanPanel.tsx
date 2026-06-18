@@ -23,6 +23,10 @@ import {
   getOutreachPlanStatusLabel,
 } from "@/features/prospects/ui/components/outreach-plan";
 import { cn } from "@/shared/lib/utils";
+import type {
+  TwitterPostRef,
+  TwitterPostSummary,
+} from "@/shared/lib/twitter/contracts";
 
 export interface AgentPlanPanelProps {
   prospectId: string;
@@ -33,6 +37,12 @@ export interface AgentPlanPanelProps {
     targetTweetId?: string;
     kind?: "post" | "dm";
     panelMode: "approval" | "posted";
+    fallbackPost?: {
+      platform: "twitter" | "linkedin";
+      postData?: unknown;
+      postRef?: TwitterPostRef;
+      postSummary?: TwitterPostSummary;
+    };
   }) => void;
   className?: string;
 }

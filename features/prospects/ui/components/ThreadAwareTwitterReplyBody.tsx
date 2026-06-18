@@ -9,9 +9,9 @@ import { useHydratedTwitterPosts } from "@/shared/hooks/useHydratedTwitterPosts"
 import { dedupeAndSortConversationTweets } from "@/features/prospects/lib/twitterConversation";
 import { mergeLocalEngagementIntoTweet } from "@/shared/lib/twitter/mergeViewerState";
 import { Button } from "@/shared/ui/components/Button";
-import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { cn } from "@/shared/lib/utils";
+import { TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 
 export interface ThreadAwareTwitterReplyBodyProps {
   tweetId: string;
@@ -19,6 +19,7 @@ export interface ThreadAwareTwitterReplyBodyProps {
   initialTweet?: TweetType | null;
   overlayCommented?: boolean;
   renderComposerSection: (tweet: TweetType) => React.ReactNode;
+  renderLoadingState?: () => React.ReactNode;
   loadingContainerClassName?: string;
   errorClassName?: string;
   timelineContainerClassName?: string;
@@ -36,6 +37,7 @@ export function ThreadAwareTwitterReplyBody({
   initialTweet,
   overlayCommented = false,
   renderComposerSection,
+  renderLoadingState,
   loadingContainerClassName,
   errorClassName,
   timelineContainerClassName,
@@ -222,10 +224,12 @@ export function ThreadAwareTwitterReplyBody({
     isLoadingConversation && conversationTweets.length === 0;
 
   if (tweetLoading) {
-    return (
+    return renderLoadingState ? (
+      <>{renderLoadingState()}</>
+    ) : (
       <div className={cn("mx-4 space-y-3", loadingContainerClassName)}>
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-20 w-full" />
+        <TweetSkeleton showThread={true} />
+        <TweetSkeleton showThread={true} hideThreadLine />
       </div>
     );
   }
@@ -241,46 +245,43 @@ export function ThreadAwareTwitterReplyBody({
   return (
     <>
       <div className={cn("mx-4 mb-0", timelineContainerClassName)}>
-        {isInitialConversationLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        ) : (
-          <section className="space-y-0">
-            {timelineBeforeComposer.map((conversationTweet) => (
-              <article
-                key={conversationTweet.id_str}
-                ref={
+        <section className="space-y-0">
+          {timelineBeforeComposer.map((conversationTweet) => (
+            <article
+              key={conversationTweet.id_str}
+              ref={
+                conversationTweet.id_str === tweetId
+                  ? focusedTweetRef
+                  : undefined
+              }
+            >
+              <Tweet
+                tweet={conversationTweet}
+                showFullContent={
                   conversationTweet.id_str === tweetId
-                    ? focusedTweetRef
+                    ? showFocusedTweetFullContent
+                    : false
+                }
+                bodyLineClamp={
+                  conversationTweet.id_str === tweetId
+                    ? focusedTweetBodyLineClamp
                     : undefined
                 }
-              >
-                <Tweet
-                  tweet={conversationTweet}
-                  showFullContent={
-                    conversationTweet.id_str === tweetId
-                      ? showFocusedTweetFullContent
-                      : false
-                  }
-                  bodyLineClamp={
-                    conversationTweet.id_str === tweetId
-                      ? focusedTweetBodyLineClamp
-                      : undefined
-                  }
-                  showThread={false}
-                />
-              </article>
-            ))}
-            {conversationError ? (
-              <p className="text-muted-foreground mt-2 text-sm">
-                {conversationError}
-              </p>
-            ) : null}
-          </section>
-        )}
+                showThread={false}
+              />
+            </article>
+          ))}
+          {isInitialConversationLoading ? (
+            <span className="sr-only" aria-live="polite">
+              Loading conversation
+            </span>
+          ) : null}
+          {conversationError ? (
+            <p className="text-muted-foreground mt-2 text-sm">
+              {conversationError}
+            </p>
+          ) : null}
+        </section>
       </div>
 
       {renderComposerSection(displayTweet)}

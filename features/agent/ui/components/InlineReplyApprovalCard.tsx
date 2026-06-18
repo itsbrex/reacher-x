@@ -3,6 +3,7 @@
 import * as React from "react";
 import { buildSerializedTextState } from "@/features/composer/lib/buildSerializedTextState";
 import { useViewerXComposerIdentity } from "@/features/composer/hooks/useViewerXComposerIdentity";
+import { ComposerSurfaceSkeleton } from "@/features/composer/ui/components/ComposerSurfaceSkeleton";
 import { ReplyComposer } from "@/features/composer/ui/components/ReplyComposer";
 import type {
   ComposerInitialMediaUpload,
@@ -22,6 +23,7 @@ import type {
 } from "@/shared/lib/twitter/contracts";
 import { toFallbackTweetFromSummary } from "@/shared/lib/twitter/ui";
 import { X_POST_WEIGHTED_MAX } from "@/shared/lib/twitter/xPostTextLimit";
+import { TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 
 const PREVIEW_TOOLBAR_CONFIG: ToolbarConfig = {
   showBold: false,
@@ -172,6 +174,12 @@ export function InlineReplyApprovalCard({
         <ThreadAwareTwitterReplyBody
           tweetId={sourceTweetId}
           initialTweet={initialTweet}
+          renderLoadingState={() => (
+            <div className="space-y-3">
+              <TweetSkeleton showThread={true} />
+              <ComposerSurfaceSkeleton compact submitLabel="Reply" />
+            </div>
+          )}
           loadingContainerClassName="mx-0"
           errorClassName="mx-0"
           timelineContainerClassName="mx-0"

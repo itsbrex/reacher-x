@@ -8,6 +8,10 @@ import { Button } from "@/shared/ui/components/Button";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import type {
+  TwitterPostRef,
+  TwitterPostSummary,
+} from "@/shared/lib/twitter/contracts";
 import { OutreachPlanCard } from "./outreach-plan/OutreachPlanCard";
 import { usePanelStack } from "../../contexts/PanelStackContext";
 
@@ -151,11 +155,18 @@ export function OutreachPlanSection({
     targetTweetId,
     kind,
     panelMode,
+    fallbackPost,
   }: {
     taskId: string;
     targetTweetId?: string;
     kind?: "post" | "dm";
     panelMode: "approval" | "posted";
+    fallbackPost?: {
+      platform: "twitter" | "linkedin";
+      postData?: unknown;
+      postRef?: TwitterPostRef;
+      postSummary?: TwitterPostSummary;
+    };
   }) => {
     pushPanel("task-compose", {
       prospectId,
@@ -163,6 +174,7 @@ export function OutreachPlanSection({
       targetTweetId,
       requestedKind: kind ?? "post",
       panelMode,
+      fallbackPost,
     });
   };
 

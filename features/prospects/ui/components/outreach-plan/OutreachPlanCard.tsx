@@ -13,6 +13,10 @@ import {
 } from "@/shared/ui/components/DropdownMenu";
 import { MoreHorizIcon, EditIcon } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils";
+import type {
+  TwitterPostRef,
+  TwitterPostSummary,
+} from "@/shared/lib/twitter/contracts";
 import {
   PlanStrategyContent,
   shouldEnableStrategyExpansion,
@@ -43,6 +47,12 @@ export interface OutreachPlanCardTask {
   status: string;
   content?: string;
   targetTweetId?: string;
+  originalPost?: {
+    platform: "twitter" | "linkedin";
+    postData?: unknown;
+    postRef?: TwitterPostRef;
+    postSummary?: TwitterPostSummary;
+  } | null;
 }
 
 export interface OutreachPlanCardFooterAction {
@@ -80,6 +90,12 @@ export interface OutreachPlanCardProps {
     targetTweetId?: string;
     kind?: "post" | "dm";
     panelMode: "approval" | "posted";
+    fallbackPost?: {
+      platform: "twitter" | "linkedin";
+      postData?: unknown;
+      postRef?: TwitterPostRef;
+      postSummary?: TwitterPostSummary;
+    };
   }) => void;
   onTaskClick?: () => void;
   /** Disables plan actions (edit, approve, pause, resume, task actions). */
@@ -353,6 +369,7 @@ export function OutreachPlanCard({
                 prospectId={prospectId}
                 threadId={threadId}
                 targetTweetId={task.targetTweetId}
+                originalPost={task.originalPost}
                 mode={effectiveTaskMode}
                 onApproveTask={
                   resolvedShowTaskActions && !actionsDisabled

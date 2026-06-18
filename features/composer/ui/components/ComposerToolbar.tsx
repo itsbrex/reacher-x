@@ -51,6 +51,8 @@ interface ComposerToolbarProps {
   className?: string;
   /** Rendered immediately after the emoji control (e.g. draft save status). */
   afterEmojiSlot?: React.ReactNode;
+  /** Rendered immediately before the character counter. */
+  beforeCounterSlot?: React.ReactNode;
   /** Rendered immediately before the submit button (after char count slot). */
   submitToolbarStart?: React.ReactNode;
   // Optional slot rendered just before the submit button
@@ -94,6 +96,7 @@ export function ComposerToolbar({
   isBoldActive,
   isItalicActive,
   afterEmojiSlot,
+  beforeCounterSlot,
   submitToolbarStart,
   beforeSubmitSlot,
   submitButtonVariant = "text",
@@ -269,9 +272,24 @@ export function ComposerToolbar({
         </ToggleGroup>
       )}
 
-      {/* Right controls: char count, then optional leading (e.g. Cancel), then submit */}
+      {/* Right controls: autosave status overlays beside the counter without shifting layout. */}
       <div className="ml-auto flex items-center gap-1">
-        {beforeSubmitSlot}
+        {beforeCounterSlot || beforeSubmitSlot ? (
+          <div className="relative flex items-center gap-1">
+            {beforeCounterSlot ? (
+              <div
+                className="pointer-events-none absolute right-full mr-1.5 flex h-5 max-w-[5rem] items-center justify-end gap-1 overflow-hidden whitespace-nowrap"
+                aria-live="polite"
+              >
+                {beforeCounterSlot}
+                {beforeSubmitSlot ? (
+                  <span className="text-muted-foreground text-xs">·</span>
+                ) : null}
+              </div>
+            ) : null}
+            {beforeSubmitSlot}
+          </div>
+        ) : null}
         {submitToolbarStart}
         {submitButtonVariant === "icon" ? (
           <Button

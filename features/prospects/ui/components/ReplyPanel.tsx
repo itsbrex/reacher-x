@@ -22,6 +22,7 @@ import {
 } from "@/features/webapp/ui/components";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { ReplyComposer } from "@/features/composer/ui/components/ReplyComposer";
+import { ComposerSurfaceSkeleton } from "@/features/composer/ui/components/ComposerSurfaceSkeleton";
 import { XReplyFallbackAlert } from "@/features/composer/ui/components/XReplyFallbackAlert";
 import { extractTextFromEditorState } from "@/shared/lib/utils";
 import { X_POST_WEIGHTED_MAX } from "@/shared/lib/twitter/xPostTextLimit";
@@ -32,10 +33,10 @@ import {
   AlertTitle,
 } from "@/shared/ui/components/Alert";
 import { Button } from "@/shared/ui/components/Button";
-import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { usePanelStack } from "../../contexts/PanelStackContext";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import { ThreadAwareTwitterReplyBody } from "./ThreadAwareTwitterReplyBody";
+import { TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 
 export interface ReplyPanelProps {
   tweetId: string;
@@ -88,16 +89,16 @@ export function ReplyPanel({
               threadId={threadId}
               initialTweet={initialTweet}
               overlayCommented={initialTweet?.viewerState?.commented === true}
+              renderLoadingState={() => (
+                <div className="mx-4 space-y-4">
+                  <TweetSkeleton showThread={true} />
+                  <ComposerSurfaceSkeleton submitLabel="Reply" />
+                </div>
+              )}
               renderComposerSection={(tweet) => (
                 <div className="mx-4">
                   {authLoading || accountLoading ? (
-                    <div className="flex gap-3">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1 space-y-3">
-                        <Skeleton className="h-4 w-28" />
-                        <Skeleton className="h-24 w-full rounded-md" />
-                      </div>
-                    </div>
+                    <ComposerSurfaceSkeleton submitLabel="Reply" />
                   ) : !isAuthenticated ? (
                     <Alert>
                       <AlertTitle>Sign in required</AlertTitle>

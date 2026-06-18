@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { SerializedEditorState } from "lexical";
 import { Tweet } from "@/features/threads/types";
 import type { InlineAutocompleteContext } from "@/shared/lib/autocomplete/inlineAutocomplete";
@@ -82,6 +83,9 @@ export interface ReplyComposerProps extends ComposerBaseProps {
   showAvatar?: boolean;
   editorAreaClassName?: string;
   showMediaDescription?: boolean;
+  afterEmojiSlot?: ReactNode;
+  beforeCounterSlot?: ReactNode;
+  submitToolbarStart?: ReactNode;
   onSubmit?: (
     content: SerializedEditorState,
     mediaUrls?: string[],
