@@ -22,7 +22,7 @@ export function TweetSkeleton({
 }: TweetSkeletonProps) {
   return (
     <article
-      className={cn("group flex w-full gap-2", className)}
+      className={cn("card-fade-bottom group flex w-full gap-2", className)}
       aria-label="Loading tweet"
     >
       {/* Left column: avatar + thread guideline */}

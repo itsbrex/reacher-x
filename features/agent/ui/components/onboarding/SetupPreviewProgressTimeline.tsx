@@ -44,7 +44,9 @@ export function SetupPreviewProgressTimeline({
         ? "Search in progress"
         : "Live progress";
   const activeTitle =
-    mode === "starting" ? "Starting preview search" : `Matching real ${entityPlural}`;
+    mode === "starting"
+      ? "Starting preview search"
+      : `Matching real ${entityPluralLower}`;
   const activeDescription =
     mode === "starting"
       ? `Agent is starting the first live search for real ${entityPluralLower}.`
@@ -105,7 +107,7 @@ export function SetupPreviewProgressTimeline({
           <TimelineHeader>
             <StageKnob state="upcoming" />
             <TimelineTitle className="text-muted-foreground text-sm">
-              Preview {entityPlural}
+              Preview {entityPluralLower}
             </TimelineTitle>
           </TimelineHeader>
           <TimelineContent className="mt-1 text-xs">

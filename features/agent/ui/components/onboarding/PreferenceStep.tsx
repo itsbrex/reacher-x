@@ -28,7 +28,7 @@ export function PreferenceStep({
   );
   const binCounts = histogramQuery.data?.binCounts ?? Array(10).fill(0);
   const supportingText = histogramQuery.isError
-    ? `We couldn't load the current fit-score distribution, but your range will still be saved. ${useCase.entityPlural} below ${QUALIFICATION_THRESHOLD}% are unqualified.`
+    ? `Agent couldn't load the current fit-score distribution, but your range will still be saved. ${useCase.entityPlural} below ${QUALIFICATION_THRESHOLD}% are unqualified.`
     : `${useCase.entityPlural} below ${QUALIFICATION_THRESHOLD}% are unqualified.`;
 
   return (

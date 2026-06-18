@@ -112,6 +112,8 @@ const MessageContent = ({
     "prose-h2:text-lg prose-h2:font-semibold prose-h2:my-2",
     "prose-h3:text-base prose-h3:font-semibold prose-h3:my-2",
     "prose-h4:text-sm prose-h4:font-medium",
+    // Markdown separators / tables should use design-system borders
+    "prose-hr:border-border/80",
     // Code styling
     "prose-code:text-sm prose-code:bg-muted prose-code:px-1 prose-code:rounded",
     // Strong/bold

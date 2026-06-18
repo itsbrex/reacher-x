@@ -106,6 +106,7 @@ import { useProspectDmState } from "@/features/prospects/hooks/useProspectDmStat
 import { $onboardingLock } from "@/shared/stores/onboarding";
 import {
   ArrowUpwardIcon,
+  AlternateEmailIcon,
   AttachFileIcon,
   StopIcon,
   AddIcon,
@@ -715,6 +716,7 @@ function ChatMessage({
 }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
+  const isPending = message.status === "pending";
   const isStreaming = message.status === "streaming";
   const messageText = getUIMessageDisplayText(message);
 
@@ -771,6 +773,28 @@ function ChatMessage({
     !toolCalls.length
       ? "That response couldn't be completed."
       : "";
+
+  if (
+    isAssistant &&
+    isPending &&
+    !displayText &&
+    !toolCalls.length &&
+    !hasAssistantMetadata
+  ) {
+    return (
+      <Message className="items-start">
+        <MessageAvatar
+          alt="Agent"
+          fallback={AGENT_AVATAR_FALLBACK}
+          className="bg-background text-foreground"
+          avatarClassName="rounded-md"
+        />
+        <div className="flex max-w-[85%] flex-col gap-2 pt-1">
+          <ThinkingBar text="Thinking" />
+        </div>
+      </Message>
+    );
+  }
 
   // Don't render empty messages unless streaming or there is rich metadata.
   if (
@@ -1777,13 +1801,13 @@ export function AgentChat({
                 <Tooltip>
                   <TooltipTrigger
                     aria-disabled
-                    className={cn(
+                  className={cn(
                       buttonVariants({ variant: "outline", size: "xsIcon" }),
                       "opacity-50"
                     )}
                     type="button"
                   >
-                    <MailIcon className="fill-current" />
+                    <AlternateEmailIcon className="fill-current" />
                   </TooltipTrigger>
                   <TooltipContent>Coming soon!</TooltipContent>
                 </Tooltip>

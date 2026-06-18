@@ -16,7 +16,10 @@ import {
   ArrowUpwardIcon,
   ChangeHistoryIcon,
 } from "@/shared/ui/components/icons";
-import { IdealCustomerProfileCard } from "@/features/prospects";
+import {
+  IdealCustomerProfileCard,
+  IdealCustomerProfileCardSkeleton,
+} from "@/features/prospects";
 import { InlineProfilePreviewCard } from "@/features/agent/ui/components/InlineProfilePreviewCard";
 import {
   buildSetupPreviewProfileData,
@@ -287,12 +290,12 @@ export function WorkspaceInputStep({
       case "provisioning_preview_workspace":
         return {
           title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
-          description: `We’re using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
+          description: `Agent is using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
         };
       case "discovering_preview_prospects":
         return {
           title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
-          description: `We’re using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
+          description: `Agent is using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
         };
       case "preview_search_in_progress":
         return {
@@ -302,14 +305,14 @@ export function WorkspaceInputStep({
         };
       case "awaiting_preview_approval":
         return {
-          title: `Preview ${useCase.entityPlural}`,
+          title: `Preview ${entityPluralLower}`,
           description: (
             <>
               Review the{" "}
               <span className="text-foreground font-medium">
                 {entityPluralLower}
               </span>{" "}
-              we found. These are just{" "}
+              Agent found. These are just{" "}
               <span className="text-foreground font-medium">previews</span>.
               Agent may swap in{" "}
               <span className="text-foreground font-medium">
@@ -397,11 +400,11 @@ export function WorkspaceInputStep({
         return (
           <section className="space-y-3 px-4" aria-live="polite">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div
+              <IdealCustomerProfileCardSkeleton
                 key={`icp-skel-${index}`}
                 className={cn(
                   setupCardClassName,
-                  "bg-muted/40 h-24 animate-pulse"
+                  "border-l-foreground rounded-none border-y-0 border-r-0 border-l-2 px-4"
                 )}
               />
             ))}

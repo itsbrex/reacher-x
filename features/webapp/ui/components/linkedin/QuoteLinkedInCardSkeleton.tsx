@@ -10,7 +10,7 @@ import { Skeleton } from "@/shared/ui/components/Skeleton";
  */
 export function QuoteLinkedInCardSkeleton() {
   return (
-    <div className="bg-card/30 rounded-xl border p-2">
+    <div className="card-fade-bottom bg-card/30 rounded-xl border p-2">
       <div className="mb-1 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-2">
           <Skeleton className="h-8 w-8 rounded-full" />

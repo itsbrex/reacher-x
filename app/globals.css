@@ -127,6 +127,10 @@
   animation: pulse-fast 0.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@utility animate-skeleton-shimmer {
+  animation: skeleton-shimmer 2.2s linear infinite;
+}
+
 @utility animate-notification-bump {
   animation: notification-bump 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -313,6 +317,15 @@ h6 {
   }
 }
 
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /*
  * Radix ScrollArea wraps viewport children in a div with inline styles
  * `display:table; min-width:100%`. display:table sizes to intrinsic content
@@ -451,4 +464,22 @@ body[data-scroll-locked] {
     0 var(--scroll-buffer),
     calc(100% - var(--scroll-buffer)) 100%;
   animation-fill-mode: both;
+}
+
+/*
+  ---break---
+*/
+
+@utility card-fade-bottom {
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 50%,
+    rgba(0, 0, 0, 0.92) 64%,
+    rgba(0, 0, 0, 0.72) 76%,
+    rgba(0, 0, 0, 0.42) 88%,
+    transparent 100%
+  );
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
 }

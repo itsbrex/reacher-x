@@ -660,6 +660,11 @@ export function useAgentChat(
     ? messageStatus
     : "Exhausted";
 
+  const hasPersistedPendingAssistant = Boolean(threadId) &&
+    messages.some(
+      (message) => message.role === "assistant" && message.status === "pending"
+    );
+
   // Per docs: UIMessage has status field - check for streaming
   const isStreaming = Boolean(threadId) &&
     messages.some((m) => m.status === "streaming");
@@ -773,7 +778,11 @@ export function useAgentChat(
     pendingTurn.phase !== "finished";
 
   // Combined loading state
-  const isLoading = localLoading || hasPendingTurn || isStreaming;
+  const isLoading =
+    localLoading ||
+    hasPendingTurn ||
+    hasPersistedPendingAssistant ||
+    isStreaming;
 
   useEffect(() => {
     if (

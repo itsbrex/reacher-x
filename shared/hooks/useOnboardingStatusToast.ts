@@ -11,7 +11,7 @@ import { useQueryWithStatus } from "./useQueryWithStatus";
 import { $preferredShellContext } from "@/shared/stores/preferredShellContext";
 
 const ONBOARDING_DELAYED_FALLBACK_MESSAGE =
-  "Setup is taking longer than expected. We're retrying automatically.";
+  "Setup is taking longer than expected. Agent is retrying automatically.";
 
 /**
  * Shows safe onboarding status toasts based on canonical workspace navigation state.

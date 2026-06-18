@@ -10,7 +10,7 @@ import { Skeleton } from "@/shared/ui/components/Skeleton";
  */
 export function LinkedInPostCardSkeleton() {
   return (
-    <article className="w-full">
+    <article className="card-fade-bottom w-full">
       <div className="mb-1 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-2">
           <Skeleton className="h-8 w-8 rounded-full" />

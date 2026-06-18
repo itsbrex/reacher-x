@@ -158,7 +158,7 @@ export function ConnectionsStep({
               Let the △ Agent take action
             </h2>
             <p className="text-muted-foreground text-sm wrap-break-word">
-              Connect your accounts so the agent can send DMs, reply to posts,
+              Connect your accounts so the Agent can send DMs, reply to posts,
               and engage on your behalf.
             </p>
           </header>

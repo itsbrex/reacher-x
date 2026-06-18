@@ -57,11 +57,14 @@ export type { ProspectListEmptyStateProps } from "./ProspectListEmptyState";
 export { ProspectListFilterPanel } from "./ProspectListFilterPanel";
 export { ProspectListSortPanel } from "./ProspectListSortPanel";
 
-export { IdealCustomerProfileCard } from "./ideal-customer-profile/IdealCustomerProfileCard";
+export {
+  IdealCustomerProfileCard,
+  IdealCustomerProfileCardSkeleton,
+} from "./ideal-customer-profile";
 export type {
   IdealCustomerProfileCardData,
   IdealCustomerProfileCardProps,
-} from "./ideal-customer-profile/IdealCustomerProfileCard";
+} from "./ideal-customer-profile";
 
 // Outreach components
 export { OutreachPlanSection } from "./OutreachPlanSection";

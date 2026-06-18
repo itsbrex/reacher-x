@@ -18,7 +18,7 @@ export function QuoteTweetCardSkeleton({
 }: QuoteTweetCardSkeletonProps) {
   return (
     <div
-      className={cn("block w-full rounded-xl border p-2", className)}
+      className={cn("card-fade-bottom block w-full rounded-xl border p-2", className)}
       aria-label="Loading quoted tweet"
     >
       <div className="flex flex-col">

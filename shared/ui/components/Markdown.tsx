@@ -107,6 +107,58 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       </strong>
     );
   },
+  hr: function HrComponent(props) {
+    return <hr className="border-border/80 my-4 border-0 border-t" {...props} />;
+  },
+  table: function TableComponent({ children, ...props }) {
+    return (
+      <div className="scrollbar-none scroll-fade-effect-x my-3 max-w-full overflow-x-auto [&::-webkit-scrollbar]:hidden">
+        <table
+          className="border-border/80 w-max min-w-full border-collapse text-sm"
+          {...props}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead: function TheadComponent({ children, ...props }) {
+    return (
+      <thead className="bg-muted/30 border-border/80 border-b" {...props}>
+        {children}
+      </thead>
+    );
+  },
+  tbody: function TbodyComponent({ children, ...props }) {
+    return <tbody {...props}>{children}</tbody>;
+  },
+  tr: function TrComponent({ children, ...props }) {
+    return (
+      <tr className="border-border/80 border-b last:border-b-0" {...props}>
+        {children}
+      </tr>
+    );
+  },
+  th: function ThComponent({ children, ...props }) {
+    return (
+      <th
+        className="border-border/80 text-foreground min-w-36 px-3 py-2 text-left align-top font-semibold whitespace-nowrap"
+        {...props}
+      >
+        {children}
+      </th>
+    );
+  },
+  td: function TdComponent({ children, ...props }) {
+    return (
+      <td
+        className="border-border/80 min-w-36 px-3 py-2 align-top whitespace-normal break-words"
+        {...props}
+      >
+        {children}
+      </td>
+    );
+  },
 };
 
 /**
