@@ -16,7 +16,7 @@ export function FounderStorySection() {
       <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-12">
         <div className="bg-muted relative aspect-square w-full overflow-hidden">
           <Image
-            src="/landing/founder-story/founder-2.webp"
+            src="/landing/founder-story/founder-3.webp"
             alt="Salman, Founder of ReacherX"
             fill
             sizes="(min-width: 768px) 50vw, 100vw"
