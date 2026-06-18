@@ -6,8 +6,8 @@ import { wrapLanguageModel } from "ai";
 import { components, internal } from "../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  AGENT_PROVIDER_OPTIONS,
-  REASONING_MODEL,
+  CEREBRAS_PROVIDER_OPTIONS,
+  FAST_MODEL,
   getOpenRouterExtraBody,
 } from "../lib/ai";
 import {
@@ -15,7 +15,9 @@ import {
   sanitizeProviderMetadataForConvex,
 } from "../lib/agentMetadata";
 import { buildSetupAgentPrompt } from "./prompts";
-import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "../../shared/lib/workspaceUseCases";
+import {
+  DEFAULT_WORKSPACE_USE_CASE_KEY,
+} from "../../shared/lib/workspaceUseCases";
 import {
   analyzeUrl,
   generateImprovedDescriptionAndICPs,
@@ -63,8 +65,10 @@ function getOpenRouterProvider() {
 
 const openrouter = getOpenRouterProvider();
 const setupLanguageModel = wrapLanguageModel({
-  model: openrouter(REASONING_MODEL, {
-    extraBody: getOpenRouterExtraBody(AGENT_PROVIDER_OPTIONS),
+  // Setup is the first-touch onboarding surface, so prioritize fast first-token
+  // latency instead of the slower reasoning route used for deeper outreach work.
+  model: openrouter(FAST_MODEL, {
+    extraBody: getOpenRouterExtraBody(CEREBRAS_PROVIDER_OPTIONS),
   }) as any,
   middleware: openRouterMetadataMiddleware,
 });

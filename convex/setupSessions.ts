@@ -9,7 +9,7 @@ import {
   query,
 } from "./lib/functionBuilders";
 import { workflow as workflowManager } from "./lib/workflow";
-import { createThread, listUIMessages, saveMessage } from "@convex-dev/agent";
+import { createThread, saveMessage } from "@convex-dev/agent";
 import { v } from "convex/values";
 import { logger } from "../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -36,12 +36,8 @@ import {
   resolveNextEntitlementSlotForUser,
 } from "./lib/workspaceEntitlements";
 import { getSetupWorkflowEventName } from "./lib/setupWorkflowEvents";
-import {
-  buildSetupAgentPrompt,
-  buildAdditionalWorkspaceSetupPrompt,
-} from "./agents/prompts";
+import { buildAdditionalWorkspaceSetupPrompt } from "./agents/prompts";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
-import { setupAgent } from "./agents";
 import {
   planTierValidator,
   setupInputModeValidator,
@@ -67,6 +63,8 @@ import { isProspectReadyQualifiedEnriched } from "./lib/readModelHelpers";
 import { isPaidPlanTier } from "./lib/planConstants";
 import { upsertNotificationByKey } from "./lib/notificationHelpers";
 import { deleteWorkspaceCascade } from "./lib/deleteWorkspaceCascade";
+import { generateSetupDraft } from "./lib/setupGenerationCore";
+import { analyzeSetupUrl } from "./lib/setupUrlAnalysisCore";
 
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
 const setupSessionsLogger = logger.withScope("SetupSessions");
@@ -133,41 +131,6 @@ type SetupSessionPublicState = {
   statusUpdatedAt: number;
   errorMessage: string | null;
 };
-
-type ToolPartRecord = {
-  type?: unknown;
-  state?: unknown;
-  input?: unknown;
-  output?: unknown;
-};
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function getString(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
-
-function getStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-function isCompletedToolPart(part: ToolPartRecord): boolean {
-  return part.state === "result" || part.state === "output-available";
-}
-
-function getToolNameFromPart(part: ToolPartRecord): string | null {
-  if (typeof part.type !== "string") {
-    return null;
-  }
-  return part.type.startsWith("tool-") ? part.type.slice(5) : null;
-}
 
 async function listSetupPreviewProspects(
   db: ViewerCtx["db"],
@@ -740,6 +703,14 @@ function buildSetupFeedbackPrompt(args: {
   return `Please revise the current setup draft using this feedback:\n\n${args.feedback}\n\nKeep the user-facing language aligned with ${useCase.displayName} and regenerate the improved description and ${useCase.profileLabelPlural.toLowerCase()}.`;
 }
 
+function buildSetupGenerationReadyMessage(args: {
+  profileCount: number;
+  useCaseKey: WorkspaceUseCaseKey;
+}) {
+  const useCase = getWorkspaceUseCase(args.useCaseKey);
+  return `I generated ${args.profileCount} ${useCase.profileLabelPlural.toLowerCase()} for this draft. Review them in the onboarding panel and continue when you're happy.`;
+}
+
 function getSetupSessionInputMode(
   session: Pick<SetupSessionDoc, "inputMode" | "sourceUrl">
 ): "url" | "manual" {
@@ -752,120 +723,6 @@ function getSetupSessionSourceUrl(
   return getSetupSessionInputMode(session) === "url"
     ? session.sourceUrl
     : undefined;
-}
-
-function parseLatestGenerationFromMessages(
-  messages: Array<{
-    order?: number;
-    parts?: unknown;
-  }>,
-  minOrder?: number
-): {
-  improvedDescription: string;
-  generatedProfiles: NonNullable<SetupSessionDoc["generatedProfiles"]>;
-  suggestedWorkspaceName: string | null;
-  errorMessage: string | null;
-} | null {
-  let latestGeneration: {
-    order: number;
-    improvedDescription: string;
-    generatedProfiles: NonNullable<SetupSessionDoc["generatedProfiles"]>;
-    suggestedWorkspaceName: string | null;
-  } | null = null;
-  let latestAnalysisBusinessName: string | null = null;
-  let latestError: string | null = null;
-
-  for (const [index, message] of messages.entries()) {
-    const order = typeof message.order === "number" ? message.order : index;
-    if (typeof minOrder === "number" && order < minOrder) {
-      continue;
-    }
-
-    const parts = Array.isArray(message.parts) ? message.parts : [];
-    for (const rawPart of parts) {
-      const part = rawPart as ToolPartRecord;
-      const toolName = getToolNameFromPart(part);
-      if (!toolName || !isCompletedToolPart(part)) {
-        continue;
-      }
-
-      const output = asRecord(part.output);
-      const input = asRecord(part.input);
-      const success = output?.success === true;
-      if (!success) {
-        latestError = getString(output?.error) ?? latestError;
-        continue;
-      }
-
-      if (toolName === "analyzeUrl") {
-        latestAnalysisBusinessName =
-          getString(output?.businessName) ?? latestAnalysisBusinessName;
-        continue;
-      }
-
-      if (toolName !== "generateImprovedDescriptionAndICPs") {
-        continue;
-      }
-
-      const improvedDescription = getString(output?.improvedDescription);
-      if (!improvedDescription) {
-        continue;
-      }
-
-      const generatedProfiles: NonNullable<
-        SetupSessionDoc["generatedProfiles"]
-      > = [];
-      if (Array.isArray(output?.icps)) {
-        for (const candidate of output.icps) {
-          const record = asRecord(candidate);
-          if (!record) {
-            continue;
-          }
-
-          generatedProfiles.push({
-            title: getString(record.title) ?? "Untitled profile",
-            description: getString(record.description) ?? "",
-            painPoints: getStringArray(record.painPoints),
-            channels: getStringArray(record.channels),
-            syntheticPosts: Array.isArray(record.syntheticPosts)
-              ? record.syntheticPosts.filter(
-                  (value): value is string => typeof value === "string"
-                )
-              : undefined,
-            qualificationKeywords: Array.isArray(record.qualificationKeywords)
-              ? record.qualificationKeywords.filter(
-                  (value): value is string => typeof value === "string"
-                )
-              : undefined,
-          });
-        }
-      }
-
-      latestGeneration = {
-        order,
-        improvedDescription,
-        generatedProfiles,
-        suggestedWorkspaceName:
-          latestAnalysisBusinessName ?? getString(input?.businessName) ?? null,
-      };
-    }
-  }
-
-  if (!latestGeneration) {
-    return latestError
-      ? {
-          improvedDescription: "",
-          generatedProfiles: [],
-          suggestedWorkspaceName: null,
-          errorMessage: latestError,
-        }
-      : null;
-  }
-
-  return {
-    ...latestGeneration,
-    errorMessage: latestError,
-  };
 }
 
 export const getActiveSetupSession = query({
@@ -1494,12 +1351,15 @@ export const submitSetupInput = mutation({
       previewWorkflowId: undefined,
       inputMode: args.inputMode,
       seedDescription: args.inputValue,
+      generationFeedback: undefined,
       sourceUrl: args.inputMode === "url" ? args.sourceUrl : undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
+      generationCompletedAt: undefined,
+      generationErrorAt: undefined,
       errorCode: undefined,
       errorMessage: undefined,
       statusUpdatedAt: now,
@@ -1513,12 +1373,15 @@ export const submitSetupInput = mutation({
       previewWorkflowId: undefined,
       inputMode: args.inputMode,
       seedDescription: args.inputValue,
+      generationFeedback: undefined,
       sourceUrl: args.inputMode === "url" ? args.sourceUrl : undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
+      generationCompletedAt: undefined,
+      generationErrorAt: undefined,
       errorCode: undefined,
       errorMessage: undefined,
       statusUpdatedAt: now,
@@ -1564,10 +1427,14 @@ export const submitSetupGenerationFeedback = mutation({
     await ctx.db.patch(args.sessionId, {
       status: "generating_profiles",
       previewWorkflowId: undefined,
+      generationFeedback: args.feedback.trim(),
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
+      generationRequestedAt: now,
+      generationCompletedAt: undefined,
+      generationErrorAt: undefined,
       errorCode: undefined,
       errorMessage: undefined,
       statusUpdatedAt: now,
@@ -1584,10 +1451,14 @@ export const submitSetupGenerationFeedback = mutation({
       ...session,
       status: "generating_profiles",
       previewWorkflowId: undefined,
+      generationFeedback: args.feedback.trim(),
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
+      generationRequestedAt: now,
+      generationCompletedAt: undefined,
+      generationErrorAt: undefined,
       statusUpdatedAt: now,
       lastUserActionAt: now,
       lastActiveAt: now,
@@ -2331,12 +2202,12 @@ export const postSetupSessionGreetingInternal = internalAction({
 
     if (!hasAssistantResponse) {
       try {
-        await ctx.runAction(internal.chat.streamAgentResponse, {
+        await ctx.scheduler.runAfter(0, internal.chat.streamAgentResponse, {
           threadId: session.setupThreadId,
           promptMessageId: initMessage._id,
         });
       } catch (error) {
-        setupSessionsLogger.error("Failed to start setup greeting stream", {
+        setupSessionsLogger.error("Failed to schedule setup greeting stream", {
           error: error instanceof Error ? error.message : String(error),
           sessionId: String(sessionId),
           threadId: session.setupThreadId,
@@ -2377,10 +2248,12 @@ export const runSetupGenerationInternal = internalAction({
       throw new Error("Setup session not found");
     }
 
-    const prompt = feedback?.trim()
+    const generationFeedback =
+      feedback?.trim() || session.generationFeedback?.trim() || null;
+    const prompt = generationFeedback
       ? buildSetupFeedbackPrompt({
           useCaseKey: resolveWorkspaceUseCaseKey(session.useCaseKey),
-          feedback: feedback.trim(),
+          feedback: generationFeedback,
         })
       : buildSetupInputPrompt({
           useCaseKey: resolveWorkspaceUseCaseKey(session.useCaseKey),
@@ -2393,80 +2266,116 @@ export const runSetupGenerationInternal = internalAction({
       threadId: session.setupThreadId,
       prompt,
     });
+    void messageId;
 
-    const result = await setupAgent.streamText(
-      ctx,
-      { threadId: session.setupThreadId },
-      {
-        promptMessageId: messageId,
-        system: buildSetupAgentPrompt(
-          resolveWorkspaceUseCaseKey(session.useCaseKey)
-        ),
-      },
-      {
-        saveStreamDeltas: {
-          chunking: "word",
-          throttleMs: 100,
-        },
+    const inputMode = getSetupSessionInputMode(session);
+    const resolvedUseCaseKey = resolveWorkspaceUseCaseKey(session.useCaseKey);
+    let generationStage: "url_analysis" | "profile_generation" =
+      inputMode === "url" ? "url_analysis" : "profile_generation";
+
+    try {
+      const analyzedUrl =
+        inputMode === "url" && session.sourceUrl
+          ? await analyzeSetupUrl({
+              operation: "setupSessionAnalyzeUrl",
+              url: session.sourceUrl,
+            })
+          : null;
+
+      if (analyzedUrl) {
+        await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
+          agentName: "Setup Agent",
+          model: analyzedUrl.telemetry.model,
+          provider: analyzedUrl.telemetry.usage.providerSelected ?? undefined,
+          providerMetadata: analyzedUrl.telemetry.providerMetadata,
+          threadId: session.setupThreadId,
+          usage: analyzedUrl.telemetry.usage,
+          userId: session.userId,
+        });
+
+        await persistRawModelResponse(ctx, {
+          threadId: session.setupThreadId,
+          agentName: "Setup Agent",
+          request: analyzedUrl.telemetry.request,
+          response: analyzedUrl.telemetry.response,
+          providerMetadata: analyzedUrl.telemetry.providerMetadata,
+        });
       }
-    );
 
-    await result.consumeStream();
-    await persistRawModelResponse(ctx, {
-      threadId: session.setupThreadId,
-      agentName: "Setup Agent",
-      request: result.request,
-      response: result.response,
-      providerMetadata: result.providerMetadata,
-    });
+      generationStage = "profile_generation";
+      const generation = await generateSetupDraft({
+        currentImprovedDescription: session.improvedDescription,
+        currentProfiles: session.generatedProfiles ?? null,
+        keyProblems: analyzedUrl?.keyProblems,
+        operation: "setupSessionGenerateDraft",
+        revisionFeedback: generationFeedback,
+        seedDescription:
+          analyzedUrl?.seedDescription ?? session.seedDescription ?? "",
+        targetAudience: analyzedUrl?.targetAudience,
+        useCaseKey: resolvedUseCaseKey,
+      });
+      const now = getCurrentUTCTimestamp();
 
-    const messages = await listUIMessages(ctx, components.agent, {
-      threadId: session.setupThreadId,
-      paginationOpts: { numItems: 60, cursor: null },
-    });
-    const promptOrder =
-      messages.page.reduce<number | null>((latestOrder, message) => {
-        const order =
-          typeof message.order === "number" ? message.order : latestOrder;
-        if (message.text !== prompt || typeof order !== "number") {
-          return latestOrder;
+      await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
+        agentName: "Setup Agent",
+        model: generation.telemetry.model,
+        provider: generation.telemetry.usage.providerSelected ?? undefined,
+        providerMetadata: generation.telemetry.providerMetadata,
+        threadId: session.setupThreadId,
+        usage: generation.telemetry.usage,
+        userId: session.userId,
+      });
+
+      await persistRawModelResponse(ctx, {
+        threadId: session.setupThreadId,
+        agentName: "Setup Agent",
+        request: generation.telemetry.request,
+        response: generation.telemetry.response,
+        providerMetadata: generation.telemetry.providerMetadata,
+      });
+
+      await ctx.runMutation(
+        internal.setupSessions.recordGenerationResultInternal,
+        {
+          sessionId,
+          improvedDescription: generation.improvedDescription,
+          generatedProfiles: generation.icps,
+          draftName: session.draftName ?? analyzedUrl?.businessName ?? session.draftName,
+          generationCompletedAt: now,
         }
-        return latestOrder === null ? order : Math.max(latestOrder, order);
-      }, null) ?? undefined;
-    const parsed = parseLatestGenerationFromMessages(
-      messages.page,
-      promptOrder
-    );
-    const now = getCurrentUTCTimestamp();
+      );
 
-    if (!parsed || parsed.generatedProfiles.length === 0) {
+      await saveSetupAssistantMessage(
+        ctx,
+        session,
+        buildSetupGenerationReadyMessage({
+          profileCount: generation.icps.length,
+          useCaseKey: resolvedUseCaseKey,
+        })
+      );
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      setupSessionsLogger.error("Setup generation failed", {
+        error: errorMessage,
+        sessionId: String(sessionId),
+        stage: generationStage,
+        threadId: session.setupThreadId,
+      });
       await ctx.runMutation(
         internal.setupSessions.markGenerationFailedInternal,
         {
           sessionId,
           errorMessage:
-            parsed?.errorMessage ??
-            "The setup draft could not be generated. Please try again.",
+            generationStage === "url_analysis"
+              ? "We couldn't analyze that website. Try again or paste a manual description."
+              : "The setup draft could not be generated. Please try again.",
         }
       );
       return { success: false };
     }
-
-    await ctx.runMutation(
-      internal.setupSessions.recordGenerationResultInternal,
-      {
-        sessionId,
-        improvedDescription: parsed.improvedDescription,
-        generatedProfiles: parsed.generatedProfiles,
-        draftName:
-          session.draftName ??
-          parsed.suggestedWorkspaceName ??
-          session.draftName,
-        generationCompletedAt: now,
-      }
-    );
-
-    return { success: true };
   },
 });
 
@@ -2500,6 +2409,8 @@ export const recordGenerationResultInternal = internalMutation({
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationCompletedAt: args.generationCompletedAt,
+      generationErrorAt: undefined,
+      generationFeedback: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
       statusUpdatedAt: now,
@@ -2840,6 +2751,7 @@ export const markGenerationFailedInternal = internalMutation({
     const now = getCurrentUTCTimestamp();
     await ctx.db.patch(sessionId, {
       status: "awaiting_input",
+      generationCompletedAt: undefined,
       generationErrorAt: now,
       lastAgentActionAt: now,
       lastActiveAt: now,

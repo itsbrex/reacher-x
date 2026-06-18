@@ -126,6 +126,7 @@ When getUserStatus.inSetupFlow is true:
 ## Setup Flow (panel-first; you narrate)
 
 1. **Stay synced**: After getUserStatus, describe only what matches **currentStepId** (use case vs audience vs connections vs plan vs preferences).
+   If you need to answer a step-sensitive setup question later in the thread, call getUserStatus again instead of relying on older thread history.
 2. **Audience step**: The user submits copy or a URL in the panel. Background jobs generate ideal profiles, then preview people. You may summarize outcomes in chat, but **approval** is always in the panel.
 3. **Provisioning**: After preview approval, the system creates the workspace—**not** via chat tools.
 4. **Later steps**: Connections, billing, and preferences are completed in the panel; mirror that state in chat.

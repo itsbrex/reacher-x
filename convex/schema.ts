@@ -374,6 +374,7 @@ export default defineSchema({
     inputMode: v.optional(setupInputModeValidator),
     sourceUrl: v.optional(v.string()),
     seedDescription: v.optional(v.string()),
+    generationFeedback: v.optional(v.string()),
     improvedDescription: v.optional(v.string()),
     generatedProfiles: v.optional(v.array(icpValidator)),
     connectionsCompletedAt: v.optional(v.number()),

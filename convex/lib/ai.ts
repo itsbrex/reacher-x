@@ -162,6 +162,20 @@ function getModelForRouting(routing: ModelRouting) {
   };
 }
 
+export function getRoutingTelemetry(routing: ModelRouting): {
+  model: ModelId;
+  providerLabel: string;
+  timeoutMs: number;
+} {
+  const { model, providerLabel, timeoutMs } = getModelForRouting(routing);
+
+  return {
+    model,
+    providerLabel,
+    timeoutMs,
+  };
+}
+
 export const CEREBRAS_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
   openrouter: {
     provider: {

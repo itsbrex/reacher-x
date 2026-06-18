@@ -5,29 +5,11 @@
 
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import { robustGenerateObject } from "../../lib/ai";
-import { buildProfileGenerationPrompt } from "../prompts";
-import { icpSchema, type ICP } from "./schemas";
+import { getRoutingTelemetry } from "../../lib/ai";
+import { generateSetupDraft } from "../../lib/setupGenerationCore";
+import type { ICP } from "./schemas";
 import { resolveSetupThreadState } from "./workspaceSetupContext";
-import { getWorkspaceUseCase } from "../../../shared/lib/workspaceUseCases";
 import { runLoggedAgentTool } from "./logging";
-
-// ============================================================================
-// Schemas
-// ============================================================================
-
-const improvedDescriptionAndIcpsSchema = z.object({
-  improvedDescription: z
-    .string()
-    .describe(
-      "An improved, clear, and compelling business description (2-3 sentences)"
-    ),
-  icps: z
-    .array(icpSchema)
-    .min(2)
-    .max(4)
-    .describe("2-4 distinct Ideal Customer Profile segments"),
-});
 
 // ============================================================================
 // Types
@@ -86,53 +68,45 @@ export const generateImprovedDescriptionAndICPs = createTool({
           ctx,
           ctx.threadId
         );
-        const useCase = getWorkspaceUseCase(setupThreadState?.useCaseKey);
-        const systemPrompt = buildProfileGenerationPrompt(
-          setupThreadState?.useCaseKey
-        );
-
-        const userPrompt = `Improve this business description and create 2-4 ${useCase.profileLabelPlural}:
-
-**Original Description:**
-${args.seedDescription}
-
-${args.targetAudience?.length ? `**Known Target Audience:** ${args.targetAudience.join(", ")}` : ""}
-
-${args.keyProblems?.length ? `**Problems Solved:** ${args.keyProblems.join(", ")}` : ""}
-
-Create:
-1. A clear, compelling improved description (2-3 sentences)
-2. 2-4 distinct profiles with pain points and preferred social channels`;
+        const routingTelemetry = getRoutingTelemetry("fast");
 
         try {
-          const { object, model } = await robustGenerateObject({
+          const generation = await generateSetupDraft({
             operation: "generateImprovedDescriptionAndICPs",
-            schema: improvedDescriptionAndIcpsSchema,
-            system: systemPrompt,
-            prompt: userPrompt,
-            temperature: 0.6,
-            maxRetries: 2,
-            routing: "fast",
+            keyProblems: args.keyProblems,
+            seedDescription: args.seedDescription,
+            targetAudience: args.targetAudience,
+            useCaseKey: setupThreadState?.useCaseKey,
           });
 
           logEvent.set({
             ai: {
-              model,
+              model: generation.telemetry.model,
+              provider: generation.telemetry.usage.providerSelected ?? null,
+              provider_hint: generation.telemetry.providerHint,
+              routing: generation.telemetry.routing,
+              timeout_ms: generation.telemetry.timeoutMs,
             },
             onboarding: {
-              icp_count: object.icps.length,
+              icp_count: generation.icps.length,
             },
           });
 
           return {
             success: true,
-            improvedDescription: object.improvedDescription,
-            icps: object.icps,
+            improvedDescription: generation.improvedDescription,
+            icps: generation.icps,
           };
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
-          logEvent.error(error);
+          logEvent.error(error, {
+            ai: {
+              provider_hint: routingTelemetry.providerLabel,
+              routing: "fast",
+              timeout_ms: routingTelemetry.timeoutMs,
+            },
+          });
           return {
             success: false,
             error: `Failed to generate improved description and ICPs: ${errorMessage}`,
