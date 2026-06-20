@@ -51,6 +51,10 @@ import {
   resolveNextEntitlementSlotForUser,
 } from "./lib/workspaceEntitlements";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
+import {
+  bootstrapWorkspaceStyleProfilesForWorkspaceOnDb,
+  type WorkspaceStyleBootstrapResult,
+} from "./lib/workspaceStyleProfileCore";
 import { INACTIVITY_PAUSE_AFTER_MS } from "../shared/lib/workspaceSystem";
 import { workflow } from "./lib/workflow";
 import {
@@ -68,6 +72,39 @@ type WorkspaceWithResolvedUseCase = Omit<WorkspaceDoc, "useCaseKey"> & {
   styleProfileVersion: number;
 };
 const workspaceLogger = logger.withScope("Workspaces");
+
+async function scheduleBootstrapStyleBackfillsIfNeeded(
+  ctx: Pick<MutationCtx, "scheduler">,
+  args: {
+    userId: Id<"users">;
+    results: WorkspaceStyleBootstrapResult[];
+  }
+) {
+  for (const result of args.results) {
+    if (result.reason !== "insufficient_samples") {
+      continue;
+    }
+
+    if (result.platform === "twitter") {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.styleAnalysisActions.backfillUserTimeline,
+        {
+          userId: args.userId,
+        }
+      );
+      continue;
+    }
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.styleAnalysisActions.backfillLinkedInProfilePosts,
+      {
+        userId: args.userId,
+      }
+    );
+  }
+}
 
 async function getWorkspaceTwitterStyleProfile(
   ctx: WorkspaceAccessCtx,
@@ -1374,6 +1411,26 @@ export const createWorkspaceInternal = internalMutation({
       entitlementSlot,
       updatedAt: now,
     });
+
+    try {
+      const bootstrapResults = await bootstrapWorkspaceStyleProfilesForWorkspaceOnDb(
+        ctx,
+        {
+          workspaceId,
+          userId: args.userId,
+        }
+      );
+      await scheduleBootstrapStyleBackfillsIfNeeded(ctx, {
+        userId: args.userId,
+        results: bootstrapResults,
+      });
+    } catch (error) {
+      workspaceLogger.warn(
+        "Failed to bootstrap style profiles for new workspace",
+        { workspaceId: String(workspaceId), userId: String(args.userId) },
+        error
+      );
+    }
 
     return workspaceId;
   },

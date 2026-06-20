@@ -6,7 +6,10 @@ import { z } from "zod";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { hasRequiredWorkspaceAgentData } from "../../lib/workspaceSetup";
-import { buildSetupFlowState } from "../../lib/setupFlowCore";
+import {
+  buildSetupFlowState,
+  getVisibleSetupStatus,
+} from "../../lib/setupFlowCore";
 import { isPaidPlanTier, type PlanTier } from "../../lib/planConstants";
 
 // ============================================================================
@@ -77,10 +80,19 @@ export const getUserStatus = createTool({
       }),
     ]);
     const googleConnected = Boolean(user?.email);
+    const requiresConnections =
+      !googleConnected || flowContext.requiresConnections;
+    const visibleSetupStatus = setupSession
+      ? getVisibleSetupStatus({
+          status: setupSession.status,
+          requiresConnections,
+          connectionsCompletedAt: setupSession.connectionsCompletedAt ?? null,
+        })
+      : null;
     const visibleSetupState = setupSession
       ? buildSetupFlowState({
-          status: setupSession.status,
-          requiresConnections: !(googleConnected && flowContext.xConnected),
+          status: visibleSetupStatus ?? setupSession.status,
+          requiresConnections,
           requiresPlan: !isPaidPlanTier(flowContext.planTier),
         })
       : null;

@@ -17,9 +17,13 @@ import {
 import {
   getStyleMemoryCategory,
   isActiveStyleSource,
-  type StyleSourcePlatform,
 } from "./lib/styleSourceCore";
-import { buildChangedPatch } from "./lib/patchHelpers";
+import {
+  BATCH_ANALYSIS_THRESHOLD,
+  bootstrapWorkspaceStyleProfilesForWorkspaceOnDb,
+  getWorkspaceStyleProfileRow,
+  upsertWorkspaceStyleProfileOnDb,
+} from "./lib/workspaceStyleProfileCore";
 
 // ============================================================================
 // Constants
@@ -27,76 +31,7 @@ import { buildChangedPatch } from "./lib/patchHelpers";
 
 /** Minimum content text length to be useful for style analysis. */
 const MIN_SAMPLE_TEXT_LENGTH = 15;
-/** Number of unprocessed samples before triggering re-analysis. */
-export const BATCH_ANALYSIS_THRESHOLD = 5;
 const styleAnalysisLogger = logger.withScope("StyleAnalysis");
-
-async function getWorkspaceStyleProfileRow(
-  db: GenericDatabaseWriter<DataModel>,
-  args: {
-    workspaceId: Id<"workspaces">;
-    platform: StyleSourcePlatform;
-  }
-) {
-  return await db
-    .query("workspaceStyleProfiles")
-    .withIndex("by_workspace_platform", (q) =>
-      q.eq("workspaceId", args.workspaceId).eq("platform", args.platform)
-    )
-    .first();
-}
-
-async function upsertWorkspaceStyleProfileOnDb(
-  db: GenericDatabaseWriter<DataModel>,
-  args: {
-    workspaceId: Id<"workspaces">;
-    userId: Id<"users">;
-    platform: StyleSourcePlatform;
-    status: "none" | "collecting" | "analyzing" | "ready" | "failed";
-    version: number;
-    sourceKey?: string;
-    sourceVersion?: number;
-    sourceExternalUserId?: string;
-    lastAnalyzedAt?: number;
-    sampleCount: number;
-    editDiffCount: number;
-    promotedMemoryId?: string;
-    lastError?: string;
-  }
-) {
-  const existing = await getWorkspaceStyleProfileRow(db, {
-    workspaceId: args.workspaceId,
-    platform: args.platform,
-  });
-  const payload = {
-    workspaceId: args.workspaceId,
-    userId: args.userId,
-    platform: args.platform,
-    status: args.status,
-    version: args.version,
-    sourceKey: args.sourceKey,
-    sourceVersion: args.sourceVersion,
-    sourceExternalUserId: args.sourceExternalUserId,
-    lastAnalyzedAt: args.lastAnalyzedAt,
-    sampleCount: args.sampleCount,
-    editDiffCount: args.editDiffCount,
-    promotedMemoryId: args.promotedMemoryId,
-    lastError: args.lastError,
-  };
-
-  if (existing) {
-    const patch = buildChangedPatch(
-      existing as unknown as Record<string, unknown>,
-      payload
-    );
-    if (patch) {
-      await db.patch(existing._id, patch);
-    }
-    return existing._id;
-  }
-
-  return await db.insert("workspaceStyleProfiles", payload);
-}
 
 // ============================================================================
 // Internal Queries
@@ -577,6 +512,16 @@ export const resetStyleSourceData = internalMutation({
       sourceVersion: args.sourceVersion,
       sourceExternalUserId: args.sourceExternalUserId,
     };
+  },
+});
+
+export const bootstrapWorkspaceStyleProfilesForWorkspace = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await bootstrapWorkspaceStyleProfilesForWorkspaceOnDb(ctx, args);
   },
 });
 

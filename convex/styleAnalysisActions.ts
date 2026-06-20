@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import { acquireSocialApiBudget } from "./lib/socialApiBudget";
 import { distillWritingStyleProfile } from "./lib/styleDistillation";
 import { retrier } from "./lib/retrier";
-import { BATCH_ANALYSIS_THRESHOLD } from "./styleAnalysis";
+import { BATCH_ANALYSIS_THRESHOLD } from "./lib/workspaceStyleProfileCore";
 import {
   getStyleDisplayLabel,
   getStyleMemoryCategory,

@@ -41,6 +41,7 @@ import { persistRawModelResponse } from "./lib/modelTelemetry";
 import {
   planTierValidator,
   setupInputModeValidator,
+  setupPreviewReviewModeValidator,
   setupSessionModeValidator,
   workspaceUseCaseKeyValidator,
 } from "./validators";
@@ -52,6 +53,7 @@ import {
 import { formatWorkspaceName } from "../shared/lib/workspaceDisplayNames";
 import {
   buildSetupFlowState,
+  getVisibleSetupStatus,
   getNextSetupStatusAfterConnections,
   getNextSetupStatusAfterProvisioning,
   type SetupInputPhase,
@@ -65,6 +67,17 @@ import { upsertNotificationByKey } from "./lib/notificationHelpers";
 import { deleteWorkspaceCascade } from "./lib/deleteWorkspaceCascade";
 import { generateSetupDraft } from "./lib/setupGenerationCore";
 import { analyzeSetupUrl } from "./lib/setupUrlAnalysisCore";
+import {
+  haveSamePreviewProspectIds,
+  resolveSetupPreviewReviewSnapshot,
+  selectInitialSetupPreviewReviewSnapshot,
+  type SetupPreviewReviewMode,
+  type SetupPreviewReviewSnapshot,
+} from "./lib/setupPreviewCore";
+import {
+  isStoredXConnectionReadyForSetup,
+  toStoredXConnectionStatus,
+} from "./lib/xConnectionStateCore";
 
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
 const setupSessionsLogger = logger.withScope("SetupSessions");
@@ -89,7 +102,6 @@ type SetupPreviewOrchestrationState = {
 };
 
 const PREVIEW_TARGET_COUNT = PREVIEW_BATCH_LIMITS.readyTargetCount;
-const PREVIEW_MIN_READY_COUNT = PREVIEW_BATCH_LIMITS.minReadyCount;
 const SETUP_GREETING_PROMPT = "__INIT__";
 const SETUP_GREETING_LOOKBACK = 25;
 
@@ -303,36 +315,57 @@ function sortPreviewCandidates(
   });
 }
 
-function getLiveSetupPreviewCandidateIds(
+function getResolvedSetupPreviewReviewSnapshot(
+  session: Pick<
+    SetupSessionDoc,
+    "previewProspectIds" | "previewReviewMode" | "status"
+  >,
   prospects: Array<Doc<"prospects">>
-): Id<"prospects">[] {
-  return buildSetupPreviewOrchestrationState(prospects).rankedPreviewIds.slice(
-    0,
-    PREVIEW_TARGET_COUNT
-  );
+): SetupPreviewReviewSnapshot | null {
+  const orchestrationState = buildSetupPreviewOrchestrationState(prospects);
+  return resolveSetupPreviewReviewSnapshot({
+    currentPreviewProspectIds:
+      session.status === "awaiting_preview_confirmation"
+        ? session.previewProspectIds
+        : undefined,
+    currentPreviewReviewMode:
+      session.status === "awaiting_preview_confirmation"
+        ? normalizeSetupPreviewReviewMode(session.previewReviewMode)
+        : undefined,
+    rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+    rankedPreviewIds: orchestrationState.rankedPreviewIds,
+    limit: PREVIEW_TARGET_COUNT,
+  });
+}
+
+function normalizeSetupPreviewReviewMode(
+  value: unknown
+): SetupPreviewReviewMode | undefined {
+  if (value === "fallback" || value === "qualified") {
+    return value;
+  }
+
+  return undefined;
 }
 
 function resolveSetupPreviewCandidateIds(
-  session: Pick<SetupSessionDoc, "previewProspectIds" | "status">,
+  session: Pick<
+    SetupSessionDoc,
+    "previewProspectIds" | "previewReviewMode" | "status"
+  >,
   prospects: Array<Doc<"prospects">>
 ): Id<"prospects">[] {
-  const liveCandidateIds = getLiveSetupPreviewCandidateIds(prospects);
-  if (session.status === "awaiting_preview_confirmation") {
-    return liveCandidateIds;
-  }
-  return session.previewProspectIds?.length
-    ? session.previewProspectIds
-    : liveCandidateIds;
+  return (
+    getResolvedSetupPreviewReviewSnapshot(session, prospects)
+      ?.previewProspectIds ?? []
+  );
 }
 
 async function getSetupPreviewCandidateIds(
   db: ViewerCtx["db"],
   session: SetupSessionDoc
 ) {
-  if (
-    session.status !== "awaiting_preview_confirmation" &&
-    session.previewProspectIds?.length
-  ) {
+  if (session.previewProspectIds?.length) {
     return session.previewProspectIds;
   }
 
@@ -343,17 +376,22 @@ async function getSetupPreviewCandidateIds(
 async function markPreviewReady(
   ctx: MutationCtx,
   session: SetupSessionDoc,
-  previewProspectIds: Id<"prospects">[]
+  previewSnapshot: SetupPreviewReviewSnapshot
 ) {
   const now = getCurrentUTCTimestamp();
-  const selectedPreviewProspectIds = previewProspectIds.slice(
+  const readyAt = session.previewReadyAt ?? now;
+  const selectedPreviewProspectIds = previewSnapshot.previewProspectIds.slice(
     0,
     PREVIEW_TARGET_COUNT
   );
+  const isFirstReady =
+    session.status !== "awaiting_preview_confirmation" ||
+    !session.previewReadyAt;
   await ctx.db.patch(session._id, {
     status: "awaiting_preview_confirmation",
     previewProspectIds: selectedPreviewProspectIds,
-    previewReadyAt: now,
+    previewReviewMode: previewSnapshot.previewReviewMode,
+    previewReadyAt: readyAt,
     statusUpdatedAt: now,
     lastAgentActionAt: now,
     lastActiveAt: now,
@@ -361,7 +399,11 @@ async function markPreviewReady(
     errorMessage: undefined,
   });
 
-  if (session.targetWorkspaceId && selectedPreviewProspectIds.length > 0) {
+  if (
+    isFirstReady &&
+    session.targetWorkspaceId &&
+    selectedPreviewProspectIds.length > 0
+  ) {
     await upsertNotificationByKey(ctx, {
       userId: session.userId,
       workspaceId: session.targetWorkspaceId,
@@ -381,7 +423,8 @@ async function markPreviewReady(
     ...session,
     status: "awaiting_preview_confirmation",
     previewProspectIds: selectedPreviewProspectIds,
-    previewReadyAt: now,
+    previewReviewMode: previewSnapshot.previewReviewMode,
+    previewReadyAt: readyAt,
     statusUpdatedAt: now,
     lastAgentActionAt: now,
     lastActiveAt: now,
@@ -390,19 +433,33 @@ async function markPreviewReady(
   });
 }
 
+async function updatePreviewReviewSnapshot(
+  ctx: MutationCtx,
+  session: SetupSessionDoc,
+  previewSnapshot: SetupPreviewReviewSnapshot
+) {
+  const now = getCurrentUTCTimestamp();
+  await ctx.db.patch(session._id, {
+    previewProspectIds: previewSnapshot.previewProspectIds,
+    previewReviewMode: previewSnapshot.previewReviewMode,
+    lastAgentActionAt: now,
+    lastActiveAt: now,
+  });
+}
+
 async function getSetupConnectionState(
   db: ViewerCtx["db"],
   userId: Id<"users">
 ) {
-  const connectedXAccount = await db
+  const storedXAccount = await db
     .query("xAccounts")
-    .withIndex("by_user_status", (q) =>
-      q.eq("userId", userId).eq("status", "connected")
-    )
+    .withIndex("by_user", (q) => q.eq("userId", userId))
     .first();
+  const xStatus = toStoredXConnectionStatus(storedXAccount);
 
   return {
-    xConnected: Boolean(connectedXAccount),
+    xConnected: isStoredXConnectionReadyForSetup(xStatus),
+    xStatus,
   };
 }
 
@@ -426,9 +483,15 @@ async function toPublicSetupSessionState(
   ]);
   const googleEmail = user?.email ?? null;
   const googleConnected = Boolean(googleEmail);
-  const flowState = buildSetupFlowState({
+  const requiresConnections = !(googleConnected && connectionState.xConnected);
+  const visibleStatus = getVisibleSetupStatus({
     status: session.status,
-    requiresConnections: !(googleConnected && connectionState.xConnected),
+    requiresConnections,
+    connectionsCompletedAt: session.connectionsCompletedAt ?? null,
+  });
+  const flowState = buildSetupFlowState({
+    status: visibleStatus,
+    requiresConnections,
     requiresPlan: !isPaidPlanTier(planTier),
   });
   const previewCandidateIds = resolveSetupPreviewCandidateIds(
@@ -1217,6 +1280,7 @@ export const discardSetupSession = mutation({
       status: "discarded",
       previewWorkflowId: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewDiscoveryStartedAt: undefined,
       statusUpdatedAt: now,
       discardedAt: now,
@@ -1355,6 +1419,7 @@ export const submitSetupInput = mutation({
       sourceUrl: args.inputMode === "url" ? args.sourceUrl : undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
@@ -1377,6 +1442,7 @@ export const submitSetupInput = mutation({
       sourceUrl: args.inputMode === "url" ? args.sourceUrl : undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
@@ -1430,6 +1496,7 @@ export const submitSetupGenerationFeedback = mutation({
       generationFeedback: args.feedback.trim(),
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
@@ -1454,6 +1521,7 @@ export const submitSetupGenerationFeedback = mutation({
       generationFeedback: args.feedback.trim(),
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationRequestedAt: now,
@@ -1598,7 +1666,7 @@ export const approveSetupGeneration = mutation({
       }
     );
     const nextStatus = getNextSetupStatusAfterProvisioning({
-      requiresConnections: !flowContext.xConnected,
+      requiresConnections: flowContext.requiresConnections,
       requiresPlan: !isPaidPlanTier(flowContext.planTier),
     });
 
@@ -1938,6 +2006,7 @@ export const getSetupUserFlowContextInternal = internalQuery({
     return {
       planTier,
       xConnected: connectionState.xConnected,
+      requiresConnections: !connectionState.xConnected,
     };
   },
 });
@@ -2147,13 +2216,17 @@ export const resumePreviewWorkflowIfNeededInternal = internalAction({
       { sessionId }
     );
 
-    if (orchestrationState.rankedPreviewIds.length >= PREVIEW_MIN_READY_COUNT) {
+    const previewSnapshot = selectInitialSetupPreviewReviewSnapshot({
+      rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+      rankedPreviewIds: orchestrationState.rankedPreviewIds,
+      limit: PREVIEW_TARGET_COUNT,
+    });
+
+    if (previewSnapshot) {
       await ctx.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId,
-        previewProspectIds: orchestrationState.rankedPreviewIds.slice(
-          0,
-          PREVIEW_TARGET_COUNT
-        ),
+        previewProspectIds: previewSnapshot.previewProspectIds,
+        previewReviewMode: previewSnapshot.previewReviewMode,
       });
       return { resumed: false };
     }
@@ -2340,7 +2413,8 @@ export const runSetupGenerationInternal = internalAction({
           sessionId,
           improvedDescription: generation.improvedDescription,
           generatedProfiles: generation.icps,
-          draftName: session.draftName ?? analyzedUrl?.businessName ?? session.draftName,
+          draftName:
+            session.draftName ?? analyzedUrl?.businessName ?? session.draftName,
           generationCompletedAt: now,
         }
       );
@@ -2406,6 +2480,7 @@ export const recordGenerationResultInternal = internalMutation({
       previewWorkflowId: undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       generationCompletedAt: args.generationCompletedAt,
@@ -2442,6 +2517,7 @@ export const confirmSetupIcps = mutation({
       previewWorkflowId: undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       statusUpdatedAt: now,
@@ -2455,6 +2531,7 @@ export const confirmSetupIcps = mutation({
       previewWorkflowId: undefined,
       previewDiscoveryStartedAt: undefined,
       previewProspectIds: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
       statusUpdatedAt: now,
@@ -2494,7 +2571,7 @@ export const getSetupPreviewCandidateIdsInternal = internalQuery({
     }
 
     const prospects = await listSetupPreviewProspects(ctx.db, session);
-    return buildSetupPreviewOrchestrationState(prospects).rankedPreviewIds;
+    return resolveSetupPreviewCandidateIds(session, prospects);
   },
 });
 
@@ -2550,13 +2627,21 @@ export const markPreviewReadyInternal = internalMutation({
   args: {
     sessionId: v.id("workspaceSetupSessions"),
     previewProspectIds: v.array(v.id("prospects")),
+    previewReviewMode: setupPreviewReviewModeValidator,
   },
-  handler: async (ctx, { sessionId, previewProspectIds }) => {
+  handler: async (
+    ctx,
+    { sessionId, previewProspectIds, previewReviewMode }
+  ) => {
     const session = await ctx.db.get(sessionId);
     if (!session) {
       throw new Error("Setup session not found");
     }
-    await markPreviewReady(ctx, session, previewProspectIds);
+    await markPreviewReady(ctx, session, {
+      previewProspectIds,
+      previewReviewMode:
+        normalizeSetupPreviewReviewMode(previewReviewMode) ?? "fallback",
+    });
   },
 });
 
@@ -2571,10 +2656,11 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
     );
     if (
       !session ||
-      !["discovering_preview_prospects", "preview_search_in_progress"].includes(
-        session.status
-      ) ||
-      session.previewReadyAt
+      ![
+        "discovering_preview_prospects",
+        "preview_search_in_progress",
+        "awaiting_preview_confirmation",
+      ].includes(session.status)
     ) {
       return {
         updated: false,
@@ -2582,10 +2668,13 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
       };
     }
 
-    const orchestrationState = buildSetupPreviewOrchestrationState(
-      await listSetupPreviewProspects(ctx.db, session)
+    const prospects = await listSetupPreviewProspects(ctx.db, session);
+    const previewSnapshot = getResolvedSetupPreviewReviewSnapshot(
+      session,
+      prospects
     );
-    if (orchestrationState.rankedPreviewIds.length < PREVIEW_MIN_READY_COUNT) {
+
+    if (!previewSnapshot) {
       if (!session.previewWorkflowId) {
         await ctx.scheduler.runAfter(
           0,
@@ -2597,16 +2686,41 @@ export const syncSetupPreviewCandidatesInternal = internalMutation({
       }
       return {
         updated: false,
-        selectedCount: orchestrationState.rankedPreviewIds.length,
+        selectedCount: 0,
       };
     }
 
-    const selectedIds = orchestrationState.rankedPreviewIds.slice(
-      0,
-      PREVIEW_TARGET_COUNT
-    );
-    await markPreviewReady(ctx, session, selectedIds);
-    return { updated: true, selectedCount: selectedIds.length };
+    if (session.status === "awaiting_preview_confirmation") {
+      const currentPreviewProspectIds = session.previewProspectIds ?? [];
+      const currentPreviewReviewMode = normalizeSetupPreviewReviewMode(
+        session.previewReviewMode
+      );
+      const snapshotChanged =
+        currentPreviewReviewMode !== previewSnapshot.previewReviewMode ||
+        !haveSamePreviewProspectIds(
+          currentPreviewProspectIds,
+          previewSnapshot.previewProspectIds
+        );
+
+      if (!snapshotChanged) {
+        return {
+          updated: false,
+          selectedCount: previewSnapshot.previewProspectIds.length,
+        };
+      }
+
+      await updatePreviewReviewSnapshot(ctx, session, previewSnapshot);
+      return {
+        updated: true,
+        selectedCount: previewSnapshot.previewProspectIds.length,
+      };
+    }
+
+    await markPreviewReady(ctx, session, previewSnapshot);
+    return {
+      updated: true,
+      selectedCount: previewSnapshot.previewProspectIds.length,
+    };
   },
 });
 
@@ -2783,6 +2897,7 @@ export const markPreviewDiscoveryFailedInternal = internalMutation({
     await ctx.db.patch(sessionId, {
       status: "preview_search_in_progress",
       previewWorkflowId: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
@@ -2795,6 +2910,7 @@ export const markPreviewDiscoveryFailedInternal = internalMutation({
       ...session,
       status: "preview_search_in_progress",
       previewWorkflowId: undefined,
+      previewReviewMode: undefined,
       previewReadyAt: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
@@ -2825,6 +2941,7 @@ export const markPreviewSearchInProgressInternal = internalMutation({
     await ctx.db.patch(sessionId, {
       status: "preview_search_in_progress",
       previewWorkflowId: undefined,
+      previewReviewMode: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
       statusUpdatedAt: now,
@@ -2836,6 +2953,7 @@ export const markPreviewSearchInProgressInternal = internalMutation({
       ...session,
       status: "preview_search_in_progress",
       previewWorkflowId: undefined,
+      previewReviewMode: undefined,
       lastAgentActionAt: now,
       lastActiveAt: now,
       statusUpdatedAt: now,

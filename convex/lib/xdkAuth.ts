@@ -5,7 +5,6 @@ import { generateCodeChallenge, generateCodeVerifier } from "@xdevplatform/xdk";
 import type { Id } from "../_generated/dataModel";
 import { decryptXSecret, encryptXSecret } from "./xdkCrypto";
 import {
-  X_CORE_SCOPES,
   buildXClient,
   computeXTokenExpiry,
   createXOAuth2,
@@ -17,13 +16,18 @@ import {
   type XProviderContext,
 } from "./xdkTwitterProvider";
 import {
-  getComposerLimitFromEffectiveLimit,
-  inferPostLimitFromSubscriptionType,
-} from "../../shared/lib/twitter/xPostTextLimit";
-import {
   buildStyleSourceKey,
   getNextStyleSourceVersion,
 } from "./styleSourceCore";
+import {
+  buildDisconnectedXConnectionStatus,
+  getMissingXScopes,
+  type XAccountStatus,
+  type XConnectionStatus,
+  toStoredXConnectionStatus,
+} from "./xConnectionStateCore";
+import { X_CORE_SCOPES } from "./xScopes";
+export type { XAccountStatus, XConnectionStatus } from "./xConnectionStateCore";
 
 /** GET /2/users/me user.fields — https://docs.x.com/x-api/users/get-my-user */
 const USER_ME_FIELDS = [
@@ -70,34 +74,6 @@ type XStoreRefs = {
   completeXAuthSessionInternal: unknown;
 };
 
-export type XAccountStatus =
-  | "connected"
-  | "expired"
-  | "reconnect_required"
-  | "disconnected";
-
-export type XConnectionStatus = {
-  isConnected: boolean;
-  status: XAccountStatus;
-  connectedAccountId?: string;
-  xUserId?: string;
-  screenName?: string;
-  name?: string;
-  profileImageUrl?: string;
-  grantedScopes?: string[];
-  missingScopes?: string[];
-  expiresAt?: number;
-  /** When the X account row was first stored (Convex `_creationTime`), ms since epoch. */
-  connectedAt?: number;
-  /** From GET /2/users/me `subscription_type` (cached on `xAccounts`). */
-  xSubscriptionType?: "None" | "Basic" | "Premium" | "PremiumPlus";
-  /** Precomputed for post/reply composer validation. */
-  postComposerMaxLength?: number;
-  postComposerCountMode?: "raw" | "x_post";
-  /** True when X reports verified / non-`none` verified_type (blue, government, business). */
-  verified?: boolean;
-};
-
 function pickString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -124,11 +100,6 @@ function pickVerifiedFromMe(me: unknown): boolean {
     return true;
   }
   return false;
-}
-
-function getMissingScopes(grantedScopes: string[]): string[] {
-  const granted = new Set(grantedScopes);
-  return [...X_CORE_SCOPES].filter((scope) => !granted.has(scope));
 }
 
 function shouldRequireReconnectForRefreshFailure(failure: {
@@ -158,46 +129,6 @@ function canRetryReconnectStatus(account: {
     !lastRefreshError.includes("missing required scopes") &&
     !lastRefreshError.includes("refresh token is missing")
   );
-}
-
-function buildDisconnectedStatus(): XConnectionStatus {
-  return {
-    isConnected: false,
-    status: "disconnected",
-    missingScopes: [...X_CORE_SCOPES],
-  };
-}
-
-function toConnectionStatus(account: any): XConnectionStatus {
-  const missingScopes = getMissingScopes(account.grantedScopes ?? []);
-  const status: XAccountStatus =
-    missingScopes.length > 0 ? "reconnect_required" : account.status;
-
-  const effectiveLimit = inferPostLimitFromSubscriptionType(
-    account.xSubscriptionType
-  );
-  const composer = getComposerLimitFromEffectiveLimit(effectiveLimit);
-
-  return {
-    isConnected: status === "connected",
-    status,
-    connectedAccountId: String(account._id),
-    xUserId: account.xUserId,
-    screenName: account.username,
-    name: account.displayName,
-    profileImageUrl: account.profileImageUrl,
-    grantedScopes: account.grantedScopes ?? [],
-    missingScopes,
-    expiresAt: account.expiresAt,
-    connectedAt:
-      typeof account._creationTime === "number"
-        ? account._creationTime
-        : undefined,
-    xSubscriptionType: account.xSubscriptionType,
-    postComposerMaxLength: composer.maxLength,
-    postComposerCountMode: composer.characterCountMode,
-    verified: account.xVerified === true,
-  };
 }
 
 async function readStoredAccount(
@@ -347,7 +278,7 @@ export async function completeXAuthorizationForUser(
   });
   const me = meResponse.data;
   const grantedScopes = parseGrantedScopes(token);
-  const missingScopes = getMissingScopes(grantedScopes);
+  const missingScopes = getMissingXScopes(grantedScopes);
   const now = Date.now();
   const subType = pickSubscriptionTypeFromMe(me);
 
@@ -380,7 +311,9 @@ export async function completeXAuthorizationForUser(
   });
 
   const account = await readStoredAccount(ctx, store, args.userId);
-  return account ? toConnectionStatus(account) : buildDisconnectedStatus();
+  return account
+    ? toStoredXConnectionStatus(account)
+    : buildDisconnectedXConnectionStatus();
 }
 
 async function refreshXAccount(
@@ -430,7 +363,7 @@ async function refreshXAccount(
     });
     const me = meResponse.data;
     const grantedScopes = parseGrantedScopes(refreshedToken);
-    const missingScopes = getMissingScopes(grantedScopes);
+    const missingScopes = getMissingXScopes(grantedScopes);
     const meSub = pickSubscriptionTypeFromMe(me);
     const xSubscriptionType =
       meSub !== undefined ? meSub : account.xSubscriptionType;
@@ -487,10 +420,10 @@ export async function getXConnectionStatusForUser(
 ): Promise<XConnectionStatus> {
   let account = await readStoredAccount(ctx, store, userId);
   if (!account) {
-    return buildDisconnectedStatus();
+    return buildDisconnectedXConnectionStatus();
   }
 
-  const missingScopes = getMissingScopes(account.grantedScopes ?? []);
+  const missingScopes = getMissingXScopes(account.grantedScopes ?? []);
   if (missingScopes.length > 0 && account.status !== "reconnect_required") {
     await patchAccount(ctx, store, userId, {
       status: "reconnect_required",
@@ -500,7 +433,7 @@ export async function getXConnectionStatusForUser(
   }
 
   if (!account) {
-    return buildDisconnectedStatus();
+    return buildDisconnectedXConnectionStatus();
   }
 
   const shouldRetryReconnect =
@@ -519,7 +452,7 @@ export async function getXConnectionStatusForUser(
   }
 
   if (!account) {
-    return buildDisconnectedStatus();
+    return buildDisconnectedXConnectionStatus();
   }
 
   if (
@@ -533,7 +466,9 @@ export async function getXConnectionStatusForUser(
     account = await readStoredAccount(ctx, store, userId);
   }
 
-  return account ? toConnectionStatus(account) : buildDisconnectedStatus();
+  return account
+    ? toStoredXConnectionStatus(account)
+    : buildDisconnectedXConnectionStatus();
 }
 
 export async function disconnectXForUser(

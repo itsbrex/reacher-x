@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { WORKSPACE_NAME_CONSTRAINTS } from "../shared/lib/utils/validation/validation";
 import { WORKSPACE_USE_CASE_KEYS } from "../shared/lib/workspaceUseCases";
+import { SETUP_PREVIEW_REVIEW_MODES } from "./lib/setupPreviewCore";
 
 // ============================================================================
 // ICP (Ideal Customer Profile) Validator - Shared
@@ -629,6 +630,13 @@ export const setupSessionPreferenceValidator = v.union(
 export const setupInputModeValidator = v.union(
   v.literal("url"),
   v.literal("manual")
+);
+
+const setupPreviewReviewModeLiteralValidators = SETUP_PREVIEW_REVIEW_MODES.map(
+  (mode) => v.literal(mode)
+) as [ReturnType<typeof v.literal>, ...ReturnType<typeof v.literal>[]];
+export const setupPreviewReviewModeValidator = v.union(
+  ...setupPreviewReviewModeLiteralValidators
 );
 
 export const setupProspectOriginValidator = v.union(

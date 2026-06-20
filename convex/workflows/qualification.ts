@@ -303,6 +303,25 @@ export const qualificationWorkflow = workflow.define({
       };
     }
 
+    const currentProspect = await step.runQuery(
+      internal.prospects.getProspectWorkflowDataInternal,
+      { prospectId: args.prospectId }
+    );
+
+    if (!currentProspect) {
+      await step.runMutation(internal.prospects.clearQualificationWorkflowId, {
+        prospectId: args.prospectId,
+      });
+      return {
+        success: true,
+        qualified: result.qualified,
+        score: result.score,
+        skipped: true,
+      };
+    }
+
+    const isStillSetupPreview = currentProspect.origin === "setup_preview";
+
     // Log qualification activity
     await step.runMutation(internal.outreach.logActivity, {
       prospectId: args.prospectId,
@@ -332,20 +351,22 @@ export const qualificationWorkflow = workflow.define({
       eventKey: `qualification:${String(step.workflowId)}:completed`,
     });
 
-    if (!isSetupPreview) {
+    if (!isStillSetupPreview) {
       await step
         .runAction(internal.memory.indexWorkspaceProspectSummaryInternal, {
           workspaceId: String(args.workspaceId),
           prospectId: String(args.prospectId),
           namespace: result.qualified ? "wins" : "losses",
           displayName:
-            prospect.displayName || prospect.title || "Unknown prospect",
-          title: prospect.title,
-          briefIntro: prospect.briefIntro,
+            currentProspect.displayName ||
+            currentProspect.title ||
+            "Unknown prospect",
+          title: currentProspect.title,
+          briefIntro: currentProspect.briefIntro,
           qualificationStatus: result.status,
           qualificationScore: result.score,
           matchedKeywords,
-          finance: prospect.finance?.displayValue,
+          finance: currentProspect.finance?.displayValue,
           reasoning: result.reasoning,
           importance: result.qualified ? 0.8 : 0.65,
         })
@@ -381,7 +402,7 @@ export const qualificationWorkflow = workflow.define({
     // Step 6: If qualified, index evidence to RAG and start enrichment
     if (result.qualified) {
       // Convert evidence posts for RAG indexing
-      const platform = (prospect.platform || "twitter") as
+      const platform = (currentProspect.platform || "twitter") as
         | "twitter"
         | "linkedin";
       const evidenceForRag = rawEvidencePosts.map((p) => ({
@@ -394,7 +415,7 @@ export const qualificationWorkflow = workflow.define({
       }));
 
       // Index evidence posts to RAG (fire and forget, don't block workflow)
-      if (!isSetupPreview) {
+      if (!isStillSetupPreview) {
         await step
           .runAction(
             internal.workflows.qualification.indexQualificationEvidence,
@@ -417,11 +438,11 @@ export const qualificationWorkflow = workflow.define({
       }
 
       // Start enrichment workflow
-      if (isSetupPreview) {
+      if (isStillSetupPreview && currentProspect.setupSessionId) {
         await step.runAction(
           internal.workflows.enrichment.scheduleSetupPreviewEnrichmentInternal,
           {
-            sessionId: prospect.setupSessionId!,
+            sessionId: currentProspect.setupSessionId,
             workspaceId: args.workspaceId,
           }
         );
@@ -437,11 +458,11 @@ export const qualificationWorkflow = workflow.define({
       prospectId: args.prospectId,
     });
 
-    if (isSetupPreview && prospect.setupSessionId) {
+    if (isStillSetupPreview && currentProspect.setupSessionId) {
       await step.runAction(
         internal.setupSessions.resumePreviewWorkflowIfNeededInternal,
         {
-          sessionId: prospect.setupSessionId,
+          sessionId: currentProspect.setupSessionId,
         }
       );
     }

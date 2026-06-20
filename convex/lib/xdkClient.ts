@@ -7,26 +7,10 @@ import {
   type OAuth2Token,
 } from "@xdevplatform/xdk";
 import { XDK_PACKAGE_VERSION } from "./xdkConstants";
+import { X_CORE_SCOPES } from "./xScopes";
 
 export { XDK_PACKAGE_VERSION };
-
-export const X_CORE_SCOPES = [
-  "tweet.read",
-  "users.read",
-  "tweet.write",
-  "media.write",
-  "like.read",
-  "like.write",
-  "bookmark.read",
-  "bookmark.write",
-  "follows.read",
-  "follows.write",
-  "dm.read",
-  "dm.write",
-  "offline.access",
-] as const;
-
-export type XScope = (typeof X_CORE_SCOPES)[number];
+export { X_CORE_SCOPES, type XScope } from "./xScopes";
 
 function getRequiredEnv(
   name: "X_API_CLIENT_ID" | "X_API_CLIENT_SECRET" | "X_API_BEARER_TOKEN"

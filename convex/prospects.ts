@@ -37,6 +37,7 @@ import {
 import { listWorkspaceProspectSummariesPage } from "./prospectSummaries";
 import { getWorkspaceStatsSnapshot } from "./workspaceStats";
 import { getWorkspaceStatsActionableReadyCount } from "./lib/readModelHelpers";
+import { listWorkspaceAnalyticsDailyRows } from "./workspaceAnalyticsDaily";
 import {
   getOwnedProspect,
   getOwnedWorkspace,
@@ -637,12 +638,16 @@ export const getOnboardingProgress = query({
     const workspace = await getOwnedWorkspace(ctx, args.workspaceId, user._id);
     if (!workspace) return null;
 
-    const [workspaceStats, discoveryState] = await Promise.all([
+    const [workspaceStats, discoveryState, analyticsRows] = await Promise.all([
       getWorkspaceStatsSnapshot({
         db: ctx.db,
         workspace,
       }),
       getWorkspaceDiscoveryState(ctx.db, workspace),
+      listWorkspaceAnalyticsDailyRows({
+        db: ctx.db,
+        workspaceId: workspace._id,
+      }),
     ]);
 
     const qualified = workspaceStats.qualifiedProspectsCount;
@@ -654,6 +659,12 @@ export const getOnboardingProgress = query({
       getWorkspaceStatsActionableReadyCount(workspaceStats);
     const found = workspaceStats.totalProspectsCount;
     const avgQualificationScore = workspaceStats.avgQualificationScore;
+    const disqualifiedCount = analyticsRows.reduce(
+      (total, row) => total + (row.qualificationDisqualifiedCount ?? 0),
+      0
+    );
+    const pendingCount = Math.max(found - qualified - disqualifiedCount, 0);
+    const notReadyCount = Math.max(qualified - actionableReadyCount, 0);
 
     const workflowStatus = workspace.prospectingWorkflowStatus ?? "stopped";
     const userVisibleIssueState = mapInternalIssueCodeToUserVisibleIssueState(
@@ -684,6 +695,9 @@ export const getOnboardingProgress = query({
       plansGenerated,
       avgQualificationScore,
       actionableReadyCount,
+      disqualifiedCount,
+      pendingCount,
+      notReadyCount,
       readyQualifiedEnrichedCount,
       workflowStatus,
       pauseReason: systemStatus.pauseReason,
@@ -1869,6 +1883,13 @@ export const updateProspectQualification = internalMutation({
         }
       );
     }
+
+    await ctx.runMutation(
+      internal.setupSessions.syncSetupPreviewCandidatesInternal,
+      {
+        workspaceId: prospect.workspaceId,
+      }
+    );
 
     return { success: true, skipped: false };
   },

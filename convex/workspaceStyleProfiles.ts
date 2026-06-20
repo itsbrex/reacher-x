@@ -2,6 +2,10 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./lib/functionBuilders";
 import { buildChangedPatch } from "./lib/patchHelpers";
 import {
+  getWorkspaceStyleProfileRow,
+  upsertWorkspaceStyleProfileOnDb,
+} from "./lib/workspaceStyleProfileCore";
+import {
   prospectPlatformValidator,
   styleProfileStatusValidator,
 } from "./validators";
@@ -12,12 +16,7 @@ export const getWorkspaceStyleProfile = internalQuery({
     platform: prospectPlatformValidator,
   },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("workspaceStyleProfiles")
-      .withIndex("by_workspace_platform", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("platform", args.platform)
-      )
-      .first();
+    return await getWorkspaceStyleProfileRow(ctx.db, args);
   },
 });
 
@@ -50,41 +49,7 @@ export const upsertWorkspaceStyleProfile = internalMutation({
     lastError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("workspaceStyleProfiles")
-      .withIndex("by_workspace_platform", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("platform", args.platform)
-      )
-      .first();
-
-    const payload = {
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-      platform: args.platform,
-      status: args.status,
-      version: args.version,
-      sourceKey: args.sourceKey,
-      sourceVersion: args.sourceVersion,
-      sourceExternalUserId: args.sourceExternalUserId,
-      lastAnalyzedAt: args.lastAnalyzedAt,
-      sampleCount: args.sampleCount,
-      editDiffCount: args.editDiffCount,
-      promotedMemoryId: args.promotedMemoryId,
-      lastError: args.lastError,
-    };
-
-    if (existing) {
-      const patch = buildChangedPatch(
-        existing as unknown as Record<string, unknown>,
-        payload
-      );
-      if (patch) {
-        await ctx.db.patch(existing._id, patch);
-      }
-      return existing._id;
-    }
-
-    return await ctx.db.insert("workspaceStyleProfiles", payload);
+    return await upsertWorkspaceStyleProfileOnDb(ctx.db, args);
   },
 });
 

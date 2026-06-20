@@ -128,6 +128,24 @@ export function getNextSetupStatusAfterConnections(args: {
   return args.requiresPlan ? "awaiting_plan" : "awaiting_preferences";
 }
 
+export function getVisibleSetupStatus(args: {
+  status: SetupStatus;
+  requiresConnections: boolean;
+  connectionsCompletedAt?: number | null;
+}): SetupStatus {
+  const shouldGateConnections =
+    args.requiresConnections && typeof args.connectionsCompletedAt !== "number";
+
+  if (
+    shouldGateConnections &&
+    (args.status === "awaiting_plan" || args.status === "awaiting_preferences")
+  ) {
+    return "awaiting_connections";
+  }
+
+  return args.status;
+}
+
 export function getSetupInputPhase(
   status: SetupStatus
 ): SetupInputPhase | null {

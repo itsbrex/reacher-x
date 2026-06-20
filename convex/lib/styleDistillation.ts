@@ -62,7 +62,7 @@ const writingStyleProfileSchema = z.object({
       .describe("What could be improved for outreach"),
     elevationNotes: z
       .string()
-      .max(500)
+      .max(4000)
       .describe("How to write in their voice but with better outreach craft"),
   }),
   editPreferences: z
@@ -84,7 +84,7 @@ const writingStyleProfileSchema = z.object({
   profileSummary: z
     .string()
     .min(50)
-    .max(800)
+    .max(4000)
     .describe(
       "Natural language instructions for an AI agent to write in this person's voice"
     ),
@@ -140,7 +140,8 @@ Analysis rules:
 5. The profileSummary must be written AS INSTRUCTIONS to an AI agent, not as a description of the user.
    Example: "Write in short punchy sentences. Use 'tbh' and 'ngl' naturally. Never use exclamation marks. Ask direct questions. Drop articles when it feels natural. Keep replies under 3 sentences."
 6. representativeSamples: pick 3-5 posts that best showcase this person's voice. Copy them exactly.
-7. If edit diffs are provided, editPreferences is REQUIRED — extract what the user consistently changes.`;
+7. If edit diffs are provided, editPreferences is REQUIRED — extract what the user consistently changes.
+8. Keep craft.elevationNotes and profileSummary concise and high-signal. Do not write an essay.`;
 
 // ============================================================================
 // Distillation Function

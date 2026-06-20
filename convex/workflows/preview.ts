@@ -6,6 +6,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction, internalMutation } from "../lib/functionBuilders";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
+import { selectInitialSetupPreviewReviewSnapshot } from "../lib/setupPreviewCore";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
 import { logger } from "../../shared/lib/logger";
 const previewWorkflowLogger = logger.withScope("PreviewWorkflow");
@@ -62,12 +63,6 @@ function hasEnoughPreviewReady(
   state: Pick<PreviewOrchestrationState, "rankedPreviewIds">
 ) {
   return state.rankedPreviewIds.length >= PREVIEW_BATCH_LIMITS.minReadyCount;
-}
-
-function selectPreviewProspectIds(
-  state: Pick<PreviewOrchestrationState, "rankedPreviewIds">
-) {
-  return state.rankedPreviewIds.slice(0, PREVIEW_BATCH_LIMITS.readyTargetCount);
 }
 
 export const previewWorkflow = workflow.define({
@@ -166,15 +161,23 @@ export const previewWorkflow = workflow.define({
     );
 
     if (hasEnoughPreviewReady(orchestrationState)) {
-      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
+      const previewSnapshot = selectInitialSetupPreviewReviewSnapshot({
+        rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+        rankedPreviewIds: orchestrationState.rankedPreviewIds,
+        limit: PREVIEW_BATCH_LIMITS.readyTargetCount,
+      });
+      if (!previewSnapshot) {
+        throw new Error("Preview snapshot was empty despite ready candidates.");
+      }
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds,
+        previewProspectIds: previewSnapshot.previewProspectIds,
+        previewReviewMode: previewSnapshot.previewReviewMode,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: previewProspectIds.length,
+        readyCount: previewSnapshot.previewProspectIds.length,
         prospectsFound: 0,
       };
     }
@@ -208,15 +211,23 @@ export const previewWorkflow = workflow.define({
     );
 
     if (hasEnoughPreviewReady(orchestrationState)) {
-      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
+      const previewSnapshot = selectInitialSetupPreviewReviewSnapshot({
+        rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+        rankedPreviewIds: orchestrationState.rankedPreviewIds,
+        limit: PREVIEW_BATCH_LIMITS.readyTargetCount,
+      });
+      if (!previewSnapshot) {
+        throw new Error("Preview snapshot was empty despite ready candidates.");
+      }
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds,
+        previewProspectIds: previewSnapshot.previewProspectIds,
+        previewReviewMode: previewSnapshot.previewReviewMode,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: previewProspectIds.length,
+        readyCount: previewSnapshot.previewProspectIds.length,
         prospectsFound: 0,
       };
     }
@@ -263,15 +274,23 @@ export const previewWorkflow = workflow.define({
     );
 
     if (hasEnoughPreviewReady(orchestrationState)) {
-      const previewProspectIds = selectPreviewProspectIds(orchestrationState);
+      const previewSnapshot = selectInitialSetupPreviewReviewSnapshot({
+        rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+        rankedPreviewIds: orchestrationState.rankedPreviewIds,
+        limit: PREVIEW_BATCH_LIMITS.readyTargetCount,
+      });
+      if (!previewSnapshot) {
+        throw new Error("Preview snapshot was empty despite ready candidates.");
+      }
       await step.runMutation(internal.setupSessions.markPreviewReadyInternal, {
         sessionId: args.sessionId,
-        previewProspectIds,
+        previewProspectIds: previewSnapshot.previewProspectIds,
+        previewReviewMode: previewSnapshot.previewReviewMode,
       });
       return {
         status: "completed" as const,
         shouldContinue: false,
-        readyCount: previewProspectIds.length,
+        readyCount: previewSnapshot.previewProspectIds.length,
         prospectsFound,
       };
     }
@@ -428,10 +447,20 @@ export const handlePreviewWorkflowComplete = internalMutation({
       });
 
       if (hasEnoughPreviewReady(orchestrationState)) {
-        const previewProspectIds = selectPreviewProspectIds(orchestrationState);
+        const previewSnapshot = selectInitialSetupPreviewReviewSnapshot({
+          rankedQualifiedIds: orchestrationState.rankedQualifiedIds,
+          rankedPreviewIds: orchestrationState.rankedPreviewIds,
+          limit: PREVIEW_BATCH_LIMITS.readyTargetCount,
+        });
+        if (!previewSnapshot) {
+          throw new Error(
+            "Preview snapshot was empty despite ready candidates."
+          );
+        }
         await ctx.runMutation(internal.setupSessions.markPreviewReadyInternal, {
           sessionId: args.context.sessionId,
-          previewProspectIds,
+          previewProspectIds: previewSnapshot.previewProspectIds,
+          previewReviewMode: previewSnapshot.previewReviewMode,
         });
         return;
       }
