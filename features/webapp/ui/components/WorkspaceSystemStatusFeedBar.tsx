@@ -15,9 +15,15 @@ import {
 type OnboardingProgressLike = {
   found: number;
   actionableReadyCount: number;
+  pendingCount?: number;
+  notReadyCount?: number;
   pipelineStartedAt: number | null;
   pausedAt?: number | null;
 };
+
+function formatProspectLabel(count: number, state: "pending" | "not ready") {
+  return `${count} prospect${count === 1 ? "" : "s"} ${state}`;
+}
 
 interface WorkspaceSystemStatusFeedBarProps {
   status: WorkspaceSystemStatus;
@@ -32,10 +38,6 @@ export function WorkspaceSystemStatusFeedBar({
 }: WorkspaceSystemStatusFeedBarProps) {
   const [open, setOpen] = useState(false);
 
-  const inProgressCount = Math.max(
-    progress.found - progress.actionableReadyCount,
-    0
-  );
   const isPaused = status.mode === "paused";
   const statusText =
     status.mode === "paused"
@@ -45,14 +47,18 @@ export function WorkspaceSystemStatusFeedBar({
         : status.mode === "attention"
           ? "Agent needs attention"
         : "Agent working";
-  const countSuffix =
-    status.mode === "paused"
-      ? "prospects left to process"
-      : "prospects in progress";
+  const pendingCount = Math.max(progress.pendingCount ?? 0, 0);
+  const notReadyCount = Math.max(progress.notReadyCount ?? 0, 0);
+  const detailText =
+    pendingCount > 0 && notReadyCount > 0
+      ? `${pendingCount} pending · ${notReadyCount} not ready`
+      : pendingCount > 0
+        ? formatProspectLabel(pendingCount, "pending")
+        : notReadyCount > 0
+          ? formatProspectLabel(notReadyCount, "not ready")
+          : null;
   const label =
-    inProgressCount > 0
-      ? `${statusText} • ${inProgressCount} ${countSuffix}`
-      : statusText;
+    detailText === null ? statusText : `${statusText} • ${detailText}`;
   const dotClassName =
     status.mode === "running"
       ? "bg-emerald-500"
@@ -82,16 +88,44 @@ export function WorkspaceSystemStatusFeedBar({
           </div>
           <span className="min-w-0 truncate text-sm font-medium">
             <span>{statusText}</span>
-            {inProgressCount > 0 ? (
+            {detailText !== null ? (
               <>
                 <span className="text-muted-foreground"> {" • "}</span>
-                <AnimatedNumber
-                  value={inProgressCount}
-                  className="text-foreground align-baseline text-sm"
-                />
                 <span className="text-foreground font-mono tabular-nums">
-                  {" "}
-                  {countSuffix}
+                  {pendingCount > 0 && notReadyCount > 0 ? (
+                    <>
+                      <AnimatedNumber
+                        value={pendingCount}
+                        className="align-baseline text-sm"
+                      />
+                      {" pending · "}
+                      <AnimatedNumber
+                        value={notReadyCount}
+                        className="align-baseline text-sm"
+                      />
+                      {" not ready"}
+                    </>
+                  ) : pendingCount > 0 ? (
+                    <>
+                      <AnimatedNumber
+                        value={pendingCount}
+                        className="align-baseline text-sm"
+                      />
+                      {pendingCount === 1
+                        ? " prospect pending"
+                        : " prospects pending"}
+                    </>
+                  ) : (
+                    <>
+                      <AnimatedNumber
+                        value={notReadyCount}
+                        className="align-baseline text-sm"
+                      />
+                      {notReadyCount === 1
+                        ? " prospect not ready"
+                        : " prospects not ready"}
+                    </>
+                  )}
                 </span>
               </>
             ) : null}

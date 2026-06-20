@@ -5,7 +5,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -63,6 +62,7 @@ import { getProspectPipelineEmptyStateCopy } from "@/features/prospects/lib/pros
 import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectListSort";
 import { WorkspaceSystemStatusFeedBar } from "@/features/webapp/ui/components/WorkspaceSystemStatusFeedBar";
 import { buildSetupHref } from "@/shared/lib/urls/setupHref";
+import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 
 type WorkspaceSetupStatus =
   | { status: "unauthenticated" }
@@ -133,6 +133,21 @@ function createEmptyTabAttention(): TabAttentionState {
   };
 }
 
+function WaitingStateMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <span className="text-foreground inline-flex items-baseline gap-1 text-sm leading-none font-medium">
+      <AnimatedNumber value={value} animateOnMount />
+      <span>{label}</span>
+    </span>
+  );
+}
+
 export default function ProspectsPage() {
   const router = useRouter();
   const { entityPlural, pageLabels, routes, stageLabels } =
@@ -141,10 +156,11 @@ export default function ProspectsPage() {
   const { clearStack } = usePanelStack();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<TabType>("new");
-  const stageCountBaselineRef = useRef<StageCountBaseline>({
-    scopeKey: null,
-    counts: {},
-  });
+  const [stageCountBaseline, setStageCountBaseline] =
+    useState<StageCountBaseline>({
+      scopeKey: null,
+      counts: {},
+    });
   const [searchQuery, setSearchQuery] = useState("");
   const trimmedSearchQuery = searchQuery.trim();
   const browseMode = trimmedSearchQuery === "";
@@ -296,47 +312,42 @@ export default function ProspectsPage() {
       return createEmptyTabAttention();
     }
 
-    const baseline = stageCountBaselineRef.current;
-    if (baseline.scopeKey !== stageCountScopeKey) {
-      baseline.scopeKey = stageCountScopeKey;
-      baseline.counts = { ...stageCounts };
-      return createEmptyTabAttention();
-    }
+    const baselineCounts =
+      stageCountBaseline.scopeKey === stageCountScopeKey
+        ? stageCountBaseline.counts
+        : stageCounts;
 
     return {
       new:
         activeTab !== "new" &&
-        stageCounts.new > (baseline.counts.new ?? stageCounts.new),
+        stageCounts.new > (baselineCounts.new ?? stageCounts.new),
       contacted:
         activeTab !== "contacted" &&
         stageCounts.contacted >
-          (baseline.counts.contacted ?? stageCounts.contacted),
+          (baselineCounts.contacted ?? stageCounts.contacted),
       in_progress:
         activeTab !== "in_progress" &&
         stageCounts.in_progress >
-          (baseline.counts.in_progress ?? stageCounts.in_progress),
+          (baselineCounts.in_progress ?? stageCounts.in_progress),
     };
-  }, [
-    activeTab,
-    stageCountScopeKey,
-    stageCounts,
-  ]);
+  }, [activeTab, stageCountBaseline, stageCountScopeKey, stageCounts]);
 
   const handleTabChange = useCallback(
     (tab: TabType) => {
       if (stageCounts) {
-        const baseline = stageCountBaselineRef.current;
-        const baselineCounts =
-          baseline.scopeKey === stageCountScopeKey ? baseline.counts : {};
+        setStageCountBaseline((current) => {
+          const baselineCounts =
+            current.scopeKey === stageCountScopeKey ? current.counts : {};
 
-        stageCountBaselineRef.current = {
-          scopeKey: stageCountScopeKey,
-          counts: {
-            ...baselineCounts,
-            [activeTab]: stageCounts[activeTab],
-            [tab]: stageCounts[tab],
-          },
-        };
+          return {
+            scopeKey: stageCountScopeKey,
+            counts: {
+              ...baselineCounts,
+              [activeTab]: stageCounts[activeTab],
+              [tab]: stageCounts[tab],
+            },
+          };
+        });
       }
 
       setActiveTab(tab);
@@ -634,6 +645,16 @@ export default function ProspectsPage() {
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
   const showEmptyState =
     browseMode && !isLoading && displayProspects.length === 0;
+  const showWaitingState =
+    showEmptyState &&
+    setupStatus?.status === "complete" &&
+    onboardingProgress !== null &&
+    onboardingProgress !== undefined &&
+    onboardingProgress.actionableReadyCount === 0 &&
+    workspaceSystemStatus !== null &&
+    workspaceSystemStatus !== undefined &&
+    (workspaceSystemStatus.mode === "running" ||
+      workspaceSystemStatus.mode === "degraded");
   const showSearchNoMatch =
     !browseMode && !isSearchLoading && displayProspects.length === 0;
   const emptyStateCopy = useMemo(
@@ -728,11 +749,56 @@ export default function ProspectsPage() {
                       <ProspectCardSkeleton />
                       <ProspectCardSkeleton />
                     </div>
+                  ) : showWaitingState && onboardingProgress ? (
+                    <ProspectListEmptyState
+                      title={`Waiting for found ${entityPlural} to get enriched`}
+                      description="You'll see them here as soon as they're ready."
+                      icon={
+                        <FramePersonIcon className="fill-muted-foreground size-12" />
+                      }
+                    >
+                      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                        <WaitingStateMetric
+                          label="Found"
+                          value={onboardingProgress.found}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="text-muted-foreground text-sm"
+                        >
+                          •
+                        </span>
+                        <WaitingStateMetric
+                          label="Qualified"
+                          value={onboardingProgress.qualified}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="text-muted-foreground text-sm"
+                        >
+                          •
+                        </span>
+                        <WaitingStateMetric
+                          label="Ready"
+                          value={onboardingProgress.actionableReadyCount}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => router.push(routes.analyticsHref)}
+                      >
+                        View analytics
+                      </Button>
+                    </ProspectListEmptyState>
                   ) : showEmptyState ? (
                     <ProspectListEmptyState
                       title={emptyStateCopy.title}
                       description={emptyStateCopy.description}
-                      icon={<FramePersonIcon className="size-6 fill-current" />}
+                      icon={
+                        <FramePersonIcon className="fill-muted-foreground size-12" />
+                      }
                     />
                   ) : showSearchNoMatch ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">
@@ -897,12 +963,15 @@ function ProspectsToolbar({
                   {hasCount ? (
                     <span
                       className={cn(
-                        "inline-flex h-4 items-center gap-1 text-xs font-medium leading-none tabular-nums text-muted-foreground",
+                        "text-muted-foreground inline-flex h-4 items-center gap-1 text-xs leading-none font-medium tabular-nums",
                         hasAttention &&
                           "animate-notification-bump text-foreground"
                       )}
                     >
-                      <span aria-hidden="true" className="text-muted-foreground">
+                      <span
+                        aria-hidden="true"
+                        className="text-muted-foreground"
+                      >
                         ·
                       </span>
                       <span className="font-mono leading-none tabular-nums">

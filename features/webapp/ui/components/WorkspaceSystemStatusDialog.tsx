@@ -190,16 +190,16 @@ export function WorkspaceSystemStatusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-md overflow-hidden p-0"
-        showCloseButton={false}
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>{statusCopy.tooltip}</DialogTitle>
-          <DialogDescription>{statusCopy.title}</DialogDescription>
+      <DialogContent className="max-w-md overflow-hidden p-0 gap-0">
+        <DialogHeader className="border-border border-b px-4 py-3 text-left">
+          <DialogTitle>All-time workspace progress</DialogTitle>
+          <DialogDescription className="sr-only">
+            All-time workspace progress
+          </DialogDescription>
         </DialogHeader>
         <OnboardingProgressCard
           workspaceId={status.workspaceId}
+          className="max-w-none rounded-none border-0 shadow-none"
           displayMode={status.mode}
           footerMode={
             status.mode === "running"
@@ -223,7 +223,6 @@ export function WorkspaceSystemStatusDialog({
           onFooterAction={status.actionKind ? handleAction : undefined}
           headlineOverride={statusCopy.title}
           metaLabelOverride={statusCopy.meta}
-          onClose={() => onOpenChange(false)}
           timerMode={
             status.mode === "running"
               ? "elapsed"

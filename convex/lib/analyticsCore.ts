@@ -55,11 +55,19 @@ export interface PipelineFunnelDataPoint {
   fill: string;
 }
 
+export interface ProcessingSummaryMetricSet {
+  pending: StatMetric;
+  qualified: StatMetric;
+  ready: StatMetric;
+  disqualified: StatMetric;
+}
+
 export interface AnalyticsDataPayload {
   newProspects: StatMetric;
   responseRate: StatMetric & { contacted: number };
   pendingApprovals: PendingApprovalsMetric;
   issues: IssuesMetric;
+  processingSummary: ProcessingSummaryMetricSet;
   pipelineFunnel: PipelineFunnelDataPoint[];
   trendsOverTime: TrendDataPoint[];
   qualificationDistribution: QualificationDistributionDataPoint[];
@@ -471,6 +479,25 @@ export function createEmptyAnalyticsData(
       }),
       paused: 0,
       failed: 0,
+    },
+    processingSummary: {
+      pending: buildMetric({
+        currentValue: 0,
+        previousValue: 0,
+      }),
+      qualified: buildMetric({
+        currentValue: 0,
+        previousValue: 0,
+      }),
+      ready: buildMetric({
+        currentValue: 0,
+        previousValue: 0,
+      }),
+      disqualified: buildMetric({
+        currentValue: 0,
+        previousValue: 0,
+        trendWhenEqual: "down",
+      }),
     },
     pipelineFunnel: buildPipelineFunnel({
       newCount: 0,

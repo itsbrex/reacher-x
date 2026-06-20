@@ -98,6 +98,12 @@ export function getDefaultAnalyticsData(range: DateRangePreset): AnalyticsData {
     responseRate: { ...ZERO_METRIC, contacted: 0 },
     pendingApprovals: { ...ZERO_METRIC, plans: 0, tasks: 0 },
     issues: { ...ZERO_METRIC, trend: "down" as const, paused: 0, failed: 0 },
+    processingSummary: {
+      pending: { ...ZERO_METRIC },
+      qualified: { ...ZERO_METRIC },
+      ready: { ...ZERO_METRIC },
+      disqualified: { ...ZERO_METRIC, trend: "down" as const },
+    },
     pipelineFunnel: DEFAULT_PIPELINE_FUNNEL.map((stage) => ({ ...stage })),
     trendsOverTime: createDefaultTrends(range),
     qualificationDistribution: DEFAULT_QUALIFICATION_DISTRIBUTION.map(

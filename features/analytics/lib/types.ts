@@ -107,6 +107,13 @@ export interface IssuesMetric extends StatMetric {
   failed: number;
 }
 
+export interface ProcessingSummaryMetricSet {
+  pending: StatMetric;
+  qualified: StatMetric;
+  ready: StatMetric;
+  disqualified: StatMetric;
+}
+
 // ============================================================================
 // Main Analytics Data Structure
 // ============================================================================
@@ -117,6 +124,7 @@ export interface AnalyticsData {
   responseRate: StatMetric & { contacted: number };
   pendingApprovals: PendingApprovalsMetric;
   issues: IssuesMetric;
+  processingSummary: ProcessingSummaryMetricSet;
 
   // Chart data
   pipelineFunnel: PipelineFunnelDataPoint[];

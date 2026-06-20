@@ -35,6 +35,32 @@ export const MOCK_ANALYTICS: AnalyticsData = {
     paused: 1,
     failed: 1,
   },
+  processingSummary: {
+    pending: {
+      value: 7,
+      change: 1,
+      changePercent: 16.67,
+      trend: "up",
+    },
+    qualified: {
+      value: 22,
+      change: 4,
+      changePercent: 22.22,
+      trend: "up",
+    },
+    ready: {
+      value: 6,
+      change: 2,
+      changePercent: 50,
+      trend: "up",
+    },
+    disqualified: {
+      value: 12,
+      change: -1,
+      changePercent: -7.69,
+      trend: "down",
+    },
+  },
 
   // Chart data
   pipelineFunnel: [

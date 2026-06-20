@@ -109,6 +109,7 @@ const WORKSPACE_ANALYTICS_NUMERIC_FIELDS = [
   "fitScore80To100Count",
   "qualificationQualifiedCount",
   "qualificationDisqualifiedCount",
+  "actionableReadyCount",
   "twitterProspectsCount",
   "linkedInProspectsCount",
   "contactedEventsCount",
@@ -205,6 +206,7 @@ export interface WorkspaceAnalyticsContribution {
   fitScore80To100Count: number;
   qualificationQualifiedCount: number;
   qualificationDisqualifiedCount: number;
+  actionableReadyCount: number;
   twitterProspectsCount: number;
   linkedInProspectsCount: number;
   contactedEventsCount: number;
@@ -345,6 +347,7 @@ function createEmptyWorkspaceAnalyticsContribution(): WorkspaceAnalyticsContribu
     fitScore80To100Count: 0,
     qualificationQualifiedCount: 0,
     qualificationDisqualifiedCount: 0,
+    actionableReadyCount: 0,
     twitterProspectsCount: 0,
     linkedInProspectsCount: 0,
     contactedEventsCount: 0,
@@ -389,6 +392,7 @@ export function coerceWorkspaceAnalyticsDailyForMerge(
     ...doc,
     qualificationQualifiedCount: doc.qualificationQualifiedCount ?? 0,
     qualificationDisqualifiedCount: doc.qualificationDisqualifiedCount ?? 0,
+    actionableReadyCount: doc.actionableReadyCount ?? 0,
   } as WorkspaceAnalyticsDailyRecord;
 }
 
@@ -806,6 +810,10 @@ export function getWorkspaceAnalyticsContributionFromProspect(
       } else if (prospect.qualificationStatus === "disqualified") {
         contribution.qualificationDisqualifiedCount = 1;
       }
+
+      contribution.actionableReadyCount = isProspectActionableReady(prospect)
+        ? 1
+        : 0;
     },
   });
 }

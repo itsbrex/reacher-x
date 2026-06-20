@@ -316,6 +316,10 @@ export function getMockAnalyticsForRange(args: {
     400 * windowScale * (0.85 + rand() * 0.3)
   );
   const pendingCount = Math.round(220 * windowScale * (0.85 + rand() * 0.3));
+  const readyCount = Math.min(
+    qualifiedCount,
+    Math.round(qualifiedCount * (0.35 + rand() * 0.2))
+  );
 
   const qualificationDistribution = [
     {
@@ -386,6 +390,32 @@ export function getMockAnalyticsForRange(args: {
       trend: issuesChange <= 0 ? "down" : "up",
       paused: pausedPlans,
       failed: failedItems,
+    },
+    processingSummary: {
+      pending: {
+        value: pendingCount,
+        change: Math.round((rand() - 0.45) * 18 * 10) / 10,
+        changePercent: Math.round((rand() - 0.45) * 32 * 100) / 100,
+        trend: rand() > 0.4 ? "up" : "down",
+      },
+      qualified: {
+        value: qualifiedCount,
+        change: Math.round((rand() - 0.4) * 22 * 10) / 10,
+        changePercent: Math.round((rand() - 0.4) * 28 * 100) / 100,
+        trend: rand() > 0.35 ? "up" : "down",
+      },
+      ready: {
+        value: readyCount,
+        change: Math.round((rand() - 0.4) * 14 * 10) / 10,
+        changePercent: Math.round((rand() - 0.4) * 26 * 100) / 100,
+        trend: rand() > 0.35 ? "up" : "down",
+      },
+      disqualified: {
+        value: disqualifiedCount,
+        change: Math.round((rand() - 0.55) * 12 * 10) / 10,
+        changePercent: Math.round((rand() - 0.55) * 24 * 100) / 100,
+        trend: rand() > 0.55 ? "up" : "down",
+      },
     },
 
     // Chart data

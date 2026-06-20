@@ -43,6 +43,7 @@ type DailyAnalyticsField =
   | "fitScore80To100Count"
   | "qualificationQualifiedCount"
   | "qualificationDisqualifiedCount"
+  | "actionableReadyCount"
   | "twitterProspectsCount"
   | "linkedInProspectsCount";
 
@@ -437,6 +438,66 @@ export const getDashboardAnalytics = query({
         failed: failedTasksCurrent,
       };
 
+      const currentQualifiedCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "qualificationQualifiedCount",
+        normalizedWindow.current
+      );
+      const previousQualifiedCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "qualificationQualifiedCount",
+        normalizedWindow.previous
+      );
+      const currentDisqualifiedCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "qualificationDisqualifiedCount",
+        normalizedWindow.current
+      );
+      const previousDisqualifiedCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "qualificationDisqualifiedCount",
+        normalizedWindow.previous
+      );
+      const currentReadyCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "actionableReadyCount",
+        normalizedWindow.current
+      );
+      const previousReadyCount = sumDailyFieldInWindow(
+        analyticsRows,
+        "actionableReadyCount",
+        normalizedWindow.previous
+      );
+      const currentPendingCount = Math.max(
+        0,
+        currentProspectsCount - currentQualifiedCount - currentDisqualifiedCount
+      );
+      const previousPendingCount = Math.max(
+        0,
+        previousProspectsCount -
+          previousQualifiedCount -
+          previousDisqualifiedCount
+      );
+      const processingSummary = {
+        pending: buildMetric({
+          currentValue: currentPendingCount,
+          previousValue: previousPendingCount,
+        }),
+        qualified: buildMetric({
+          currentValue: currentQualifiedCount,
+          previousValue: previousQualifiedCount,
+        }),
+        ready: buildMetric({
+          currentValue: currentReadyCount,
+          previousValue: previousReadyCount,
+        }),
+        disqualified: buildMetric({
+          currentValue: currentDisqualifiedCount,
+          previousValue: previousDisqualifiedCount,
+          trendWhenEqual: "down",
+        }),
+      };
+
       const pipelineFunnel = buildPipelineSnapshot(
         analyticsRows,
         normalizedWindow.current
@@ -476,6 +537,7 @@ export const getDashboardAnalytics = query({
         responseRate,
         pendingApprovals,
         issues,
+        processingSummary,
         pipelineFunnel,
         trendsOverTime,
         qualificationDistribution,

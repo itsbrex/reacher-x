@@ -37,6 +37,7 @@ interface OnboardingProgressCardProps {
   metaLabelOverride?: string | null;
   timerMode?: "elapsed" | "paused" | "hidden";
   onClose?: () => void;
+  className?: string;
 }
 
 const STAGES = [
@@ -113,6 +114,7 @@ export function OnboardingProgressCard({
   metaLabelOverride,
   timerMode = "elapsed",
   onClose,
+  className,
 }: OnboardingProgressCardProps) {
   const router = useRouter();
   const { activeUseCase, pageLabels } = useActiveUseCaseLabels();
@@ -172,7 +174,7 @@ export function OnboardingProgressCard({
           : "Action required");
 
   return (
-    <Card className="w-full max-w-md shadow-none">
+    <Card className={cn("w-full max-w-md shadow-none", className)}>
       <CardHeader className="gap-3 border-b px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -333,7 +335,7 @@ function StatCell({
 }) {
   return (
     <article className="px-4 py-2.5">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+      <p className="text-muted-foreground text-[10px] font-medium">
         {label}
       </p>
       <p className="text-foreground mt-0.5 font-mono text-lg tabular-nums">

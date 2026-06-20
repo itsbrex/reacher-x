@@ -12,21 +12,23 @@ import {
 } from "@/shared/hooks";
 import { Button } from "@/shared/ui/components/Button";
 import {
+  CheckCircleIcon,
+  DoNotDisturbOnIcon,
   FramePersonIcon,
   ErrorIcon,
+  PersonCheckIcon,
   QuickPhrasesIcon,
+  SearchActivityIcon,
   ThumbsUpDownIcon,
 } from "@/shared/ui/components/icons";
-import {
-  StatsOverview,
-  type StatMetricData,
-  DateRangeSelector,
-  PipelineFunnelChart,
-  ProspectsTrendChart,
-  FitDistributionChart,
-  QualificationDistributionChart,
-  PlatformDistributionChart,
-} from "./components";
+import { type StatMetricData } from "../lib/types";
+import { StatsOverview } from "./components/StatsOverview";
+import { DateRangeSelector } from "./components/DateRangeSelector";
+import { PipelineFunnelChart } from "./components/PipelineFunnelChart";
+import { ProspectsTrendChart } from "./components/ProspectsTrendChart";
+import { FitDistributionChart } from "./components/FitDistributionChart";
+import { QualificationDistributionChart } from "./components/QualificationDistributionChart";
+import { PlatformDistributionChart } from "./components/PlatformDistributionChart";
 import { DATE_RANGE_PRESETS } from "../lib/dateRange";
 import { getDefaultAnalyticsData } from "../lib/defaults";
 
@@ -145,6 +147,49 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
     [data, entityPluralLower, stageLabels]
   );
 
+  const processingMetrics: StatMetricData[] = React.useMemo(
+    () => [
+      {
+        id: "pending",
+        title: "Pending",
+        value: data.processingSummary.pending.value,
+        change: data.processingSummary.pending.change,
+        changePercent: data.processingSummary.pending.changePercent,
+        trend: data.processingSummary.pending.trend,
+        icon: <SearchActivityIcon className="fill-current" />,
+      },
+      {
+        id: "qualified",
+        title: "Qualified",
+        value: data.processingSummary.qualified.value,
+        change: data.processingSummary.qualified.change,
+        changePercent: data.processingSummary.qualified.changePercent,
+        trend: data.processingSummary.qualified.trend,
+        icon: <PersonCheckIcon className="fill-current" />,
+      },
+      {
+        id: "ready",
+        title: "Ready",
+        value: data.processingSummary.ready.value,
+        change: data.processingSummary.ready.change,
+        changePercent: data.processingSummary.ready.changePercent,
+        trend: data.processingSummary.ready.trend,
+        icon: <CheckCircleIcon className="fill-current" />,
+      },
+      {
+        id: "disqualified",
+        title: "Disqualified",
+        value: data.processingSummary.disqualified.value,
+        change: data.processingSummary.disqualified.change,
+        changePercent: data.processingSummary.disqualified.changePercent,
+        trend: data.processingSummary.disqualified.trend,
+        semantic: "destructive",
+        icon: <DoNotDisturbOnIcon className="fill-current" />,
+      },
+    ],
+    [data]
+  );
+
   // Workspace setup gate — valid to block here since there's no workspace to query
   if (workspaceStatusQuery.isError) {
     return (
@@ -211,6 +256,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       )}
 
       <StatsOverview metrics={metrics} />
+      <StatsOverview className="mt-4" metrics={processingMetrics} />
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PipelineFunnelChart data={data.pipelineFunnel} />
