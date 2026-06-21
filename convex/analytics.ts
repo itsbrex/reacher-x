@@ -44,6 +44,9 @@ type DailyAnalyticsField =
   | "qualificationQualifiedCount"
   | "qualificationDisqualifiedCount"
   | "actionableReadyCount"
+  | "qualifiedEventsCount"
+  | "disqualifiedEventsCount"
+  | "readyEventsCount"
   | "twitterProspectsCount"
   | "linkedInProspectsCount";
 

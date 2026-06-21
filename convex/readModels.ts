@@ -1,12 +1,13 @@
 import { Infer, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, query } from "./lib/functionBuilders";
+import { classifyQualificationActivityTitle } from "./lib/prospectAnalyticsCore";
 import {
   buildProspectSummaryRecord,
   createEmptyWorkspaceStatsRecord,
   getWorkspaceAnalyticsContributionFromActivityLog,
-  getWorkspaceAnalyticsContributionFromProspect,
+  getWorkspaceAnalyticsContributionsFromProspect,
   getWorkspaceAnalyticsContributionsFromPlan,
   getWorkspaceAnalyticsContributionsFromTask,
   getUtcDayStartTimestamp,
@@ -70,6 +71,45 @@ function applyAnalyticsContributionToMap(
   analyticsByDay.set(key, next);
 }
 
+function buildQualificationActivitySnapshotMap(
+  activityLogs: Doc<"prospectActivityLog">[]
+) {
+  const snapshots = new Map<
+    Id<"prospects">,
+    {
+      latestQualifiedAt?: number;
+      latestDisqualifiedAt?: number;
+    }
+  >();
+
+  for (const activity of activityLogs) {
+    if (activity.type !== "qualified") {
+      continue;
+    }
+
+    const classification = classifyQualificationActivityTitle(activity.title);
+    if (!classification) {
+      continue;
+    }
+
+    const snapshot = snapshots.get(activity.prospectId) ?? {};
+    if (classification === "qualified") {
+      snapshot.latestQualifiedAt = Math.max(
+        snapshot.latestQualifiedAt ?? 0,
+        activity._creationTime
+      );
+    } else {
+      snapshot.latestDisqualifiedAt = Math.max(
+        snapshot.latestDisqualifiedAt ?? 0,
+        activity._creationTime
+      );
+    }
+    snapshots.set(activity.prospectId, snapshot);
+  }
+
+  return snapshots;
+}
+
 export const rebuildWorkspaceReadModelsInternal = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -116,6 +156,8 @@ export const rebuildWorkspaceReadModelsInternal = internalMutation({
       .query("outreachNotifications")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
+    const qualificationActivitySnapshots =
+      buildQualificationActivitySnapshotMap(activityLogs);
 
     const planGroups = await Promise.all(
       OUTREACH_PLAN_STATUSES.map((status) =>
@@ -147,10 +189,21 @@ export const rebuildWorkspaceReadModelsInternal = internalMutation({
         add: [getWorkspaceStatsContributionFromProspect(prospect)],
       });
 
-      applyAnalyticsContributionToMap(
-        analyticsByDay,
-        getWorkspaceAnalyticsContributionFromProspect(prospect)
-      );
+      for (const targeted of getWorkspaceAnalyticsContributionsFromProspect(
+        prospect,
+        (() => {
+          const snapshot = qualificationActivitySnapshots.get(prospect._id);
+          if (!snapshot) {
+            return undefined;
+          }
+          return {
+            qualifiedAt: snapshot.latestQualifiedAt,
+            disqualifiedAt: snapshot.latestDisqualifiedAt,
+          };
+        })()
+      )) {
+        applyAnalyticsContributionToMap(analyticsByDay, targeted);
+      }
     }
 
     for (const activity of activityLogs) {
@@ -208,63 +261,65 @@ export const rebuildWorkspaceReadModelsInternal = internalMutation({
   },
 });
 
-export const backfillWorkspaceAnalyticsActionableReadyInternal = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-  },
-  handler: async (ctx, { workspaceId }) => {
-    const workspace = await ctx.db.get(workspaceId);
-    if (!workspace) {
-      throw new Error("Workspace not found");
-    }
-
-    const prospects = await ctx.db
-      .query("prospects")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
-    const analyticsRows = await ctx.db
-      .query("workspaceAnalyticsDaily")
-      .withIndex("by_workspace_day", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
-
-    const actionableReadyCountByDay = new Map<number, number>();
-
-    for (const prospect of prospects) {
-      if (!isProspectActionableReady(prospect)) {
-        continue;
+export const backfillWorkspaceAnalyticsActionableReadyInternal =
+  internalMutation({
+    args: {
+      workspaceId: v.id("workspaces"),
+    },
+    handler: async (ctx, { workspaceId }) => {
+      const workspace = await ctx.db.get(workspaceId);
+      if (!workspace) {
+        throw new Error("Workspace not found");
       }
 
-      const dayStartUtcMs = getUtcDayStartTimestamp(prospect._creationTime);
-      actionableReadyCountByDay.set(
-        dayStartUtcMs,
-        (actionableReadyCountByDay.get(dayStartUtcMs) ?? 0) + 1
-      );
-    }
+      const prospects = await ctx.db
+        .query("prospects")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+        .collect();
+      const analyticsRows = await ctx.db
+        .query("workspaceAnalyticsDaily")
+        .withIndex("by_workspace_day", (q) => q.eq("workspaceId", workspaceId))
+        .collect();
 
-    let patchedRowsCount = 0;
-    for (const row of analyticsRows) {
-      const nextActionableReadyCount =
-        actionableReadyCountByDay.get(row.dayStartUtcMs) ?? 0;
-      if (row.actionableReadyCount === nextActionableReadyCount) {
-        continue;
+      const actionableReadyCountByDay = new Map<number, number>();
+
+      for (const prospect of prospects) {
+        if (!isProspectActionableReady(prospect)) {
+          continue;
+        }
+
+        const dayStartUtcMs = getUtcDayStartTimestamp(prospect._creationTime);
+        actionableReadyCountByDay.set(
+          dayStartUtcMs,
+          (actionableReadyCountByDay.get(dayStartUtcMs) ?? 0) + 1
+        );
       }
 
-      await ctx.db.patch(row._id, {
-        actionableReadyCount: nextActionableReadyCount,
-      });
-      patchedRowsCount += 1;
-    }
+      let patchedRowsCount = 0;
+      for (const row of analyticsRows) {
+        const nextActionableReadyCount =
+          actionableReadyCountByDay.get(row.dayStartUtcMs) ?? 0;
+        if (row.actionableReadyCount === nextActionableReadyCount) {
+          continue;
+        }
 
-    return {
-      workspaceId,
-      analyticsRowsScanned: analyticsRows.length,
-      patchedRowsCount,
-      actionableReadyProspectsCount: [...actionableReadyCountByDay.values()]
-        .reduce((total, count) => total + count, 0),
-      dayCount: actionableReadyCountByDay.size,
-    };
-  },
-});
+        await ctx.db.patch(row._id, {
+          actionableReadyCount: nextActionableReadyCount,
+        });
+        patchedRowsCount += 1;
+      }
+
+      return {
+        workspaceId,
+        analyticsRowsScanned: analyticsRows.length,
+        patchedRowsCount,
+        actionableReadyProspectsCount: [
+          ...actionableReadyCountByDay.values(),
+        ].reduce((total, count) => total + count, 0),
+        dayCount: actionableReadyCountByDay.size,
+      };
+    },
+  });
 
 export const createReadModelRolloutInternal = internalMutation({
   args: {

@@ -54,6 +54,11 @@ import {
 } from "./lib/outreachCore";
 import { buildChangedPatchWithUpdatedAt } from "./lib/patchHelpers";
 import {
+  buildProspectAnalyticsBackfillPatch,
+  buildProspectAnalyticsTransitionPatch,
+  classifyQualificationActivityTitle,
+} from "./lib/prospectAnalyticsCore";
+import {
   getTwitterPostId,
   summarizeTwitterPost,
 } from "../shared/lib/twitter/contracts";
@@ -320,9 +325,19 @@ async function patchProspectIfChanged(
   next: Record<string, unknown>,
   updatedAt: number
 ) {
+  const analyticsPatch = buildProspectAnalyticsTransitionPatch({
+    prospect,
+    patch: next as Parameters<
+      typeof buildProspectAnalyticsTransitionPatch
+    >[0]["patch"],
+    now: updatedAt,
+  });
   const patch = buildChangedPatchWithUpdatedAt(
     prospect as unknown as Record<string, unknown>,
-    next,
+    {
+      ...next,
+      ...analyticsPatch,
+    },
     updatedAt
   );
 
@@ -332,6 +347,43 @@ async function patchProspectIfChanged(
 
   await ctx.db.patch(prospect._id, patch);
   return true;
+}
+
+async function getProspectQualificationActivitySnapshot(
+  ctx: MutationCtx,
+  prospectId: Id<"prospects">
+) {
+  const activities = await ctx.db
+    .query("prospectActivityLog")
+    .withIndex("by_prospect_type", (q) =>
+      q.eq("prospectId", prospectId).eq("type", "qualified")
+    )
+    .order("desc")
+    .collect();
+
+  let latestQualifiedAt: number | undefined;
+  let latestDisqualifiedAt: number | undefined;
+
+  for (const activity of activities) {
+    const classification = classifyQualificationActivityTitle(activity.title);
+    if (classification === "qualified" && latestQualifiedAt === undefined) {
+      latestQualifiedAt = activity._creationTime;
+    } else if (
+      classification === "disqualified" &&
+      latestDisqualifiedAt === undefined
+    ) {
+      latestDisqualifiedAt = activity._creationTime;
+    }
+
+    if (latestQualifiedAt !== undefined && latestDisqualifiedAt !== undefined) {
+      break;
+    }
+  }
+
+  return {
+    latestQualifiedAt,
+    latestDisqualifiedAt,
+  };
 }
 
 function buildSearchProspectNode(args: {
@@ -1017,6 +1069,8 @@ export const createProspectsBatch = internalMutation({
         const initialQualificationStatus = p.qualificationStatus ?? "pending";
         const initialQualifiedAt =
           initialQualificationStatus === "qualified" ? now : undefined;
+        const initialDisqualifiedAt =
+          initialQualificationStatus === "disqualified" ? now : undefined;
         const initialOrigin = p.origin ?? "workspace_discovery";
         const initialUsageEligible = isProspectEligibleForQualifiedUsage({
           origin: initialOrigin,
@@ -1042,6 +1096,7 @@ export const createProspectsBatch = internalMutation({
           qualificationStatus: initialQualificationStatus,
           qualificationScore: p.qualificationScore,
           qualifiedAt: initialQualifiedAt,
+          disqualifiedAt: initialDisqualifiedAt,
           socialProfiles:
             p.platform === "twitter"
               ? buildTwitterSocialProfile(p.data)
@@ -1853,15 +1908,26 @@ export const updateProspectQualification = internalMutation({
     const previousQualified = prospect.qualificationStatus === "qualified";
     const nextQualified = args.qualificationStatus === "qualified";
     const usageEligible = isProspectEligibleForQualifiedUsage(prospect);
+    const now = getCurrentUTCTimestamp();
+    const analyticsPatch = buildProspectAnalyticsTransitionPatch({
+      prospect,
+      patch: {
+        qualificationStatus: args.qualificationStatus,
+        qualifiedAt: args.qualifiedAt,
+        evidencePosts: args.evidencePosts,
+      },
+      now,
+    });
 
     await ctx.db.patch(args.prospectId, {
       qualificationStatus: args.qualificationStatus,
       qualificationScore: args.qualificationScore,
       qualifiedAt: args.qualifiedAt,
+      ...analyticsPatch,
       evidencePosts: args.evidencePosts,
       qualificationKeywords: args.qualificationKeywords,
       authenticity: args.authenticity,
-      updatedAt: getCurrentUTCTimestamp(),
+      updatedAt: now,
     });
 
     const usageTransition = await applyQualifiedProspectUsageTransition(ctx, {
@@ -1961,8 +2027,9 @@ export const updateProspectEnrichment = internalMutation({
     }
 
     // Build update object, only including defined fields
+    const now = getCurrentUTCTimestamp();
     const updateData: Record<string, unknown> = {
-      updatedAt: getCurrentUTCTimestamp(),
+      updatedAt: now,
     };
 
     if (args.prospectType !== undefined)
@@ -1987,7 +2054,18 @@ export const updateProspectEnrichment = internalMutation({
     if (args.enrichmentStatus !== undefined)
       updateData.enrichmentStatus = args.enrichmentStatus;
 
-    await ctx.db.patch(args.prospectId, updateData);
+    const analyticsPatch = buildProspectAnalyticsTransitionPatch({
+      prospect,
+      patch: updateData as Parameters<
+        typeof buildProspectAnalyticsTransitionPatch
+      >[0]["patch"],
+      now,
+    });
+
+    await ctx.db.patch(args.prospectId, {
+      ...updateData,
+      ...analyticsPatch,
+    });
 
     if (args.enrichmentStatus && args.enrichmentStatus !== "failed") {
       await replaceProspectActivityOfType(ctx, {
@@ -2009,6 +2087,78 @@ export const updateProspectEnrichment = internalMutation({
     return { success: true, skipped: false };
   },
 });
+
+export const backfillProspectAnalyticsMilestonesPageInternal = internalMutation(
+  {
+    args: {
+      workspaceId: v.id("workspaces"),
+      cursor: v.optional(v.string()),
+      batchSize: v.optional(v.number()),
+      scheduleRebuildOnComplete: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args) => {
+      const batchSize = Math.max(1, Math.min(50, args.batchSize ?? 25));
+      const page = await ctx.db
+        .query("prospects")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+        .paginate({
+          cursor: args.cursor ?? null,
+          numItems: batchSize,
+        });
+
+      let patched = 0;
+      for (const prospect of page.page) {
+        const needsQualificationSnapshot =
+          prospect.qualificationStatus === "qualified" ||
+          prospect.qualificationStatus === "disqualified";
+        const qualificationActivity = needsQualificationSnapshot
+          ? await getProspectQualificationActivitySnapshot(ctx, prospect._id)
+          : undefined;
+        const analyticsPatch = buildProspectAnalyticsBackfillPatch({
+          prospect,
+          qualificationActivity,
+        });
+
+        if (!analyticsPatch) {
+          continue;
+        }
+
+        await ctx.db.patch(prospect._id, analyticsPatch);
+        patched += 1;
+      }
+
+      if (!page.isDone) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.prospects.backfillProspectAnalyticsMilestonesPageInternal,
+          {
+            workspaceId: args.workspaceId,
+            cursor: page.continueCursor,
+            batchSize,
+            scheduleRebuildOnComplete: args.scheduleRebuildOnComplete,
+          }
+        );
+      } else if (args.scheduleRebuildOnComplete !== false) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.readModels.rebuildWorkspaceReadModelsInternal,
+          {
+            workspaceId: args.workspaceId,
+          }
+        );
+      }
+
+      return {
+        workspaceId: args.workspaceId,
+        patched,
+        continueCursor: page.continueCursor,
+        isDone: page.isDone,
+        rebuildScheduled:
+          page.isDone && args.scheduleRebuildOnComplete !== false,
+      };
+    },
+  }
+);
 
 /** Persist active qualification durable workflow id for cancel-on-archive. */
 export const setQualificationWorkflowId = internalMutation({

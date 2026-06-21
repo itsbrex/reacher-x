@@ -525,6 +525,8 @@ export default defineSchema({
     qualificationScore: v.optional(v.number()),
     // When the prospect was qualified
     qualifiedAt: v.optional(v.number()),
+    // When the prospect most recently entered the disqualified state
+    disqualifiedAt: v.optional(v.number()),
     // Evidence posts used for qualification (max 20)
     // NOTE: v.any() is intentional - stores raw external API post data
     evidencePosts: v.optional(v.array(v.any())),
@@ -623,6 +625,8 @@ export default defineSchema({
     // Enrichment metadata
     enrichedAt: v.optional(v.number()),
     enrichmentStatus: v.optional(enrichmentStatusValidator),
+    // When the prospect most recently became actionable-ready for outreach
+    readyAt: v.optional(v.number()),
 
     // Auto outreach plan generation status (for >= 90 score prospects)
     planGenerationStatus: v.optional(planGenerationStatusValidator),
@@ -1142,6 +1146,8 @@ export default defineSchema({
     previewRank: v.optional(v.number()),
     status: prospectStatusValidator,
     qualificationStatus: v.optional(qualificationStatusValidator),
+    // Optional during rollout until older summary rows are backfilled.
+    qualifiedAt: v.optional(v.number()),
     enrichmentStatus: v.optional(enrichmentStatusValidator),
     planGenerationStatus: v.optional(planGenerationStatusValidator),
     readyQualifiedEnriched: v.boolean(),
@@ -1172,6 +1178,7 @@ export default defineSchema({
       filterFields: ["workspaceId", "status"],
     })
     .index("by_prospect", ["prospectId"])
+    .index("by_user_qualification", ["userId", "qualificationStatus"])
     .index("by_workspace", ["workspaceId"])
     .index("by_setup_session_revision", ["setupSessionId", "setupRevision"])
     .index("by_workspace_score", [
@@ -1284,14 +1291,16 @@ export default defineSchema({
     ]),
 
   /**
-   * Per-user stable feed anchor for prospect list tabs (prevents new rows from
-   * reordering the visible list until the user merges pending items).
+   * Per-user stable feed snapshot for prospect list tabs (prevents unseen rows
+   * from reordering the visible list until the user merges pending items).
    */
   prospectListFeedAnchors: defineTable({
     userId: v.id("users"),
     workspaceId: v.id("workspaces"),
     status: prospectStatusValidator,
     sortBy: v.optional(prospectListSortValidator),
+    scopeKey: v.optional(v.string()),
+    visibleProspectIds: v.optional(v.array(v.id("prospects"))),
     anchorSortScore: v.number(),
     anchorProspectCreatedAt: v.number(),
     anchorProspectType: v.optional(prospectTypeValidator),
@@ -1363,6 +1372,9 @@ export default defineSchema({
     qualificationQualifiedCount: v.optional(v.number()),
     qualificationDisqualifiedCount: v.optional(v.number()),
     actionableReadyCount: v.optional(v.number()),
+    qualifiedEventsCount: v.optional(v.number()),
+    disqualifiedEventsCount: v.optional(v.number()),
+    readyEventsCount: v.optional(v.number()),
     twitterProspectsCount: v.number(),
     linkedInProspectsCount: v.number(),
     contactedEventsCount: v.number(),

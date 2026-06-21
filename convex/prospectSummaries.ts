@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, query } from "./lib/functionBuilders";
 import {
@@ -1080,7 +1081,10 @@ export async function listWorkspaceProspectSummariesPage(
 
 async function countWorkspaceProspectSummariesByStatus(
   db: SummaryDb,
-  args: Omit<ListWorkspaceProspectSummariesArgs, "paginationOpts" | "sortBy"> & {
+  args: Omit<
+    ListWorkspaceProspectSummariesArgs,
+    "paginationOpts" | "sortBy"
+  > & {
     status: ProspectStageCountStatus;
   }
 ) {
@@ -1425,6 +1429,65 @@ export const backfillProspectSummariesSearchTextPageInternal = internalMutation(
     },
   }
 );
+
+export const backfillProspectSummariesQualifiedAtPageInternal =
+  internalMutation({
+    args: {
+      userId: v.id("users"),
+      cursor: v.optional(v.string()),
+      batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+      const batchSize = Math.max(1, Math.min(100, args.batchSize ?? 50));
+      const page = await ctx.db
+        .query("prospectSummaries")
+        .withIndex("by_user_qualification", (q) => q.eq("userId", args.userId))
+        .paginate({
+          cursor: args.cursor ?? null,
+          numItems: batchSize,
+        });
+
+      let patched = 0;
+      for (const summary of page.page) {
+        if (summary.qualifiedAt !== undefined) {
+          continue;
+        }
+
+        const prospect = await ctx.db.get(summary.prospectId);
+        if (!prospect || prospect.userId !== args.userId) {
+          continue;
+        }
+
+        if (prospect.qualifiedAt === undefined) {
+          continue;
+        }
+
+        await ctx.db.patch(summary._id, {
+          qualifiedAt: prospect.qualifiedAt,
+        });
+        patched += 1;
+      }
+
+      if (!page.isDone) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.prospectSummaries
+            .backfillProspectSummariesQualifiedAtPageInternal,
+          {
+            userId: args.userId,
+            cursor: page.continueCursor,
+            batchSize,
+          }
+        );
+      }
+
+      return {
+        patched,
+        continueCursor: page.continueCursor,
+        isDone: page.isDone,
+      };
+    },
+  });
 
 export const getProspectSummaryInternal = internalQuery({
   args: {

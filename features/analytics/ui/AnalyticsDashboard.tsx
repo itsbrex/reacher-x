@@ -156,6 +156,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         change: data.processingSummary.pending.change,
         changePercent: data.processingSummary.pending.changePercent,
         trend: data.processingSummary.pending.trend,
+        context: "new prospects still pending this period",
         icon: <SearchActivityIcon className="fill-current" />,
       },
       {
@@ -165,6 +166,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         change: data.processingSummary.qualified.change,
         changePercent: data.processingSummary.qualified.changePercent,
         trend: data.processingSummary.qualified.trend,
+        context: "new prospects currently qualified",
         icon: <PersonCheckIcon className="fill-current" />,
       },
       {
@@ -174,6 +176,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         change: data.processingSummary.ready.change,
         changePercent: data.processingSummary.ready.changePercent,
         trend: data.processingSummary.ready.trend,
+        context: "new prospects currently ready",
         icon: <CheckCircleIcon className="fill-current" />,
       },
       {
@@ -183,6 +186,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         change: data.processingSummary.disqualified.change,
         changePercent: data.processingSummary.disqualified.changePercent,
         trend: data.processingSummary.disqualified.trend,
+        context: "new prospects currently disqualified",
         semantic: "destructive",
         icon: <DoNotDisturbOnIcon className="fill-current" />,
       },
@@ -264,7 +268,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <QualificationDistributionChart data={data.qualificationDistribution} />
+        <QualificationDistributionChart
+          data={data.qualificationDistribution}
+          title="Qualification breakdown for new prospects"
+        />
         <PlatformDistributionChart data={data.platformDistribution} />
       </div>
 

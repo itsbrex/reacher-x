@@ -61,3 +61,6 @@ PR_COMMENTS.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# codex / local test artifacts
+.codex-tmp/

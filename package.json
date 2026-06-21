@@ -9,7 +9,8 @@
     "lint": "oxlint --ignore-path .gitignore",
     "lint:fix": "oxlint --ignore-path .gitignore --fix",
     "lint:strict": "oxlint --ignore-path .gitignore --deny-warnings",
-    "lint:eslint": "eslint ."
+    "lint:eslint": "eslint .",
+    "test:targeted": "pnpm exec tsc -p tsconfig.tests.json && node --test .codex-tmp/test-dist/tests/plan-usage-and-analytics.test.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.72",

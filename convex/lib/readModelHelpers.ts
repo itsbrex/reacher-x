@@ -5,8 +5,18 @@ import {
   extractTwitterUsername,
 } from "../../shared/lib/utils/url/socialProfiles";
 import { extractAvatarUrl, extractDisplayName } from "./notificationHelpers";
+import {
+  inferProspectReadyAtFromState,
+  isProspectActionableReady,
+  isProspectReadyQualifiedEnriched,
+} from "./prospectAnalyticsCore";
 import { getNestedRecord, getStringProperty } from "./typeGuards";
 import { buildProspectSearchText } from "./prospectSearchText";
+
+export {
+  isProspectActionableReady,
+  isProspectReadyQualifiedEnriched,
+} from "./prospectAnalyticsCore";
 
 export const ANALYTICS_HOURS_PER_DAY = 24;
 
@@ -26,8 +36,12 @@ type ProspectSource = Pick<
   | "previewRank"
   | "status"
   | "qualificationStatus"
+  | "qualifiedAt"
+  | "disqualifiedAt"
   | "qualificationScore"
+  | "enrichedAt"
   | "enrichmentStatus"
+  | "readyAt"
   | "planGenerationStatus"
   | "displayName"
   | "title"
@@ -110,6 +124,9 @@ const WORKSPACE_ANALYTICS_NUMERIC_FIELDS = [
   "qualificationQualifiedCount",
   "qualificationDisqualifiedCount",
   "actionableReadyCount",
+  "qualifiedEventsCount",
+  "disqualifiedEventsCount",
+  "readyEventsCount",
   "twitterProspectsCount",
   "linkedInProspectsCount",
   "contactedEventsCount",
@@ -144,6 +161,7 @@ export interface ProspectSummaryRecord {
   previewRank: Doc<"prospects">["previewRank"];
   status: Doc<"prospects">["status"];
   qualificationStatus: Doc<"prospects">["qualificationStatus"];
+  qualifiedAt: Doc<"prospects">["qualifiedAt"];
   enrichmentStatus: Doc<"prospects">["enrichmentStatus"];
   planGenerationStatus: Doc<"prospects">["planGenerationStatus"];
   readyQualifiedEnriched: boolean;
@@ -207,6 +225,9 @@ export interface WorkspaceAnalyticsContribution {
   qualificationQualifiedCount: number;
   qualificationDisqualifiedCount: number;
   actionableReadyCount: number;
+  qualifiedEventsCount: number;
+  disqualifiedEventsCount: number;
+  readyEventsCount: number;
   twitterProspectsCount: number;
   linkedInProspectsCount: number;
   contactedEventsCount: number;
@@ -348,6 +369,9 @@ function createEmptyWorkspaceAnalyticsContribution(): WorkspaceAnalyticsContribu
     qualificationQualifiedCount: 0,
     qualificationDisqualifiedCount: 0,
     actionableReadyCount: 0,
+    qualifiedEventsCount: 0,
+    disqualifiedEventsCount: 0,
+    readyEventsCount: 0,
     twitterProspectsCount: 0,
     linkedInProspectsCount: 0,
     contactedEventsCount: 0,
@@ -393,61 +417,10 @@ export function coerceWorkspaceAnalyticsDailyForMerge(
     qualificationQualifiedCount: doc.qualificationQualifiedCount ?? 0,
     qualificationDisqualifiedCount: doc.qualificationDisqualifiedCount ?? 0,
     actionableReadyCount: doc.actionableReadyCount ?? 0,
+    qualifiedEventsCount: doc.qualifiedEventsCount ?? 0,
+    disqualifiedEventsCount: doc.disqualifiedEventsCount ?? 0,
+    readyEventsCount: doc.readyEventsCount ?? 0,
   } as WorkspaceAnalyticsDailyRecord;
-}
-
-export function isProspectReadyQualifiedEnriched(
-  prospect: Pick<Doc<"prospects">, "qualificationStatus" | "enrichmentStatus">
-): boolean {
-  return (
-    prospect.qualificationStatus === "qualified" &&
-    (prospect.enrichmentStatus === "enriched" ||
-      prospect.enrichmentStatus === "partial")
-  );
-}
-
-function countProspectEvidencePosts(
-  prospect: Pick<Doc<"prospects">, "evidencePosts" | "painPoints" | "finance">
-): number {
-  let count = Array.isArray(prospect.evidencePosts)
-    ? prospect.evidencePosts.length
-    : 0;
-
-  if (Array.isArray(prospect.painPoints)) {
-    for (const painPoint of prospect.painPoints) {
-      if (Array.isArray(painPoint.evidencePosts)) {
-        count += painPoint.evidencePosts.length;
-      }
-    }
-  }
-
-  if (Array.isArray(prospect.finance?.evidencePosts)) {
-    count += prospect.finance.evidencePosts.length;
-  }
-
-  return count;
-}
-
-export function isProspectActionableReady(
-  prospect: Pick<
-    Doc<"prospects">,
-    | "platform"
-    | "qualificationStatus"
-    | "enrichmentStatus"
-    | "evidencePosts"
-    | "painPoints"
-    | "finance"
-  >
-): boolean {
-  if (!isProspectReadyQualifiedEnriched(prospect)) {
-    return false;
-  }
-
-  if (prospect.platform !== "linkedin") {
-    return true;
-  }
-
-  return countProspectEvidencePosts(prospect) > 0;
 }
 
 export function isProspectSummaryActionableReady(
@@ -617,6 +590,7 @@ export function buildProspectSummaryRecord(
     previewRank: prospect.previewRank,
     status: prospect.status,
     qualificationStatus: prospect.qualificationStatus,
+    qualifiedAt: prospect.qualifiedAt,
     enrichmentStatus: prospect.enrichmentStatus,
     planGenerationStatus: prospect.planGenerationStatus,
     readyQualifiedEnriched: isProspectReadyQualifiedEnriched(prospect),
@@ -767,55 +741,113 @@ function createTargetedAnalyticsContribution(args: {
   };
 }
 
-export function getWorkspaceAnalyticsContributionFromProspect(
-  prospect: ProspectSource
-): TargetedWorkspaceAnalyticsContribution {
-  return createTargetedAnalyticsContribution({
-    workspaceId: prospect.workspaceId,
-    timestamp: prospect._creationTime,
-    patch: (contribution, hour) => {
-      contribution.newProspectsCount = 1;
-      contribution.hourlyNewProspectsCounts = addHourlyCount(
-        contribution.hourlyNewProspectsCounts,
-        hour,
-        1
-      );
+export function getWorkspaceAnalyticsContributionsFromProspect(
+  prospect: ProspectSource,
+  fallbackTimestamps?: {
+    qualifiedAt?: number;
+    disqualifiedAt?: number;
+    readyAt?: number;
+  }
+): TargetedWorkspaceAnalyticsContribution[] {
+  const contributions: TargetedWorkspaceAnalyticsContribution[] = [];
 
-      if (hasReachedProspectStage(prospect, "contacted")) {
-        contribution.reachedContactedProspectsCount = 1;
-      }
-      if (hasReachedProspectStage(prospect, "in_progress")) {
-        contribution.reachedInProgressProspectsCount = 1;
-      }
-      if (hasReachedProspectStage(prospect, "converted")) {
-        contribution.reachedConvertedProspectsCount = 1;
-      }
+  contributions.push(
+    createTargetedAnalyticsContribution({
+      workspaceId: prospect.workspaceId,
+      timestamp: prospect._creationTime,
+      patch: (contribution, hour) => {
+        contribution.newProspectsCount = 1;
+        contribution.hourlyNewProspectsCounts = addHourlyCount(
+          contribution.hourlyNewProspectsCounts,
+          hour,
+          1
+        );
 
-      if (prospect.platform === "twitter") {
-        contribution.twitterProspectsCount = 1;
-      } else if (prospect.platform === "linkedin") {
-        contribution.linkedInProspectsCount = 1;
-      }
+        if (hasReachedProspectStage(prospect, "contacted")) {
+          contribution.reachedContactedProspectsCount = 1;
+        }
+        if (hasReachedProspectStage(prospect, "in_progress")) {
+          contribution.reachedInProgressProspectsCount = 1;
+        }
+        if (hasReachedProspectStage(prospect, "converted")) {
+          contribution.reachedConvertedProspectsCount = 1;
+        }
 
-      const fitBucket = getQualificationScoreBucket(
-        prospect.qualificationScore
-      );
-      if (fitBucket === "0-49") contribution.fitScore0To49Count = 1;
-      if (fitBucket === "50-69") contribution.fitScore50To69Count = 1;
-      if (fitBucket === "70-79") contribution.fitScore70To79Count = 1;
-      if (fitBucket === "80-100") contribution.fitScore80To100Count = 1;
+        if (prospect.platform === "twitter") {
+          contribution.twitterProspectsCount = 1;
+        } else if (prospect.platform === "linkedin") {
+          contribution.linkedInProspectsCount = 1;
+        }
 
-      if (prospect.qualificationStatus === "qualified") {
-        contribution.qualificationQualifiedCount = 1;
-      } else if (prospect.qualificationStatus === "disqualified") {
-        contribution.qualificationDisqualifiedCount = 1;
-      }
+        const fitBucket = getQualificationScoreBucket(
+          prospect.qualificationScore
+        );
+        if (fitBucket === "0-49") contribution.fitScore0To49Count = 1;
+        if (fitBucket === "50-69") contribution.fitScore50To69Count = 1;
+        if (fitBucket === "70-79") contribution.fitScore70To79Count = 1;
+        if (fitBucket === "80-100") contribution.fitScore80To100Count = 1;
 
-      contribution.actionableReadyCount = isProspectActionableReady(prospect)
-        ? 1
-        : 0;
-    },
-  });
+        if (prospect.qualificationStatus === "qualified") {
+          contribution.qualificationQualifiedCount = 1;
+        } else if (prospect.qualificationStatus === "disqualified") {
+          contribution.qualificationDisqualifiedCount = 1;
+        }
+
+        contribution.actionableReadyCount = isProspectActionableReady(prospect)
+          ? 1
+          : 0;
+      },
+    })
+  );
+
+  const qualificationTimestamp =
+    prospect.qualificationStatus === "qualified"
+      ? (prospect.qualifiedAt ?? fallbackTimestamps?.qualifiedAt)
+      : prospect.qualificationStatus === "disqualified"
+        ? (prospect.disqualifiedAt ?? fallbackTimestamps?.disqualifiedAt)
+        : undefined;
+
+  if (
+    typeof qualificationTimestamp === "number" &&
+    (prospect.qualificationStatus === "qualified" ||
+      prospect.qualificationStatus === "disqualified")
+  ) {
+    contributions.push(
+      createTargetedAnalyticsContribution({
+        workspaceId: prospect.workspaceId,
+        timestamp: qualificationTimestamp,
+        patch: (contribution) => {
+          if (prospect.qualificationStatus === "qualified") {
+            contribution.qualifiedEventsCount = 1;
+          } else {
+            contribution.disqualifiedEventsCount = 1;
+          }
+        },
+      })
+    );
+  }
+
+  const readyTimestamp =
+    fallbackTimestamps?.readyAt ??
+    prospect.readyAt ??
+    inferProspectReadyAtFromState(prospect);
+
+  if (
+    isProspectActionableReady(prospect) &&
+    typeof readyTimestamp === "number"
+  ) {
+    contributions.push(
+      createTargetedAnalyticsContribution({
+        workspaceId: prospect.workspaceId,
+        timestamp: readyTimestamp,
+        patch: (contribution) => {
+          contribution.readyEventsCount = 1;
+        },
+      })
+    );
+  }
+
+  return contributions;
 }
 
 export function getWorkspaceAnalyticsContributionFromActivityLog(

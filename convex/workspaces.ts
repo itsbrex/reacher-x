@@ -703,15 +703,6 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
       return { ok: false as const, reason: "workspace_not_found" };
     }
 
-    if (workspace.userId) {
-      await ctx.runMutation(
-        internal.planUsage.reconcileCurrentUsageForUserInternal,
-        {
-          userId: workspace.userId,
-        }
-      );
-    }
-
     const limitState = await ctx.runQuery(
       internal.workflows.prospecting.checkProspectLimitInternal,
       {
@@ -1413,13 +1404,11 @@ export const createWorkspaceInternal = internalMutation({
     });
 
     try {
-      const bootstrapResults = await bootstrapWorkspaceStyleProfilesForWorkspaceOnDb(
-        ctx,
-        {
+      const bootstrapResults =
+        await bootstrapWorkspaceStyleProfilesForWorkspaceOnDb(ctx, {
           workspaceId,
           userId: args.userId,
-        }
-      );
+        });
       await scheduleBootstrapStyleBackfillsIfNeeded(ctx, {
         userId: args.userId,
         results: bootstrapResults,
@@ -1566,14 +1555,6 @@ export const startProspectingWorkflow = action({
     const hasRequiredSetupData = hasRequiredWorkspaceAgentData(workspace);
     if (!hasRequiredSetupData) {
       throw new Error("Workspace setup is incomplete");
-    }
-    if (workspace.userId) {
-      await ctx.runMutation(
-        internal.planUsage.reconcileCurrentUsageForUserInternal,
-        {
-          userId: workspace.userId,
-        }
-      );
     }
     const limitState = await ctx.runQuery(
       internal.workflows.prospecting.checkProspectLimitInternal,

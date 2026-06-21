@@ -37,12 +37,14 @@ type ChartRow = QualificationDistributionDataPoint & {
 export interface QualificationDistributionChartProps {
   data?: QualificationDistributionDataPoint[];
   className?: string;
+  title?: string;
 }
 
 export const QualificationDistributionChart = React.memo(
   function QualificationDistributionChart({
     data,
     className,
+    title = L.chartTitle,
   }: QualificationDistributionChartProps) {
     const chartData = React.useMemo((): ChartRow[] => {
       return normalizeQualificationData(data).map((point) => ({
@@ -82,11 +84,7 @@ export const QualificationDistributionChart = React.memo(
     );
 
     return (
-      <ChartCard
-        title={L.chartTitle}
-        config={chartConfig}
-        className={className}
-      >
+      <ChartCard title={title} config={chartConfig} className={className}>
         <BarChart
           data={chartData}
           layout="vertical"

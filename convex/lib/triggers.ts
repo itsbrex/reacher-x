@@ -5,7 +5,7 @@ import {
   buildProspectSummaryRecord,
   coerceWorkspaceStatsRecord,
   getWorkspaceAnalyticsContributionFromActivityLog,
-  getWorkspaceAnalyticsContributionFromProspect,
+  getWorkspaceAnalyticsContributionsFromProspect,
   getWorkspaceAnalyticsContributionsFromPlan,
   getWorkspaceAnalyticsContributionsFromTask,
   getWorkspaceStatsContributionFromNotification,
@@ -289,10 +289,10 @@ triggers.register("prospects", async (ctx, change) => {
 
   await applyWorkspaceAnalyticsChanges(ctx.innerDb, {
     remove: change.oldDoc
-      ? [getWorkspaceAnalyticsContributionFromProspect(change.oldDoc)]
+      ? getWorkspaceAnalyticsContributionsFromProspect(change.oldDoc)
       : [],
     add: change.newDoc
-      ? [getWorkspaceAnalyticsContributionFromProspect(change.newDoc)]
+      ? getWorkspaceAnalyticsContributionsFromProspect(change.newDoc)
       : [],
   });
 });

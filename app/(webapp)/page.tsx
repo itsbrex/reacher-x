@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -438,13 +439,14 @@ export default function ProspectsPage() {
   );
   const workspaceSystemStatus = shellStateQuery.data?.workspaceSystemStatus;
 
-  const ensureProspectListAnchor = useMutation(
-    api.prospectListFeed.ensureProspectListAnchor
+  const syncProspectListFeedSnapshot = useMutation(
+    api.prospectListFeed.syncProspectListFeedSnapshot
   );
   const mergePendingProspects = useMutation(
     api.prospectListFeed.mergePendingProspects
   );
   const [isMergePending, startMergeTransition] = useTransition();
+  const expectedMergedFeedCountRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!setupStatus) return;
@@ -547,19 +549,41 @@ export default function ProspectsPage() {
       ? { workspaceId, prospectIds: prospectIdsForMap }
       : "skip"
   );
-
-  const activeTabFirstProspectId = useMemo(() => {
-    const list = tabProspects as ProspectSummary[];
-    return list[0]?.prospectId;
-  }, [tabProspects]);
+  const activeTabVisibleProspectIds = useMemo(
+    () => tabProspects.map((prospect) => prospect.prospectId),
+    [tabProspects]
+  );
+  const trackedVisibleProspectIds = (feedState?.visibleProspectIds ??
+    []) as Id<"prospects">[];
+  const activeTabVisibleProspectIdsSignature =
+    activeTabVisibleProspectIds.join("|");
+  const trackedVisibleProspectIdsSignature =
+    trackedVisibleProspectIds.join("|");
 
   useEffect(() => {
     if (!browseMode) return;
     if (!workspaceId || !fitScoreRange) return;
     if (feedState === undefined) return;
-    if (feedState.hasAnchor) return;
-    if (!activeTabFirstProspectId) return;
-    void ensureProspectListAnchor({
+    if (expectedMergedFeedCountRef.current !== null) {
+      if (
+        trackedVisibleProspectIds.length >=
+          expectedMergedFeedCountRef.current &&
+        activeTabVisibleProspectIdsSignature ===
+          trackedVisibleProspectIdsSignature
+      ) {
+        expectedMergedFeedCountRef.current = null;
+      }
+      return;
+    }
+    if (activeTabVisibleProspectIds.length === 0) return;
+    if (
+      activeTabVisibleProspectIdsSignature ===
+      trackedVisibleProspectIdsSignature
+    ) {
+      return;
+    }
+
+    void syncProspectListFeedSnapshot({
       workspaceId,
       status: activeTabStatus,
       visibilityMode,
@@ -569,30 +593,36 @@ export default function ProspectsPage() {
       fitScoreMax: appliedFilterArgs.fitScoreMax,
       createdAfterMs: appliedFilterArgs.createdAfterMs,
       createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-      firstProspectId: activeTabFirstProspectId,
+      visibleProspectIds: activeTabVisibleProspectIds,
       sortBy: appliedSort,
     });
   }, [
-    browseMode,
-    workspaceId,
-    fitScoreRange,
-    feedState,
-    feedState?.hasAnchor,
-    activeTabFirstProspectId,
     activeTabStatus,
-    appliedSort,
+    activeTabVisibleProspectIds,
+    activeTabVisibleProspectIds.length,
+    activeTabVisibleProspectIdsSignature,
     appliedFilterArgs.createdAfterMs,
     appliedFilterArgs.createdBeforeMs,
     appliedFilterArgs.fitScoreMax,
     appliedFilterArgs.fitScoreMin,
     appliedFilterArgs.platform,
     appliedFilterArgs.prospectType,
+    appliedSort,
+    browseMode,
+    feedState,
+    fitScoreRange,
+    syncProspectListFeedSnapshot,
+    trackedVisibleProspectIdsSignature,
+    trackedVisibleProspectIds.length,
     visibilityMode,
-    ensureProspectListAnchor,
+    workspaceId,
   ]);
 
   const handleMergePending = () => {
     if (!workspaceId || !fitScoreRange) return;
+    expectedMergedFeedCountRef.current =
+      activeTabVisibleProspectIds.length +
+      Math.max(feedState?.pendingCount ?? 0, 1);
     startMergeTransition(() => {
       void mergePendingProspects({
         workspaceId,
@@ -605,6 +635,9 @@ export default function ProspectsPage() {
         fitScoreMax: appliedFilterArgs.fitScoreMax,
         createdAfterMs: appliedFilterArgs.createdAfterMs,
         createdBeforeMs: appliedFilterArgs.createdBeforeMs,
+        visibleProspectIds: activeTabVisibleProspectIds,
+      }).catch(() => {
+        expectedMergedFeedCountRef.current = null;
       });
     });
   };

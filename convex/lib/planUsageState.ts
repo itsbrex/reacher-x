@@ -1,25 +1,16 @@
-import type { Doc, Id } from "../_generated/dataModel";
+import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { polar } from "../polar";
 import { computeUsageCycleWindow } from "./planCycleUtils";
 import { getOrCreateUserPlan } from "./planCore";
+import type { QualifiedUsageWindow } from "./planQualifiedUsageCore";
 
 type PlanUsageCtx = QueryCtx | MutationCtx;
-type QualifiedUsageWindow = {
-  cycleStart: number;
-  cycleEnd: number;
-};
-type QualifiedUsageEligibility = Pick<
-  Doc<"prospects">,
-  "origin" | "qualificationStatus" | "qualifiedAt"
->;
-
-export function isProspectEligibleForQualifiedUsage(
-  prospect: Pick<Doc<"prospects">, "origin">
-) {
-  return prospect.origin !== "setup_preview";
-}
+export {
+  computeQualifiedProspectUsageForWindow,
+  isProspectEligibleForQualifiedUsage,
+} from "./planQualifiedUsageCore";
 
 function countsQualifiedProspectInWindow(
   window: QualifiedUsageWindow,
@@ -36,37 +27,6 @@ function countsQualifiedProspectInWindow(
     args.qualifiedAt >= window.cycleStart &&
     args.qualifiedAt <= window.cycleEnd
   );
-}
-
-export function shouldCountQualifiedProspectUsageInWindow(
-  window: QualifiedUsageWindow,
-  prospect: QualifiedUsageEligibility
-) {
-  return countsQualifiedProspectInWindow(window, {
-    qualified: prospect.qualificationStatus === "qualified",
-    qualifiedAt: prospect.qualifiedAt,
-    usageEligible: isProspectEligibleForQualifiedUsage(prospect),
-  });
-}
-
-export async function computeQualifiedProspectUsageForWindow(
-  ctx: PlanUsageCtx,
-  userId: Id<"users">,
-  window: QualifiedUsageWindow
-) {
-  const prospects = await ctx.db
-    .query("prospects")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-
-  let used = 0;
-  for (const prospect of prospects) {
-    if (shouldCountQualifiedProspectUsageInWindow(window, prospect)) {
-      used += 1;
-    }
-  }
-
-  return used;
 }
 
 async function getWorkspaceCountForUser(
