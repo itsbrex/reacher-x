@@ -108,11 +108,13 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     );
   },
   hr: function HrComponent(props) {
-    return <hr className="border-border/80 my-4 border-0 border-t" {...props} />;
+    return (
+      <hr className="border-border/80 my-4 border-0 border-t" {...props} />
+    );
   },
   table: function TableComponent({ children, ...props }) {
     return (
-      <div className="scrollbar-none scroll-fade-effect-x my-3 max-w-full overflow-x-auto [&::-webkit-scrollbar]:hidden">
+      <div className="scroll-fade-effect-x my-3 max-w-full scrollbar-none overflow-x-auto [&::-webkit-scrollbar]:hidden">
         <table
           className="border-border/80 w-max min-w-full border-collapse text-sm"
           {...props}
@@ -152,7 +154,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   td: function TdComponent({ children, ...props }) {
     return (
       <td
-        className="border-border/80 min-w-36 px-3 py-2 align-top whitespace-normal break-words"
+        className="border-border/80 min-w-36 px-3 py-2 align-top break-words whitespace-normal"
         {...props}
       >
         {children}

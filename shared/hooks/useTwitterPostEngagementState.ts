@@ -62,9 +62,7 @@ function areStatesEqual(
   );
 }
 
-export function useTwitterPostEngagementState(
-  postId?: string | number | null
-) {
+export function useTwitterPostEngagementState(postId?: string | number | null) {
   const normalizedPostId = normalizePostId(postId);
 
   return React.useSyncExternalStore(
@@ -99,7 +97,9 @@ export function cacheTwitterPostEngagement(args: {
       : undefined,
     likeCount:
       normalizeCount(args.likeCount) ??
-      (typeof existing?.likeCount === "number" ? existing.likeCount : undefined),
+      (typeof existing?.likeCount === "number"
+        ? existing.likeCount
+        : undefined),
     repeatCount:
       normalizeCount(args.repeatCount) ??
       (typeof existing?.repeatCount === "number"

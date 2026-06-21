@@ -50,20 +50,20 @@ function OpenSourceCardGlyph() {
     <svg
       aria-hidden="true"
       viewBox="0 0 104 109"
-      className="pointer-events-none absolute right-0 bottom-0 h-24 w-24 text-foreground transition-transform duration-500 ease-out group-hover/card:scale-[0.82] sm:h-28 sm:w-28 lg:h-36 lg:w-36"
+      className="text-foreground pointer-events-none absolute right-0 bottom-0 h-24 w-24 transition-transform duration-500 ease-out group-hover/card:scale-[0.82] sm:h-28 sm:w-28 lg:h-36 lg:w-36"
       fill="none"
     >
       <path
         d="M37.2252 34.23L69.4632 90.0678H4.98724L37.2252 34.23Z"
-        className="fill-foreground/10 transition-colors duration-500 group-hover/card:fill-foreground/20 dark:fill-foreground/16 dark:group-hover/card:fill-foreground/28"
+        className="fill-foreground/10 group-hover/card:fill-foreground/20 dark:fill-foreground/16 dark:group-hover/card:fill-foreground/28 transition-colors duration-500"
       />
       <path
         d="M62.8849 12.7964L97.8389 73.3385H27.9308L62.8849 12.7964Z"
-        className="fill-foreground/6 transition-colors duration-500 group-hover/card:fill-foreground/14 dark:fill-foreground/10 dark:group-hover/card:fill-foreground/22"
+        className="fill-foreground/6 group-hover/card:fill-foreground/14 dark:fill-foreground/10 dark:group-hover/card:fill-foreground/22 transition-colors duration-500"
       />
       <path
         d="M12.2142 33.8325L30.5924 2.00049L48.9707 33.8325H12.2142Z"
-        className="stroke-foreground/30 transition-colors duration-500 group-hover/card:stroke-foreground/55 dark:stroke-foreground/35 dark:group-hover/card:stroke-foreground/70"
+        className="stroke-foreground/30 group-hover/card:stroke-foreground/55 dark:stroke-foreground/35 dark:group-hover/card:stroke-foreground/70 transition-colors duration-500"
         strokeWidth="2"
       />
     </svg>

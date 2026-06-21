@@ -253,8 +253,7 @@ export function ProspectPanelRenderer({
 
       case "task-compose": {
         const taskProspectId =
-          (currentPanel.props.prospectId as string | undefined) ??
-          prospect?.id;
+          (currentPanel.props.prospectId as string | undefined) ?? prospect?.id;
         if (!taskProspectId) {
           return null;
         }

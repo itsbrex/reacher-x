@@ -108,10 +108,7 @@ export function MediaUploadSection({
     }
 
     uploads.forEach((upload) => {
-      if (
-        measuredAspectIds.has(upload.id) ||
-        pendingAspectIds.has(upload.id)
-      ) {
+      if (measuredAspectIds.has(upload.id) || pendingAspectIds.has(upload.id)) {
         return;
       }
 

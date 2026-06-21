@@ -121,8 +121,12 @@ const agentChatLogger = logger.withScope("useAgentChat");
 export function useAgentChat(
   options: UseAgentChatOptions = {}
 ): UseAgentChatReturn {
-  const { threadId: propThreadId, prospectId, action, newThreadSignal } =
-    options;
+  const {
+    threadId: propThreadId,
+    prospectId,
+    action,
+    newThreadSignal,
+  } = options;
   const pathname = usePathname();
 
   // Thread state - can be controlled by props or internal
@@ -660,14 +664,15 @@ export function useAgentChat(
     ? messageStatus
     : "Exhausted";
 
-  const hasPersistedPendingAssistant = Boolean(threadId) &&
+  const hasPersistedPendingAssistant =
+    Boolean(threadId) &&
     messages.some(
       (message) => message.role === "assistant" && message.status === "pending"
     );
 
   // Per docs: UIMessage has status field - check for streaming
-  const isStreaming = Boolean(threadId) &&
-    messages.some((m) => m.status === "streaming");
+  const isStreaming =
+    Boolean(threadId) && messages.some((m) => m.status === "streaming");
 
   useEffect(() => {
     if (!pendingTurn) {

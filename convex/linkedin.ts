@@ -2811,10 +2811,7 @@ export const getLinkedInProfileRelationship = action({
   args: {
     prospectId: v.id("prospects"),
   },
-  handler: async (
-    ctx,
-    args
-  ): Promise<Partial<LinkedInProfileData> | null> => {
+  handler: async (ctx, args): Promise<Partial<LinkedInProfileData> | null> => {
     const userId = await getCurrentUserId(ctx);
     const prospect = await getOwnedLinkedInProspectForUser(
       ctx,
@@ -4340,7 +4337,8 @@ export const reactToLinkedInPostInternal = internalAction({
         userId: args.userId,
         postKeys: [args.postId],
         prospectId: args.prospectId,
-        viewerReaction: normalizeLinkedInReactionType(args.reactionType) ?? null,
+        viewerReaction:
+          normalizeLinkedInReactionType(args.reactionType) ?? null,
       }
     );
 

@@ -130,47 +130,45 @@ function normalizeDistilledMemoryPayload(value: unknown): unknown {
 
   return {
     ...value,
-    memories: value.memories
-      .slice(0, MAX_DISTILLED_MEMORIES)
-      .map((memory) => {
-        if (!isRecord(memory)) {
-          return memory;
-        }
+    memories: value.memories.slice(0, MAX_DISTILLED_MEMORIES).map((memory) => {
+      if (!isRecord(memory)) {
+        return memory;
+      }
 
-        const normalized: Record<string, unknown> = { ...memory };
-        if (typeof normalized.title === "string") {
-          normalized.title = truncateMemoryText(
-            normalized.title,
-            MAX_MEMORY_TITLE_CHARS
-          );
-        }
-        if (typeof normalized.summary === "string") {
-          normalized.summary = truncateMemoryText(
-            normalized.summary,
-            MAX_MEMORY_SUMMARY_CHARS
-          );
-        }
-        if (typeof normalized.narrative === "string") {
-          normalized.narrative = truncateMemoryText(
-            normalized.narrative,
-            MAX_MEMORY_NARRATIVE_CHARS
-          );
-        }
+      const normalized: Record<string, unknown> = { ...memory };
+      if (typeof normalized.title === "string") {
+        normalized.title = truncateMemoryText(
+          normalized.title,
+          MAX_MEMORY_TITLE_CHARS
+        );
+      }
+      if (typeof normalized.summary === "string") {
+        normalized.summary = truncateMemoryText(
+          normalized.summary,
+          MAX_MEMORY_SUMMARY_CHARS
+        );
+      }
+      if (typeof normalized.narrative === "string") {
+        normalized.narrative = truncateMemoryText(
+          normalized.narrative,
+          MAX_MEMORY_NARRATIVE_CHARS
+        );
+      }
 
-        for (const key of ["signals", "evidence", "relatedQueries"]) {
-          if (normalized[key] === undefined) {
-            continue;
-          }
-          const entries = normalizeMemoryStringArray(normalized[key]);
-          if (entries) {
-            normalized[key] = entries;
-          } else {
-            delete normalized[key];
-          }
+      for (const key of ["signals", "evidence", "relatedQueries"]) {
+        if (normalized[key] === undefined) {
+          continue;
         }
+        const entries = normalizeMemoryStringArray(normalized[key]);
+        if (entries) {
+          normalized[key] = entries;
+        } else {
+          delete normalized[key];
+        }
+      }
 
-        return normalized;
-      }),
+      return normalized;
+    }),
   };
 }
 

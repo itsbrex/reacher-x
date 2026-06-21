@@ -35,7 +35,8 @@ To check the rate limit or credits left on an API key, make a GET request to `ht
 
 <Template data={{ API_KEY_REF }}>
 <CodeGroup>
-```typescript title="TypeScript SDK"
+
+````typescript title="TypeScript SDK"
 import { OpenRouter } from '@openrouter/sdk';
 
     const openRouter = new OpenRouter({
@@ -100,7 +101,7 @@ type Key = {
     // rate_limit: { ... } // A deprecated object in the response, safe to ignore
   };
 };
-```
+````
 
 There are a few rate limits that apply to certain types of requests, regardless of account status:
 

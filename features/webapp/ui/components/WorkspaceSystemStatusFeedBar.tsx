@@ -46,7 +46,7 @@ export function WorkspaceSystemStatusFeedBar({
         ? "Agent recovering"
         : status.mode === "attention"
           ? "Agent needs attention"
-        : "Agent working";
+          : "Agent working";
   const pendingCount = Math.max(progress.pendingCount ?? 0, 0);
   const notReadyCount = Math.max(progress.notReadyCount ?? 0, 0);
   const detailText =
@@ -135,13 +135,11 @@ export function WorkspaceSystemStatusFeedBar({
         <div className="text-muted-foreground flex shrink-0 items-center gap-2 font-mono text-xs">
           <AnimatedElapsedTimer
             startedAt={progress.pipelineStartedAt}
-            pausedAt={isPaused ? progress.pausedAt ?? null : null}
+            pausedAt={isPaused ? (progress.pausedAt ?? null) : null}
             className="text-muted-foreground text-xs"
           />
           {!isPaused ? (
-            <AsciiSpinnerText
-              className="text-muted-foreground font-mono text-sm"
-            />
+            <AsciiSpinnerText className="text-muted-foreground font-mono text-sm" />
           ) : null}
           <div className="border-border text-foreground rounded-md border p-1">
             <ChevronRight className="size-4" aria-hidden />

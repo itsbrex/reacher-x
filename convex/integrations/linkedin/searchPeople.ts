@@ -4,10 +4,7 @@ import { v } from "convex/values";
 import type { RunId } from "@convex-dev/action-retrier";
 import { action, internalAction } from "../../lib/functionBuilders";
 import { internal } from "../../_generated/api";
-import {
-  getRetriedActionStatus,
-  runRetriedAction,
-} from "../../lib/retrier";
+import { getRetriedActionStatus, runRetriedAction } from "../../lib/retrier";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import { requestLinkdApiData } from "./linkdapiClient";
 

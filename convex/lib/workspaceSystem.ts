@@ -102,7 +102,8 @@ export function deriveWorkspaceSystemStatus(
   const workflowStatus = workspace.prospectingWorkflowStatus ?? "stopped";
   const issueReason = deriveWorkspaceIssueReason(workspace);
   const discoveryState =
-    options?.discoveryState ?? (workflowStatus === "running" ? "active" : "paused");
+    options?.discoveryState ??
+    (workflowStatus === "running" ? "active" : "paused");
   const pauseReason = workspace.prospectingWorkflowPauseReason ?? null;
   const treatStoppedAsPaused =
     workflowStatus === "stopped" && issueReason === null;

@@ -14,9 +14,9 @@ const FEATURES = [
         Your voice is elevated. Not replaced.
         <br />
         <br />
-        Agent is built for thoughtful, human-paced outreach, not spam. Connecting
-        your accounts is not what creates risk; blasting generic messages or
-        pushing unnatural volume does.{" "}
+        Agent is built for thoughtful, human-paced outreach, not spam.
+        Connecting your accounts is not what creates risk; blasting generic
+        messages or pushing unnatural volume does.{" "}
         <Link
           href="#faqs-heading"
           className="font-medium underline underline-offset-4"

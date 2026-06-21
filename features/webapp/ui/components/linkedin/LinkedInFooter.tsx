@@ -222,10 +222,9 @@ export const LinkedInFooter: React.FC<LinkedInFooterProps> = ({
     ? reactions
     : (cachedReactionCount ?? reactions);
   const reactionCount = reactionCountBase + reactionCountDelta;
-  const viewerReaction =
-    hasLocalReactionOverride
-      ? (localViewerReaction ?? undefined)
-      : (cachedReaction?.viewerReaction ?? serverViewerReaction);
+  const viewerReaction = hasLocalReactionOverride
+    ? (localViewerReaction ?? undefined)
+    : (cachedReaction?.viewerReaction ?? serverViewerReaction);
 
   const postId = typeof post?.id === "string" ? post.id : "";
   const reactionKeySignature = getLinkedInPostReactionKeys(post).join("::");

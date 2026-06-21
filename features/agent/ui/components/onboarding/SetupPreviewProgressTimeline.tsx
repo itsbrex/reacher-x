@@ -121,11 +121,7 @@ export function SetupPreviewProgressTimeline({
   );
 }
 
-function StageKnob({
-  state,
-}: {
-  state: "complete" | "active" | "upcoming";
-}) {
+function StageKnob({ state }: { state: "complete" | "active" | "upcoming" }) {
   return (
     <TimelineIndicator
       className={cn(
@@ -149,7 +145,10 @@ function PreviewProgressStats({
 }) {
   return (
     <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:gap-x-6">
-      <PreviewProgressStat label="Discovered" value={progress.discoveredCount} />
+      <PreviewProgressStat
+        label="Discovered"
+        value={progress.discoveredCount}
+      />
       <PreviewProgressStat label="Qualified" value={progress.qualifiedCount} />
       <PreviewProgressStat label="Enriched" value={progress.enrichedCount} />
       <PreviewProgressStat label="Ready" value={progress.selectedCount} />

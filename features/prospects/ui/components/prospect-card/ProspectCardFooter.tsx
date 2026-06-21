@@ -155,12 +155,9 @@ export function ProspectCardFooter({
 
   return (
     <footer className="overflow-hidden">
-      <div className="scrollbar-none scroll-fade-effect-x flex items-center gap-2 overflow-x-auto">
+      <div className="scroll-fade-effect-x flex scrollbar-none items-center gap-2 overflow-x-auto">
         {qualificationPresentation.showCardBadge && (
-          <Badge
-            variant="outline"
-            className={compactBadgeClassName}
-          >
+          <Badge variant="outline" className={compactBadgeClassName}>
             <Flag2Icon
               className={cn(
                 "size-3.5 shrink-0",
@@ -174,10 +171,7 @@ export function ProspectCardFooter({
           </Badge>
         )}
         {qualificationScore !== undefined && (
-          <Badge
-            variant="outline"
-            className={compactBadgeClassName}
-          >
+          <Badge variant="outline" className={compactBadgeClassName}>
             <FitBar percentage={qualificationScore} isHovered={isHovered} />
             <AnimatedPercent
               key={animationKey}

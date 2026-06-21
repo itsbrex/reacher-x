@@ -190,7 +190,7 @@ export function WorkspaceSystemStatusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md overflow-hidden p-0 gap-0">
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
         <DialogHeader className="border-border border-b px-4 py-3 text-left">
           <DialogTitle>All-time workspace progress</DialogTitle>
           <DialogDescription className="sr-only">

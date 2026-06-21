@@ -1,11 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/shared/ui/components/Skeleton";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/shared/ui/components/Tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/components/Tabs";
 
 function WorkspaceFieldSkeleton({
   label,
@@ -31,7 +27,7 @@ export function WorkspacePageSkeleton() {
   return (
     <Tabs value="details" className="flex min-h-0 flex-1 flex-col">
       <div className="border-border shrink-0 border-b">
-        <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+        <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
           <TabsList variant="underline">
             <TabsTrigger value="details" variant="underline" disabled>
               Details

@@ -81,7 +81,8 @@ export function LinkedInProfileSummaryHeader({
             currentPosition?.companyName ?? profile.currentCompany?.name ?? "",
           companyLogo:
             currentPosition?.companyLogo ?? profile.currentCompany?.logoUrl,
-          isCurrent: currentPosition?.isCurrent ?? Boolean(profile.currentCompany),
+          isCurrent:
+            currentPosition?.isCurrent ?? Boolean(profile.currentCompany),
         }
       : undefined;
   const primaryWebsite =
@@ -165,7 +166,9 @@ export function LinkedInProfileSummaryHeader({
               </div>
 
               {actions ? (
-                <div className="flex shrink-0 items-center gap-1">{actions}</div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {actions}
+                </div>
               ) : null}
             </div>
 

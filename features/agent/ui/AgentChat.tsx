@@ -1512,9 +1512,9 @@ export function AgentChat({
 
   // Track if we've synced generatedThreadId to URL
   const hasUrlUpdated = useRef(false);
-  const lastNotifiedEffectiveThreadIdRef = useRef<
-    string | null | undefined
-  >(undefined);
+  const lastNotifiedEffectiveThreadIdRef = useRef<string | null | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     if (!threadId) {
@@ -1801,7 +1801,7 @@ export function AgentChat({
                 <Tooltip>
                   <TooltipTrigger
                     aria-disabled
-                  className={cn(
+                    className={cn(
                       buttonVariants({ variant: "outline", size: "xsIcon" }),
                       "opacity-50"
                     )}

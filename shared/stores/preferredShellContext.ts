@@ -71,7 +71,10 @@ function subscribePreferredShellContext(onStoreChange: () => void) {
 }
 
 function getPreferredShellContextSnapshot(): PreferredShellContext | null {
-  if (typeof window === "undefined" || !preferredShellContextClientSnapshotReady) {
+  if (
+    typeof window === "undefined" ||
+    !preferredShellContextClientSnapshotReady
+  ) {
     return null;
   }
 

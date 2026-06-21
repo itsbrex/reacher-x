@@ -308,7 +308,11 @@ export function AgentPageShell() {
       panel || taskId || actionRequestId || panelState || targetTweetId
     );
 
-    if (!hasPanelQueryParams || !prospectId || rightPanelSessionOpenRef.current) {
+    if (
+      !hasPanelQueryParams ||
+      !prospectId ||
+      rightPanelSessionOpenRef.current
+    ) {
       return;
     }
 
@@ -596,7 +600,10 @@ export function AgentPageShell() {
 
   const agentRightSurfaceActive =
     !!prospectId &&
-    (!isMobile || rightPanelSessionOpen || isPlanPanelActive || hasPanelContext);
+    (!isMobile ||
+      rightPanelSessionOpen ||
+      isPlanPanelActive ||
+      hasPanelContext);
 
   const showHistoryPanel = historyOpen && !isMobile && !!prospectId;
 

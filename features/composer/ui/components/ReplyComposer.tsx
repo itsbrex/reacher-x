@@ -64,8 +64,7 @@ export function ReplyComposer({
     if (
       fallbackReplyUsers.some(
         (user) =>
-          user.screenName.trim().toLowerCase() ===
-          tweetScreenName.toLowerCase()
+          user.screenName.trim().toLowerCase() === tweetScreenName.toLowerCase()
       )
     ) {
       return fallbackReplyUsers;

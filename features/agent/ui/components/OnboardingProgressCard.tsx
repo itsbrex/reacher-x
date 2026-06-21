@@ -335,9 +335,7 @@ function StatCell({
 }) {
   return (
     <article className="px-4 py-2.5">
-      <p className="text-muted-foreground text-[10px] font-medium">
-        {label}
-      </p>
+      <p className="text-muted-foreground text-[10px] font-medium">{label}</p>
       <p className="text-foreground mt-0.5 font-mono text-lg tabular-nums">
         <AnimatedNumber value={value} animateOnMount />
       </p>

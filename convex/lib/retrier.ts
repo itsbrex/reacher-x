@@ -47,16 +47,14 @@ type CompatibleRetrierQueryCtx = Pick<
   GenericActionCtx<GenericDataModel>,
   "runQuery"
 >;
-type RetrierMutationRunner = GenericMutationCtx<GenericDataModel>["runMutation"];
+type RetrierMutationRunner =
+  GenericMutationCtx<GenericDataModel>["runMutation"];
 type RetrierQueryRunner = GenericQueryCtx<GenericDataModel>["runQuery"];
 
 function createRetrierMutationCtx(ctx: CompatibleRetrierMutationCtx): {
   runMutation: RetrierMutationRunner;
 } {
-  const runMutation: RetrierMutationRunner = ((
-    mutation,
-    ...argsAndOptions
-  ) => {
+  const runMutation: RetrierMutationRunner = ((mutation, ...argsAndOptions) => {
     const [args] = argsAndOptions;
     return args === undefined
       ? ctx.runMutation(mutation as never)

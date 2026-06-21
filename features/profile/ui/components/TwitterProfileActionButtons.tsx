@@ -50,9 +50,8 @@ export function TwitterProfileActionButtons({
   const followUser = useAction(api.x.followUser);
   const unfollowUser = useAction(api.x.unfollowUser);
   const router = useRouter();
-  const [pendingAction, setPendingAction] = React.useState<PrimaryAction | null>(
-    null
-  );
+  const [pendingAction, setPendingAction] =
+    React.useState<PrimaryAction | null>(null);
   const [resolvedAction, setResolvedAction] =
     React.useState<PrimaryAction>(primaryAction);
   const [resolvedLabel, setResolvedLabel] =
@@ -139,7 +138,11 @@ export function TwitterProfileActionButtons({
   ]);
 
   const handleCopy = React.useCallback(
-    async (value: string, successDescription: string, errorDescription: string) => {
+    async (
+      value: string,
+      successDescription: string,
+      errorDescription: string
+    ) => {
       try {
         await navigator.clipboard.writeText(value);
         toast.success("Copied!", {
@@ -161,7 +164,9 @@ export function TwitterProfileActionButtons({
         onClick={() => void handlePrimaryAction()}
         disabled={!profileUserId || pendingAction !== null}
       >
-        {pendingAction === resolvedAction ? `${resolvedLabel}...` : resolvedLabel}
+        {pendingAction === resolvedAction
+          ? `${resolvedLabel}...`
+          : resolvedLabel}
       </Button>
 
       {conversationAction}
@@ -177,7 +182,9 @@ export function TwitterProfileActionButtons({
           <DropdownMenuSeparator />
           {profileUrl ? (
             <DropdownMenuItem
-              onClick={() => window.open(profileUrl, "_blank", "noopener,noreferrer")}
+              onClick={() =>
+                window.open(profileUrl, "_blank", "noopener,noreferrer")
+              }
             >
               <OpenInNewIcon className="fill-current" />
               Open on X/Twitter

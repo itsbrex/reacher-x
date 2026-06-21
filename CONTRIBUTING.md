@@ -69,10 +69,10 @@ I'm very open to suggestions! [Create an issue](https://github.com/VecterAI/reac
 
 **Perfect!** Here's what would help most right now:
 
-| **Difficulty**                                         | **Tasks**                                                                                                                                                                                                                                                                       |
-| :----------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Easy Wins**<br>_(Great for First-Time Contributors)_ | `□` Fix UI responsiveness issues<br>`□` Improve error messages and user feedback<br>`□` Add loading states and skeletons<br>`□` Improve accessibility (ARIA labels, keyboard navigation)<br>`□` Add tooltips and help text<br>`□` Fix typos and improve documentation           |
-| **Medium Difficulty**                                  | `□` Improve prospect filtering and sorting<br>`□` Add keyboard shortcuts<br>`□` Enhance composer experience<br>`□` Better error handling for API failures<br>`□` Add unit tests for utility functions<br>`□` Improve TypeScript types                                          |
+| **Difficulty**                                         | **Tasks**                                                                                                                                                                                                                                                                           |
+| :----------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Easy Wins**<br>_(Great for First-Time Contributors)_ | `□` Fix UI responsiveness issues<br>`□` Improve error messages and user feedback<br>`□` Add loading states and skeletons<br>`□` Improve accessibility (ARIA labels, keyboard navigation)<br>`□` Add tooltips and help text<br>`□` Fix typos and improve documentation               |
+| **Medium Difficulty**                                  | `□` Improve prospect filtering and sorting<br>`□` Add keyboard shortcuts<br>`□` Enhance composer experience<br>`□` Better error handling for API failures<br>`□` Add unit tests for utility functions<br>`□` Improve TypeScript types                                               |
 | **Advanced**<br>_(If You're Feeling Ambitious)_        | `□` Improve LinkedIn feature parity with X<br>`□` Add support for additional social platforms<br>`□` Enhance agent memory and learning patterns<br>`□` Improve outreach plan generation quality<br>`□` Optimize qualification/enrichment workflows<br>`□` Performance optimizations |
 
 ## ▪️ Development Workflow
@@ -143,23 +143,23 @@ pnpm lint:fix
 
 Not sure where to start? Try these:
 
-| **Category**      | **Ideas**                                                                                                                                            |
-| :---------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documentation** | Improve this CONTRIBUTING.md<br>Add code comments<br>Create usage examples<br>Write better error messages<br>Improve README sections                 |
-| **Testing**       | Test on different browsers<br>Try edge cases and report issues<br>Test accessibility features<br>Test with different API configurations              |
+| **Category**      | **Ideas**                                                                                                                                          |
+| :---------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Documentation** | Improve this CONTRIBUTING.md<br>Add code comments<br>Create usage examples<br>Write better error messages<br>Improve README sections               |
+| **Testing**       | Test on different browsers<br>Try edge cases and report issues<br>Test accessibility features<br>Test with different API configurations            |
 | **Features**      | Look at the [GitHub issues](https://github.com/VecterAI/reacher-x/issues)<br>Pick something marked "good first issue"<br>Or suggest something new! |
-| **UI/UX**         | Improve composer experience<br>Enhance agent chat interface<br>Better mobile responsiveness<br>Add helpful tooltips and guidance                     |
+| **UI/UX**         | Improve composer experience<br>Enhance agent chat interface<br>Better mobile responsiveness<br>Add helpful tooltips and guidance                   |
 
 ## ▪️ Current Focus
 
 Right now I'm focusing on:
 
-| **Priority** | **Focus Area**                                                                       |
-| :----------: | :----------------------------------------------------------------------------------- |
-|     `1.`     | **LinkedIn parity** - Bringing LinkedIn actions and monitoring to full X parity       |
-|     `2.`     | **Agent quality** - Improving outreach plan generation and memory learning            |
-|     `3.`     | **Additional platforms** - Expanding beyond X and LinkedIn                            |
-|     `4.`     | **Community growth** - Getting feedback and contributors                              |
+| **Priority** | **Focus Area**                                                                  |
+| :----------: | :------------------------------------------------------------------------------ |
+|     `1.`     | **LinkedIn parity** - Bringing LinkedIn actions and monitoring to full X parity |
+|     `2.`     | **Agent quality** - Improving outreach plan generation and memory learning      |
+|     `3.`     | **Additional platforms** - Expanding beyond X and LinkedIn                      |
+|     `4.`     | **Community growth** - Getting feedback and contributors                        |
 
 ## ▪️ Project Structure
 

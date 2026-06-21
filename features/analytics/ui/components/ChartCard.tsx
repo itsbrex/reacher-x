@@ -54,7 +54,7 @@ export const ChartCard = React.memo(function ChartCard({
           config={config}
           className={cn(
             chartHeight,
-            "min-w-0 w-full",
+            "w-full min-w-0",
             centerChart && "mx-auto",
             chartMaxWidth
           )}

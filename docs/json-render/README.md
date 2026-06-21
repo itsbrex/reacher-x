@@ -21,8 +21,8 @@ When users prompt for UI, you need guarantees. json-render gives AI a **constrai
 ### 1. Define Your Catalog (what AI can use)
 
 ```typescript
-import { createCatalog } from '@json-render/core';
-import { z } from 'zod';
+import { createCatalog } from "@json-render/core";
+import { z } from "zod";
 
 const catalog = createCatalog({
   components: {
@@ -34,7 +34,7 @@ const catalog = createCatalog({
       props: z.object({
         label: z.string(),
         valuePath: z.string(), // Binds to your data
-        format: z.enum(['currency', 'percent', 'number']),
+        format: z.enum(["currency", "percent", "number"]),
       }),
     },
     Button: {
@@ -45,8 +45,8 @@ const catalog = createCatalog({
     },
   },
   actions: {
-    export_report: { description: 'Export dashboard to PDF' },
-    refresh_data: { description: 'Refresh all metrics' },
+    export_report: { description: "Export dashboard to PDF" },
+    refresh_data: { description: "Refresh all metrics" },
   },
 });
 ```
@@ -81,10 +81,10 @@ import {
   ActionProvider,
   Renderer,
   useUIStream,
-} from '@json-render/react';
+} from "@json-render/react";
 
 function Dashboard() {
-  const { tree, send } = useUIStream({ api: '/api/generate' });
+  const { tree, send } = useUIStream({ api: "/api/generate" });
 
   return (
     <DataProvider initialData={{ revenue: 125000, growth: 0.15 }}>
@@ -96,7 +96,7 @@ function Dashboard() {
       >
         <input
           placeholder="Create a revenue dashboard..."
-          onKeyDown={(e) => e.key === 'Enter' && send(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send(e.target.value)}
         />
         <Renderer tree={tree} components={registry} />
       </ActionProvider>

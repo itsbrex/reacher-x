@@ -351,7 +351,7 @@ export function ProspectProfilePanel({
                 >
                   {/* Scrollable tabs container */}
                   <div className="border-border relative border-b">
-                    <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+                    <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
                       <TabsList variant="underline">
                         <TabsTrigger value="overview" variant="underline">
                           Overview
@@ -611,7 +611,7 @@ function ProfileSkeleton() {
 
       {/* Tabs skeleton */}
       <div className="border-border relative border-b">
-        <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+        <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
           <div className="inline-flex items-center gap-1">
             <Skeleton className="h-6 w-20" />
             <Skeleton className="h-6 w-28" />

@@ -1252,7 +1252,9 @@ export async function resolveSocialContext(
   };
 
   if (args.mode === "posts" && args.postId) {
-    let requestedPosts = filteredPosts.filter((post) => post.id === args.postId);
+    let requestedPosts = filteredPosts.filter(
+      (post) => post.id === args.postId
+    );
 
     if (requestedPosts.length === 0 && resolvedPlatform === "twitter") {
       const hydratedPost = await fetchTwitterPostById(ctx, args.postId);

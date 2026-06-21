@@ -48,7 +48,8 @@ export const upsertPostEngagementInternal = internalMutation({
       liked: args.patch.liked ?? existing?.liked ?? false,
       retweeted: args.patch.retweeted ?? existing?.retweeted ?? false,
       commented: args.patch.commented ?? existing?.commented ?? false,
-      ...(args.patch.likeCount !== undefined || existing?.likeCount !== undefined
+      ...(args.patch.likeCount !== undefined ||
+      existing?.likeCount !== undefined
         ? { likeCount }
         : {}),
       ...(args.patch.repeatCount !== undefined ||

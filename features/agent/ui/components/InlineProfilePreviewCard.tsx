@@ -94,7 +94,9 @@ export function InlineProfilePreviewCard({
   showFeatureStrip,
   onOpenPanel,
 }: InlineProfilePreviewCardProps) {
-  const getLinkedInProfile = useAction((api as any).linkedin.getLinkedInProfile);
+  const getLinkedInProfile = useAction(
+    (api as any).linkedin.getLinkedInProfile
+  );
   const getLinkedInProfileSupplemental = useAction(
     (api as any).linkedin.getLinkedInProfileSupplemental
   );
@@ -330,7 +332,7 @@ export function InlineProfilePreviewCard({
           className={cn(
             "border-border bg-background overflow-hidden rounded-xl border",
             shouldOpenOnCardClick &&
-              "cursor-pointer transition-colors hover:bg-accent/30 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+              "hover:bg-accent/30 focus-visible:ring-ring cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
           )}
           {...cardInteractionProps}
         >
@@ -390,9 +392,7 @@ export function InlineProfilePreviewCard({
           />
 
           {context ? (
-            <p className="text-muted-foreground px-4 py-3 text-xs">
-              {context}
-            </p>
+            <p className="text-muted-foreground px-4 py-3 text-xs">{context}</p>
           ) : null}
         </div>
 
@@ -431,7 +431,7 @@ export function InlineProfilePreviewCard({
         className={cn(
           "border-border bg-background overflow-hidden rounded-xl border",
           shouldOpenOnCardClick &&
-            "cursor-pointer transition-colors hover:bg-accent/30 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+            "hover:bg-accent/30 focus-visible:ring-ring cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
         )}
         {...cardInteractionProps}
       >
@@ -531,9 +531,7 @@ export function InlineProfilePreviewCard({
                       View
                     </Button>
                   </div>
-                ) : (
-                  null
-                )}
+                ) : null}
               </div>
 
               {title ? <p className="text-sm">{title}</p> : null}

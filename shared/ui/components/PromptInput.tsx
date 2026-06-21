@@ -122,12 +122,15 @@ function PromptInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const currentValue = value ?? internalValue;
 
-  const handleChange = useCallback((newValue: string) => {
-    setInternalValue((current) =>
-      current === newValue ? current : newValue
-    );
-    onValueChange?.(newValue);
-  }, [onValueChange]);
+  const handleChange = useCallback(
+    (newValue: string) => {
+      setInternalValue((current) =>
+        current === newValue ? current : newValue
+      );
+      onValueChange?.(newValue);
+    },
+    [onValueChange]
+  );
 
   const handleClick: React.MouseEventHandler<HTMLDivElement> = useCallback(
     (e) => {

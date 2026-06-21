@@ -2,11 +2,7 @@
 
 import type { ProviderMetadata } from "ai";
 import { z } from "zod";
-import {
-  extractUsage,
-  getRoutingTelemetry,
-  robustGenerateObject,
-} from "./ai";
+import { extractUsage, getRoutingTelemetry, robustGenerateObject } from "./ai";
 import { buildProfileGenerationPrompt } from "../agents/prompts";
 import { icpSchema, type ICP } from "../agents/tools/schemas";
 import {
@@ -54,14 +50,12 @@ export type SetupGenerationDraft = {
 };
 
 type GenerateSetupDraftArgs = {
-  currentProfiles?:
-    | Array<{
-        channels: string[];
-        description: string;
-        painPoints: string[];
-        title: string;
-      }>
-    | null;
+  currentProfiles?: Array<{
+    channels: string[];
+    description: string;
+    painPoints: string[];
+    title: string;
+  }> | null;
   currentImprovedDescription?: string | null;
   keyProblems?: string[];
   operation?: string;
@@ -91,8 +85,9 @@ function buildSetupGenerationUserPrompt(args: GenerateSetupDraftArgs): string {
   const trimmedCurrentDescription =
     args.currentImprovedDescription?.trim() || null;
   const currentProfiles =
-    args.currentProfiles?.filter((profile) => profile.title.trim().length > 0) ??
-    [];
+    args.currentProfiles?.filter(
+      (profile) => profile.title.trim().length > 0
+    ) ?? [];
 
   let prompt = `Improve this business description and create 2-4 ${useCase.profileLabelPlural}:
 

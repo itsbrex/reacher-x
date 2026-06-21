@@ -120,7 +120,7 @@ export function PipelineTimeline({
       {/* Timeline with horizontal scroll */}
       <div
         ref={scrollRef}
-        className="scrollbar-none scroll-fade-effect-x w-full overflow-x-auto pb-4"
+        className="scroll-fade-effect-x w-full scrollbar-none overflow-x-auto pb-4"
       >
         <Timeline defaultValue={currentStep} orientation="horizontal">
           {PIPELINE_STAGES.map((stage) => (

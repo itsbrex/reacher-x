@@ -1369,7 +1369,8 @@ export const getAgentPanelContext = query({
         mediaKinds: normalizeMediaKinds(task.mediaKinds, task.mediaUrls || []),
       },
       originalPost:
-        task.type === "comment" && (sourcePostSummary || fallbackSource?.sourcePostData)
+        task.type === "comment" &&
+        (sourcePostSummary || fallbackSource?.sourcePostData)
           ? {
               platform: sourcePlatform,
               postId: sourcePostId,

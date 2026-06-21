@@ -15,9 +15,7 @@ import {
   sanitizeProviderMetadataForConvex,
 } from "../lib/agentMetadata";
 import { buildSetupAgentPrompt } from "./prompts";
-import {
-  DEFAULT_WORKSPACE_USE_CASE_KEY,
-} from "../../shared/lib/workspaceUseCases";
+import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "../../shared/lib/workspaceUseCases";
 import {
   analyzeUrl,
   generateImprovedDescriptionAndICPs,

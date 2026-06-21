@@ -452,7 +452,9 @@ export function getWorkspaceStageActionLabel(
   return `Mark "${getWorkspaceStageLabel(value, stage)}"`;
 }
 
-export function getWorkspaceDiscoveryVerb(value: unknown): "finding" | "sourcing" {
+export function getWorkspaceDiscoveryVerb(
+  value: unknown
+): "finding" | "sourcing" {
   return resolveWorkspaceUseCaseKey(value) === "recruiting"
     ? "sourcing"
     : "finding";

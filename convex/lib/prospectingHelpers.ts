@@ -328,7 +328,8 @@ export function buildPreviewTwitterRawGraphSeedQueries(
   const queries: string[] = [];
   const seen = new Set<string>();
 
-  for (const query of PREVIEW_TWITTER_RAW_GRAPH_SEED_QUERIES[useCaseKey] ?? []) {
+  for (const query of PREVIEW_TWITTER_RAW_GRAPH_SEED_QUERIES[useCaseKey] ??
+    []) {
     appendPreviewRawGraphSeedQuery(queries, seen, query, options);
   }
 

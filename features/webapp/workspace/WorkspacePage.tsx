@@ -583,7 +583,7 @@ export default function WorkspacePage() {
                   }
                 >
                   <div className="border-border shrink-0 border-b">
-                    <div className="scrollbar-none scroll-fade-effect-x overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+                    <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
                       <TabsList variant="underline">
                         <TabsTrigger value="details" variant="underline">
                           Details
@@ -702,18 +702,18 @@ export default function WorkspacePage() {
                                     Description
                                   </FormLabel>
                                   <FormControl>
-                                  <Textarea
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    readOnly
-                                    rows={4}
-                                    autoResize={!isEditing}
-                                    className={cn(
-                                      "resize-y",
-                                      !isEditing && "overflow-hidden"
-                                    )}
-                                    disabled={!isEditing}
-                                  />
+                                    <Textarea
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      readOnly
+                                      rows={4}
+                                      autoResize={!isEditing}
+                                      className={cn(
+                                        "resize-y",
+                                        !isEditing && "overflow-hidden"
+                                      )}
+                                      disabled={!isEditing}
+                                    />
                                   </FormControl>
                                   <FormDescription
                                     className={formDescriptionClassName}

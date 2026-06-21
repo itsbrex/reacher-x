@@ -175,8 +175,7 @@ export function EvidencePostsList({
           className={cn(
             "px-4 pb-2",
             index === 0 ? "pt-4" : "pt-2",
-            onPostSelect &&
-              "hover:bg-muted/30 cursor-pointer transition-colors"
+            onPostSelect && "hover:bg-muted/30 cursor-pointer transition-colors"
           )}
           role={onPostSelect ? "button" : undefined}
           tabIndex={onPostSelect ? 0 : undefined}

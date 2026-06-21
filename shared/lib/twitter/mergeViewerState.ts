@@ -89,7 +89,10 @@ export function mergeLocalEngagementIntoTweet(
         : tweet.favorite_count,
     retweet_count:
       typeof args.engagement?.repeatCount === "number"
-        ? Math.max(0, args.engagement.repeatCount - Number(tweet.quote_count ?? 0))
+        ? Math.max(
+            0,
+            args.engagement.repeatCount - Number(tweet.quote_count ?? 0)
+          )
         : tweet.retweet_count,
     viewerState,
   };

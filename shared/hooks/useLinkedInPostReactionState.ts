@@ -103,9 +103,7 @@ export function cacheLinkedInPostReactionKeys(args: {
       const nextState = {
         viewerReaction,
         reactionCount:
-          reactionCount !== undefined
-            ? reactionCount
-            : existing?.reactionCount,
+          reactionCount !== undefined ? reactionCount : existing?.reactionCount,
       };
       if (
         existing?.viewerReaction === nextState.viewerReaction &&

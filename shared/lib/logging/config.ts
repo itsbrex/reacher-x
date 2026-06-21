@@ -69,7 +69,9 @@ function getProcessEnv() {
   return typeof process !== "undefined" ? process.env : undefined;
 }
 
-function normalizeEnvironmentName(value: string | undefined): string | undefined {
+function normalizeEnvironmentName(
+  value: string | undefined
+): string | undefined {
   if (!value) {
     return undefined;
   }

@@ -23,10 +23,7 @@ import type {
   ComposerMediaKind,
 } from "@/features/composer/types";
 import { XReplyFallbackAlert } from "@/features/composer/ui/components/XReplyFallbackAlert";
-import {
-  Tweet,
-  TweetSkeleton,
-} from "@/features/webapp/ui/components/tweet";
+import { Tweet, TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 import {
   LinkedInPostCard,
   LinkedInPostCardSkeleton,
@@ -777,12 +774,14 @@ export function AgentDynamicPanel({
 
     const resolvedFallbackTwitterSummary =
       fallbackPost.platform === "twitter"
-        ? (fallbackPost.postSummary ?? summarizeTwitterPost(fallbackPost.postData))
+        ? (fallbackPost.postSummary ??
+          summarizeTwitterPost(fallbackPost.postData))
         : undefined;
 
     if (
       fallbackPost.platform === "twitter" &&
-      (fallbackPost.postRef?.postId ?? resolvedFallbackTwitterSummary?.ref.postId)
+      (fallbackPost.postRef?.postId ??
+        resolvedFallbackTwitterSummary?.ref.postId)
     ) {
       return (
         <ThreadAwareTwitterReplyBody
@@ -1161,7 +1160,7 @@ export function AgentDynamicPanel({
                   }
                   initialTweet={
                     (fallbackPost.postSummary ??
-                      summarizeTwitterPost(fallbackPost.postData))
+                    summarizeTwitterPost(fallbackPost.postData))
                       ? (toFallbackTweetFromSummary(
                           (fallbackPost.postSummary ??
                             summarizeTwitterPost(

@@ -1,13 +1,16 @@
 # LinkedIn End-to-End Integration Plan
 
 ## Summary
+
 - Implement LinkedIn as a first-class platform using `LinkdAPI` for read/search/enrichment and `Unipile` for connected-account auth, messaging, invitations, reactions, comments, and post actions.
 - Mirror the existing X/Twitter architecture instead of inventing a separate LinkedIn stack: reuse the same approval-first action model, panel stack, message rendering, profile shell, account connection surface, and agent artifact flow.
 - Keep the current design language intact. LinkedIn should feel like “LinkedIn rendered through ReacherX”, not a separate product. Existing button sizes, shell spacing, avatar sizes, font sizes, and radii already used in the X/profile surfaces stay the baseline.
 - Remove all current “LinkedIn disabled” branches and read-only placeholders once the new flow is in place, so the repo ends up cleaner than it is now.
 
 ## Implementation Changes
+
 ### 1. Core backend shape
+
 - Keep the current split: `LinkdAPI = read plane`, `Unipile = write/auth plane`.
 - Standardize LinkedIn identity around `linkedinUrn` as the canonical person key. Secondary identifiers are `publicIdentifier/username` and public profile URL. This is required because LinkdAPI returns URN-centric read data and Unipile returns provider/public identifiers on the write side.
 - Introduce a small LinkedIn provider layer instead of scattering direct fetches:
@@ -26,6 +29,7 @@
 - Add a small `linkedAccounts`/LinkedIn account status persistence layer only if the current X account table is too X-specific; otherwise generalize the existing connected-account model so both X and LinkedIn fit the same pattern.
 
 ### 2. Read plane: LinkdAPI
+
 - Keep existing read adapters as the starting point instead of rewriting from scratch: [searchPosts.ts](/Users/salman/personal-local/reacher-x/development/reacher-x/convex/integrations/linkedin/searchPosts.ts), [getProfile.ts](/Users/salman/personal-local/reacher-x/development/reacher-x/convex/integrations/linkedin/getProfile.ts), [getCompany.ts](/Users/salman/personal-local/reacher-x/development/reacher-x/convex/integrations/linkedin/getCompany.ts), plus user-posts/comments endpoints already scaffolded.
 - Wrap LinkdAPI behind one typed client. Default plan: use the new `linkdapi` npm package if it is a thin typed wrapper over the same REST endpoints; otherwise keep direct HTTP fetches behind one internal module so the rest of the code never depends on transport details.
 - Use these LinkdAPI endpoints for v1:
@@ -44,6 +48,7 @@
 - Match current X behavior for shared budgets: one app-level/provider-level limiter with workspace/user attribution, not per-screen ad hoc throttling.
 
 ### 3. Write/auth plane: Unipile
+
 - Implement LinkedIn hosted auth via `POST /api/v1/hosted/accounts/link` and make it the only in-product connect flow.
 - Use Unipile capability-aware auth:
   - request LinkedIn with the features enabled by default
@@ -74,6 +79,7 @@
 - Treat Unipile failures as first-class UX states. Specifically handle `expired_credentials`, `disconnected_account`, `feature_not_subscribed`, `subscription_required`, `action_required`, `multiple_sessions`, `too_many_requests`, and `comments_disabled`.
 
 ### 4. Action approval model
+
 - Do not create a separate “LinkedIn actions” product pattern. Generalize the current X action system in [twitterActions.ts](/Users/salman/personal-local/reacher-x/development/reacher-x/convex/twitterActions.ts) and its executors into a platform-agnostic social action request system.
 - Every LinkedIn write action follows the same lifecycle as X:
   - agent/manual intent creates `agentActionRequest`
@@ -90,6 +96,7 @@
 - Keep repost disabled in v1. Render the button, show tooltip, and never create an action request for it.
 
 ### 5. UI/component plan
+
 - Reuse these shells directly:
   - account connection list: [ConnectedAccountsList.tsx](/Users/salman/personal-local/reacher-x/development/reacher-x/features/linked-accounts/ui/components/ConnectedAccountsList.tsx)
   - profile panel shell: [ProspectProfilePanel.tsx](/Users/salman/personal-local/reacher-x/development/reacher-x/features/prospects/ui/components/ProspectProfilePanel.tsx)
@@ -126,6 +133,7 @@
   - update [next.config.mjs](/Users/salman/personal-local/reacher-x/development/reacher-x/next.config.mjs) to allow LinkedIn CDN hosts such as `media.licdn.com`
 
 ### 6. End-user UX after implementation
+
 - User with no LinkedIn account:
   - sees LinkedIn in Connected Accounts
   - clicks `Connect`
@@ -147,6 +155,7 @@
   - reconnect/account-health issues surface as actionable banners or row states, not cryptic failures
 
 ### 7. Cleanup and minimalism
+
 - Remove current LinkedIn “disabled” branches and TODO blocks after the new path is live.
 - Remove duplicated Twitter-only abstractions where the model is already shared and replace them with social/platform-agnostic helpers.
 - Keep only one LinkedIn read client and one Unipile write client; no duplicate fetch wrappers.
@@ -154,6 +163,7 @@
 - Do not add new tables if the current conversation/action tables can be generalized safely.
 
 ## Verification and acceptance criteria
+
 - Implementation is not complete until all of these pass with zero unresolved errors:
   - `pnpm exec tsc --noEmit`
   - `pnpm lint:strict`
@@ -173,6 +183,7 @@
   - shared panel stack and prospect profile flows still work for both platforms
 
 ## Assumptions and defaults
+
 - Default implementation choice is to use the `linkdapi` npm package if it is thin, typed, and does not hide rate control from us; otherwise retain raw REST behind a single local client abstraction.
 - There are currently no connected Unipile LinkedIn accounts and no webhooks configured; the implementation must provision the in-app flow from that starting state.
 - Monitoring/firehose-style public LinkedIn watch is out of scope for v1 because the chosen read provider does not provide a monitor equivalent to current X SocialAPI monitoring.
@@ -180,6 +191,7 @@
 - LinkedIn chat/profile/post surfaces must inherit the existing ReacherX design tokens instead of introducing a new token set.
 
 ## References used
+
 - Repo code:
   - [features/prospects/ui/components/XConversationPanel.tsx](/Users/salman/personal-local/reacher-x/development/reacher-x/features/prospects/ui/components/XConversationPanel.tsx)
   - [features/prospects/ui/components/ProspectProfilePanel.tsx](/Users/salman/personal-local/reacher-x/development/reacher-x/features/prospects/ui/components/ProspectProfilePanel.tsx)
