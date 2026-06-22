@@ -43,7 +43,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     features: [
       "X/Twitter + LinkedIn integrated",
       "24/7 sourcing, qualification, enrichment & outreach",
-      "100 qualified prospects / month",
+      "100 qualified prospects per workspace / month",
       "1 workspace",
       "Email support",
     ],
@@ -58,7 +58,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     subtitle: "For individuals running outreach regularly.",
     featureLeadIn: "Everything in Hobby, plus:",
     features: [
-      "1000 qualified prospects / month",
+      "1000 qualified prospects per workspace / month",
       "2 workspaces",
       "Workspace settings rollback",
       "Priority support",
@@ -75,7 +75,7 @@ export const ONBOARDING_PLAN_TIERS: OnboardingPlanTierConfig[] = [
     subtitle: "For power users and growing teams.",
     featureLeadIn: "Everything in Base, plus:",
     features: [
-      "Unlimited qualified prospects / month",
+      "Unlimited qualified prospects per workspace / month",
       "5 workspaces",
       "Workspace settings rollback",
       "Calendar integration (Coming soon)",

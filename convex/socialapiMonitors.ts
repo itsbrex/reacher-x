@@ -22,6 +22,7 @@ import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { logger } from "../shared/lib/logger";
 import { normalizeMemoryText } from "./lib/memoryHelpers";
 import { buildChangedPatch } from "./lib/patchHelpers";
+import { formatQualifiedProspectLimitReachedMessage } from "./lib/prospectingHelpers";
 
 // ============================================================================
 // Constants
@@ -101,7 +102,10 @@ async function getWorkspaceCapacityGate(
   return {
     blocked,
     reason: blocked
-      ? `Prospect limit reached (${limitState.currentCount}/${limitState.limit})`
+      ? formatQualifiedProspectLimitReachedMessage({
+          currentCount: limitState.currentCount,
+          limit: limitState.limit,
+        })
       : undefined,
     workspace,
   };
@@ -729,7 +733,10 @@ export const createMonitorsFromSocialQueries = action({
         success: false,
         created: 0,
         failed: 0,
-        errors: [capacityGate.reason ?? "Prospect limit reached"],
+        errors: [
+          capacityGate.reason ??
+            "Qualified prospect limit reached for this workspace in the current cycle.",
+        ],
       };
     }
 
@@ -973,7 +980,10 @@ export const createMonitorsFromSocialQueriesInternal = internalAction({
         success: false,
         created: 0,
         failed: 0,
-        errors: [capacityGate.reason ?? "Prospect limit reached"],
+        errors: [
+          capacityGate.reason ??
+            "Qualified prospect limit reached for this workspace in the current cycle.",
+        ],
       };
     }
 

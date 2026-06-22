@@ -26,9 +26,10 @@ import {
 import {
   BATCH_LIMITS,
   buildPreviewTwitterRawGraphSeedQueries,
+  checkProspectLimit,
+  formatQualifiedProspectLimitReachedMessage,
 } from "../lib/prospectingHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
-import { getCurrentQualifiedProspectUsage } from "../lib/planHelpers";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
 import type {
   TwitterPost,
@@ -246,7 +247,10 @@ export const prospectingWorkflow = workflow.define({
       );
       return {
         status: "limit_reached",
-        reason: `Prospect limit reached (${limitCheck.currentCount}/${limitCheck.limit})`,
+        reason: formatQualifiedProspectLimitReachedMessage({
+          currentCount: limitCheck.currentCount,
+          limit: limitCheck.limit,
+        }),
         shouldContinue: false,
       };
     }
@@ -776,8 +780,12 @@ export const checkProspectLimitInternal = internalQuery({
       };
     }
 
-    const usage = await getCurrentQualifiedProspectUsage(ctx, workspace.userId);
-    const { tier, used: currentCount, limit } = usage;
+    const usage = await checkProspectLimit(
+      ctx,
+      args.workspaceId,
+      workspace.userId
+    );
+    const { tier, currentCount, limit } = usage;
 
     // If unlimited, never reached
     if (limit === -1) {

@@ -62,6 +62,7 @@ import {
   shouldPreferWorkspaceContext,
 } from "./lib/preferredShellContext";
 import { logger } from "../shared/lib/logger";
+import { formatQualifiedProspectLimitReachedMessage } from "./lib/prospectingHelpers";
 
 type WorkspaceDoc = Doc<"workspaces">;
 type WorkspaceStyleProfileDoc = Doc<"workspaceStyleProfiles">;
@@ -1572,7 +1573,10 @@ export const startProspectingWorkflow = action({
       return {
         success: false,
         outcome: "limit_reached",
-        error: `Prospect limit reached (${limitState.currentCount}/${limitState.limit})`,
+        error: formatQualifiedProspectLimitReachedMessage({
+          currentCount: limitState.currentCount,
+          limit: limitState.limit,
+        }),
       };
     }
     const now = getCurrentUTCTimestamp();
@@ -1670,7 +1674,10 @@ export const startProspectingWorkflowInternal = internalAction({
       return {
         success: false,
         outcome: "limit_reached",
-        error: `Prospect limit reached (${limitState.currentCount}/${limitState.limit})`,
+        error: formatQualifiedProspectLimitReachedMessage({
+          currentCount: limitState.currentCount,
+          limit: limitState.limit,
+        }),
       };
     }
     const now = getCurrentUTCTimestamp();
@@ -1759,7 +1766,10 @@ export const restartProspectingWorkflowForSetupInternal = internalAction({
       );
       return {
         success: false,
-        error: `Prospect limit reached (${limitState.currentCount}/${limitState.limit})`,
+        error: formatQualifiedProspectLimitReachedMessage({
+          currentCount: limitState.currentCount,
+          limit: limitState.limit,
+        }),
       };
     }
 

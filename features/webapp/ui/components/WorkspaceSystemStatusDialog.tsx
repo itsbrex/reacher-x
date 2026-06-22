@@ -104,8 +104,8 @@ export function useWorkspaceSystemStatusCopy(status: WorkspaceSystemStatus) {
 
     if (status.issueReason === "limit_reached") {
       return {
-        tooltip: "△ Agent has reached its limit",
-        title: `△ Agent is paused because you’ve reached your current plan limit. Upgrade to continue ${discoveryVerb} and qualifying ${entityPluralLower}.`,
+        tooltip: "△ Agent reached this workspace's limit",
+        title: `△ Agent is paused because this workspace reached its qualified ${entityPluralLower} limit for the current billing cycle. Upgrade to continue ${discoveryVerb} and qualifying ${entityPluralLower}.`,
         meta: `${activeUseCase.displayName} capacity`,
       };
     }

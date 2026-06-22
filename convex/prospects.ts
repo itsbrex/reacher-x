@@ -778,9 +778,12 @@ export const createProspect = mutation({
     });
 
     // Check plan limits
-    const canAdd = await canAddProspects(ctx, user._id, 1);
+    const canAdd = await canAddProspects(ctx, args.workspaceId, 1);
     if (!canAdd.allowed) {
-      throw new Error(canAdd.reason ?? "Prospect limit reached");
+      throw new Error(
+        canAdd.reason ??
+          "Qualified prospect limit reached for this workspace in the current cycle."
+      );
     }
 
     // Check for duplicate
@@ -860,7 +863,7 @@ export const createProspectsBatch = internalMutation({
     const workspace = await ctx.db.get(args.workspaceId);
     const canCreateNewProspects =
       workspace?.prospectingWorkflowStatus !== "limit_reached" &&
-      (await canAddProspects(ctx, args.userId, 1)).allowed;
+      (await canAddProspects(ctx, args.workspaceId, 1)).allowed;
 
     if (!canCreateNewProspects) {
       await ctx.scheduler.runAfter(
@@ -1499,7 +1502,7 @@ export const saveProspectFromWebhook = internalMutation({
 
     const canCreateNewProspect =
       workspace?.prospectingWorkflowStatus !== "limit_reached" &&
-      (await canAddProspects(ctx, args.userId, 1)).allowed;
+      (await canAddProspects(ctx, args.workspaceId, 1)).allowed;
 
     if (!canCreateNewProspect) {
       await ctx.scheduler.runAfter(
@@ -1512,7 +1515,8 @@ export const saveProspectFromWebhook = internalMutation({
       return {
         created: false,
         skipped: true,
-        reason: "Prospect limit reached",
+        reason:
+          "Qualified prospect limit reached for this workspace in the current cycle.",
       };
     }
 

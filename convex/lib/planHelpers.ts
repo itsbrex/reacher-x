@@ -11,8 +11,8 @@ import {
   getReservedEntitlementSlots,
   getWorkspaceSlotLimitForTier,
 } from "./workspaceEntitlements";
-import { readStoredQualifiedProspectUsageSnapshot } from "./planUsageState";
 import { isPaidPlanTier, type PlanTier } from "./planConstants";
+import { checkProspectLimit } from "./prospectingHelpers";
 
 // Re-export constants and types from planConstants for backward compatibility
 export { PLAN_LIMITS, type PlanTier, type UserPlan } from "./planConstants";
@@ -69,20 +69,30 @@ export async function getWorkspaceCount(
   return workspaces.length;
 }
 
-export async function getCurrentQualifiedProspectUsage(
+export async function getCurrentQualifiedProspectUsageForWorkspace(
   ctx: PlanCtx,
-  userId: Id<"users">
+  workspaceId: Id<"workspaces">
 ) {
-  const { plan, used, window } = await readStoredQualifiedProspectUsageSnapshot(
-    ctx,
-    userId
-  );
+  const workspace = await ctx.db.get(workspaceId);
+  if (!workspace) {
+    return {
+      tier: "free" as const,
+      limit: 0,
+      used: 0,
+      window: null,
+    };
+  }
+
+  const usage = await checkProspectLimit(ctx, workspaceId, workspace.userId);
 
   return {
-    tier: plan.tier,
-    limit: plan.prospectsLimit,
-    used,
-    window,
+    tier: usage.tier,
+    limit: usage.limit,
+    used: usage.currentCount,
+    window: {
+      cycleStart: usage.cycleStart,
+      cycleEnd: usage.cycleEnd,
+    },
   };
 }
 
@@ -91,10 +101,13 @@ export async function getCurrentQualifiedProspectUsage(
  */
 export async function canAddProspects(
   ctx: QueryCtx,
-  userId: Id<"users">,
+  workspaceId: Id<"workspaces">,
   count: number = 1
 ): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
-  const usage = await getCurrentQualifiedProspectUsage(ctx, userId);
+  const usage = await getCurrentQualifiedProspectUsageForWorkspace(
+    ctx,
+    workspaceId
+  );
 
   if (!isPaidPlanTier(usage.tier)) {
     return {
@@ -114,7 +127,7 @@ export async function canAddProspects(
   if (remaining < count) {
     return {
       allowed: false,
-      reason: `Qualified prospect limit reached for this cycle. You have ${remaining} spots remaining on your ${usage.tier} plan.`,
+      reason: `Qualified prospect limit reached for this workspace in the current cycle. You have ${remaining} spot${remaining === 1 ? "" : "s"} remaining on your ${usage.tier} plan.`,
       remaining,
     };
   }
@@ -175,7 +188,6 @@ export async function canCreateWorkspace(
  */
 export async function getPlanUsageSummary(ctx: QueryCtx, userId: Id<"users">) {
   const plan = await getOrCreateUserPlan(ctx, userId);
-  const qualifiedUsage = await getCurrentQualifiedProspectUsage(ctx, userId);
   const reservedSlots = await getReservedEntitlementSlots(ctx, userId);
   const usedWorkspaces = [...reservedSlots].filter(
     (slot) => slot <= plan.workspacesLimit
@@ -183,15 +195,6 @@ export async function getPlanUsageSummary(ctx: QueryCtx, userId: Id<"users">) {
 
   return {
     tier: plan.tier,
-    prospects: {
-      used: qualifiedUsage.used,
-      limit: qualifiedUsage.limit,
-      unlimited: qualifiedUsage.limit === -1,
-      percentUsed:
-        qualifiedUsage.limit === -1
-          ? 0
-          : Math.round((qualifiedUsage.used / qualifiedUsage.limit) * 100),
-    },
     workspaces: {
       used: usedWorkspaces,
       limit: plan.workspacesLimit,

@@ -4,7 +4,7 @@
 import { type QueryCtx } from "./_generated/server";
 import { internalQuery, mutation, query } from "./lib/functionBuilders";
 import { v } from "convex/values";
-import { requireUser } from "./lib/accessHelpers";
+import { getOwnedWorkspace, requireUser } from "./lib/accessHelpers";
 import { getUserFromIdentity } from "./lib/userUtils";
 import {
   getOrCreateUserPlan,
@@ -76,7 +76,10 @@ export const getPlanLimits = query({
  * Check if user can add prospects
  */
 export const checkCanAddProspects = query({
-  args: { count: v.optional(v.number()) },
+  args: {
+    workspaceId: v.id("workspaces"),
+    count: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -88,7 +91,12 @@ export const checkCanAddProspects = query({
       return { allowed: false, reason: "User not found" };
     }
 
-    return canAddProspects(ctx, user._id, args.count ?? 1);
+    const workspace = await getOwnedWorkspace(ctx, args.workspaceId, user._id);
+    if (!workspace) {
+      return { allowed: false, reason: "Workspace not found" };
+    }
+
+    return canAddProspects(ctx, workspace._id, args.count ?? 1);
   },
 });
 

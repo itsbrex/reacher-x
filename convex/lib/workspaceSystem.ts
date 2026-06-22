@@ -184,10 +184,10 @@ export function deriveWorkspaceSystemStatus(
       issueReason,
       canResume: false,
       label: "Attention",
-      tooltip: "Prospecting limit reached",
-      dialogTitle: "Prospecting limit reached",
+      tooltip: "Qualified prospect limit reached",
+      dialogTitle: "Qualified prospect limit reached",
       dialogDescription:
-        "Prospecting is paused because the current plan limit has been reached. Upgrade to resume discovery.",
+        "Discovery is paused because this workspace reached its qualified prospect limit for the current billing cycle. Upgrade to resume discovery.",
       actionLabel: "View plans",
       actionKind: "view_plans",
     };

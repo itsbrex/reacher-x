@@ -1,9 +1,14 @@
 // convex/lib/prospectingHelpers.ts
 // Helper functions for prospecting workflow limit checks
 
-import { QueryCtx } from "../_generated/server";
+import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id, type Doc } from "../_generated/dataModel";
+import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { PLAN_LIMITS, type PlanTier } from "./planConstants";
+import { polar } from "../polar";
+import { computeUsageCycleWindow } from "./planCycleUtils";
+import { getOrCreateUserPlan } from "./planCore";
+import { computeQualifiedProspectUsageForWorkspaceWindow } from "./planQualifiedUsageCore";
 import {
   resolveWorkspaceUseCaseKey,
   type WorkspaceUseCaseKey,
@@ -359,12 +364,19 @@ export function getWorkspaceLimit(tier: Tier): number {
   return TIER_LIMITS[tier].maxWorkspaces;
 }
 
+export function formatQualifiedProspectLimitReachedMessage(args: {
+  currentCount: number;
+  limit: number;
+}) {
+  return `Qualified prospect limit reached for this workspace in the current cycle (${args.currentCount}/${args.limit}).`;
+}
+
 /**
  * Check if the prospect limit has been reached for a workspace
  * Returns { limitReached, currentCount, limit }
  */
 export async function checkProspectLimit(
-  ctx: QueryCtx,
+  ctx: QueryCtx | MutationCtx,
   workspaceId: Id<"workspaces">,
   userId: Id<"users">
 ): Promise<{
@@ -372,40 +384,44 @@ export async function checkProspectLimit(
   currentCount: number;
   limit: number;
   tier: Tier;
+  cycleStart: number;
+  cycleEnd: number;
 }> {
-  // Get user's plan
-  const userPlan = await ctx.db
-    .query("userPlans")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .first();
-
-  // Default to free tier if no plan exists
-  const tier: Tier = (userPlan?.tier as Tier) || "free";
+  const now = getCurrentUTCTimestamp();
+  const userPlan = await getOrCreateUserPlan(ctx, userId);
+  const tier: Tier = userPlan.tier;
   const limit = getProspectLimit(tier);
+  const subscription = await polar.getCurrentSubscription(ctx, { userId });
+  const window = computeUsageCycleWindow({
+    now,
+    tier,
+    subscription,
+  });
+  const currentCount = await computeQualifiedProspectUsageForWorkspaceWindow(
+    ctx,
+    workspaceId,
+    window
+  );
 
   // If unlimited, never reached
   if (limit === -1) {
     return {
       limitReached: false,
-      currentCount: 0,
+      currentCount,
       limit: -1,
       tier,
+      cycleStart: window.cycleStart,
+      cycleEnd: window.cycleEnd,
     };
   }
-
-  // Count prospects for this workspace
-  const prospects = await ctx.db
-    .query("prospects")
-    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-    .collect();
-
-  const currentCount = prospects.length;
 
   return {
     limitReached: currentCount >= limit,
     currentCount,
     limit,
     tier,
+    cycleStart: window.cycleStart,
+    cycleEnd: window.cycleEnd,
   };
 }
 

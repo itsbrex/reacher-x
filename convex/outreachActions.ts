@@ -795,7 +795,11 @@ export const runAutoPlanGeneration = internalAction({
             workspaceId: args.workspaceId,
           }
         );
-        return { success: false, reason: "Prospect limit reached" };
+        return {
+          success: false,
+          reason:
+            "Qualified prospect limit reached for this workspace in the current cycle.",
+        };
       }
 
       // 1. Verify prospect still qualifies for auto plan generation

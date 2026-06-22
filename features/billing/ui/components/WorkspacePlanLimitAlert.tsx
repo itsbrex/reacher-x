@@ -70,14 +70,14 @@ export function WorkspacePlanLimitAlert({
       <AlertTitle>{`${entityPlural} limit reached`}</AlertTitle>
       <AlertDescription className="space-y-3">
         <p>
-          {`Your plan limit for qualified ${entityPluralLower} has been reached. The agent has paused ${discoveryVerb} new ${entityPluralLower} for this workspace.`}
+          {`This workspace reached its qualified ${entityPluralLower} limit for the current billing cycle. The agent has paused ${discoveryVerb} new ${entityPluralLower} until the cycle resets or you upgrade.`}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="xs">
             <Link href={getPlansUpgradeHref()}>Upgrade plan</Link>
           </Button>
           <Button asChild size="xs" variant="outline">
-            <Link href="/plans">View plans</Link>
+            <Link href="/usage">View usage</Link>
           </Button>
         </div>
       </AlertDescription>
