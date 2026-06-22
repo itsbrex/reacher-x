@@ -114,7 +114,20 @@ ${colorConfig
   );
 };
 
-const ChartTooltip = RechartsPrimitive.Tooltip;
+function ChartTooltip({
+  wrapperClassName,
+  wrapperStyle,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+  return (
+    <RechartsPrimitive.Tooltip
+      // Keep HTML tooltips above chart overlays like centered stat labels.
+      wrapperClassName={cn("z-20", wrapperClassName)}
+      wrapperStyle={{ zIndex: 20, ...wrapperStyle }}
+      {...props}
+    />
+  );
+}
 
 type ChartTooltipContentProps = React.ComponentProps<"div"> &
   Partial<RechartsPrimitive.TooltipContentProps> & {
