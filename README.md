@@ -13,9 +13,13 @@ Open-source △ Agent that helps anyone find the right people and reach them acr
 
 ## Video Demo
 
-<video src="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NLqENOJiThnvNigGByTM95kYptFD4PjuRd82a" controls playsinline muted></video>
+GitHub does not reliably render inline video players inside repository READMEs, so the demo is linked through a clickable preview instead.
 
-[Open the demo video directly](https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NLqENOJiThnvNigGByTM95kYptFD4PjuRd82a)
+<a href="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NLqENOJiThnvNigGByTM95kYptFD4PjuRd82a" target="_blank" rel="noopener noreferrer">
+  <img alt="Watch the ReacherX demo" src="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NNJIluMPruyLnJjG9lqwfYk4Fm8T0ZCtMWNAp">
+</a>
+
+<a href="https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4NLqENOJiThnvNigGByTM95kYptFD4PjuRd82a" target="_blank" rel="noopener noreferrer">Open the demo video directly</a>
 
 ## What ReacherX Does
 

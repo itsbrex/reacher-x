@@ -61,7 +61,7 @@ const FOOTER_COLUMNS = [
       },
       { label: "Contribute", href: GITHUB_REPO_ISSUES_URL },
       {
-        label: "License (MIT)",
+        label: "License (Apache-2.0)",
         href: "https://github.com/VecterAI/reacher-x/blob/main/LICENSE",
       },
     ],
