@@ -1,40 +1,54 @@
 "use client";
 
-import Link from "next/link";
+import Image from "next/image";
 import type { UseCase } from "@/features/landing/lib/useCases";
 import { cn } from "@/shared/lib/utils";
-import { ArrowForwardIcon } from "@/shared/ui/components/icons";
-import { LandingMuxHoverPlayer } from "./LandingMuxHoverPlayer";
 
 export function UseCaseCard({
   useCase,
   className,
+  variant = "directory",
 }: {
   useCase: UseCase;
   className?: string;
+  variant?: "home" | "directory";
 }) {
+  const isHome = variant === "home";
+
   return (
     <article className={cn("group flex flex-col", className)}>
-      <LandingMuxHoverPlayer
-        playbackId={useCase.videoPlaybackId}
-        mp4Url={useCase.videoUrl}
-        ariaLabel={`${useCase.title} demo`}
-        className="aspect-[4/3]"
-        loading="viewport"
-        maxResolution="720p"
-        sizes="(min-width: 1280px) 28vw, (min-width: 768px) 35vw, 75vw"
-      />
+      <div className="relative aspect-[4/3] overflow-hidden">
+        <Image
+          src={useCase.imageSrc}
+          alt={`${useCase.title} use case example`}
+          fill
+          className="object-cover"
+          sizes={
+            isHome
+              ? "(min-width: 1280px) 34vw, (min-width: 768px) 42vw, 86vw"
+              : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          }
+        />
+      </div>
 
-      <Link href={useCase.threadHref} className="block pt-4 pb-2">
-        <h3 className="text-base font-semibold">{useCase.title}</h3>
-        <p className="text-muted-foreground mt-1 text-sm">
+      <div className={cn("pt-4 pb-2", isHome && "pt-5")}>
+        <h3
+          className={cn(
+            "font-semibold tracking-tight",
+            isHome ? "text-xl md:text-2xl" : "text-base md:text-lg"
+          )}
+        >
+          {useCase.title}
+        </h3>
+        <p
+          className={cn(
+            "text-muted-foreground mt-1.5",
+            isHome ? "text-base leading-6 md:text-lg" : "text-sm md:text-base"
+          )}
+        >
           {useCase.description}
         </p>
-        <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium">
-          See how
-          <ArrowForwardIcon className="size-4 fill-current" />
-        </span>
-      </Link>
+      </div>
     </article>
   );
 }

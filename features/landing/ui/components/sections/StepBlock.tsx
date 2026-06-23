@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { cn } from "@/shared/lib/utils";
-import {
-  ArrowOutwardIcon,
-  ChangeHistoryIcon,
-} from "@/shared/ui/components/icons";
+import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 import { InteractiveMockupFigure } from "../InteractiveMockupFigure";
 import type { LandingMockupAssetKey } from "../../../lib/mockupAssets";
 
@@ -13,8 +10,6 @@ interface StepBlockProps {
   heading: string;
   description: string | React.ReactNode;
   mockupAssetKey: LandingMockupAssetKey;
-  ctaLabel?: string;
-  ctaHref?: string;
   learnMoreLabel?: string;
   learnMoreHref?: string;
   reversed?: boolean;
@@ -26,8 +21,6 @@ export function StepBlock({
   heading,
   description,
   mockupAssetKey,
-  ctaLabel = "Start reaching",
-  ctaHref = "/login",
   learnMoreLabel = "Learn more",
   learnMoreHref = "#",
   reversed = false,
@@ -53,17 +46,7 @@ export function StepBlock({
         )}
         <h3 className="text-2xl font-medium md:text-3xl">{heading}</h3>
         <p className="mt-3 text-base">{description}</p>
-        <div className="mt-6 flex items-center gap-3">
-          <Link
-            href={ctaHref}
-            className={cn(
-              buttonVariants({ variant: "default", size: "sm" }),
-              "rounded-full"
-            )}
-          >
-            <ChangeHistoryIcon className="size-4 fill-current" />
-            {ctaLabel}
-          </Link>
+        <div className="mt-6 flex items-center">
           <Link
             href={learnMoreHref}
             className={cn(

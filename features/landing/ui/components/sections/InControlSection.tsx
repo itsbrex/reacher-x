@@ -23,8 +23,6 @@ export function InControlSection() {
           heading="Separate workspaces for separate goals."
           description="Each workspace has its own ideal profiles, pipeline stages, discovered people, outreach history, and agent memory. Run customer prospecting in one workspace, recruiting in another, and investor discovery in a third."
           mockupAssetKey="landing-image-9"
-          ctaLabel="Create workspace"
-          ctaHref="/"
           reversed={true}
         />
       </div>

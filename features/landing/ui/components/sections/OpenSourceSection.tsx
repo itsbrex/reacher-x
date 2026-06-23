@@ -10,6 +10,8 @@ import {
   CardDescription,
   CardFooter,
 } from "@/shared/ui/components/Card";
+import { buttonVariants } from "@/shared/ui/components/Button";
+import { cn } from "@/shared/lib/utils";
 import { ArrowOutwardIcon } from "@/shared/ui/components/icons";
 
 const DISCORD_SERVER_URL = "https://discord.gg/76dF9NPH";
@@ -78,7 +80,7 @@ export function OpenSourceSection() {
     >
       <h2
         id="open-source-heading"
-        className="font-pixel-square mb-10 text-center text-3xl leading-tight font-bold text-balance sm:text-4xl md:mb-16 md:text-5xl"
+        className="font-pixel-square mb-10 text-center text-[36px] leading-tight font-bold text-balance sm:text-4xl md:mb-16 md:text-5xl"
       >
         Other tools are closed-source. <br className="hidden md:block" />
         Agent is open-source.
@@ -104,7 +106,12 @@ export function OpenSourceSection() {
                 </CardDescription>
               </CardHeader>
               <CardFooter className="relative z-10 p-4 pt-0 sm:p-5 sm:pt-0 lg:p-4 lg:pt-0">
-                <span className="bg-primary text-primary-foreground pointer-events-none inline-flex h-8 items-center justify-center gap-2 rounded-full px-3 text-sm font-medium whitespace-nowrap sm:h-9">
+                <span
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "pointer-events-none rounded-full text-sm whitespace-nowrap sm:text-base lg:text-sm"
+                  )}
+                >
                   {linkLabel}
                   <ArrowOutwardIcon className="size-4 fill-current" />
                 </span>
