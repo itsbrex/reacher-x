@@ -16,6 +16,7 @@ import {
   readQualifiedProspectUsageForWorkspaceWindow,
   shouldCountQualifiedProspectUsageInWindow,
 } from "../convex/lib/planQualifiedUsageCore";
+import { countCompletedWorkspaces } from "../convex/lib/workspaceSetup";
 import {
   getCalendarDaysUntil,
   parseIsoToTimestamp,
@@ -409,6 +410,20 @@ test("workspace usage counts only qualified prospects from the selected workspac
     utc("2026-06-03T08:00:00.000Z"),
     utc("2026-06-12T08:00:00.000Z"),
   ]);
+});
+
+test("completed workspace count excludes draft workspaces", () => {
+  const completedAt = utc("2026-06-18T08:00:00.000Z");
+
+  assert.equal(
+    countCompletedWorkspaces([
+      { setupCompletedAt: completedAt },
+      {},
+      { setupCompletedAt: undefined },
+      { setupCompletedAt: utc("2026-06-20T08:00:00.000Z") },
+    ]),
+    2
+  );
 });
 
 test("cycle rollover uses active subscription bounds and falls back to UTC month when expired", () => {

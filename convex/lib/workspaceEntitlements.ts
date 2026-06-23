@@ -3,6 +3,7 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { isPaidPlanTier, PLAN_LIMITS } from "./planConstants";
 import { getOrCreateUserPlan } from "./planCore";
 import { isTerminalSetupSessionStatus } from "./setupSessionCore";
+import { isWorkspaceSetupCompleted } from "./workspaceSetup";
 
 type EntitlementCtx = QueryCtx | MutationCtx;
 
@@ -42,7 +43,7 @@ export async function getCurrentWorkspaceSlotLimit(
 export function doesWorkspaceReserveEntitlementSlot(
   workspace: Pick<WorkspaceDoc, "setupCompletedAt">
 ): boolean {
-  return typeof workspace.setupCompletedAt === "number";
+  return isWorkspaceSetupCompleted(workspace);
 }
 
 export function doesSetupSessionReserveEntitlementSlot(

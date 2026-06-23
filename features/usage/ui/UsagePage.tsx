@@ -128,10 +128,10 @@ export function UsagePage({ initialLayoutCache = null }: UsagePageProps) {
   const cachedWorkspaceTemplates = layoutCache?.workspaceTemplates ?? [];
   const knownWorkspaceCount =
     lastResolvedUsage?.summary.workspacesUsed ??
-    planQuery.data?.workspaces.used ??
     (shellWorkspaceTemplates.length > 0
       ? shellWorkspaceTemplates.length
       : undefined) ??
+    planQuery.data?.workspaces.used ??
     layoutCache?.workspacesUsed ??
     0;
 

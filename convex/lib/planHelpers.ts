@@ -13,6 +13,7 @@ import {
 } from "./workspaceEntitlements";
 import { isPaidPlanTier, type PlanTier } from "./planConstants";
 import { checkProspectLimit } from "./prospectingHelpers";
+import { countCompletedWorkspaces } from "./workspaceSetup";
 
 // Re-export constants and types from planConstants for backward compatibility
 export { PLAN_LIMITS, type PlanTier, type UserPlan } from "./planConstants";
@@ -66,7 +67,7 @@ export async function getWorkspaceCount(
     .query("workspaces")
     .withIndex("by_user_id", (q) => q.eq("userId", userId))
     .collect();
-  return workspaces.length;
+  return countCompletedWorkspaces(workspaces);
 }
 
 export async function getCurrentQualifiedProspectUsageForWorkspace(

@@ -4,6 +4,7 @@ import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { polar } from "../polar";
 import { computeUsageCycleWindow } from "./planCycleUtils";
 import { getOrCreateUserPlan } from "./planCore";
+import { getWorkspaceCount } from "./planHelpers";
 import type { QualifiedUsageWindow } from "./planQualifiedUsageCore";
 
 type PlanUsageCtx = QueryCtx | MutationCtx;
@@ -27,17 +28,6 @@ function countsQualifiedProspectInWindow(
     args.qualifiedAt >= window.cycleStart &&
     args.qualifiedAt <= window.cycleEnd
   );
-}
-
-async function getWorkspaceCountForUser(
-  ctx: PlanUsageCtx,
-  userId: Id<"users">
-): Promise<number> {
-  const workspaces = await ctx.db
-    .query("workspaces")
-    .withIndex("by_user_id", (q) => q.eq("userId", userId))
-    .collect();
-  return workspaces.length;
 }
 
 export async function readStoredQualifiedProspectUsageSnapshot(
@@ -163,7 +153,7 @@ export async function applyQualifiedProspectUsageTransition(
     });
   }
 
-  const workspacesUsed = await getWorkspaceCountForUser(ctx, args.userId);
+  const workspacesUsed = await getWorkspaceCount(ctx, args.userId);
 
   if (matchingRow) {
     await ctx.db.patch(matchingRow._id, {

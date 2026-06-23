@@ -19,6 +19,7 @@ import {
   sortUsageWorkspaceRows,
 } from "./lib/usageDashboardCore";
 import { getUserFromIdentity } from "./lib/userUtils";
+import { filterCompletedWorkspaces } from "./lib/workspaceSetup";
 
 function formatPlanTitle(tier: "free" | "hobby" | "base" | "pro") {
   if (tier === "free") return "Plan required";
@@ -62,6 +63,7 @@ export const getUsageDashboard = query({
       tier: plan.tier,
       subscription,
     });
+    const completedWorkspaces = filterCompletedWorkspaces(workspaces);
 
     const cycleOptions = dedupeUsageCycleWindows([
       { ...currentWindow, isCurrent: true },
@@ -97,8 +99,12 @@ export const getUsageDashboard = query({
       selectedCycleRow?.prospectsLimit ?? plan.prospectsLimit;
     const comparisonMode =
       selectedLimit === -1 ? ("count" as const) : ("percent" as const);
-    const selectedWorkspacesUsed =
-      selectedCycleRow?.workspacesUsed ?? workspaces.length;
+    const selectedWorkspacesUsed = sameUsageCycleWindow(
+      selectedWindow,
+      currentWindow
+    )
+      ? completedWorkspaces.length
+      : (selectedCycleRow?.workspacesUsed ?? completedWorkspaces.length);
     const selectedWorkspacesLimit =
       selectedCycleRow?.workspacesLimit ?? plan.workspacesLimit;
     const resetDaysLeft =
@@ -106,7 +112,7 @@ export const getUsageDashboard = query({
 
     const workspaceRows = sortUsageWorkspaceRows(
       await Promise.all(
-        workspaces.map(async (workspace) => {
+        completedWorkspaces.map(async (workspace) => {
           const usage = await readQualifiedProspectUsageForWorkspaceWindow(
             ctx,
             workspace._id,
