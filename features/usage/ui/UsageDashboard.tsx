@@ -8,6 +8,7 @@ import {
   FolderIcon,
 } from "@/shared/ui/components/icons";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
+import { cn } from "@/shared/lib/utils";
 import { UsageSummaryStrip } from "./components/UsageSummaryStrip";
 import { WorkspaceUsageCard } from "./components/WorkspaceUsageCard";
 import { WorkspaceComparisonChart } from "./components/WorkspaceComparisonChart";
@@ -34,6 +35,8 @@ export function UsageDashboard({
   data,
   isLoading = false,
 }: UsageDashboardProps) {
+  const hasOddWorkspaceCount = data.workspaces.length % 2 === 1;
+
   const renderTextValue = React.useCallback(
     (value: string) => <span className={SUMMARY_TEXT_CLASS_NAME}>{value}</span>,
     []
@@ -106,7 +109,13 @@ export function UsageDashboard({
         valueTitle: `Resets on ${data.summary.resetLabel}`,
       },
     ],
-    [data.summary, renderDaysLeftValue, renderFractionValue, renderTextValue]
+    [
+      data.summary,
+      renderDaysLeftValue,
+      renderFractionValue,
+      renderNumberValue,
+      renderTextValue,
+    ]
   );
 
   if (!isLoading && data.workspaces.length === 0) {
@@ -134,6 +143,11 @@ export function UsageDashboard({
             accentColor={
               WORKSPACE_CHART_COLORS[index % WORKSPACE_CHART_COLORS.length]!
             }
+            className={cn(
+              hasOddWorkspaceCount &&
+                index === data.workspaces.length - 1 &&
+                "lg:col-span-2"
+            )}
             limit={workspace.limit}
             name={workspace.name}
             trend={workspace.trend}

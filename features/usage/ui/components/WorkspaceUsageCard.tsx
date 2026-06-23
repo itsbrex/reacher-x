@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/ui/components/Card";
+import { cn } from "@/shared/lib/utils";
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,6 +30,7 @@ import type { UsageTrendPoint } from "../../lib/types";
 
 export interface WorkspaceUsageCardProps {
   accentColor: string;
+  className?: string;
   limit: number;
   name: string;
   trend: UsageTrendPoint[];
@@ -38,6 +40,7 @@ export interface WorkspaceUsageCardProps {
 
 export const WorkspaceUsageCard = React.memo(function WorkspaceUsageCard({
   accentColor,
+  className,
   limit,
   name,
   trend,
@@ -89,7 +92,7 @@ export const WorkspaceUsageCard = React.memo(function WorkspaceUsageCard({
   }, [limit, used]);
 
   return (
-    <Card className="shadow-none">
+    <Card className={cn("shadow-none", className)}>
       <CardHeader className="p-4 pb-4">
         <CardTitle className="text-lg font-medium">{name}</CardTitle>
       </CardHeader>
