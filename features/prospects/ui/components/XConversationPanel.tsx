@@ -40,6 +40,7 @@ import { NewReleasesIcon } from "@/shared/ui/components/icons";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedDraftSync } from "@/features/agent/hooks/useDebouncedDraftSync";
+import { resolveOutreachTaskApprovalUiState } from "@/shared/lib/outreach/taskApprovalHelpers";
 import { X_DM_TEXT_MAX } from "@/shared/lib/twitter/xPostTextLimit";
 import type { XDmAttachmentSummary, XDmMessage } from "@/shared/lib/twitter/dm";
 import type {
@@ -55,6 +56,8 @@ export interface XConversationPanelProps {
   taskStatus?: string;
   taskMode?: "approval" | "posted" | null;
   taskApprovalReady?: boolean;
+  taskPlanId?: string | null;
+  taskPlanStatus?: string | null;
   taskDraft?: {
     content?: string;
     mediaUrls?: string[];
@@ -81,6 +84,8 @@ export function XConversationPanel({
   taskStatus,
   taskMode,
   taskApprovalReady = false,
+  taskPlanId,
+  taskPlanStatus,
   taskDraft,
   taskPosted,
   onBack,
@@ -113,6 +118,7 @@ export function XConversationPanel({
     api.outreach.updatePendingTaskDraft
   );
   const approveTaskWithEdits = useMutation(api.outreach.approveTaskWithEdits);
+  const approvePlan = useMutation(api.outreach.approvePlan);
   const [currentDraftText, setCurrentDraftText] = React.useState("");
   const profileUrl = data?.prospect.profileUrl;
   const lastServerDraftRef = React.useRef<string | undefined>(undefined);
@@ -233,6 +239,19 @@ export function XConversationPanel({
       });
     },
   });
+  const taskApprovalUi = resolveOutreachTaskApprovalUiState({
+    kind: "dm",
+    mode: taskMode,
+    approvalReady: taskApprovalReady,
+    planId: taskPlanId,
+    planStatus: taskPlanStatus,
+  });
+  const shouldDisableTaskSubmit =
+    isTaskBacked &&
+    (taskMode !== "approval" ||
+      (taskStatus !== "pending" && taskStatus !== "executing") ||
+      (taskApprovalUi.submitBlockedByPlan &&
+        !taskApprovalUi.planCanBeApproved));
 
   const handleSend = React.useCallback(
     async (
@@ -259,17 +278,43 @@ export function XConversationPanel({
             : data?.draftAttachments?.map(
                 (attachment: XDmAttachmentSummary) => attachment.altText ?? ""
               );
+        const resolvedMediaKinds = mediaKinds?.length
+          ? mediaKinds
+          : isTaskBacked
+            ? taskDraft?.mediaKinds
+            : undefined;
         if (!nextText && !(resolvedMediaUrls && resolvedMediaUrls.length > 0)) {
           return;
         }
         if (isTaskBacked) {
+          if (
+            taskMode === "approval" &&
+            taskApprovalUi.submitBlockedByPlan &&
+            taskApprovalUi.planCanBeApproved
+          ) {
+            await updatePendingTaskDraft({
+              taskId: taskId as Id<"outreachTasks">,
+              expectedType: "dm",
+              content: nextText,
+              mediaUrls: resolvedMediaUrls,
+              mediaDescriptions: resolvedDescriptions,
+              mediaKinds: resolvedMediaKinds,
+            });
+            await approvePlan({
+              planId: taskPlanId as Id<"outreachPlans">,
+            });
+            toast.success("Plan approved.", {
+              description: "The DM will be ready for approval next.",
+            });
+            return;
+          }
           await approveTaskWithEdits({
             taskId: taskId as Id<"outreachTasks">,
             expectedType: "dm",
             content: nextText,
             mediaUrls: resolvedMediaUrls,
             mediaDescriptions: resolvedDescriptions,
-            mediaKinds,
+            mediaKinds: resolvedMediaKinds,
           });
           toast.success("DM approved.", {
             description: "Sending in background...",
@@ -285,7 +330,20 @@ export function XConversationPanel({
         });
       }
     },
-    [approveTaskWithEdits, data, isTaskBacked, send, taskDraft, taskId]
+    [
+      approvePlan,
+      approveTaskWithEdits,
+      data,
+      isTaskBacked,
+      send,
+      taskApprovalUi.planCanBeApproved,
+      taskApprovalUi.submitBlockedByPlan,
+      taskDraft,
+      taskId,
+      taskMode,
+      taskPlanId,
+      updatePendingTaskDraft,
+    ]
   );
 
   const handleCancelDraft = React.useCallback(async () => {
@@ -300,13 +358,6 @@ export function XConversationPanel({
     (!isTaskBacked &&
       (!data || !data.eligibility.enabled || isSendingActionRequest)) ||
     Boolean(taskMode === "posted");
-  const shouldDisableTaskSubmit =
-    isTaskBacked &&
-    !(
-      taskMode === "approval" &&
-      (taskStatus === "pending" || taskStatus === "executing") &&
-      taskApprovalReady
-    );
   const inlineDraftStatus =
     draftSync.status === "saving" ? (
       <span className="text-muted-foreground text-xs">Saving</span>
@@ -556,8 +607,10 @@ export function XConversationPanel({
               placeholder="Type here."
               maxLength={X_DM_TEXT_MAX}
               characterCountMode="raw"
-              submitButtonText="Send"
-              submitButtonVariant="icon"
+              submitButtonText={
+                isTaskBacked ? taskApprovalUi.submitButtonText : "Send"
+              }
+              submitButtonVariant={isTaskBacked ? "text" : "icon"}
               toolbarPlacement="bottom"
               showIdentityHeader={false}
               showMediaDescription={false}

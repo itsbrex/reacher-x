@@ -602,6 +602,7 @@ export const getProspectPlan = query({
 
       return {
         ...task,
+        approvalReady: Boolean(task.approvalEventId),
         originalPost:
           task.type === "comment" &&
           sourcePlatform &&
@@ -3085,6 +3086,9 @@ export const updatePendingTaskDraft = mutation({
     taskId: v.id("outreachTasks"),
     expectedType: outreachEditableTaskTypeValidator,
     content: v.string(),
+    mediaUrls: v.optional(v.array(v.string())),
+    mediaDescriptions: v.optional(v.array(v.string())),
+    mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
   },
   handler: async (ctx, args) => {
     const user = await requireViewerUser(ctx);
@@ -3104,11 +3108,32 @@ export const updatePendingTaskDraft = mutation({
     }
 
     const trimmedContent = args.content.trim();
-    const mediaUrls =
+    const hasMediaSnapshot =
+      args.mediaUrls !== undefined ||
+      args.mediaDescriptions !== undefined ||
+      args.mediaKinds !== undefined;
+    const currentMediaUrls =
       task.mediaUrls?.filter(
         (mediaUrl): mediaUrl is string =>
           typeof mediaUrl === "string" && mediaUrl.trim().length > 0
       ) ?? [];
+    const mediaUrls = hasMediaSnapshot
+      ? (args.mediaUrls?.filter(
+          (mediaUrl): mediaUrl is string =>
+            typeof mediaUrl === "string" && mediaUrl.trim().length > 0
+        ) ?? [])
+      : currentMediaUrls;
+
+    if (
+      args.mediaDescriptions &&
+      args.mediaDescriptions.length > mediaUrls.length
+    ) {
+      throw new Error("mediaDescriptions cannot exceed mediaUrls length");
+    }
+    if (args.mediaKinds && args.mediaKinds.length > mediaUrls.length) {
+      throw new Error("mediaKinds cannot exceed mediaUrls length");
+    }
+
     const prospect = await ctx.db.get(plan.prospectId);
     const validationError = await getTaskDraftValidationError(ctx, {
       task,
@@ -3123,6 +3148,13 @@ export const updatePendingTaskDraft = mutation({
 
     await ctx.db.patch(args.taskId, {
       content: trimmedContent,
+      ...(hasMediaSnapshot
+        ? {
+            mediaUrls,
+            mediaDescriptions: args.mediaDescriptions,
+            mediaKinds: normalizeMediaKinds(args.mediaKinds, mediaUrls),
+          }
+        : {}),
     });
 
     return { success: true };
@@ -3136,7 +3168,7 @@ export const updatePendingTaskDraft = mutation({
 export const approveTask = mutation({
   args: {
     taskId: v.id("outreachTasks"),
-    expectedType: v.optional(v.literal("comment")),
+    expectedType: v.optional(outreachEditableTaskTypeValidator),
   },
   handler: async (ctx, { taskId, expectedType }) => {
     const user = await requireViewerUser(ctx);
@@ -3145,10 +3177,8 @@ export const approveTask = mutation({
       notFoundMessage: "Task not found",
       notAuthorizedMessage: "Not authorized to approve this task",
     });
-    if (task.type === "dm") {
-      throw new Error(
-        "DM tasks must be opened in the conversation panel and sent from there."
-      );
+    if (task.type !== "comment" && task.type !== "dm") {
+      throw new Error("Only comment and DM tasks can be approved");
     }
     if (expectedType) {
       assertExpectedTaskType(task, expectedType);
@@ -3173,6 +3203,22 @@ export const approveTask = mutation({
       throw new Error("Prospect not found");
     }
     requireProspectNotArchived(prospectApprove);
+
+    const mediaUrls =
+      task.mediaUrls?.filter(
+        (mediaUrl): mediaUrl is string =>
+          typeof mediaUrl === "string" && mediaUrl.trim().length > 0
+      ) ?? [];
+    const validationError = await getTaskDraftValidationError(ctx, {
+      task,
+      prospect: prospectApprove,
+      userId: plan.userId,
+      content: task.content?.trim() ?? "",
+      mediaUrls,
+    });
+    if (validationError) {
+      throw new Error(validationError);
+    }
 
     await ctx.db.patch(taskId, {
       approvedAt: getCurrentUTCTimestamp(),

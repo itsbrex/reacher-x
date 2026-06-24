@@ -136,10 +136,16 @@ export function OutreachPlanSection({
     router.push(url);
   };
 
-  const handleApproveTask = async (taskId: string) => {
+  const handleApproveTask = async ({
+    taskId,
+    type,
+  }: {
+    taskId: string;
+    type: "comment" | "dm";
+  }) => {
     await approveTask({
       taskId: taskId as Id<"outreachTasks">,
-      expectedType: "comment",
+      expectedType: type,
     });
   };
 

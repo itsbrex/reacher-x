@@ -53,6 +53,7 @@ import {
 import type { ComposerCharacterCountMode } from "@/features/composer/types";
 import { useViewerXComposerIdentity } from "@/features/composer/hooks/useViewerXComposerIdentity";
 import { useDebouncedDraftSync } from "@/features/agent/hooks/useDebouncedDraftSync";
+import { resolveOutreachTaskApprovalUiState } from "@/shared/lib/outreach/taskApprovalHelpers";
 
 export interface AgentDynamicPanelProps {
   prospectId: string;
@@ -402,20 +403,20 @@ export function AgentDynamicPanel({
     resolvedMode === "approval" || resolvedMode === "posted"
       ? resolvedMode
       : requestedMode || "approval";
-  const taskSubmitBlockedByPlan =
-    !isActionRequestPanel &&
-    taskPanelKind === "post" &&
-    mode === "approval" &&
-    !taskPanelApprovalReady;
-  const taskPlanCanBeApproved =
-    taskSubmitBlockedByPlan &&
-    taskPanelData?.planStatus === "draft" &&
-    Boolean(taskPanelData?.planId);
-  const taskReplySubmitButtonText = taskSubmitBlockedByPlan
-    ? taskPlanCanBeApproved
-      ? "Approve plan"
-      : "Preparing approval"
-    : "Approve reply";
+  const taskApprovalUi =
+    !isActionRequestPanel && taskPanelKind === "post"
+      ? resolveOutreachTaskApprovalUiState({
+          kind: "post",
+          mode,
+          approvalReady: taskPanelApprovalReady,
+          planId: taskPanelData?.planId,
+          planStatus: taskPanelData?.planStatus,
+        })
+      : null;
+  const taskSubmitBlockedByPlan = taskApprovalUi?.submitBlockedByPlan ?? false;
+  const taskPlanCanBeApproved = taskApprovalUi?.planCanBeApproved ?? false;
+  const taskReplySubmitButtonText =
+    taskApprovalUi?.submitButtonText ?? "Approve reply";
   const isTaskBackedDmContext = taskPanelKind === "dm";
   const isLinkedInDmAction =
     actionPanelData?.actionKey === "linkedin_send_message" ||
@@ -673,6 +674,9 @@ export function AgentDynamicPanel({
             taskId: taskPanelData.resolvedTaskId as Id<"outreachTasks">,
             expectedType: "comment",
             content: editedText,
+            mediaUrls,
+            mediaDescriptions,
+            mediaKinds,
           });
           await approvePlan({
             planId: taskPanelData.planId as Id<"outreachPlans">,
@@ -848,6 +852,12 @@ export function AgentDynamicPanel({
           }
           taskMode={mode}
           taskApprovalReady={isTaskBackedDmContext && taskPanelApprovalReady}
+          taskPlanId={
+            isTaskBackedDmContext ? (taskPanelData?.planId ?? null) : null
+          }
+          taskPlanStatus={
+            isTaskBackedDmContext ? taskPanelData?.planStatus : undefined
+          }
           taskDraft={
             isTaskBackedDmContext
               ? (taskPanelData?.draft ?? undefined)
@@ -872,6 +882,12 @@ export function AgentDynamicPanel({
         }
         taskMode={mode}
         taskApprovalReady={isTaskBackedDmContext && taskPanelApprovalReady}
+        taskPlanId={
+          isTaskBackedDmContext ? (taskPanelData?.planId ?? null) : null
+        }
+        taskPlanStatus={
+          isTaskBackedDmContext ? taskPanelData?.planStatus : undefined
+        }
         taskDraft={
           isTaskBackedDmContext
             ? (taskPanelData?.draft ?? undefined)

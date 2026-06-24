@@ -37,6 +37,7 @@ export interface TaskItemProps {
   type: "comment" | "dm" | "wait" | "ask_human";
   description: string;
   status: string;
+  approvalReady?: boolean;
   content?: string;
   prospectId?: string;
   threadId?: string;
@@ -48,7 +49,7 @@ export interface TaskItemProps {
     postSummary?: TwitterPostSummary;
   } | null;
   mode?: TaskItemMode;
-  onApproveTask?: (taskId: string) => void;
+  onApproveTask?: (payload: { taskId: string; type: "comment" | "dm" }) => void;
   onViewTask?: (payload: {
     taskId: string;
     targetTweetId?: string;
@@ -78,6 +79,7 @@ export function TaskItem({
   type,
   description,
   status,
+  approvalReady = false,
   content,
   prospectId,
   threadId,
@@ -106,14 +108,22 @@ export function TaskItem({
     (type === "comment" || type === "dm") && !!content?.trim();
   const replyContent = content ?? "";
   const showEditButton =
-    isInteractive && isAwaitingApproval && type === "comment" && !!prospectId;
+    isInteractive &&
+    isAwaitingApproval &&
+    (type === "comment" || type === "dm") &&
+    !!prospectId;
   const showViewButton =
     isInteractive &&
     (type === "comment" || type === "dm") &&
     !!prospectId &&
+    !showEditButton &&
     (type === "dm" || !!targetTweetId || typeof onViewTask === "function");
   const showApproveButton =
-    isInteractive && isAwaitingApproval && type !== "dm" && !!onApproveTask;
+    isInteractive &&
+    isAwaitingApproval &&
+    approvalReady &&
+    (type === "comment" || type === "dm") &&
+    !!onApproveTask;
   const rowIsClickable = isInteractive && !!onClick;
   const panelMode = getPanelModeForStatus(status);
 
@@ -138,7 +148,10 @@ export function TaskItem({
     params.set("prospectId", prospectId);
     if (threadId) params.set("threadId", threadId);
     params.set("taskId", taskId);
-    params.set("panel", "approval");
+    params.set("panel", type === "dm" ? "dm" : "approval");
+    if (type === "dm") {
+      params.set("panelState", "approval");
+    }
     if (targetTweetId) params.set("targetTweetId", targetTweetId);
     router.push(`/agent?${params.toString()}`);
   };
@@ -179,7 +192,10 @@ export function TaskItem({
 
   const handleApprove = (event: React.MouseEvent) => {
     event.stopPropagation();
-    onApproveTask?.(taskId);
+    if (type !== "comment" && type !== "dm") {
+      return;
+    }
+    onApproveTask?.({ taskId, type });
   };
 
   return (

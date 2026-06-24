@@ -106,10 +106,16 @@ export function AgentPlanPanel({
   }, [plan, resumePlan]);
 
   const handleApproveTask = useCallback(
-    async (taskId: string) => {
+    async ({
+      taskId,
+      type,
+    }: {
+      taskId: string;
+      type: "comment" | "dm";
+    }) => {
       await approveTask({
         taskId: taskId as Id<"outreachTasks">,
-        expectedType: "comment",
+        expectedType: type,
       });
     },
     [approveTask]
