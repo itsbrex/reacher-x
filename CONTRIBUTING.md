@@ -6,6 +6,11 @@ ReacherX is an open-source agent product focused on finding the right people, bu
 
 [README](./README.md) · [Roadmap](./ROADMAP.md) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [Discord](https://discord.gg/76dF9NPH) · [Email Salman](mailto:creativecoder.crco@gmail.com)
 
+Supporting repo policies:
+
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Security Policy](./SECURITY.md)
+
 ## Before You Start
 
 Please contact Salman before working on:

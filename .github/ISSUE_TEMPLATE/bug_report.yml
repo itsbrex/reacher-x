@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible bug or regression in ReacherX
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Please keep this issue focused on a concrete problem, regression, or broken behavior.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the bug
+      placeholder: The profile panel crashes when switching prospects
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable path to reproduce the problem
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The panel should load the next prospect without error
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: The UI freezes and shows an error toast
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Environment and scope
+      description: Include browser, OS, route, workspace context, and whether this is local or production
+      placeholder: macOS, Chrome, /home, local dev, X workspace
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots, logs, or recordings
+      description: Paste anything helpful here
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues first
+          required: true
+        - label: I can reproduce this issue consistently
+          required: false

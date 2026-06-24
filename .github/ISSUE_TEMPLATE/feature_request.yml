@@ -1,0 +1,69 @@
+name: Feature request
+description: Suggest a product direction, roadmap item, or new capability for ReacherX
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea.
+
+        For roadmap work, new features, integrations, or agent-behavior changes, Salman prefers direct contact early so ideas can be discussed before implementation.
+
+        Contact options:
+        - Discord: https://discord.gg/76dF9NPH
+        - Email: creativecoder.crco@gmail.com
+
+  - type: input
+    id: summary
+    attributes:
+      label: Feature summary
+      description: Describe the feature in one sentence
+      placeholder: Add Google Calendar booking through the agent and UI
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user problem does this solve
+      placeholder: Users should be able to book meetings without leaving ReacherX
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: Share how you think this should work
+      placeholder: |
+        Users can schedule manually in the UI.
+        Users can also ask the agent to book a meeting.
+        Approval and visibility should match the existing ReacherX action model.
+    validations:
+      required: true
+
+  - type: textarea
+    id: touchpoints
+    attributes:
+      label: Product touchpoints
+      description: Which parts of the product would this affect
+      placeholder: onboarding, profile panel, agent tools, composer, notifications
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Extra context
+      description: Links, references, mockups, examples, or implementation thoughts
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I read the roadmap and contributing guide first
+          required: true
+        - label: I understand this feature may need discussion before implementation
+          required: true

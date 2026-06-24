@@ -150,6 +150,11 @@ At a minimum for serious local development, expect to configure:
 
 If you want to contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+Repo health files:
+
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Security Policy](./SECURITY.md)
+
 If you want to work on a new feature, roadmap item, or architectural change, please contact Salman first:
 
 - Email: [creativecoder.crco@gmail.com](mailto:creativecoder.crco@gmail.com)

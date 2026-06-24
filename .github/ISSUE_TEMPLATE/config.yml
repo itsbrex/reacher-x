@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap and feature discussion
+    url: https://discord.gg/76dF9NPH
+    about: For new features, integrations, and roadmap ideas, discuss with Salman before implementation.
+  - name: Direct email
+    url: mailto:creativecoder.crco@gmail.com
+    about: Use email for direct brainstorming, partnership ideas, or maintainer contact.
