@@ -86,35 +86,6 @@ export type AgentOpsDashboardData = {
       promotedMemories: number;
       replies: number;
     }>;
-    bestQueries: Array<{
-      queryCandidateId: string;
-      label: string;
-      replyRate: number;
-      qualifiedCount: number;
-      convertedCount: number;
-      prospectsFound: number;
-    }>;
-    weakestQueries: Array<{
-      queryCandidateId: string;
-      label: string;
-      replyRate: number;
-      qualifiedCount: number;
-      convertedCount: number;
-      prospectsFound: number;
-    }>;
-    funnel: Array<{
-      stage: "new" | "contacted" | "in_progress" | "converted";
-      count: number;
-      conversionRate: number | null;
-      fill: string;
-    }>;
-    recentChanges: AgentOpsActivityItem[];
-    blockedBreakdown: {
-      pendingSuggestions: number;
-      failedRuns: number;
-      failedEvents: number;
-      failingMonitors: number;
-    };
   };
   discovery: {
     stats: {
@@ -184,12 +155,6 @@ export type AgentOpsDashboardData = {
       editedApprovals: number;
       rejectedSuggestions: number;
     }>;
-    scorecards: {
-      convertedAvgScore: number;
-      archivedAvgScore: number;
-      inProgressCount: number;
-      convertedCount: number;
-    };
   };
   memory: {
     summary: Record<
@@ -222,8 +187,8 @@ export type AgentOpsDashboardData = {
     counts: {
       eventsReceived: AgentOpsMetric;
       runsStarted: AgentOpsMetric;
-      failedEvents: number;
-      failedRuns: number;
+      failedEvents: AgentOpsMetric;
+      failedRuns: AgentOpsMetric;
     };
     feed: AgentOpsActivityItem[];
   };

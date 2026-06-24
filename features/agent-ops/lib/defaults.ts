@@ -73,41 +73,6 @@ export function getDefaultAgentOpsData(
         promotedMemories: 0,
         replies: 0,
       })),
-      bestQueries: [],
-      weakestQueries: [],
-      funnel: [
-        {
-          stage: "new",
-          count: 0,
-          conversionRate: null,
-          fill: "hsl(var(--chart-1))",
-        },
-        {
-          stage: "contacted",
-          count: 0,
-          conversionRate: 0,
-          fill: "hsl(var(--chart-2))",
-        },
-        {
-          stage: "in_progress",
-          count: 0,
-          conversionRate: 0,
-          fill: "hsl(var(--chart-3))",
-        },
-        {
-          stage: "converted",
-          count: 0,
-          conversionRate: 0,
-          fill: "hsl(var(--chart-4))",
-        },
-      ],
-      recentChanges: [],
-      blockedBreakdown: {
-        pendingSuggestions: 0,
-        failedRuns: 0,
-        failedEvents: 0,
-        failingMonitors: 0,
-      },
     },
     discovery: {
       stats: {
@@ -162,12 +127,6 @@ export function getDefaultAgentOpsData(
         editedApprovals: 0,
         rejectedSuggestions: 0,
       })),
-      scorecards: {
-        convertedAvgScore: 0,
-        archivedAvgScore: 0,
-        inProgressCount: 0,
-        convertedCount: 0,
-      },
     },
     memory: {
       summary: {
@@ -190,8 +149,8 @@ export function getDefaultAgentOpsData(
       counts: {
         eventsReceived: { ...ZERO_METRIC },
         runsStarted: { ...ZERO_METRIC },
-        failedEvents: 0,
-        failedRuns: 0,
+        failedEvents: { ...ZERO_METRIC, trend: "down" },
+        failedRuns: { ...ZERO_METRIC, trend: "down" },
       },
       feed: [],
     },

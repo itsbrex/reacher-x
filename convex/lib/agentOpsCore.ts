@@ -2,7 +2,6 @@ import type { Doc } from "../_generated/dataModel";
 import type { WorkspaceAgentMemoryRecord } from "./agentMemoryCore";
 import {
   buildMetric,
-  buildPipelineFunnel,
   calculateRate,
   countHourlyFieldByBucket,
   countTimestampsByBucket,
@@ -1025,21 +1024,6 @@ export function buildAgentOpsDashboardData(args: {
       },
       qualityTrend,
       selfImprovementTrend,
-      bestQueries,
-      weakestQueries,
-      funnel: buildPipelineFunnel({
-        newCount: 0,
-        contactedCount: 0,
-        inProgressCount: 0,
-        convertedCount: 0,
-      }),
-      recentChanges: activityFeed.slice(0, 8),
-      blockedBreakdown: {
-        pendingSuggestions: currentPendingReviewSuggestions,
-        failedRuns: currentFailedRuns,
-        failedEvents: currentFailedEvents,
-        failingMonitors: 0,
-      },
     },
     discovery: {
       stats: {
@@ -1106,12 +1090,6 @@ export function buildAgentOpsDashboardData(args: {
       enrichmentTrend,
       outreachTrend,
       correctionTrend,
-      scorecards: {
-        convertedAvgScore: 0,
-        archivedAvgScore: 0,
-        inProgressCount: 0,
-        convertedCount: 0,
-      },
     },
     memory: {
       summary: {
@@ -1148,8 +1126,16 @@ export function buildAgentOpsDashboardData(args: {
           currentValue: currentRunsStarted,
           previousValue: previousRunsStarted,
         }),
-        failedEvents: currentFailedEvents,
-        failedRuns: currentFailedRuns,
+        failedEvents: buildMetric({
+          currentValue: currentFailedEvents,
+          previousValue: previousFailedEvents,
+          trendWhenEqual: "down",
+        }),
+        failedRuns: buildMetric({
+          currentValue: currentFailedRuns,
+          previousValue: previousFailedRuns,
+          trendWhenEqual: "down",
+        }),
       },
       feed: activityFeed,
     },

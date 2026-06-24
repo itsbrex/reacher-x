@@ -463,28 +463,22 @@ export function AgentOpsDashboard() {
         "this period",
         <Bot className="h-4 w-4" />
       ),
-      {
-        id: "act-failed-events",
-        title: "Failed events",
-        value: data.activity.counts.failedEvents,
-        change: 0,
-        changePercent: 0,
-        trend: "up" as const,
-        context: "errors",
-        semantic: "destructive" as const,
-        icon: <Cable className="h-4 w-4" />,
-      },
-      {
-        id: "act-failed-runs",
-        title: "Failed runs",
-        value: data.activity.counts.failedRuns,
-        change: 0,
-        changePercent: 0,
-        trend: "up" as const,
-        context: "errors",
-        semantic: "destructive" as const,
-        icon: <Radar className="h-4 w-4" />,
-      },
+      metricCard(
+        "act-failed-events",
+        "Failed events",
+        data.activity.counts.failedEvents,
+        "errors",
+        <Cable className="h-4 w-4" />,
+        "destructive"
+      ),
+      metricCard(
+        "act-failed-runs",
+        "Failed runs",
+        data.activity.counts.failedRuns,
+        "errors",
+        <Radar className="h-4 w-4" />,
+        "destructive"
+      ),
     ],
     [data]
   );
