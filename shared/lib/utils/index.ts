@@ -34,19 +34,33 @@ export {
 // Time utilities
 // ============================================================================
 export {
+  DEFAULT_REPORTING_TIME_ZONE,
+  DATE_ONLY_PATTERN,
   formatTimestampForDisplay,
+  formatDateOnlyValue,
   formatTimestampInTimezone,
   getUserTimezoneInfo,
   calculateGroupingBoundaries,
   validateAndNormalizeTimestamp,
   getCurrentUTCTimestamp,
+  getNextTimeZoneDayStartTimestamp,
+  getTimeZoneDateTimeParts,
+  getTimeZoneDayStartTimestamp,
+  getTimeZoneInclusiveDayCount,
+  getTimeZoneLocalDateTimeUtcTimestamp,
+  isValidTimeZoneIdentifier,
   migrateLegacyTimestamp,
+  normalizeTimeZoneIdentifier,
+  parseDateOnlyValue,
+  shiftTimestampByTimeZoneDays,
   isSameDay,
   timeUntilMidnight,
   debugTimezoneGrouping,
   RELATIVE_TIMESTAMP_PATTERN,
 } from "./time";
 export type {
+  CalendarDateParts,
+  CalendarDateTimeParts,
   TimezoneInfo,
   GroupingBoundaries,
   TimestampValidation,

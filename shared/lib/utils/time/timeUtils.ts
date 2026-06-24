@@ -66,8 +66,268 @@ export interface TimestampValidation {
   error?: string;
 }
 
+export interface CalendarDateParts {
+  year: number;
+  month: number;
+  day: number;
+}
+
+export interface CalendarDateTimeParts extends CalendarDateParts {
+  hour: number;
+  minute: number;
+  second: number;
+}
+
 // Shared constant for relative timestamp validation
 export const RELATIVE_TIMESTAMP_PATTERN = /^(\d+)([smhd])$/;
+export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const DEFAULT_REPORTING_TIME_ZONE = "UTC";
+
+const timeZoneDateTimeFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getTimeZoneDateTimeFormatter(timeZone: string) {
+  const normalized = normalizeTimeZoneIdentifier(timeZone);
+  const cached = timeZoneDateTimeFormatterCache.get(normalized);
+
+  if (cached) {
+    return cached;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: normalized,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  timeZoneDateTimeFormatterCache.set(normalized, formatter);
+  return formatter;
+}
+
+function getNumericDateTimePart(
+  parts: Intl.DateTimeFormatPart[],
+  type: "year" | "month" | "day" | "hour" | "minute" | "second"
+) {
+  const value = parts.find((part) => part.type === type)?.value;
+  return value ? Number.parseInt(value, 10) : 0;
+}
+
+function shiftCalendarDateParts(
+  parts: CalendarDateParts,
+  dayDelta: number
+): CalendarDateParts {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  date.setUTCDate(date.getUTCDate() + dayDelta);
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function getTimeZoneOffsetMs(timestamp: number, timeZone: string): number {
+  const normalized = normalizeTimeZoneIdentifier(timeZone);
+  const parts = getTimeZoneDateTimeParts(timestamp, normalized);
+  const utcLikeTimestamp = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+  const timestampWithoutMilliseconds = timestamp - (timestamp % 1000);
+
+  return utcLikeTimestamp - timestampWithoutMilliseconds;
+}
+
+export function isValidTimeZoneIdentifier(timeZone: string): boolean {
+  if (typeof timeZone !== "string" || timeZone.trim().length === 0) {
+    return false;
+  }
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeTimeZoneIdentifier(
+  timeZone: string | null | undefined
+): string {
+  if (typeof timeZone !== "string") {
+    return DEFAULT_REPORTING_TIME_ZONE;
+  }
+
+  const trimmed = timeZone.trim();
+  return isValidTimeZoneIdentifier(trimmed)
+    ? trimmed
+    : DEFAULT_REPORTING_TIME_ZONE;
+}
+
+export function getTimeZoneDateTimeParts(
+  timestamp: number,
+  timeZone: string
+): CalendarDateTimeParts {
+  const formatter = getTimeZoneDateTimeFormatter(timeZone);
+  const parts = formatter.formatToParts(new Date(timestamp));
+
+  return {
+    year: getNumericDateTimePart(parts, "year"),
+    month: getNumericDateTimePart(parts, "month"),
+    day: getNumericDateTimePart(parts, "day"),
+    hour: getNumericDateTimePart(parts, "hour"),
+    minute: getNumericDateTimePart(parts, "minute"),
+    second: getNumericDateTimePart(parts, "second"),
+  };
+}
+
+export function parseDateOnlyValue(
+  value: string | null | undefined
+): CalendarDateParts | undefined {
+  if (typeof value !== "string" || !DATE_ONLY_PATTERN.test(value)) {
+    return undefined;
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number.parseInt(yearRaw, 10);
+  const month = Number.parseInt(monthRaw, 10);
+  const day = Number.parseInt(dayRaw, 10);
+
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day)
+  ) {
+    return undefined;
+  }
+
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() + 1 !== month ||
+    candidate.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return { year, month, day };
+}
+
+export function formatDateOnlyValue(value: Date | number): string {
+  return format(value instanceof Date ? value : new Date(value), "yyyy-MM-dd");
+}
+
+export function getTimeZoneLocalDateTimeUtcTimestamp(args: {
+  timeZone: string;
+  year: number;
+  month: number;
+  day: number;
+  hour?: number;
+  minute?: number;
+  second?: number;
+  millisecond?: number;
+}): number {
+  const normalized = normalizeTimeZoneIdentifier(args.timeZone);
+  const hour = args.hour ?? 0;
+  const minute = args.minute ?? 0;
+  const second = args.second ?? 0;
+  const millisecond = args.millisecond ?? 0;
+  const baseUtcGuess = Date.UTC(
+    args.year,
+    args.month - 1,
+    args.day,
+    hour,
+    minute,
+    second,
+    millisecond
+  );
+
+  let candidate = baseUtcGuess;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const offsetMs = getTimeZoneOffsetMs(candidate, normalized);
+    const nextCandidate = baseUtcGuess - offsetMs;
+
+    if (nextCandidate === candidate) {
+      return nextCandidate;
+    }
+
+    candidate = nextCandidate;
+  }
+
+  return candidate;
+}
+
+export function getTimeZoneDayStartTimestamp(
+  timestamp: number,
+  timeZone: string
+): number {
+  const normalized = normalizeTimeZoneIdentifier(timeZone);
+  const parts = getTimeZoneDateTimeParts(timestamp, normalized);
+
+  return getTimeZoneLocalDateTimeUtcTimestamp({
+    timeZone: normalized,
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+  });
+}
+
+export function getNextTimeZoneDayStartTimestamp(
+  timestamp: number,
+  timeZone: string
+): number {
+  return shiftTimestampByTimeZoneDays(
+    getTimeZoneDayStartTimestamp(timestamp, timeZone),
+    timeZone,
+    1
+  );
+}
+
+export function shiftTimestampByTimeZoneDays(
+  timestamp: number,
+  timeZone: string,
+  dayDelta: number
+): number {
+  const normalized = normalizeTimeZoneIdentifier(timeZone);
+  const parts = getTimeZoneDateTimeParts(timestamp, normalized);
+  const shiftedDate = shiftCalendarDateParts(parts, dayDelta);
+
+  return getTimeZoneLocalDateTimeUtcTimestamp({
+    timeZone: normalized,
+    year: shiftedDate.year,
+    month: shiftedDate.month,
+    day: shiftedDate.day,
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+    millisecond: new Date(timestamp).getUTCMilliseconds(),
+  });
+}
+
+export function getTimeZoneInclusiveDayCount(
+  startMs: number,
+  endMs: number,
+  timeZone: string
+): number {
+  const normalized = normalizeTimeZoneIdentifier(timeZone);
+  const endReferenceMs = Math.max(startMs, endMs - 1);
+  const startParts = getTimeZoneDateTimeParts(startMs, normalized);
+  const endParts = getTimeZoneDateTimeParts(endReferenceMs, normalized);
+
+  return (
+    differenceInCalendarDays(
+      new Date(Date.UTC(endParts.year, endParts.month - 1, endParts.day)),
+      new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day))
+    ) + 1
+  );
+}
 
 /**
  * Get current user's timezone information

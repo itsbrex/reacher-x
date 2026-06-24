@@ -2,11 +2,15 @@
 "use client";
 
 import * as React from "react";
-import { useQueryStates, parseAsStringLiteral, parseAsIsoDateTime } from "nuqs";
+import { useQueryStates, parseAsStringLiteral, parseAsString } from "nuqs";
 import { DateRange } from "react-day-picker";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/components/Tabs";
 import { cn } from "@/shared/lib/utils";
-import { getInclusiveDayCount } from "@/shared/lib/utils/time/timeUtils";
+import {
+  formatDateOnlyValue,
+  getInclusiveDayCount,
+  parseDateOnlyValue,
+} from "@/shared/lib/utils/time/timeUtils";
 import type { DateRangePreset } from "../../lib/types";
 import { DATE_RANGE_PRESETS } from "../../lib/dateRange";
 import { DateRangeInputPicker } from "./DateRangeInputPicker";
@@ -18,16 +22,29 @@ export interface DateRangeSelectorProps {
 export function DateRangeSelector({ className }: DateRangeSelectorProps) {
   const [{ range, from, to }, setParams] = useQueryStates({
     range: parseAsStringLiteral(DATE_RANGE_PRESETS).withDefault("7d"),
-    from: parseAsIsoDateTime,
-    to: parseAsIsoDateTime,
+    from: parseAsString,
+    to: parseAsString,
   });
+
+  const fromDate = React.useMemo(() => {
+    const parsed = parseDateOnlyValue(from);
+    return parsed
+      ? new Date(parsed.year, parsed.month - 1, parsed.day)
+      : undefined;
+  }, [from]);
+  const toDate = React.useMemo(() => {
+    const parsed = parseDateOnlyValue(to);
+    return parsed
+      ? new Date(parsed.year, parsed.month - 1, parsed.day)
+      : undefined;
+  }, [to]);
 
   // Per Vercel best practices: useMemo for derived state (rerender-memo)
   // Primitive dependencies [from, to] per rerender-dependencies rule
   const customDaysLabel = React.useMemo(() => {
-    const days = getInclusiveDayCount(from, to);
+    const days = getInclusiveDayCount(fromDate ?? null, toDate ?? null);
     return days ? `${days}d` : "Custom";
-  }, [from, to]);
+  }, [fromDate, toDate]);
 
   const handlePresetChange = React.useCallback(
     (value: string) => {
@@ -47,28 +64,26 @@ export function DateRangeSelector({ className }: DateRangeSelectorProps) {
   const handleCustomRangeChange = React.useCallback(
     (dateRange: DateRange | undefined) => {
       if (dateRange?.from && dateRange?.to) {
-        const days = getInclusiveDayCount(dateRange.from, dateRange.to);
-
-        // Auto-switch to preset if matches
-        if (days === 7) {
-          setParams({ range: "7d", from: null, to: null });
-          return;
-        }
-        if (days === 30) {
-          setParams({ range: "30d", from: null, to: null });
-          return;
-        }
-
-        setParams({ range: "custom", from: dateRange.from, to: dateRange.to });
+        setParams({
+          range: "custom",
+          from: formatDateOnlyValue(dateRange.from),
+          to: formatDateOnlyValue(dateRange.to),
+        });
       } else if (dateRange?.from) {
-        setParams({ range: "custom", from: dateRange.from, to: null });
+        setParams({
+          range: "custom",
+          from: formatDateOnlyValue(dateRange.from),
+          to: null,
+        });
       }
     },
     [setParams]
   );
 
   const customDateRange: DateRange | undefined =
-    from || to ? { from: from ?? undefined, to: to ?? undefined } : undefined;
+    fromDate || toDate
+      ? { from: fromDate ?? undefined, to: toDate ?? undefined }
+      : undefined;
 
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
@@ -78,7 +93,7 @@ export function DateRangeSelector({ className }: DateRangeSelectorProps) {
             Today
           </TabsTrigger>
           <TabsTrigger value="1d" size="sm">
-            24h
+            Yesterday
           </TabsTrigger>
           <TabsTrigger value="7d" size="sm">
             7d

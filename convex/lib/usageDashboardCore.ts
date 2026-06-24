@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { DEFAULT_REPORTING_TIME_ZONE } from "../../shared/lib/utils/time/timeUtils";
 import {
   countTimestampsByBucket,
   createTrendBucketSet,
@@ -91,6 +92,7 @@ export function buildUsageTrendPoints(args: {
   const normalizedWindow: NormalizedAnalyticsWindow = {
     range: "custom",
     granularity: "daily",
+    timeZone: DEFAULT_REPORTING_TIME_ZONE,
     current: {
       startMs: args.window.cycleStart,
       endMs: effectiveEnd,

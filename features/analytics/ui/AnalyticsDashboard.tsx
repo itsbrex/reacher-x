@@ -2,13 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { parseAsIsoDateTime, parseAsStringLiteral, useQueryStates } from "nuqs";
+import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import {
   useActiveUseCaseLabels,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
+  useWorkspaceReportingTimeZone,
 } from "@/shared/hooks";
 import { Button } from "@/shared/ui/components/Button";
 import {
@@ -65,8 +66,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
 
   const [{ range, from, to }] = useQueryStates({
     range: parseAsStringLiteral(DATE_RANGE_PRESETS).withDefault("7d"),
-    from: parseAsIsoDateTime,
-    to: parseAsIsoDateTime,
+    from: parseAsString,
+    to: parseAsString,
   });
 
   const workspaceStatusQuery = useQueryWithStatus(
@@ -78,6 +79,12 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
     workspaceStatus?.status === "complete"
       ? workspaceStatus.workspace.id
       : null;
+  const { reportingTimeZone } = useWorkspaceReportingTimeZone(
+    workspaceId,
+    workspaceStatus?.status === "complete"
+      ? workspaceStatus.workspace.reportingTimeZone
+      : null
+  );
 
   const analyticsQuery = useQueryWithStatus(
     api.analytics.getDashboardAnalytics,
@@ -85,8 +92,9 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       ? {
           workspaceId,
           range,
-          ...(from ? { from: from.getTime() } : {}),
-          ...(to ? { to: to.getTime() } : {}),
+          timeZone: reportingTimeZone,
+          ...(from ? { fromDate: from } : {}),
+          ...(to ? { toDate: to } : {}),
           refreshKey,
         }
       : "skip"

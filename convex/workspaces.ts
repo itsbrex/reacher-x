@@ -10,7 +10,11 @@ import {
   workspaceOnboardingIssueStatusCodeValidator,
   icpValidator,
 } from "./validators";
-import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
+import {
+  getCurrentUTCTimestamp,
+  normalizeTimeZoneIdentifier,
+  isValidTimeZoneIdentifier,
+} from "../shared/lib/utils/time/timeUtils";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -198,6 +202,7 @@ export const getWorkspaceSetupStatus = query({
               useCaseKey: resolveWorkspaceUseCaseKey(
                 activeWorkspace.useCaseKey
               ),
+              reportingTimeZone: activeWorkspace.reportingTimeZone ?? null,
               ...getResolvedFitScoreRange(activeWorkspace),
             }
           : null,
@@ -219,6 +224,7 @@ export const getWorkspaceSetupStatus = query({
           description: workspace.description,
           hasDescription: (workspace.description ?? "").length > 0,
           useCaseKey: resolveWorkspaceUseCaseKey(workspace.useCaseKey),
+          reportingTimeZone: workspace.reportingTimeZone ?? null,
           ...getResolvedFitScoreRange(workspace),
         },
       };
@@ -231,6 +237,7 @@ export const getWorkspaceSetupStatus = query({
         name: workspace.name,
         description: workspace.description,
         useCaseKey: resolveWorkspaceUseCaseKey(workspace.useCaseKey),
+        reportingTimeZone: workspace.reportingTimeZone ?? null,
         ...getResolvedFitScoreRange(workspace),
       },
     };
@@ -421,9 +428,45 @@ export const updateWorkspaceSettings = mutation({
       updateData.descriptionSource = args.descriptionSource;
     if (args.lastGeneratedAt !== undefined)
       updateData.lastGeneratedAt = args.lastGeneratedAt;
+    if (args.reportingTimeZone !== undefined) {
+      updateData.reportingTimeZone = normalizeTimeZoneIdentifier(
+        args.reportingTimeZone
+      );
+    }
 
     await ctx.db.patch(workspace._id, updateData);
     return workspace._id;
+  },
+});
+
+export const setWorkspaceReportingTimeZone = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    timeZone: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx, { notFoundMessage: "User not found" });
+    const workspace = await requireOwnedWorkspace(ctx, args.workspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage: "Not authorized to update this workspace",
+    });
+
+    if (!isValidTimeZoneIdentifier(args.timeZone)) {
+      throw new Error("Invalid reporting timezone");
+    }
+
+    const reportingTimeZone = normalizeTimeZoneIdentifier(args.timeZone);
+    if (workspace.reportingTimeZone === reportingTimeZone) {
+      return reportingTimeZone;
+    }
+
+    await ctx.db.patch(workspace._id, {
+      reportingTimeZone,
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+
+    return reportingTimeZone;
   },
 });
 

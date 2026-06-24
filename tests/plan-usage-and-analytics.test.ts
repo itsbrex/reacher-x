@@ -6,6 +6,7 @@ import {
   buildProspectAnalyticsTransitionPatch,
   type ProspectQualificationActivitySnapshot,
 } from "../convex/lib/prospectAnalyticsCore";
+import { normalizeAnalyticsWindow } from "../convex/lib/analyticsCore";
 import {
   getWorkspaceAnalyticsContributionsFromProspect,
   type TargetedWorkspaceAnalyticsContribution,
@@ -251,6 +252,66 @@ test("calendar days until returns a non-inclusive countdown", () => {
     ),
     0
   );
+});
+
+test("analytics presets respect workspace timezone calendar semantics", () => {
+  const nowMs = utc("2026-06-24T18:00:00.000Z");
+  const timeZone = "Asia/Karachi";
+
+  const today = normalizeAnalyticsWindow({
+    range: "today",
+    timeZone,
+    nowMs,
+  });
+  assert.deepEqual(today.current, {
+    startMs: utc("2026-06-23T19:00:00.000Z"),
+    endMs: nowMs,
+  });
+
+  const yesterday = normalizeAnalyticsWindow({
+    range: "1d",
+    timeZone,
+    nowMs,
+  });
+  assert.deepEqual(yesterday.current, {
+    startMs: utc("2026-06-22T19:00:00.000Z"),
+    endMs: utc("2026-06-23T19:00:00.000Z"),
+  });
+
+  const last7Days = normalizeAnalyticsWindow({
+    range: "7d",
+    timeZone,
+    nowMs,
+  });
+  assert.deepEqual(last7Days.current, {
+    startMs: utc("2026-06-17T19:00:00.000Z"),
+    endMs: nowMs,
+  });
+
+  const last30Days = normalizeAnalyticsWindow({
+    range: "30d",
+    timeZone,
+    nowMs,
+  });
+  assert.deepEqual(last30Days.current, {
+    startMs: utc("2026-05-25T19:00:00.000Z"),
+    endMs: nowMs,
+  });
+});
+
+test("custom analytics date ranges expand to full local days", () => {
+  const window = normalizeAnalyticsWindow({
+    range: "custom",
+    timeZone: "Asia/Karachi",
+    fromDate: "2026-06-10",
+    toDate: "2026-06-12",
+    nowMs: utc("2026-06-24T18:00:00.000Z"),
+  });
+
+  assert.deepEqual(window.current, {
+    startMs: utc("2026-06-09T19:00:00.000Z"),
+    endMs: utc("2026-06-12T19:00:00.000Z"),
+  });
 });
 
 test("resume under limit counts only current-cycle qualified prospects", () => {

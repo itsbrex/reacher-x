@@ -684,6 +684,7 @@ export const updateWorkspaceSettingsArgsValidator = v.object({
     v.union(v.literal("url"), v.literal("manual"), v.literal("agent"))
   ),
   lastGeneratedAt: v.optional(v.number()),
+  reportingTimeZone: v.optional(v.string()),
 });
 
 /** Apply refine preview results: captures rollback snapshot then overwrites ICP-related config. */

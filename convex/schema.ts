@@ -293,6 +293,7 @@ export default defineSchema({
     setupCompletedAt: v.optional(v.number()), // v4: When setup wizard finished
     fitScoreMin: v.optional(v.number()),
     fitScoreMax: v.optional(v.number()),
+    reportingTimeZone: v.optional(v.string()),
 
     imageUrl: v.optional(v.string()),
     isDefault: v.boolean(),
