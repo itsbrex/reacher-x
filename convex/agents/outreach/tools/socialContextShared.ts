@@ -845,7 +845,7 @@ async function fetchLinkedInProfile(
       return null;
     }
     const currentPosition = result.positions.find(
-      (position) => position.isCurrent
+      (position: (typeof result.positions)[number]) => position.isCurrent
     );
     const supplemental = await ctx
       .runAction(api.linkedin.getLinkedInProfileSupplemental, {
@@ -869,7 +869,7 @@ async function fetchLinkedInProfile(
       recentPostsCursor: result.recentPostsCursor,
     };
     const mergedCurrentPosition = merged.positions.find(
-      (position) => position.isCurrent
+      (position: (typeof merged.positions)[number]) => position.isCurrent
     );
     const currentCompany =
       merged.currentCompany ??
@@ -901,11 +901,13 @@ async function fetchLinkedInProfile(
       currentCompanyLogo: currentCompany?.logoUrl,
       currentCompanyWebsite: currentCompany?.website,
       contact: merged.contact,
-      positions: merged.positions.map((position) => ({
-        companyName: position.companyName,
-        companyLogo: position.companyLogo,
-        isCurrent: position.isCurrent,
-      })),
+      positions: merged.positions.map(
+        (position: (typeof merged.positions)[number]) => ({
+          companyName: position.companyName,
+          companyLogo: position.companyLogo,
+          isCurrent: position.isCurrent,
+        })
+      ),
       currentCompany,
     };
   } catch {

@@ -1862,12 +1862,15 @@ export const searchProspectMessages = action({
       }
     );
     const prospectThreads = threadLinks
-      .filter((threadLink) => threadLink.userId === user._id)
       .filter(
-        (threadLink) =>
+        (threadLink: (typeof threadLinks)[number]) =>
+          threadLink.userId === user._id
+      )
+      .filter(
+        (threadLink: (typeof threadLinks)[number]) =>
           normalizeProspectThreadStatus(threadLink.threadStatus) === "active"
       )
-      .map((threadLink) => ({
+      .map((threadLink: (typeof threadLinks)[number]) => ({
         _id: threadLink.threadId,
         _creationTime: threadLink._creationTime,
         status: normalizeProspectThreadStatus(threadLink.threadStatus),

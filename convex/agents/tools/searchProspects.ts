@@ -71,7 +71,7 @@ export const searchProspects = createTool({
           if (!hasRequiredSetupData) {
             logEvent.warn("Workspace setup incomplete for prospect search", {
               workspace: {
-                id: workspace._id,
+                id: args.workspaceId,
               },
             });
             return {

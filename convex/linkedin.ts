@@ -3113,7 +3113,9 @@ export const getLinkedInProfilePostsPage = action({
 
     return {
       posts: Array.isArray(page?.posts)
-        ? page.posts.map((post) => toUnifiedLinkedInProfilePost(post))
+        ? page.posts.map((post: LinkedInProfilePost) =>
+            toUnifiedLinkedInProfilePost(post)
+          )
         : [],
       nextCursor: typeof page?.nextCursor === "string" ? page.nextCursor : null,
     };
