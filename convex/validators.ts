@@ -1407,6 +1407,14 @@ export const pipelineStageValidator = v.union(
   v.literal("archived")
 );
 
+export const prospectStageTimestampsValidator = v.object({
+  new: v.optional(v.number()),
+  contacted: v.optional(v.number()),
+  in_progress: v.optional(v.number()),
+  converted: v.optional(v.number()),
+  archived: v.optional(v.number()),
+});
+
 // Plan generation status (used for auto outreach plan generation)
 export const planGenerationStatusValidator = v.union(
   v.literal("idle"),

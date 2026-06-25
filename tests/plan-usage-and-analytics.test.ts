@@ -158,6 +158,24 @@ function sumContributionFieldOnDay(
     );
 }
 
+function sumContributionHourlyFieldOnDay(
+  contributions: TargetedWorkspaceAnalyticsContribution[],
+  dayStartUtcMs: number,
+  field: keyof TargetedWorkspaceAnalyticsContribution["contribution"]
+) {
+  return contributions
+    .filter((item) => item.dayStartUtcMs === dayStartUtcMs)
+    .reduce((total, item) => {
+      const value = item.contribution[field];
+      if (!Array.isArray(value)) {
+        return total;
+      }
+      return (
+        total + value.reduce((runningTotal, count) => runningTotal + count, 0)
+      );
+    }, 0);
+}
+
 function createPlanUsageCtx(args: {
   summaries: ProspectSummaryRow[];
   prospectsById?: Map<Id<"prospects">, { qualifiedAt?: number }>;
@@ -611,6 +629,30 @@ test("analytics contributions keep cohort counts on creation day and event count
   );
   assert.equal(
     sumContributionFieldOnDay(contributions, readyDay, "readyEventsCount"),
+    1
+  );
+  assert.equal(
+    sumContributionHourlyFieldOnDay(
+      contributions,
+      creationDay,
+      "hourlyQualificationQualifiedCounts"
+    ),
+    1
+  );
+  assert.equal(
+    sumContributionHourlyFieldOnDay(
+      contributions,
+      creationDay,
+      "hourlyActionableReadyCounts"
+    ),
+    1
+  );
+  assert.equal(
+    sumContributionHourlyFieldOnDay(
+      contributions,
+      creationDay,
+      "hourlyLinkedInProspectsCounts"
+    ),
     1
   );
 });

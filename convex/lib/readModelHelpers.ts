@@ -140,6 +140,18 @@ const WORKSPACE_ANALYTICS_NUMERIC_FIELDS = [
 
 const WORKSPACE_ANALYTICS_HOURLY_FIELDS = [
   "hourlyNewProspectsCounts",
+  "hourlyReachedContactedProspectsCounts",
+  "hourlyReachedInProgressProspectsCounts",
+  "hourlyReachedConvertedProspectsCounts",
+  "hourlyFitScore0To49Counts",
+  "hourlyFitScore50To69Counts",
+  "hourlyFitScore70To79Counts",
+  "hourlyFitScore80To100Counts",
+  "hourlyQualificationQualifiedCounts",
+  "hourlyQualificationDisqualifiedCounts",
+  "hourlyActionableReadyCounts",
+  "hourlyTwitterProspectsCounts",
+  "hourlyLinkedInProspectsCounts",
   "hourlyContactedEventsCounts",
   "hourlyRespondedEventsCounts",
   "hourlyDraftPlansCounts",
@@ -160,6 +172,8 @@ export interface ProspectSummaryRecord {
   previewSelectedAt: Doc<"prospects">["previewSelectedAt"];
   previewRank: Doc<"prospects">["previewRank"];
   status: Doc<"prospects">["status"];
+  pipelineStage: Doc<"prospects">["pipelineStage"];
+  stageTimestamps: Doc<"prospects">["stageTimestamps"];
   qualificationStatus: Doc<"prospects">["qualificationStatus"];
   qualifiedAt: Doc<"prospects">["qualifiedAt"];
   enrichmentStatus: Doc<"prospects">["enrichmentStatus"];
@@ -238,6 +252,18 @@ export interface WorkspaceAnalyticsContribution {
   blockedAuthPlansCount: number;
   failedTasksCount: number;
   hourlyNewProspectsCounts: number[];
+  hourlyReachedContactedProspectsCounts: number[];
+  hourlyReachedInProgressProspectsCounts: number[];
+  hourlyReachedConvertedProspectsCounts: number[];
+  hourlyFitScore0To49Counts: number[];
+  hourlyFitScore50To69Counts: number[];
+  hourlyFitScore70To79Counts: number[];
+  hourlyFitScore80To100Counts: number[];
+  hourlyQualificationQualifiedCounts: number[];
+  hourlyQualificationDisqualifiedCounts: number[];
+  hourlyActionableReadyCounts: number[];
+  hourlyTwitterProspectsCounts: number[];
+  hourlyLinkedInProspectsCounts: number[];
   hourlyContactedEventsCounts: number[];
   hourlyRespondedEventsCounts: number[];
   hourlyDraftPlansCounts: number[];
@@ -382,6 +408,18 @@ function createEmptyWorkspaceAnalyticsContribution(): WorkspaceAnalyticsContribu
     blockedAuthPlansCount: 0,
     failedTasksCount: 0,
     hourlyNewProspectsCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyReachedContactedProspectsCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyReachedInProgressProspectsCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyReachedConvertedProspectsCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyFitScore0To49Counts: createEmptyHourlyAnalyticsCounts(),
+    hourlyFitScore50To69Counts: createEmptyHourlyAnalyticsCounts(),
+    hourlyFitScore70To79Counts: createEmptyHourlyAnalyticsCounts(),
+    hourlyFitScore80To100Counts: createEmptyHourlyAnalyticsCounts(),
+    hourlyQualificationQualifiedCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyQualificationDisqualifiedCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyActionableReadyCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyTwitterProspectsCounts: createEmptyHourlyAnalyticsCounts(),
+    hourlyLinkedInProspectsCounts: createEmptyHourlyAnalyticsCounts(),
     hourlyContactedEventsCounts: createEmptyHourlyAnalyticsCounts(),
     hourlyRespondedEventsCounts: createEmptyHourlyAnalyticsCounts(),
     hourlyDraftPlansCounts: createEmptyHourlyAnalyticsCounts(),
@@ -411,7 +449,7 @@ export function createEmptyWorkspaceAnalyticsDailyRecord(args: {
  */
 export function coerceWorkspaceAnalyticsDailyForMerge(
   doc: Doc<"workspaceAnalyticsDaily">
-): WorkspaceAnalyticsDailyRecord {
+): Doc<"workspaceAnalyticsDaily"> & WorkspaceAnalyticsDailyRecord {
   return {
     ...doc,
     qualificationQualifiedCount: doc.qualificationQualifiedCount ?? 0,
@@ -420,7 +458,67 @@ export function coerceWorkspaceAnalyticsDailyForMerge(
     qualifiedEventsCount: doc.qualifiedEventsCount ?? 0,
     disqualifiedEventsCount: doc.disqualifiedEventsCount ?? 0,
     readyEventsCount: doc.readyEventsCount ?? 0,
-  } as WorkspaceAnalyticsDailyRecord;
+    hourlyNewProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyNewProspectsCounts
+    ),
+    hourlyReachedContactedProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyReachedContactedProspectsCounts
+    ),
+    hourlyReachedInProgressProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyReachedInProgressProspectsCounts
+    ),
+    hourlyReachedConvertedProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyReachedConvertedProspectsCounts
+    ),
+    hourlyFitScore0To49Counts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyFitScore0To49Counts
+    ),
+    hourlyFitScore50To69Counts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyFitScore50To69Counts
+    ),
+    hourlyFitScore70To79Counts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyFitScore70To79Counts
+    ),
+    hourlyFitScore80To100Counts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyFitScore80To100Counts
+    ),
+    hourlyQualificationQualifiedCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyQualificationQualifiedCounts
+    ),
+    hourlyQualificationDisqualifiedCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyQualificationDisqualifiedCounts
+    ),
+    hourlyActionableReadyCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyActionableReadyCounts
+    ),
+    hourlyTwitterProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyTwitterProspectsCounts
+    ),
+    hourlyLinkedInProspectsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyLinkedInProspectsCounts
+    ),
+    hourlyContactedEventsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyContactedEventsCounts
+    ),
+    hourlyRespondedEventsCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyRespondedEventsCounts
+    ),
+    hourlyDraftPlansCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyDraftPlansCounts
+    ),
+    hourlyPendingApprovalTasksCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyPendingApprovalTasksCounts
+    ),
+    hourlyPausedPlansCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyPausedPlansCounts
+    ),
+    hourlyBlockedAuthPlansCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyBlockedAuthPlansCounts
+    ),
+    hourlyFailedTasksCounts: normalizeHourlyAnalyticsCounts(
+      doc.hourlyFailedTasksCounts
+    ),
+  } as Doc<"workspaceAnalyticsDaily"> & WorkspaceAnalyticsDailyRecord;
 }
 
 export function isProspectSummaryActionableReady(
@@ -589,6 +687,8 @@ export function buildProspectSummaryRecord(
     previewSelectedAt: prospect.previewSelectedAt,
     previewRank: prospect.previewRank,
     status: prospect.status,
+    pipelineStage: prospect.pipelineStage,
+    stageTimestamps: prospect.stageTimestamps,
     qualificationStatus: prospect.qualificationStatus,
     qualifiedAt: prospect.qualifiedAt,
     enrichmentStatus: prospect.enrichmentStatus,
@@ -765,37 +865,107 @@ export function getWorkspaceAnalyticsContributionsFromProspect(
 
         if (hasReachedProspectStage(prospect, "contacted")) {
           contribution.reachedContactedProspectsCount = 1;
+          contribution.hourlyReachedContactedProspectsCounts = addHourlyCount(
+            contribution.hourlyReachedContactedProspectsCounts,
+            hour,
+            1
+          );
         }
         if (hasReachedProspectStage(prospect, "in_progress")) {
           contribution.reachedInProgressProspectsCount = 1;
+          contribution.hourlyReachedInProgressProspectsCounts = addHourlyCount(
+            contribution.hourlyReachedInProgressProspectsCounts,
+            hour,
+            1
+          );
         }
         if (hasReachedProspectStage(prospect, "converted")) {
           contribution.reachedConvertedProspectsCount = 1;
+          contribution.hourlyReachedConvertedProspectsCounts = addHourlyCount(
+            contribution.hourlyReachedConvertedProspectsCounts,
+            hour,
+            1
+          );
         }
 
         if (prospect.platform === "twitter") {
           contribution.twitterProspectsCount = 1;
+          contribution.hourlyTwitterProspectsCounts = addHourlyCount(
+            contribution.hourlyTwitterProspectsCounts,
+            hour,
+            1
+          );
         } else if (prospect.platform === "linkedin") {
           contribution.linkedInProspectsCount = 1;
+          contribution.hourlyLinkedInProspectsCounts = addHourlyCount(
+            contribution.hourlyLinkedInProspectsCounts,
+            hour,
+            1
+          );
         }
 
         const fitBucket = getQualificationScoreBucket(
           prospect.qualificationScore
         );
-        if (fitBucket === "0-49") contribution.fitScore0To49Count = 1;
-        if (fitBucket === "50-69") contribution.fitScore50To69Count = 1;
-        if (fitBucket === "70-79") contribution.fitScore70To79Count = 1;
-        if (fitBucket === "80-100") contribution.fitScore80To100Count = 1;
+        if (fitBucket === "0-49") {
+          contribution.fitScore0To49Count = 1;
+          contribution.hourlyFitScore0To49Counts = addHourlyCount(
+            contribution.hourlyFitScore0To49Counts,
+            hour,
+            1
+          );
+        }
+        if (fitBucket === "50-69") {
+          contribution.fitScore50To69Count = 1;
+          contribution.hourlyFitScore50To69Counts = addHourlyCount(
+            contribution.hourlyFitScore50To69Counts,
+            hour,
+            1
+          );
+        }
+        if (fitBucket === "70-79") {
+          contribution.fitScore70To79Count = 1;
+          contribution.hourlyFitScore70To79Counts = addHourlyCount(
+            contribution.hourlyFitScore70To79Counts,
+            hour,
+            1
+          );
+        }
+        if (fitBucket === "80-100") {
+          contribution.fitScore80To100Count = 1;
+          contribution.hourlyFitScore80To100Counts = addHourlyCount(
+            contribution.hourlyFitScore80To100Counts,
+            hour,
+            1
+          );
+        }
 
         if (prospect.qualificationStatus === "qualified") {
           contribution.qualificationQualifiedCount = 1;
+          contribution.hourlyQualificationQualifiedCounts = addHourlyCount(
+            contribution.hourlyQualificationQualifiedCounts,
+            hour,
+            1
+          );
         } else if (prospect.qualificationStatus === "disqualified") {
           contribution.qualificationDisqualifiedCount = 1;
+          contribution.hourlyQualificationDisqualifiedCounts = addHourlyCount(
+            contribution.hourlyQualificationDisqualifiedCounts,
+            hour,
+            1
+          );
         }
 
         contribution.actionableReadyCount = isProspectActionableReady(prospect)
           ? 1
           : 0;
+        if (contribution.actionableReadyCount > 0) {
+          contribution.hourlyActionableReadyCounts = addHourlyCount(
+            contribution.hourlyActionableReadyCounts,
+            hour,
+            1
+          );
+        }
       },
     })
   );

@@ -1,76 +1,26 @@
-import { query } from "./lib/functionBuilders";
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import { query } from "./lib/functionBuilders";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { analyticsDateRangeValidator } from "./validators";
 import { getOwnedWorkspace, getUserByIdentity } from "./lib/accessHelpers";
 import {
   buildMetric,
   buildPipelineFunnel,
+  calculateRate,
   countHourlyFieldByBucket,
   createEmptyAnalyticsData,
   createTrendBucketSet,
-  isTimestampInWindow,
   normalizeAnalyticsWindow,
-  calculateRate,
   sumHourlyFieldInWindow,
   type AnalyticsQueryResult,
   type TimeWindow,
 } from "./lib/analyticsCore";
-import {
-  getQualificationScoreBucket,
-  getUtcDayStartTimestamp,
-} from "./lib/readModelHelpers";
+import { getUtcDayStartTimestamp } from "./lib/readModelHelpers";
 import { listWorkspaceAnalyticsDailyRows } from "./workspaceAnalyticsDaily";
-import { isProspectActionableReady } from "./lib/prospectAnalyticsCore";
-import {
-  getNumberProperty,
-  getStringProperty,
-  isRecord,
-} from "./lib/typeGuards";
 
-type ProspectRow = Pick<
-  Doc<"prospects">,
-  | "_id"
-  | "_creationTime"
-  | "platform"
-  | "status"
-  | "pipelineStage"
-  | "stageTimestamps"
-  | "updatedAt"
-  | "qualificationScore"
-  | "qualificationStatus"
-  | "evidencePosts"
-  | "painPoints"
-  | "finance"
->;
-type WorkflowEventRow = Pick<
-  Doc<"memoryWorkflowEvents">,
-  "eventType" | "occurredAt" | "payload" | "prospectId"
->;
-
-type QualificationOutcome = "qualified" | "disqualified" | "pending";
-
-type ProspectCohortSnapshot = {
-  totalCount: number;
-  pendingCount: number;
-  qualifiedCount: number;
-  readyCount: number;
-  disqualifiedCount: number;
-  pipelineFunnel: ReturnType<typeof buildPipelineFunnel>;
-  qualificationDistribution: Array<{
-    segment: "qualified" | "disqualified" | "pending";
-    count: number;
-  }>;
-  fitDistribution: Array<{
-    range: "0-49" | "50-69" | "70-79" | "80-100";
-    count: number;
-  }>;
-  platformDistribution: Array<{
-    platform: "Twitter/X" | "LinkedIn" | "Reddit" | "Threads" | "Bluesky";
-    count: number;
-  }>;
-};
+type AnalyticsDailyRow = Awaited<
+  ReturnType<typeof listWorkspaceAnalyticsDailyRows>
+>[number];
 
 function createErrorResult(
   message: string,
@@ -92,226 +42,105 @@ function getWindowDayRange(window: TimeWindow) {
   };
 }
 
-function getStageRank(
-  stage: ProspectRow["status"] | ProspectRow["pipelineStage"]
-) {
-  switch (stage) {
-    case "contacted":
-      return 1;
-    case "in_progress":
-      return 2;
-    case "converted":
-      return 3;
-    default:
-      return 0;
-  }
+function buildPipelineSnapshot(rows: AnalyticsDailyRow[], window: TimeWindow) {
+  return buildPipelineFunnel({
+    newCount: sumHourlyFieldInWindow(rows, "hourlyNewProspectsCounts", window),
+    contactedCount: sumHourlyFieldInWindow(
+      rows,
+      "hourlyReachedContactedProspectsCounts",
+      window
+    ),
+    inProgressCount: sumHourlyFieldInWindow(
+      rows,
+      "hourlyReachedInProgressProspectsCounts",
+      window
+    ),
+    convertedCount: sumHourlyFieldInWindow(
+      rows,
+      "hourlyReachedConvertedProspectsCounts",
+      window
+    ),
+  });
 }
 
-function getLatestQualificationStatesByProspect(
-  workflowEvents: WorkflowEventRow[],
-  asOfMs: number
+function buildQualificationDistribution(
+  rows: AnalyticsDailyRow[],
+  window: TimeWindow
 ) {
-  const states = new Map<
-    string,
-    {
-      outcome: QualificationOutcome;
-      score?: number;
-    }
-  >();
-
-  const relevantEvents = workflowEvents
-    .filter(
-      (event) =>
-        event.eventType === "qualification_completed" &&
-        event.prospectId &&
-        event.occurredAt <= asOfMs
-    )
-    .sort((left, right) => left.occurredAt - right.occurredAt);
-
-  for (const event of relevantEvents) {
-    if (!event.prospectId) {
-      continue;
-    }
-
-    const payload = isRecord(event.payload) ? event.payload : undefined;
-    const qualifiedValue = payload?.qualified;
-    const outcome: QualificationOutcome =
-      qualifiedValue === true
-        ? "qualified"
-        : qualifiedValue === false
-          ? "disqualified"
-          : "pending";
-
-    states.set(String(event.prospectId), {
-      outcome,
-      score: getNumberProperty(payload, "score"),
-    });
-  }
-
-  return states;
-}
-
-function getSuccessfulEnrichmentByProspect(
-  workflowEvents: WorkflowEventRow[],
-  asOfMs: number
-) {
-  const enrichedProspects = new Set<string>();
-
-  for (const event of workflowEvents) {
-    if (
-      event.eventType !== "enrichment_completed" ||
-      !event.prospectId ||
-      event.occurredAt > asOfMs
-    ) {
-      continue;
-    }
-
-    const payload = isRecord(event.payload) ? event.payload : undefined;
-    const enrichmentStatus = getStringProperty(payload, "enrichmentStatus");
-    if (enrichmentStatus === "failed") {
-      continue;
-    }
-
-    enrichedProspects.add(String(event.prospectId));
-  }
-
-  return enrichedProspects;
-}
-
-function hasReachedStageByEnd(
-  prospect: ProspectRow,
-  stage: "contacted" | "in_progress" | "converted",
-  asOfMs: number
-) {
-  const stageTimestamp = prospect.stageTimestamps?.[stage];
-  if (typeof stageTimestamp === "number") {
-    return stageTimestamp <= asOfMs;
-  }
-
-  const currentStage = prospect.pipelineStage ?? prospect.status;
-  return (
-    getStageRank(currentStage) >= getStageRank(stage) &&
-    prospect.updatedAt <= asOfMs
+  const qualifiedCount = sumHourlyFieldInWindow(
+    rows,
+    "hourlyQualificationQualifiedCounts",
+    window
   );
-}
-
-function buildProspectCohortSnapshot(args: {
-  prospects: ProspectRow[];
-  workflowEvents: WorkflowEventRow[];
-  asOfMs: number;
-}): ProspectCohortSnapshot {
-  const qualificationStates = getLatestQualificationStatesByProspect(
-    args.workflowEvents,
-    args.asOfMs
+  const disqualifiedCount = sumHourlyFieldInWindow(
+    rows,
+    "hourlyQualificationDisqualifiedCounts",
+    window
   );
-  const enrichedProspects = getSuccessfulEnrichmentByProspect(
-    args.workflowEvents,
-    args.asOfMs
+  const pendingCount = Math.max(
+    0,
+    sumHourlyFieldInWindow(rows, "hourlyNewProspectsCounts", window) -
+      qualifiedCount -
+      disqualifiedCount
   );
 
-  let contactedCount = 0;
-  let inProgressCount = 0;
-  let convertedCount = 0;
-  let qualifiedCount = 0;
-  let disqualifiedCount = 0;
-  let readyCount = 0;
-
-  const fitCounts: ProspectCohortSnapshot["fitDistribution"] = [
-    { range: "0-49", count: 0 },
-    { range: "50-69", count: 0 },
-    { range: "70-79", count: 0 },
-    { range: "80-100", count: 0 },
+  return [
+    { segment: "qualified" as const, count: qualifiedCount },
+    { segment: "disqualified" as const, count: disqualifiedCount },
+    { segment: "pending" as const, count: pendingCount },
   ];
-  const platformCounts: ProspectCohortSnapshot["platformDistribution"] = [
-    { platform: "Twitter/X", count: 0 },
-    { platform: "LinkedIn", count: 0 },
+}
+
+function buildFitDistribution(rows: AnalyticsDailyRow[], window: TimeWindow) {
+  return [
+    {
+      range: "0-49",
+      count: sumHourlyFieldInWindow(rows, "hourlyFitScore0To49Counts", window),
+    },
+    {
+      range: "50-69",
+      count: sumHourlyFieldInWindow(rows, "hourlyFitScore50To69Counts", window),
+    },
+    {
+      range: "70-79",
+      count: sumHourlyFieldInWindow(rows, "hourlyFitScore70To79Counts", window),
+    },
+    {
+      range: "80-100",
+      count: sumHourlyFieldInWindow(
+        rows,
+        "hourlyFitScore80To100Counts",
+        window
+      ),
+    },
+  ];
+}
+
+function buildPlatformDistribution(
+  rows: AnalyticsDailyRow[],
+  window: TimeWindow
+) {
+  return [
+    {
+      platform: "Twitter/X",
+      count: sumHourlyFieldInWindow(
+        rows,
+        "hourlyTwitterProspectsCounts",
+        window
+      ),
+    },
+    {
+      platform: "LinkedIn",
+      count: sumHourlyFieldInWindow(
+        rows,
+        "hourlyLinkedInProspectsCounts",
+        window
+      ),
+    },
     { platform: "Reddit", count: 0 },
     { platform: "Threads", count: 0 },
     { platform: "Bluesky", count: 0 },
   ];
-
-  for (const prospect of args.prospects) {
-    if (hasReachedStageByEnd(prospect, "contacted", args.asOfMs)) {
-      contactedCount += 1;
-    }
-    if (hasReachedStageByEnd(prospect, "in_progress", args.asOfMs)) {
-      inProgressCount += 1;
-    }
-    if (hasReachedStageByEnd(prospect, "converted", args.asOfMs)) {
-      convertedCount += 1;
-    }
-
-    const qualificationState = qualificationStates.get(String(prospect._id));
-    const outcome = qualificationState?.outcome ?? "pending";
-    if (outcome === "qualified") {
-      qualifiedCount += 1;
-    } else if (outcome === "disqualified") {
-      disqualifiedCount += 1;
-    }
-
-    const enrichmentStatus = enrichedProspects.has(String(prospect._id))
-      ? "enriched"
-      : "pending";
-    const ready =
-      outcome === "qualified" &&
-      enrichedProspects.has(String(prospect._id)) &&
-      isProspectActionableReady({
-        platform: prospect.platform,
-        qualificationStatus: "qualified",
-        enrichmentStatus,
-        evidencePosts: prospect.evidencePosts,
-        painPoints: prospect.painPoints,
-        finance: prospect.finance,
-      });
-    if (ready) {
-      readyCount += 1;
-    }
-
-    const fitBucket = getQualificationScoreBucket(
-      qualificationState?.score ?? prospect.qualificationScore
-    );
-    const fitIndex =
-      fitBucket === "0-49"
-        ? 0
-        : fitBucket === "50-69"
-          ? 1
-          : fitBucket === "70-79"
-            ? 2
-            : 3;
-    fitCounts[fitIndex].count += 1;
-
-    if (prospect.platform === "twitter") {
-      platformCounts[0].count += 1;
-    } else if (prospect.platform === "linkedin") {
-      platformCounts[1].count += 1;
-    }
-  }
-
-  const pendingCount = Math.max(
-    0,
-    args.prospects.length - qualifiedCount - disqualifiedCount
-  );
-
-  return {
-    totalCount: args.prospects.length,
-    pendingCount,
-    qualifiedCount,
-    readyCount,
-    disqualifiedCount,
-    pipelineFunnel: buildPipelineFunnel({
-      newCount: args.prospects.length,
-      contactedCount,
-      inProgressCount,
-      convertedCount,
-    }),
-    qualificationDistribution: [
-      { segment: "qualified", count: qualifiedCount },
-      { segment: "disqualified", count: disqualifiedCount },
-      { segment: "pending", count: pendingCount },
-    ],
-    fitDistribution: fitCounts,
-    platformDistribution: platformCounts,
-  };
 }
 
 export const getDashboardAnalytics = query({
@@ -323,7 +152,6 @@ export const getDashboardAnalytics = query({
     to: v.optional(v.number()),
     fromDate: v.optional(v.string()),
     toDate: v.optional(v.string()),
-    // Allows explicit retry from the UI by changing args.
     refreshKey: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<AnalyticsQueryResult> => {
@@ -384,46 +212,12 @@ export const getDashboardAnalytics = query({
         currentDayRange.endDayStartUtcMs,
         previousDayRange.endDayStartUtcMs
       );
-      const earliestWindowStartMs = Math.min(
-        normalizedWindow.current.startMs,
-        normalizedWindow.previous.startMs
-      );
-      const latestWindowEndMs = Math.max(
-        normalizedWindow.current.endMs,
-        normalizedWindow.previous.endMs
-      );
-
-      const [analyticsRows, workspaceProspects, workflowEvents] =
-        await Promise.all([
-          listWorkspaceAnalyticsDailyRows({
-            db: ctx.db,
-            workspaceId: args.workspaceId,
-            startDayStartUtcMs,
-            endDayStartUtcMs,
-          }),
-          ctx.db
-            .query("prospects")
-            .withIndex("by_workspace", (q) =>
-              q.eq("workspaceId", args.workspaceId)
-            )
-            .collect()
-            .then((rows) =>
-              rows.filter(
-                (row) =>
-                  row._creationTime >= earliestWindowStartMs &&
-                  row._creationTime < latestWindowEndMs
-              )
-            ),
-          ctx.db
-            .query("memoryWorkflowEvents")
-            .withIndex("by_workspace_occurred_at", (q) =>
-              q
-                .eq("workspaceId", args.workspaceId)
-                .gte("occurredAt", earliestWindowStartMs)
-                .lte("occurredAt", latestWindowEndMs)
-            )
-            .collect(),
-        ]);
+      const analyticsRows = await listWorkspaceAnalyticsDailyRows({
+        db: ctx.db,
+        workspaceId: args.workspaceId,
+        startDayStartUtcMs,
+        endDayStartUtcMs,
+      });
 
       const currentProspectsCount = sumHourlyFieldInWindow(
         analyticsRows,
@@ -556,43 +350,66 @@ export const getDashboardAnalytics = query({
         failed: failedTasksCurrent,
       };
 
-      const currentCohort = workspaceProspects.filter((prospect) =>
-        isTimestampInWindow(prospect._creationTime, normalizedWindow.current)
+      const currentQualifiedCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyQualificationQualifiedCounts",
+        normalizedWindow.current
       );
-      const previousCohort = workspaceProspects.filter((prospect) =>
-        isTimestampInWindow(prospect._creationTime, normalizedWindow.previous)
+      const previousQualifiedCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyQualificationQualifiedCounts",
+        normalizedWindow.previous
       );
-      const currentSnapshot = buildProspectCohortSnapshot({
-        prospects: currentCohort,
-        workflowEvents,
-        asOfMs: normalizedWindow.current.endMs,
-      });
-      const previousSnapshot = buildProspectCohortSnapshot({
-        prospects: previousCohort,
-        workflowEvents,
-        asOfMs: normalizedWindow.previous.endMs,
-      });
+      const currentDisqualifiedCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyQualificationDisqualifiedCounts",
+        normalizedWindow.current
+      );
+      const previousDisqualifiedCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyQualificationDisqualifiedCounts",
+        normalizedWindow.previous
+      );
+      const currentReadyCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyActionableReadyCounts",
+        normalizedWindow.current
+      );
+      const previousReadyCount = sumHourlyFieldInWindow(
+        analyticsRows,
+        "hourlyActionableReadyCounts",
+        normalizedWindow.previous
+      );
+      const currentPendingCount = Math.max(
+        0,
+        currentProspectsCount - currentQualifiedCount - currentDisqualifiedCount
+      );
+      const previousPendingCount = Math.max(
+        0,
+        previousProspectsCount -
+          previousQualifiedCount -
+          previousDisqualifiedCount
+      );
+
       const processingSummary = {
         pending: buildMetric({
-          currentValue: currentSnapshot.pendingCount,
-          previousValue: previousSnapshot.pendingCount,
+          currentValue: currentPendingCount,
+          previousValue: previousPendingCount,
         }),
         qualified: buildMetric({
-          currentValue: currentSnapshot.qualifiedCount,
-          previousValue: previousSnapshot.qualifiedCount,
+          currentValue: currentQualifiedCount,
+          previousValue: previousQualifiedCount,
         }),
         ready: buildMetric({
-          currentValue: currentSnapshot.readyCount,
-          previousValue: previousSnapshot.readyCount,
+          currentValue: currentReadyCount,
+          previousValue: previousReadyCount,
         }),
         disqualified: buildMetric({
-          currentValue: currentSnapshot.disqualifiedCount,
-          previousValue: previousSnapshot.disqualifiedCount,
+          currentValue: currentDisqualifiedCount,
+          previousValue: previousDisqualifiedCount,
           trendWhenEqual: "down",
         }),
       };
-
-      const pipelineFunnel = currentSnapshot.pipelineFunnel;
 
       const prospectCounts = countHourlyFieldByBucket(
         analyticsRows,
@@ -610,27 +427,37 @@ export const getDashboardAnalytics = query({
         contacted: contactedCounts[index] ?? 0,
       }));
 
-      const qualificationDistribution =
-        currentSnapshot.qualificationDistribution;
-      const fitDistribution = currentSnapshot.fitDistribution;
-      const platformDistribution = currentSnapshot.platformDistribution;
-
-      const data = {
-        newProspects,
-        responseRate,
-        pendingApprovals,
-        issues,
-        processingSummary,
-        pipelineFunnel,
-        trendsOverTime,
-        qualificationDistribution,
-        fitDistribution,
-        platformDistribution,
-      };
+      const pipelineFunnel = buildPipelineSnapshot(
+        analyticsRows,
+        normalizedWindow.current
+      );
+      const qualificationDistribution = buildQualificationDistribution(
+        analyticsRows,
+        normalizedWindow.current
+      );
+      const fitDistribution = buildFitDistribution(
+        analyticsRows,
+        normalizedWindow.current
+      );
+      const platformDistribution = buildPlatformDistribution(
+        analyticsRows,
+        normalizedWindow.current
+      );
 
       return {
         status: "success",
-        data,
+        data: {
+          newProspects,
+          responseRate,
+          pendingApprovals,
+          issues,
+          processingSummary,
+          pipelineFunnel,
+          trendsOverTime,
+          qualificationDistribution,
+          fitDistribution,
+          platformDistribution,
+        },
         generatedAt: getCurrentUTCTimestamp(),
       };
     } catch (error) {

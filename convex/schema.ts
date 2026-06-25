@@ -31,6 +31,7 @@ import {
   monitorStatusValidator,
   monitorHealthStatusValidator,
   pipelineStageValidator,
+  prospectStageTimestampsValidator,
   planGenerationStatusValidator,
   outreachPlanArchiveHoldValidator,
   hourlyAnalyticsCountsValidator,
@@ -565,15 +566,7 @@ export default defineSchema({
     // Pipeline stage tracking
     pipelineStage: v.optional(pipelineStageValidator),
     // Timestamps for each pipeline stage (when the stage was reached)
-    stageTimestamps: v.optional(
-      v.object({
-        new: v.optional(v.number()),
-        contacted: v.optional(v.number()),
-        in_progress: v.optional(v.number()),
-        converted: v.optional(v.number()),
-        archived: v.optional(v.number()),
-      })
-    ),
+    stageTimestamps: v.optional(prospectStageTimestampsValidator),
 
     // Finance data with evidence tracking
     finance: v.optional(
@@ -1147,6 +1140,8 @@ export default defineSchema({
     previewSelectedAt: v.optional(v.number()),
     previewRank: v.optional(v.number()),
     status: prospectStatusValidator,
+    pipelineStage: v.optional(pipelineStageValidator),
+    stageTimestamps: v.optional(prospectStageTimestampsValidator),
     qualificationStatus: v.optional(qualificationStatusValidator),
     // Optional during rollout until older summary rows are backfilled.
     qualifiedAt: v.optional(v.number()),
@@ -1182,6 +1177,7 @@ export default defineSchema({
     .index("by_prospect", ["prospectId"])
     .index("by_user_qualification", ["userId", "qualificationStatus"])
     .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_created", ["workspaceId", "prospectCreatedAt"])
     .index("by_setup_session_revision", ["setupSessionId", "setupRevision"])
     .index("by_workspace_score", [
       "workspaceId",
@@ -1387,6 +1383,28 @@ export default defineSchema({
     blockedAuthPlansCount: v.number(),
     failedTasksCount: v.number(),
     hourlyNewProspectsCounts: hourlyAnalyticsCountsValidator,
+    hourlyReachedContactedProspectsCounts: v.optional(
+      hourlyAnalyticsCountsValidator
+    ),
+    hourlyReachedInProgressProspectsCounts: v.optional(
+      hourlyAnalyticsCountsValidator
+    ),
+    hourlyReachedConvertedProspectsCounts: v.optional(
+      hourlyAnalyticsCountsValidator
+    ),
+    hourlyFitScore0To49Counts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyFitScore50To69Counts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyFitScore70To79Counts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyFitScore80To100Counts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyQualificationQualifiedCounts: v.optional(
+      hourlyAnalyticsCountsValidator
+    ),
+    hourlyQualificationDisqualifiedCounts: v.optional(
+      hourlyAnalyticsCountsValidator
+    ),
+    hourlyActionableReadyCounts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyTwitterProspectsCounts: v.optional(hourlyAnalyticsCountsValidator),
+    hourlyLinkedInProspectsCounts: v.optional(hourlyAnalyticsCountsValidator),
     hourlyContactedEventsCounts: hourlyAnalyticsCountsValidator,
     hourlyRespondedEventsCounts: hourlyAnalyticsCountsValidator,
     hourlyDraftPlansCounts: hourlyAnalyticsCountsValidator,
