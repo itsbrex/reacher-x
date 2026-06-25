@@ -7,11 +7,7 @@ import {
   requireOwnedWorkspace,
   requireUser,
 } from "./lib/accessHelpers";
-import {
-  type FeedAnchorKey,
-  normalizeProspectListSort,
-  summaryRowToAnchorKey,
-} from "./lib/prospectListFeedUtils";
+import { normalizeProspectListSort } from "./lib/prospectListFeedUtils";
 import { mutation, query } from "./lib/functionBuilders";
 import { listWorkspaceProspectSummariesPage } from "./prospectSummaries";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -25,7 +21,6 @@ import {
 
 const MAX_SCAN_FIRST_PAGE = 3000;
 const MAX_PENDING_SCAN = 500;
-const MAX_TRACKED_VISIBLE_PROSPECTS = 200;
 const CURSOR_PREFIX = "ppfs1:";
 
 type FeedAccessCtx = Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">;
@@ -40,8 +35,7 @@ type FeedScopeArgs = {
 };
 type FeedSnapshotDoc = Doc<"prospectListFeedAnchors">;
 type FeedSnapshotState = {
-  anchor: FeedAnchorKey;
-  visibleProspectIds: Id<"prospects">[];
+  readyAtWatermark: number;
 };
 
 function encodeCursor(offset: number): string {
@@ -59,21 +53,6 @@ function decodeCursor(cursor: string | null): number {
   }
 
   return Math.floor(value);
-}
-
-function anchorFromDoc(
-  doc: Doc<"prospectListFeedAnchors">
-): FeedAnchorKey | null {
-  if (doc.anchorProspectId === undefined) {
-    return null;
-  }
-  return {
-    sortBy: normalizeProspectListSort(doc.sortBy),
-    anchorSortScore: doc.anchorSortScore,
-    anchorProspectCreatedAt: doc.anchorProspectCreatedAt,
-    anchorProspectType: doc.anchorProspectType ?? "unknown",
-    anchorProspectId: doc.anchorProspectId,
-  };
 }
 
 function buildFeedScopeKey(args: FeedScopeArgs): string {
@@ -100,7 +79,6 @@ async function listFeedSnapshotCandidates(
     userId: Id<"users">;
     workspaceId: Id<"workspaces">;
     status: Doc<"prospectSummaries">["status"];
-    sortBy: ReturnType<typeof normalizeProspectListSort>;
   }
 ): Promise<FeedSnapshotDoc[]> {
   return await ctx.db
@@ -110,7 +88,6 @@ async function listFeedSnapshotCandidates(
         .eq("userId", args.userId)
         .eq("workspaceId", args.workspaceId)
         .eq("status", args.status)
-        .eq("sortBy", args.sortBy)
     )
     .collect();
 }
@@ -142,63 +119,70 @@ function selectFeedSnapshotForWrite(
 function getFeedSnapshotState(
   doc: FeedSnapshotDoc | null
 ): FeedSnapshotState | null {
-  if (!doc) {
-    return null;
-  }
-
-  const anchor = anchorFromDoc(doc);
-  const visibleProspectIds =
-    doc.visibleProspectIds?.slice(0, MAX_TRACKED_VISIBLE_PROSPECTS) ?? [];
-
-  if (!anchor || visibleProspectIds.length === 0) {
+  if (!doc || typeof doc.readyAtWatermark !== "number") {
     return null;
   }
 
   return {
-    anchor,
-    visibleProspectIds,
+    readyAtWatermark: doc.readyAtWatermark,
   };
 }
 
-function buildCanonicalVisibleRows(
-  rows: Doc<"prospectSummaries">[],
-  visibleProspectIds: Id<"prospects">[]
-): Doc<"prospectSummaries">[] {
-  const cappedIds = visibleProspectIds.slice(0, MAX_TRACKED_VISIBLE_PROSPECTS);
-  if (cappedIds.length === 0) {
-    return [];
+function getProspectSummaryReadyTimestamp(
+  row: Pick<
+    Doc<"prospectSummaries">,
+    "prospectCreatedAt" | "qualifiedAt" | "updatedAt"
+  > & {
+    readyAt?: number;
+  }
+): number {
+  const timestamps = [row.prospectCreatedAt, row.updatedAt];
+
+  if (typeof row.qualifiedAt === "number") {
+    timestamps.push(row.qualifiedAt);
+  }
+  if (typeof row.readyAt === "number") {
+    timestamps.push(row.readyAt);
   }
 
-  const visibleIdSet = new Set(cappedIds);
-  return rows.filter((row) => visibleIdSet.has(row.prospectId));
+  return Math.max(...timestamps);
+}
+
+function getLatestReadyTimestamp(
+  rows: Doc<"prospectSummaries">[]
+): number | null {
+  let latestReadyTimestamp: number | null = null;
+
+  for (const row of rows) {
+    const readyTimestamp = getProspectSummaryReadyTimestamp(row);
+    if (
+      latestReadyTimestamp === null ||
+      readyTimestamp > latestReadyTimestamp
+    ) {
+      latestReadyTimestamp = readyTimestamp;
+    }
+  }
+
+  return latestReadyTimestamp;
 }
 
 function buildStableFeedRows(
   rows: Doc<"prospectSummaries">[],
   snapshot: FeedSnapshotState
 ) {
-  const visibleIdSet = new Set(snapshot.visibleProspectIds);
-  const visibleRows = rows.filter((row) => visibleIdSet.has(row.prospectId));
-  const lastVisibleIndex = rows.findIndex(
-    (row) => row.prospectId === snapshot.anchor.anchorProspectId
-  );
+  const stableRows: Doc<"prospectSummaries">[] = [];
+  const pendingRows: Doc<"prospectSummaries">[] = [];
 
-  if (lastVisibleIndex < 0) {
-    return {
-      stableRows: visibleRows,
-      pendingRows: [] as Doc<"prospectSummaries">[],
-    };
+  for (const row of rows) {
+    if (getProspectSummaryReadyTimestamp(row) > snapshot.readyAtWatermark) {
+      pendingRows.push(row);
+      continue;
+    }
+    stableRows.push(row);
   }
 
-  const pendingRows = rows
-    .slice(0, lastVisibleIndex + 1)
-    .filter((row) => !visibleIdSet.has(row.prospectId));
-  const trailingRows = rows
-    .slice(lastVisibleIndex + 1)
-    .filter((row) => !visibleIdSet.has(row.prospectId));
-
   return {
-    stableRows: [...visibleRows, ...trailingRows],
+    stableRows,
     pendingRows,
   };
 }
@@ -249,7 +233,6 @@ export const listStableWorkspaceProspectSummaries = query({
         userId: user._id,
         workspaceId: args.workspaceId,
         status: args.status,
-        sortBy,
       }),
       scopeKey
     );
@@ -317,7 +300,6 @@ export const getProspectListFeedState = query({
         userId: user._id,
         workspaceId: args.workspaceId,
         status: args.status,
-        sortBy,
       }),
       scopeKey
     );
@@ -325,10 +307,9 @@ export const getProspectListFeedState = query({
 
     if (!snapshot) {
       return {
-        hasAnchor: false,
+        hasSnapshot: false,
         pendingCount: 0,
         pendingCountCapped: false,
-        visibleProspectIds: [] as Id<"prospects">[],
         pendingPreview: [] as Array<{
           prospectId: Id<"prospects">;
           displayName: string;
@@ -372,10 +353,9 @@ export const getProspectListFeedState = query({
       pendingRows.length >= MAX_PENDING_SCAN && !orderedResult.isDone;
 
     return {
-      hasAnchor: true,
+      hasSnapshot: true,
       pendingCount: pendingRows.length,
       pendingCountCapped,
-      visibleProspectIds: snapshot.visibleProspectIds,
       pendingPreview,
     };
   },
@@ -421,7 +401,6 @@ export const syncProspectListFeedSnapshot = mutation({
     createdAfterMs: v.optional(v.number()),
     createdBeforeMs: v.optional(v.number()),
     visibilityMode: v.optional(prospectVisibilityModeValidator),
-    visibleProspectIds: v.array(v.id("prospects")),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx, { notFoundMessage: "User not found" });
@@ -437,7 +416,6 @@ export const syncProspectListFeedSnapshot = mutation({
         userId: user._id,
         workspaceId: args.workspaceId,
         status: args.status,
-        sortBy,
       }),
       scopeKey
     );
@@ -454,24 +432,14 @@ export const syncProspectListFeedSnapshot = mutation({
       visibilityMode: args.visibilityMode,
       paginationOpts: { cursor: null, numItems: MAX_SCAN_FIRST_PAGE },
     });
-    const canonicalVisibleRows = buildCanonicalVisibleRows(
-      orderedResult.page,
-      args.visibleProspectIds
-    );
-
-    if (canonicalVisibleRows.length === 0) {
+    const latestReadyTimestamp = getLatestReadyTimestamp(orderedResult.page);
+    if (latestReadyTimestamp === null) {
       return;
     }
 
-    const lastVisible = canonicalVisibleRows[canonicalVisibleRows.length - 1];
-    const key = summaryRowToAnchorKey(lastVisible, sortBy);
     const patch = {
       scopeKey,
-      visibleProspectIds: canonicalVisibleRows.map((row) => row.prospectId),
-      anchorSortScore: key.anchorSortScore,
-      anchorProspectCreatedAt: key.anchorProspectCreatedAt,
-      anchorProspectType: key.anchorProspectType,
-      anchorProspectId: key.anchorProspectId,
+      readyAtWatermark: latestReadyTimestamp,
       updatedAt: getCurrentUTCTimestamp(),
     };
 
@@ -502,7 +470,6 @@ export const mergePendingProspects = mutation({
     createdAfterMs: v.optional(v.number()),
     createdBeforeMs: v.optional(v.number()),
     visibilityMode: v.optional(prospectVisibilityModeValidator),
-    visibleProspectIds: v.array(v.id("prospects")),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx, { notFoundMessage: "User not found" });
@@ -518,7 +485,6 @@ export const mergePendingProspects = mutation({
         userId: user._id,
         workspaceId: args.workspaceId,
         status: args.status,
-        sortBy,
       }),
       scopeKey
     );
@@ -535,31 +501,14 @@ export const mergePendingProspects = mutation({
       visibilityMode: args.visibilityMode,
       paginationOpts: { cursor: null, numItems: MAX_SCAN_FIRST_PAGE },
     });
-    const canonicalVisibleRows = buildCanonicalVisibleRows(
-      orderedResult.page,
-      args.visibleProspectIds
-    );
-
-    if (canonicalVisibleRows.length === 0) {
+    const latestReadyTimestamp = getLatestReadyTimestamp(orderedResult.page);
+    if (latestReadyTimestamp === null) {
       return;
     }
 
-    const lastVisible = canonicalVisibleRows[canonicalVisibleRows.length - 1];
-    const lastVisibleIndex = orderedResult.page.findIndex(
-      (row) => row.prospectId === lastVisible.prospectId
-    );
-    const mergedVisibleRows =
-      lastVisibleIndex >= 0
-        ? orderedResult.page.slice(0, lastVisibleIndex + 1)
-        : canonicalVisibleRows;
-    const key = summaryRowToAnchorKey(lastVisible, sortBy);
     const patch = {
       scopeKey,
-      visibleProspectIds: mergedVisibleRows.map((row) => row.prospectId),
-      anchorSortScore: key.anchorSortScore,
-      anchorProspectCreatedAt: key.anchorProspectCreatedAt,
-      anchorProspectType: key.anchorProspectType,
-      anchorProspectId: key.anchorProspectId,
+      readyAtWatermark: latestReadyTimestamp,
       updatedAt: getCurrentUTCTimestamp(),
     };
 

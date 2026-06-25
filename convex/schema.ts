@@ -1153,6 +1153,7 @@ export default defineSchema({
     planGenerationStatus: v.optional(planGenerationStatusValidator),
     readyQualifiedEnriched: v.boolean(),
     actionableReady: v.optional(v.boolean()),
+    readyAt: v.optional(v.number()),
     sortQualificationScore: v.number(),
     qualificationScore: v.optional(v.number()),
     prospectCreatedAt: v.number(),
@@ -1293,8 +1294,9 @@ export default defineSchema({
     ]),
 
   /**
-   * Per-user stable feed snapshot for prospect list tabs (prevents unseen rows
-   * from reordering the visible list until the user merges pending items).
+   * Per-user feed snapshot for prospect list tabs. The watermark keeps "new
+   * ready" prospects out of the list until the user merges them, while staying
+   * global across sort changes for the same filter scope.
    */
   prospectListFeedAnchors: defineTable({
     userId: v.id("users"),
@@ -1302,9 +1304,10 @@ export default defineSchema({
     status: prospectStatusValidator,
     sortBy: v.optional(prospectListSortValidator),
     scopeKey: v.optional(v.string()),
+    readyAtWatermark: v.optional(v.number()),
     visibleProspectIds: v.optional(v.array(v.id("prospects"))),
-    anchorSortScore: v.number(),
-    anchorProspectCreatedAt: v.number(),
+    anchorSortScore: v.optional(v.number()),
+    anchorProspectCreatedAt: v.optional(v.number()),
     anchorProspectType: v.optional(prospectTypeValidator),
     anchorProspectId: v.optional(v.id("prospects")),
     updatedAt: v.number(),

@@ -180,6 +180,7 @@ export interface ProspectSummaryRecord {
   planGenerationStatus: Doc<"prospects">["planGenerationStatus"];
   readyQualifiedEnriched: boolean;
   actionableReady?: boolean;
+  readyAt: Doc<"prospects">["readyAt"];
   sortQualificationScore: number;
   qualificationScore: number | undefined;
   prospectCreatedAt: number;
@@ -695,6 +696,7 @@ export function buildProspectSummaryRecord(
     planGenerationStatus: prospect.planGenerationStatus,
     readyQualifiedEnriched: isProspectReadyQualifiedEnriched(prospect),
     actionableReady: isProspectActionableReady(prospect),
+    readyAt: prospect.readyAt ?? inferProspectReadyAtFromState(prospect),
     sortQualificationScore: normalizeQualificationScore(
       prospect.qualificationScore
     ),

@@ -5,7 +5,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -446,7 +445,6 @@ export default function ProspectsPage() {
     api.prospectListFeed.mergePendingProspects
   );
   const [isMergePending, startMergeTransition] = useTransition();
-  const expectedMergedFeedCountRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!setupStatus) return;
@@ -549,37 +547,13 @@ export default function ProspectsPage() {
       ? { workspaceId, prospectIds: prospectIdsForMap }
       : "skip"
   );
-  const activeTabVisibleProspectIds = useMemo(
-    () => tabProspects.map((prospect) => prospect.prospectId),
-    [tabProspects]
-  );
-  const trackedVisibleProspectIds = (feedState?.visibleProspectIds ??
-    []) as Id<"prospects">[];
-  const activeTabVisibleProspectIdsSignature =
-    activeTabVisibleProspectIds.join("|");
-  const trackedVisibleProspectIdsSignature =
-    trackedVisibleProspectIds.join("|");
 
   useEffect(() => {
     if (!browseMode) return;
     if (!workspaceId || !fitScoreRange) return;
     if (feedState === undefined) return;
-    if (expectedMergedFeedCountRef.current !== null) {
-      if (
-        trackedVisibleProspectIds.length >=
-          expectedMergedFeedCountRef.current &&
-        activeTabVisibleProspectIdsSignature ===
-          trackedVisibleProspectIdsSignature
-      ) {
-        expectedMergedFeedCountRef.current = null;
-      }
-      return;
-    }
-    if (activeTabVisibleProspectIds.length === 0) return;
-    if (
-      activeTabVisibleProspectIdsSignature ===
-      trackedVisibleProspectIdsSignature
-    ) {
+    if (feedState.hasSnapshot) return;
+    if (tabProspects.length === 0) {
       return;
     }
 
@@ -593,41 +567,30 @@ export default function ProspectsPage() {
       fitScoreMax: appliedFilterArgs.fitScoreMax,
       createdAfterMs: appliedFilterArgs.createdAfterMs,
       createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-      visibleProspectIds: activeTabVisibleProspectIds,
-      sortBy: appliedSort,
     });
   }, [
     activeTabStatus,
-    activeTabVisibleProspectIds,
-    activeTabVisibleProspectIds.length,
-    activeTabVisibleProspectIdsSignature,
     appliedFilterArgs.createdAfterMs,
     appliedFilterArgs.createdBeforeMs,
     appliedFilterArgs.fitScoreMax,
     appliedFilterArgs.fitScoreMin,
     appliedFilterArgs.platform,
     appliedFilterArgs.prospectType,
-    appliedSort,
     browseMode,
     feedState,
     fitScoreRange,
     syncProspectListFeedSnapshot,
-    trackedVisibleProspectIdsSignature,
-    trackedVisibleProspectIds.length,
+    tabProspects.length,
     visibilityMode,
     workspaceId,
   ]);
 
   const handleMergePending = () => {
     if (!workspaceId || !fitScoreRange) return;
-    expectedMergedFeedCountRef.current =
-      activeTabVisibleProspectIds.length +
-      Math.max(feedState?.pendingCount ?? 0, 1);
     startMergeTransition(() => {
       void mergePendingProspects({
         workspaceId,
         status: activeTabStatus,
-        sortBy: appliedSort,
         visibilityMode,
         platform: appliedFilterArgs.platform,
         prospectType: appliedFilterArgs.prospectType,
@@ -635,9 +598,6 @@ export default function ProspectsPage() {
         fitScoreMax: appliedFilterArgs.fitScoreMax,
         createdAfterMs: appliedFilterArgs.createdAfterMs,
         createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-        visibleProspectIds: activeTabVisibleProspectIds,
-      }).catch(() => {
-        expectedMergedFeedCountRef.current = null;
       });
     });
   };
