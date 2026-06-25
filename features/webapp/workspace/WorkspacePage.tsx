@@ -189,6 +189,7 @@ export default function WorkspacePage() {
   const formLabelClassName = "mb-2.5 block";
   const formDescriptionClassName = "mt-1.5 text-xs";
   const formMessageClassName = "mt-1.5";
+  const workspaceFormId = "workspace-settings-form";
 
   const form = useForm<WorkspacePageFormValues>({
     resolver: zodResolver(
@@ -288,6 +289,11 @@ export default function WorkspacePage() {
       });
     }
   };
+
+  function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void form.handleSubmit(handleSave)(event);
+  }
 
   const handleStartEditing = () => {
     if (!workspace) return;
@@ -448,7 +454,8 @@ export default function WorkspacePage() {
                       </Button>
                       <Button
                         size="xs"
-                        onClick={form.handleSubmit(handleSave)}
+                        form={workspaceFormId}
+                        type="submit"
                         disabled={
                           !form.formState.isDirty || form.formState.isSubmitting
                         }
@@ -622,8 +629,9 @@ export default function WorkspacePage() {
 
                       <Form {...form}>
                         <form
+                          id={workspaceFormId}
                           className="space-y-4"
-                          onSubmit={form.handleSubmit(handleSave)}
+                          onSubmit={handleFormSubmit}
                         >
                           {!isEditing ? (
                             <FormField
@@ -752,7 +760,7 @@ export default function WorkspacePage() {
                                 <FormDescription
                                   className={formDescriptionClassName}
                                 >
-                                  Used by the agent to find{" "}
+                                  Used by the △ Agent to find{" "}
                                   {
                                     selectedUseCase.promptContext.terminology
                                       .entityPlural
