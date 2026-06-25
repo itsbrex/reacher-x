@@ -28,6 +28,7 @@ import {
   buildPreviewTwitterRawGraphSeedQueries,
   checkProspectLimit,
   formatQualifiedProspectLimitReachedMessage,
+  getProspectingRecoveryDelayMs,
 } from "../lib/prospectingHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
@@ -1929,25 +1930,51 @@ export const handleWorkflowComplete = internalMutation({
         }
       }
     } else if (args.result.kind === "failed") {
+      const workspaceDoc = await ctx.db.get(workspaceId as Id<"workspaces">);
       prospectingWorkflowLogger.error(
         "Workflow failed",
         {
           workspaceId: String(workspaceId),
-          workspaceName: workspace?.name,
+          workspaceName: workspaceDoc?.name ?? workspace?.name,
           workflowId: String(args.workflowId),
         },
         args.result.error
       );
-      // Update status to stopped on error
-      await ctx.db.patch(workspaceId as any, {
-        prospectingWorkflowStatus: "stopped",
+
+      if (!workspaceDoc) {
+        return;
+      }
+
+      const now = getCurrentUTCTimestamp();
+      const failureStreak = Math.max(
+        1,
+        (workspaceDoc.prospectingFailureStreak ?? 0) + 1
+      );
+      const recoveryAttemptId =
+        Math.max(0, workspaceDoc.prospectingRecoveryAttemptId ?? 0) + 1;
+      const delayMs = getProspectingRecoveryDelayMs({
+        workspaceId: String(workspaceDoc._id),
+        failureStreak,
       });
-      await ctx.runMutation(
-        internal.workspaces.setOnboardingIssueStateInternal,
+      const nextRecoveryAt = now + delayMs;
+
+      await ctx.db.patch(workspaceDoc._id, {
+        prospectingWorkflowStatus: "stopped",
+        onboardingIssueStatusCode: "workflow_failed",
+        onboardingIssueSource: "workflow",
+        onboardingIssueUpdatedAt: now,
+        prospectingFailureStreak: failureStreak,
+        prospectingRecoveryAttemptId: recoveryAttemptId,
+        prospectingLastFailureAt: now,
+        prospectingNextRecoveryAt: nextRecoveryAt,
+      });
+
+      await ctx.scheduler.runAfter(
+        delayMs,
+        internal.workspaces.attemptProspectingWorkflowRecoveryInternal,
         {
           workspaceId: workspaceId as any,
-          statusCode: "workflow_failed",
-          source: "workflow",
+          recoveryAttemptId,
         }
       );
     }

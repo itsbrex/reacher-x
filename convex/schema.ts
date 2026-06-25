@@ -320,6 +320,10 @@ export default defineSchema({
       prospectingWorkflowPauseReasonValidator
     ),
     prospectingWorkflowPausedAt: v.optional(v.number()),
+    prospectingFailureStreak: v.optional(v.number()),
+    prospectingRecoveryAttemptId: v.optional(v.number()),
+    prospectingLastFailureAt: v.optional(v.number()),
+    prospectingNextRecoveryAt: v.optional(v.number()),
     lastMeaningfulActivityAt: v.optional(v.number()),
 
     // Persisted internal onboarding issue state (for safe user-visible mapping)

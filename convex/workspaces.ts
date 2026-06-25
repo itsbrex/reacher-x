@@ -59,6 +59,7 @@ import {
   bootstrapWorkspaceStyleProfilesForWorkspaceOnDb,
   type WorkspaceStyleBootstrapResult,
 } from "./lib/workspaceStyleProfileCore";
+import { isWorkspaceInactive } from "./lib/workspaceSystem";
 import { INACTIVITY_PAUSE_AFTER_MS } from "../shared/lib/workspaceSystem";
 import { workflow } from "./lib/workflow";
 import {
@@ -843,6 +844,20 @@ export const reconcileWorkspaceCapacityStateInternal = internalAction({
         }
       }
 
+      await ctx.runMutation(
+        internal.workspaces.clearOnboardingIssueStateForSourceInternal,
+        {
+          workspaceId: args.workspaceId,
+          source: "workflow",
+        }
+      );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
+
       return {
         ok: true as const,
         capacityBlocked: true,
@@ -1354,6 +1369,18 @@ export const clearOnboardingIssueStateForSourceInternal = internalMutation({
   },
 });
 
+export const clearProspectingRecoveryStateInternal = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.workspaceId, {
+      prospectingFailureStreak: undefined,
+      prospectingNextRecoveryAt: undefined,
+    });
+  },
+});
+
 /**
  * Persist setup thread linkage for a workspace so onboarding can restore context.
  */
@@ -1559,6 +1586,17 @@ type StartProspectingWorkflowOutcome =
   | "rearmed_running_workflow"
   | "limit_reached";
 
+type RecoverProspectingWorkflowOutcome =
+  | "restarted"
+  | "rearmed_running_workflow"
+  | "workspace_not_found"
+  | "stale_recovery"
+  | "status_changed"
+  | "issue_cleared"
+  | "inactive_paused"
+  | "setup_incomplete"
+  | "limit_reached";
+
 /**
  * Start the continuous prospecting workflow for a workspace.
  * Called automatically after workspace setup or manually by user.
@@ -1632,6 +1670,12 @@ export const startProspectingWorkflow = action({
           workspaceId: args.workspaceId,
         }
       );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
       return {
         success: true,
         outcome: "rearmed_running_workflow",
@@ -1659,6 +1703,12 @@ export const startProspectingWorkflow = action({
     });
     await ctx.runMutation(
       internal.workspaces.clearOnboardingIssueStateInternal,
+      {
+        workspaceId: args.workspaceId,
+      }
+    );
+    await ctx.runMutation(
+      internal.workspaces.clearProspectingRecoveryStateInternal,
       {
         workspaceId: args.workspaceId,
       }
@@ -1733,6 +1783,12 @@ export const startProspectingWorkflowInternal = internalAction({
           workspaceId: args.workspaceId,
         }
       );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
       return {
         success: true,
         outcome: "rearmed_running_workflow",
@@ -1760,6 +1816,12 @@ export const startProspectingWorkflowInternal = internalAction({
     });
     await ctx.runMutation(
       internal.workspaces.clearOnboardingIssueStateInternal,
+      {
+        workspaceId: args.workspaceId,
+      }
+    );
+    await ctx.runMutation(
+      internal.workspaces.clearProspectingRecoveryStateInternal,
       {
         workspaceId: args.workspaceId,
       }
@@ -1855,10 +1917,165 @@ export const restartProspectingWorkflowForSetupInternal = internalAction({
         workspaceId: args.workspaceId,
       }
     );
+    await ctx.runMutation(
+      internal.workspaces.clearProspectingRecoveryStateInternal,
+      {
+        workspaceId: args.workspaceId,
+      }
+    );
 
     return {
       success: true,
       workflowId: workflowId.toString(),
+    };
+  },
+});
+
+/**
+ * Retry a failed prospecting workflow after cooldown.
+ * Only restarts true workflow failures, never manual pauses/stops.
+ */
+export const attemptProspectingWorkflowRecoveryInternal = internalAction({
+  args: {
+    workspaceId: v.id("workspaces"),
+    recoveryAttemptId: v.number(),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    success: boolean;
+    outcome: RecoverProspectingWorkflowOutcome;
+    error?: string;
+    workflowId?: string;
+  }> => {
+    const workspace = await ctx.runQuery(internal.workspaces.getById, {
+      workspaceId: args.workspaceId,
+    });
+
+    if (!workspace) {
+      return {
+        success: false,
+        outcome: "workspace_not_found",
+      };
+    }
+
+    if (workspace.prospectingRecoveryAttemptId !== args.recoveryAttemptId) {
+      return {
+        success: false,
+        outcome: "stale_recovery",
+      };
+    }
+
+    if (
+      workspace.onboardingIssueSource !== "workflow" ||
+      workspace.onboardingIssueStatusCode !== "workflow_failed"
+    ) {
+      return {
+        success: false,
+        outcome: "issue_cleared",
+      };
+    }
+
+    if (workspace.prospectingWorkflowStatus !== "stopped") {
+      return {
+        success: false,
+        outcome: "status_changed",
+      };
+    }
+
+    if (isWorkspaceInactive(workspace)) {
+      await ctx.runMutation(
+        internal.workflows.prospecting.updateWorkflowStatus,
+        {
+          workspaceId: args.workspaceId,
+          status: "paused",
+          pauseReason: "inactive",
+        }
+      );
+      await ctx.runMutation(
+        internal.workspaces.clearOnboardingIssueStateForSourceInternal,
+        {
+          workspaceId: args.workspaceId,
+          source: "workflow",
+        }
+      );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
+      return {
+        success: false,
+        outcome: "inactive_paused",
+      };
+    }
+
+    if (!hasRequiredWorkspaceAgentData(workspace)) {
+      await ctx.runMutation(
+        internal.workspaces.setOnboardingIssueStateInternal,
+        {
+          workspaceId: args.workspaceId,
+          statusCode: "setup_incomplete",
+          source: "setup",
+        }
+      );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
+      return {
+        success: false,
+        outcome: "setup_incomplete",
+      };
+    }
+
+    const result = await ctx.runAction(
+      internal.workspaces.startProspectingWorkflowInternal,
+      {
+        workspaceId: args.workspaceId,
+      }
+    );
+
+    if (result.success) {
+      return {
+        success: true,
+        outcome:
+          result.outcome === "started"
+            ? "restarted"
+            : "rearmed_running_workflow",
+        workflowId: result.workflowId,
+      };
+    }
+
+    if (result.outcome === "limit_reached") {
+      await ctx.runMutation(
+        internal.workspaces.clearOnboardingIssueStateForSourceInternal,
+        {
+          workspaceId: args.workspaceId,
+          source: "workflow",
+        }
+      );
+      await ctx.runMutation(
+        internal.workspaces.clearProspectingRecoveryStateInternal,
+        {
+          workspaceId: args.workspaceId,
+        }
+      );
+      return {
+        success: false,
+        outcome: "limit_reached",
+        error: result.error,
+      };
+    }
+
+    return {
+      success: false,
+      outcome: "status_changed",
+      error: result.error,
     };
   },
 });
@@ -1916,6 +2133,19 @@ export const stopProspectingWorkflow = action({
       status: "paused",
       pauseReason: "manual",
     });
+    await ctx.runMutation(
+      internal.workspaces.clearOnboardingIssueStateForSourceInternal,
+      {
+        workspaceId: args.workspaceId,
+        source: "workflow",
+      }
+    );
+    await ctx.runMutation(
+      internal.workspaces.clearProspectingRecoveryStateInternal,
+      {
+        workspaceId: args.workspaceId,
+      }
+    );
 
     return {
       success: true,

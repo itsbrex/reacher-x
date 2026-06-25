@@ -9,6 +9,7 @@ import { polar } from "../polar";
 import { computeUsageCycleWindow } from "./planCycleUtils";
 import { getOrCreateUserPlan } from "./planCore";
 import { computeQualifiedProspectUsageForWorkspaceWindow } from "./planQualifiedUsageCore";
+import { createStableHash } from "./memoryHelpers";
 import {
   resolveWorkspaceUseCaseKey,
   type WorkspaceUseCaseKey,
@@ -56,6 +57,11 @@ export const BATCH_LIMITS = {
   /** Number of LinkedIn people queries to search per cycle */
   linkedinPeopleSearchBatch: 2,
 } as const;
+
+const MINUTE_MS = 60 * 1000;
+const PROSPECTING_RECOVERY_BASE_DELAY_MS = 60 * MINUTE_MS;
+const PROSPECTING_RECOVERY_MAX_DELAY_MS = 4 * 60 * MINUTE_MS;
+const PROSPECTING_RECOVERY_JITTER_WINDOW_MS = 10 * MINUTE_MS;
 
 export type Platform = "twitter" | "linkedin";
 
@@ -199,6 +205,42 @@ const PREVIEW_TWITTER_RAW_GRAPH_SEED_QUERIES: Partial<
     '("call for speakers" OR "speaker lineup" OR "panel discussion") -filter:replies',
   ],
 };
+
+function getDeterministicProspectingRecoveryJitterMs(
+  workspaceId: string,
+  failureStreak: number
+): number {
+  const hash = createStableHash(
+    `${workspaceId}:prospecting-recovery:${failureStreak}`
+  );
+  const numericHash = Number.parseInt(hash.slice(0, 6), 16);
+
+  if (!Number.isFinite(numericHash)) {
+    return 0;
+  }
+
+  return numericHash % PROSPECTING_RECOVERY_JITTER_WINDOW_MS;
+}
+
+export function getProspectingRecoveryDelayMs(args: {
+  workspaceId: string;
+  failureStreak: number;
+}): number {
+  const normalizedFailureStreak = Math.max(1, Math.floor(args.failureStreak));
+  const baseDelayMs = Math.min(
+    PROSPECTING_RECOVERY_MAX_DELAY_MS,
+    PROSPECTING_RECOVERY_BASE_DELAY_MS *
+      2 ** Math.max(0, normalizedFailureStreak - 1)
+  );
+
+  return (
+    baseDelayMs +
+    getDeterministicProspectingRecoveryJitterMs(
+      args.workspaceId,
+      normalizedFailureStreak
+    )
+  );
+}
 
 type PreviewTwitterRawGraphSeedOptions = {
   sinceTimestampSeconds?: number;
