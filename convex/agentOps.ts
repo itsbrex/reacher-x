@@ -22,7 +22,7 @@ import { listWorkspaceAgentOpsDailyRows } from "./workspaceAgentOpsDaily";
 import { buildAgentOpsDashboardData } from "./lib/agentOpsCore";
 import {
   getWorkspaceAgentMemoryById,
-  listWorkspaceAgentMemories,
+  listWorkspaceAgentMemoriesInWindow,
 } from "./lib/agentMemoryCore";
 import { getUtcDayStartTimestamp } from "./lib/readModelHelpers";
 import { listWorkspaceQueryPerformanceDailyRows } from "./workspaceQueryPerformanceDaily";
@@ -200,9 +200,11 @@ export const getAgentOpsDashboard = query({
             .take(20)
         : Promise.resolve([]),
       shouldLoadBuiltInMemories
-        ? listWorkspaceAgentMemories(ctx.db, {
+        ? listWorkspaceAgentMemoriesInWindow(ctx.db, {
             userId: String(user._id),
             workspaceId: String(args.workspaceId),
+            startMs: normalizedWindow.current.startMs,
+            endMs: normalizedWindow.current.endMs,
           })
         : Promise.resolve([]),
     ]);

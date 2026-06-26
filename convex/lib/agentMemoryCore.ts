@@ -27,6 +27,8 @@ const SECTION_LABELS = [
   "Narrative:",
 ] as const;
 const MAX_RELEVANCE_CANDIDATES = 120;
+const AGENT_MEMORY_USER_INDEX = "userId";
+const WORKSPACE_MEMORY_WINDOW_PAGE_SIZE = 100;
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -412,7 +414,9 @@ export async function listRecentAgentMemories(
   try {
     return (await componentDb
       .query("memories")
-      .withIndex("by_userId", (q: any) => q.eq("userId", args.userId))
+      .withIndex(AGENT_MEMORY_USER_INDEX, (q: any) =>
+        q.eq("userId", args.userId)
+      )
       .order("desc")
       .take(limit)) as BuiltInAgentMemoryRow[];
   } catch (error) {
@@ -447,7 +451,9 @@ async function listAgentMemoriesByUser(
   try {
     return (await componentDb
       .query("memories")
-      .withIndex("by_userId", (q: any) => q.eq("userId", args.userId))
+      .withIndex(AGENT_MEMORY_USER_INDEX, (q: any) =>
+        q.eq("userId", args.userId)
+      )
       .order("desc")
       .collect()) as BuiltInAgentMemoryRow[];
   } catch (error) {
@@ -487,7 +493,9 @@ async function paginateAgentMemoriesByUser(
   try {
     return (await componentDb
       .query("memories")
-      .withIndex("by_userId", (q: any) => q.eq("userId", args.userId))
+      .withIndex(AGENT_MEMORY_USER_INDEX, (q: any) =>
+        q.eq("userId", args.userId)
+      )
       .order("desc")
       .paginate({
         cursor: args.cursor ?? null,
@@ -549,6 +557,73 @@ export async function listWorkspaceAgentMemories(
     })
     .filter((value): value is WorkspaceAgentMemoryRecord => value !== null)
     .sort((left, right) => right.createdAt - left.createdAt);
+}
+
+export async function listWorkspaceAgentMemoriesInWindow(
+  db: MemoryDbReader,
+  args: {
+    userId: string;
+    workspaceId: string;
+    startMs: number;
+    endMs: number;
+    pageSize?: number;
+  }
+): Promise<WorkspaceAgentMemoryRecord[]> {
+  const pageSize = Math.max(
+    1,
+    Math.min(
+      MAX_RELEVANCE_CANDIDATES,
+      args.pageSize ?? WORKSPACE_MEMORY_WINDOW_PAGE_SIZE
+    )
+  );
+
+  let cursor: string | null = null;
+  const memories: WorkspaceAgentMemoryRecord[] = [];
+
+  while (true) {
+    const page = await paginateAgentMemoriesByUser(db, {
+      userId: args.userId,
+      cursor,
+      limit: pageSize,
+    });
+
+    if (page.page.length === 0) {
+      break;
+    }
+
+    let reachedRowsBeforeWindow = false;
+
+    for (const row of page.page) {
+      if (row._creationTime >= args.endMs) {
+        continue;
+      }
+
+      if (row._creationTime < args.startMs) {
+        reachedRowsBeforeWindow = true;
+        break;
+      }
+
+      const parsed = parseAgentMemory(row.memory);
+      if (!parsed || parsed.workspaceId !== args.workspaceId) {
+        continue;
+      }
+
+      memories.push({
+        memoryId: row._id,
+        createdAt: row._creationTime,
+        memoryText: row.memory,
+        parsed,
+      });
+    }
+
+    if (reachedRowsBeforeWindow || page.isDone) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return memories.sort((left, right) => right.createdAt - left.createdAt);
 }
 
 export async function listWorkspaceAgentMemoriesPage(
