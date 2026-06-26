@@ -530,11 +530,10 @@ export function AgentOpsDashboard() {
 
       <DateRangeSelector />
 
-      <StatsOverview key={`row1-${params.tab}`} metrics={metricsRow1} />
-
       {/* ── Overview ─────────────────────────────────────────── */}
       {params.tab === "overview" && (
         <>
+          <StatsOverview key={`row1-${params.tab}`} metrics={metricsRow1} />
           <StatsOverview key={`row2-${params.tab}`} metrics={metricsRow2} />
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <AgentOpsLineChartWrapper data={data.overview.qualityTrend} />
