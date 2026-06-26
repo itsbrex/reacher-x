@@ -281,6 +281,8 @@ interface RobustGenerateObjectOptions<T> {
   prompt: string;
   /** Temperature (default: 0.5) */
   temperature?: number;
+  /** Maximum completion tokens to request from the provider. */
+  maxOutputTokens?: number;
   /** Maximum retry attempts per model (default: 2) */
   maxRetries?: number;
   /** Initial delay between retries in ms (default: 500) */
@@ -307,6 +309,7 @@ export async function robustGenerateObject<T>({
   system,
   prompt,
   temperature = 0.5,
+  maxOutputTokens,
   maxRetries = 2,
   initialDelayMs = 500,
   routing = "reasoning",
@@ -326,6 +329,7 @@ export async function robustGenerateObject<T>({
         system,
         prompt,
         temperature,
+        maxOutputTokens,
         maxRetries: 1,
         initialDelayMs,
         routing,
@@ -347,6 +351,7 @@ export async function robustGenerateObject<T>({
         system,
         prompt,
         temperature,
+        maxOutputTokens,
         maxRetries: 1,
         initialDelayMs,
         routing: "reasoning",
@@ -362,6 +367,7 @@ export async function robustGenerateObject<T>({
     system,
     prompt,
     temperature,
+    maxOutputTokens,
     maxRetries,
     initialDelayMs,
     routing,
@@ -380,6 +386,7 @@ export async function generateTextWithJsonParse<T>({
   system,
   prompt,
   temperature = 0.5,
+  maxOutputTokens,
   maxRetries = 2,
   initialDelayMs = 500,
   routing = "fast",
@@ -405,6 +412,7 @@ export async function generateTextWithJsonParse<T>({
         system: `${system}\n\nIMPORTANT: You MUST respond with ONLY valid JSON. No markdown, no explanations, just one JSON object that validates against the provided JSON Schema.`,
         prompt: `${prompt}\n\nReturn exactly one JSON object matching this JSON Schema:\n${jsonSchema}\n\nDo not rename keys. Do not wrap the object in another property. Do not return an array unless the schema root is an array.`,
         temperature,
+        ...(maxOutputTokens ? { maxOutputTokens } : {}),
         providerOptions: modelConfig.providerOptions,
         ...(modelConfig.timeoutMs
           ? { abortSignal: AbortSignal.timeout(modelConfig.timeoutMs) }

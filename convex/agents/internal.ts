@@ -62,6 +62,7 @@ type SocialQueryMetadata = {
 
 const MAX_SOCIAL_QUERY_CHARS = 40;
 const MAX_SOCIAL_QUERY_ITEMS_PER_GROUP = 15;
+const PROSPECTING_KEYWORDS_MAX_OUTPUT_TOKENS = 1000;
 const PEOPLE_QUERY_HINTS = [
   "architect",
   "consultant",
@@ -542,6 +543,7 @@ Only return net-new keywords in uncovered themes when memory indicates existing 
               system: buildProspectingKeywordsPrompt(args.useCaseKey),
               prompt: userPrompt,
               temperature: 0.7,
+              maxOutputTokens: PROSPECTING_KEYWORDS_MAX_OUTPUT_TOKENS,
               maxRetries: 2,
               routing: "fast",
             })
@@ -551,6 +553,7 @@ Only return net-new keywords in uncovered themes when memory indicates existing 
               system: buildProspectingKeywordsPrompt(args.useCaseKey),
               prompt: userPrompt,
               temperature: 0.7,
+              maxOutputTokens: PROSPECTING_KEYWORDS_MAX_OUTPUT_TOKENS,
               maxRetries: 2,
               routing: "reasoning",
             });
