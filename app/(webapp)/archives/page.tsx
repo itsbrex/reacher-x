@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
   useActiveUseCaseLabels,
+  useConvexReady,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
 } from "@/shared/hooks";
@@ -67,6 +68,8 @@ export default function ArchivesPage() {
   const browseMode = searchQuery.trim() === "";
   const entitiesLower = entityPlural.toLowerCase();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
+  const { isLoading: isConvexReadyLoading, isReady: isConvexReady } =
+    useConvexReady();
 
   const handleProspectClick = (id: Id<"prospects">) => {
     if (isMobile) {
@@ -78,7 +81,7 @@ export default function ArchivesPage() {
 
   const setupStatusQuery = useQueryWithStatus(
     api.workspaces.getWorkspaceSetupStatus,
-    preferredShellQueryArgs
+    isConvexReady ? preferredShellQueryArgs : "skip"
   );
   const setupStatus = setupStatusQuery.data;
   const workspaceId =
@@ -197,9 +200,12 @@ export default function ArchivesPage() {
   const listFirstPageLoading = browseMode
     ? browseStatus === "LoadingFirstPage"
     : isSearchLoading;
+  const isWorkspaceReady = setupStatus?.status === "complete";
 
   const isLoading =
+    isConvexReadyLoading ||
     setupStatusQuery.isPending ||
+    !isWorkspaceReady ||
     (workspaceId !== null && listFirstPageLoading);
   const isLoadingMore = browseMode
     ? browseStatus === "LoadingMore"
@@ -210,9 +216,15 @@ export default function ArchivesPage() {
   const showProspectPanel =
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
   const showEmptyState =
-    browseMode && !isLoading && archivedProspects.length === 0;
+    isWorkspaceReady &&
+    browseMode &&
+    !isLoading &&
+    archivedProspects.length === 0;
   const showSearchNoMatch =
-    !browseMode && !isSearchLoading && displayProspects.length === 0;
+    isWorkspaceReady &&
+    !browseMode &&
+    !isSearchLoading &&
+    displayProspects.length === 0;
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 md:flex-row md:items-stretch">

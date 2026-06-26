@@ -15,6 +15,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
   useActiveUseCaseLabels,
+  useConvexReady,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
 } from "@/shared/hooks";
@@ -168,6 +169,8 @@ export default function ProspectsPage() {
   const canGoBack = useCanGoBack();
   const entitiesLower = entityPlural.toLowerCase();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
+  const { isLoading: isConvexReadyLoading, isReady: isConvexReady } =
+    useConvexReady();
 
   const tabs = useMemo(
     () =>
@@ -192,12 +195,12 @@ export default function ProspectsPage() {
 
   const setupStatusQuery = useQueryWithStatus(
     api.workspaces.getWorkspaceSetupStatus,
-    preferredShellQueryArgs
+    isConvexReady ? preferredShellQueryArgs : "skip"
   );
   const setupStatus = setupStatusQuery.data as WorkspaceSetupStatus | undefined;
   const shellStateQuery = useQueryWithStatus(
     api.shell.getAppShellState,
-    preferredShellQueryArgs
+    isConvexReady ? preferredShellQueryArgs : "skip"
   );
   const workspaceId =
     setupStatus?.status === "complete" ? setupStatus.workspace.id : null;
@@ -621,11 +624,12 @@ export default function ProspectsPage() {
   const listFirstPageLoading = browseMode
     ? currentTabStatus === "LoadingFirstPage"
     : isSearchLoading;
+  const isWorkspaceReady = setupStatus?.status === "complete";
 
   const isLoading =
+    isConvexReadyLoading ||
     setupStatusQuery.isPending ||
-    setupStatus?.status === "no_workspace" ||
-    setupStatus?.status === "needs_icp" ||
+    !isWorkspaceReady ||
     (workspaceId !== null && listFirstPageLoading);
   const isLoadingMore = browseMode
     ? currentTabStatus === "LoadingMore"
@@ -637,7 +641,10 @@ export default function ProspectsPage() {
   const showProspectPanel =
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
   const showEmptyState =
-    browseMode && !isLoading && displayProspects.length === 0;
+    isWorkspaceReady &&
+    browseMode &&
+    !isLoading &&
+    displayProspects.length === 0;
   const showWaitingState =
     showEmptyState &&
     setupStatus?.status === "complete" &&
@@ -649,7 +656,10 @@ export default function ProspectsPage() {
     (workspaceSystemStatus.mode === "running" ||
       workspaceSystemStatus.mode === "degraded");
   const showSearchNoMatch =
-    !browseMode && !isSearchLoading && displayProspects.length === 0;
+    isWorkspaceReady &&
+    !browseMode &&
+    !isSearchLoading &&
+    displayProspects.length === 0;
   const emptyStateCopy = useMemo(
     () =>
       getProspectPipelineEmptyStateCopy({

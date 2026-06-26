@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
   useActiveUseCaseLabels,
+  useConvexReady,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
   useWorkspace,
@@ -84,6 +85,8 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   );
   const isCanonicalRoute = slug === routes.successSlug;
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
+  const { isLoading: isConvexReadyLoading, isReady: isConvexReady } =
+    useConvexReady();
 
   useEffect(() => {
     if (!isWorkspaceLoading && !isCanonicalRoute) {
@@ -101,7 +104,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
 
   const setupStatusQuery = useQueryWithStatus(
     api.workspaces.getWorkspaceSetupStatus,
-    preferredShellQueryArgs
+    isConvexReady ? preferredShellQueryArgs : "skip"
   );
   const setupStatus = setupStatusQuery.data;
   const workspaceId =
@@ -220,9 +223,12 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   const listFirstPageLoading = browseMode
     ? browseStatus === "LoadingFirstPage"
     : isSearchLoading;
+  const isWorkspaceReady = setupStatus?.status === "complete";
 
   const isLoading =
+    isConvexReadyLoading ||
     setupStatusQuery.isPending ||
+    !isWorkspaceReady ||
     (workspaceId !== null && listFirstPageLoading);
   const isLoadingMore = browseMode
     ? browseStatus === "LoadingMore"
@@ -233,9 +239,15 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   const showProspectPanel =
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
   const showEmptyState =
-    browseMode && !isLoading && convertedProspects.length === 0;
+    isWorkspaceReady &&
+    browseMode &&
+    !isLoading &&
+    convertedProspects.length === 0;
   const showSearchNoMatch =
-    !browseMode && !isSearchLoading && displayProspects.length === 0;
+    isWorkspaceReady &&
+    !browseMode &&
+    !isSearchLoading &&
+    displayProspects.length === 0;
 
   if (!isWorkspaceLoading && !isCanonicalRoute) {
     return null;
