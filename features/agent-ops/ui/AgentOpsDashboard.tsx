@@ -124,14 +124,15 @@ export function AgentOpsDashboard() {
     api.workspaces.getWorkspaceSetupStatus,
     preferredShellQueryArgs
   );
+  const workspaceStatus = workspaceStatusQuery.data;
   const workspaceId =
-    workspaceStatusQuery.data?.status === "complete"
-      ? workspaceStatusQuery.data.workspace.id
+    workspaceStatus?.status === "complete"
+      ? workspaceStatus.workspace.id
       : null;
   const { reportingTimeZone } = useWorkspaceReportingTimeZone(
     workspaceId,
-    workspaceStatusQuery.data?.status === "complete"
-      ? workspaceStatusQuery.data.workspace.reportingTimeZone
+    workspaceStatus?.status === "complete"
+      ? workspaceStatus.workspace.reportingTimeZone
       : null
   );
 
@@ -515,16 +516,6 @@ export function AgentOpsDashboard() {
           >
             Retry
           </Button>
-        </div>
-      ) : null}
-
-      {workspaceStatusQuery.data &&
-      workspaceStatusQuery.data.status !== "complete" ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Workspace setup is incomplete</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Finish setup to unlock the Agent Ops surface.
-          </p>
         </div>
       ) : null}
 
@@ -969,10 +960,6 @@ export function AgentOpsDashboard() {
     </div>
   );
 }
-
-// ============================================================================
-// Helpers
-// ============================================================================
 
 function metricCard(
   id: string,

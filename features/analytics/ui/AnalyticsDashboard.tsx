@@ -202,7 +202,6 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
     [data]
   );
 
-  // Workspace setup gate — valid to block here since there's no workspace to query
   if (workspaceStatusQuery.isError) {
     return (
       <div className={className}>
@@ -222,21 +221,6 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           >
             Retry
           </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Workspace setup gate — valid to block here since there's no workspace to query
-  if (workspaceStatus && workspaceStatus.status !== "complete") {
-    return (
-      <div className={className}>
-        <DateRangeSelector className="mb-4" />
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Analytics setup is incomplete</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Finish workspace setup to unlock analytics data.
-          </p>
         </div>
       </div>
     );
