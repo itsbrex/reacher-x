@@ -572,7 +572,7 @@ export function Header({
                     }}
                   >
                     <UpgradeIcon className="fill-current" aria-hidden="true" />
-                    {isFree ? "Upgrade plan" : "Upgrade for more workspaces"}
+                    Upgrade plan
                   </DropdownMenuItem>
                 )}
 
