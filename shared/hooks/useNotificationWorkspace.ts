@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
-import { useAuth } from "./useAuth";
+import { useConvexReady } from "./useConvexReady";
 import { usePreferredShellQueryArgs } from "./usePreferredShellQueryArgs";
 import { useQueryWithStatus } from "./useQueryWithStatus";
 
@@ -12,11 +12,15 @@ import { useQueryWithStatus } from "./useQueryWithStatus";
  * return null so they don't inherit another workspace's notifications.
  */
 export function useNotificationWorkspace() {
-  const { isAuthenticated } = useAuth();
+  const {
+    error: convexReadyError,
+    isLoading: isConvexReadyLoading,
+    isReady: isConvexReady,
+  } = useConvexReady();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
   const shellStateQuery = useQueryWithStatus(
     api.shell.getAppShellState,
-    isAuthenticated ? preferredShellQueryArgs : "skip"
+    isConvexReady ? preferredShellQueryArgs : "skip"
   );
   const shellState = shellStateQuery.data;
 
@@ -29,6 +33,10 @@ export function useNotificationWorkspace() {
   }, [shellState]);
 
   return {
+    error: convexReadyError ?? shellStateQuery.error ?? null,
+    isLoading:
+      isConvexReadyLoading || (isConvexReady && shellStateQuery.isPending),
+    isReady: isConvexReady,
     workspaceId,
     shellStateQuery,
   };

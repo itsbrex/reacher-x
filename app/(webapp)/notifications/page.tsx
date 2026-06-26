@@ -6,7 +6,6 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
-  useAuth,
   useNotificationWorkspace,
   useQueryWithStatus,
 } from "@/shared/hooks";
@@ -22,23 +21,29 @@ import { Button } from "@/shared/ui/components/Button";
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { isAuthenticated, error: authError } = useAuth();
-  const { workspaceId, shellStateQuery } = useNotificationWorkspace();
+  const {
+    error: notificationWorkspaceError,
+    isLoading: isNotificationWorkspaceLoading,
+    isReady: isNotificationWorkspaceReady,
+    workspaceId,
+    shellStateQuery,
+  } = useNotificationWorkspace();
 
   const notificationsQuery = useQueryWithStatus(
     api.outreach.listNotifications,
-    isAuthenticated && workspaceId
+    isNotificationWorkspaceReady && workspaceId
       ? { workspaceId: workspaceId as Id<"workspaces"> }
       : "skip"
   );
-  const notifications = (notificationsQuery.data ?? []) as NotificationItem[];
+  const notifications = (
+    notificationsQuery.isSuccess ? notificationsQuery.data : []
+  ) as NotificationItem[];
   const markSeen = useMutation(api.outreach.markNotificationSeen);
   const dismissNotification = useMutation(api.outreach.dismissNotification);
 
   const isLoading =
-    isAuthenticated &&
-    (shellStateQuery.isPending ||
-      (workspaceId !== null && notificationsQuery.isPending));
+    isNotificationWorkspaceLoading ||
+    (workspaceId !== null && notificationsQuery.isPending);
 
   const handleSelect = async (
     notification: NotificationItem,
@@ -105,13 +110,13 @@ export default function NotificationsPage() {
         <PageHeader title="Notifications" onBack={() => router.back()} />
         <PageContent className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
           <WorkspacePlanLimitAlert className="mx-4 mb-4" />
-          {(authError ||
+          {(notificationWorkspaceError ||
             shellStateQuery.isError ||
             notificationsQuery.isError) && (
             <div className="mx-4 mb-4 rounded-lg border border-dashed p-4 text-sm">
               <p className="font-medium">Could not load notifications</p>
               <p className="text-muted-foreground mt-1">
-                {authError?.message ||
+                {notificationWorkspaceError?.message ||
                   shellStateQuery.error?.message ||
                   notificationsQuery.error?.message ||
                   "Please try again."}
