@@ -32,7 +32,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       return (
         <code
           className={cn(
-            "bg-muted rounded px-1.5 py-0.5 font-mono text-sm",
+            "text-foreground rounded border px-1.5 py-0.5 font-mono text-sm before:content-none after:content-none",
             className
           )}
           {...props}

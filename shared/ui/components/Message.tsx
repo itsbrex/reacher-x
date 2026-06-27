@@ -114,8 +114,8 @@ const MessageContent = ({
     "prose-h4:text-sm prose-h4:font-medium",
     // Markdown separators / tables should use design-system borders
     "prose-hr:border-border/80",
-    // Code styling
-    "prose-code:text-sm prose-code:bg-muted prose-code:px-1 prose-code:rounded",
+    // Inline code styling should match app chip treatment
+    "prose-code:border prose-code:bg-transparent prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:text-sm prose-code:text-inherit prose-code:before:content-none prose-code:after:content-none",
     // Strong/bold
     "prose-strong:font-semibold"
   );
