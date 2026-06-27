@@ -27,6 +27,7 @@ import {
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import { formatLargeNumber } from "@/shared/lib/utils";
 import type { UsageTrendPoint } from "../../lib/types";
+import { UsageTooltipMetricRow } from "./UsageTooltipMetricRow";
 
 export interface WorkspaceUsageCardProps {
   accentColor: string;
@@ -66,7 +67,7 @@ export const WorkspaceUsageCard = React.memo(function WorkspaceUsageCard({
   const activityConfig = React.useMemo(
     () =>
       ({
-        count: {
+        value: {
           label: "Qualified",
           color: accentColor,
         },
@@ -131,7 +132,7 @@ export const WorkspaceUsageCard = React.memo(function WorkspaceUsageCard({
                 <YAxis hide />
                 <ChartTooltip
                   cursor={{ stroke: accentColor, strokeOpacity: 0.2 }}
-                  content={<ChartTooltipContent indicator="line" />}
+                  content={<ChartTooltipContent indicator="dot" />}
                 />
                 <Area
                   type="monotone"
@@ -169,15 +170,17 @@ export const WorkspaceUsageCard = React.memo(function WorkspaceUsageCard({
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
+                      indicator="dot"
                       formatter={(value, itemName) => (
-                        <div className="flex min-w-28 items-center gap-2">
-                          <span className="text-muted-foreground">
-                            {itemName === "used" ? "Used" : "Unused"}
-                          </span>
-                          <span className="ml-auto font-mono font-medium tabular-nums">
-                            {formatLargeNumber(value as number)}
-                          </span>
-                        </div>
+                        <UsageTooltipMetricRow
+                          color={
+                            itemName === "used"
+                              ? accentColor
+                              : "hsl(var(--muted))"
+                          }
+                          label={itemName === "used" ? "Used" : "Unused"}
+                          value={formatLargeNumber(value as number)}
+                        />
                       )}
                     />
                   }

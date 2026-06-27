@@ -10,6 +10,7 @@ import {
 import { formatLargeNumber } from "@/shared/lib/utils";
 import { ChartCard } from "@/features/analytics/ui/components";
 import type { UsageComparisonMode, UsageComparisonRow } from "../../lib/types";
+import { UsageTooltipMetricRow } from "./UsageTooltipMetricRow";
 
 export interface WorkspaceComparisonChartProps {
   accentColors: string[];
@@ -78,17 +79,18 @@ export const WorkspaceComparisonChart = React.memo(
                     mode === "percent"
                       ? `${value}%`
                       : formatLargeNumber(Number(value));
+                  const fillColor =
+                    typeof item.color === "string"
+                      ? item.color
+                      : "hsl(var(--chart-1))";
 
                   return (
                     <div className="grid min-w-36 gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">
-                          {mode === "percent" ? "Used" : "Qualified"}
-                        </span>
-                        <span className="ml-auto font-mono font-medium tabular-nums">
-                          {formattedValue}
-                        </span>
-                      </div>
+                      <UsageTooltipMetricRow
+                        color={fillColor}
+                        label={mode === "percent" ? "Used" : "Qualified"}
+                        value={formattedValue}
+                      />
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">
                           Cycle total
