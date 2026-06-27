@@ -53,6 +53,7 @@ import {
   replaceProspectActivityOfType,
 } from "./lib/outreachCore";
 import { buildChangedPatchWithUpdatedAt } from "./lib/patchHelpers";
+import { getProspectingRecoveryDelayMs } from "./lib/prospectingHelpers";
 import {
   buildProspectAnalyticsBackfillPatch,
   buildProspectAnalyticsTransitionPatch,
@@ -84,6 +85,32 @@ const WEBHOOK_SAVE_MAX_RETRIES = 8;
 const WEBHOOK_SAVE_RETRY_BASE_MS = 40;
 const WEBHOOK_SAVE_RETRY_MAX_MS = 1000;
 const prospectsLogger = logger.withScope("Prospects");
+
+function deriveWorkspaceNextRunAt(workspace: Doc<"workspaces">): number | null {
+  if (typeof workspace.prospectingNextRecoveryAt === "number") {
+    return workspace.prospectingNextRecoveryAt;
+  }
+
+  if (typeof workspace.prospectingNextRunAt === "number") {
+    return workspace.prospectingNextRunAt;
+  }
+
+  if (
+    workspace.onboardingIssueStatusCode !== "workflow_failed" ||
+    typeof workspace.prospectingLastFailureAt !== "number"
+  ) {
+    return null;
+  }
+
+  const failureStreak = Math.max(1, workspace.prospectingFailureStreak ?? 1);
+  return (
+    workspace.prospectingLastFailureAt +
+    getProspectingRecoveryDelayMs({
+      workspaceId: String(workspace._id),
+      failureStreak,
+    })
+  );
+}
 
 async function getViewerUser(ctx: ViewerCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -758,10 +785,7 @@ export const getOnboardingProgress = query({
       userVisibleIssueState,
       pipelineStartedAt: workspace.prospectingWorkflowStartedAt ?? null,
       pausedAt: workspace.prospectingWorkflowPausedAt ?? null,
-      nextRunAt:
-        workspace.prospectingNextRecoveryAt ??
-        workspace.prospectingNextRunAt ??
-        null,
+      nextRunAt: deriveWorkspaceNextRunAt(workspace),
       phase,
       isDone,
     };

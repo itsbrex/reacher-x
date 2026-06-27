@@ -52,7 +52,30 @@ const STAGES = [
   { id: "plans", label: "Plans", step: 4 },
 ] as const;
 
-const DEFAULT_PROGRESS_DATA = {
+type OnboardingProgressData = {
+  found: number;
+  qualified: number;
+  enriched: number;
+  plansGenerated: number;
+  avgQualificationScore: number;
+  actionableReadyCount: number;
+  readyQualifiedEnrichedCount: number;
+  workflowStatus: "running" | "paused" | "stopped" | "limit_reached";
+  pauseReason: string | null;
+  isResumable: boolean;
+  systemMode: "running" | "degraded" | "paused" | "attention";
+  userVisibleIssueState: {
+    status: string;
+    message: string;
+  } | null;
+  pipelineStartedAt: number | null;
+  pausedAt: number | null;
+  nextRunAt: number | null;
+  phase: "searching" | "qualifying" | "enriching" | "planning" | "done";
+  isDone: boolean;
+};
+
+const DEFAULT_PROGRESS_DATA: OnboardingProgressData = {
   found: 0,
   qualified: 0,
   enriched: 0,
