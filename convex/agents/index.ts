@@ -6,8 +6,8 @@ import { wrapLanguageModel } from "ai";
 import { components, internal } from "../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  CEREBRAS_PROVIDER_OPTIONS,
   FAST_MODEL,
+  FAST_PROVIDER_OPTIONS,
   getOpenRouterExtraBody,
 } from "../lib/ai";
 import {
@@ -63,10 +63,10 @@ function getOpenRouterProvider() {
 
 const openrouter = getOpenRouterProvider();
 const setupLanguageModel = wrapLanguageModel({
-  // Setup is the first-touch onboarding surface, so prioritize fast first-token
-  // latency instead of the slower reasoning route used for deeper outreach work.
+  // Setup stays on the fast route; the shared AI preset decides whether that
+  // means single-provider Cerebras or the cost-optimized fallback chain.
   model: openrouter(FAST_MODEL, {
-    extraBody: getOpenRouterExtraBody(CEREBRAS_PROVIDER_OPTIONS),
+    extraBody: getOpenRouterExtraBody(FAST_PROVIDER_OPTIONS),
   }) as any,
   middleware: openRouterMetadataMiddleware,
 });

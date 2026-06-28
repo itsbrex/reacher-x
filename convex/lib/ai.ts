@@ -39,11 +39,11 @@ export type OpenRouterProviderOptions = {
  * @example
  * ```typescript
  * import { generateText } from 'ai';
- * import { createAIProvider, MODELS } from './lib/ai';
+ * import { createAIProvider, AGENT_PROVIDER_OPTIONS, REASONING_MODEL } from './lib/ai';
  *
  * const provider = createAIProvider();
  * const { text } = await generateText({
- *   model: provider(MODELS.KIMI_K2_6),
+ *   model: provider(REASONING_MODEL),
  *   providerOptions: AGENT_PROVIDER_OPTIONS,
  *   prompt: 'Hello!',
  * });
@@ -87,38 +87,180 @@ export const OPENROUTER_PROVIDERS = {
   WANDB_FP4: "wandb/fp4",
   DECART: "decart",
   CEREBRAS: "cerebras",
+  GROQ: "groq",
 } as const;
+
+export const OPENROUTER_ROUTING_PRESETS = {
+  CURRENT: "current",
+  COST_OPTIMIZED: "cost_optimized",
+} as const;
+
+type OpenRouterProviderSlug =
+  (typeof OPENROUTER_PROVIDERS)[keyof typeof OPENROUTER_PROVIDERS];
+type OpenRouterRoutingPreset =
+  (typeof OPENROUTER_ROUTING_PRESETS)[keyof typeof OPENROUTER_ROUTING_PRESETS];
 
 const FAST_MODEL_TIMEOUT_MS = 10_000;
 const REASONING_MODEL_TIMEOUT_MS = 45_000;
 
 /**
- * Kimi K2.6 is the primary high-intelligence model for agent/chat and
- * non-onboarding generation, constrained to stable ordered providers.
+ * The app supports two local routing presets:
+ * - "current" preserves today's production model/provider behavior
+ * - "cost_optimized" standardizes both fast and reasoning paths on GPT-OSS
+ *
+ * Switch presets with OPENROUTER_ROUTING_PRESET=current|cost_optimized.
  */
-export const REASONING_MODEL = MODELS.KIMI_K2_6;
+const DEFAULT_OPENROUTER_ROUTING_PRESET: OpenRouterRoutingPreset =
+  OPENROUTER_ROUTING_PRESETS.COST_OPTIMIZED;
 
-/**
- * GPT-OSS 120B on Cerebras is used where raw throughput is the main UX lever:
- * onboarding structured tasks, autocomplete, and fast draft repair.
- */
-export const FAST_MODEL = MODELS.GPT_OSS;
+function createOrderedProviderOptions(args: {
+  order: OpenRouterProviderSlug[];
+  allowFallbacks?: boolean;
+  requireParameters?: boolean;
+}): OpenRouterProviderOptions {
+  const provider: OpenRouterProviderRouting = {
+    order: args.order,
+    require_parameters: args.requireParameters ?? true,
+  };
+  if (args.allowFallbacks !== undefined) {
+    provider.allow_fallbacks = args.allowFallbacks;
+  }
 
-export const AUTOCOMPLETE_MODEL = MODELS.GPT_OSS;
-
-export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
-  openrouter: {
-    provider: {
-      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
-      allow_fallbacks: false,
-      require_parameters: true,
+  return {
+    openrouter: {
+      provider,
     },
+  };
+}
+
+function createOnlyProviderOptions(
+  only: OpenRouterProviderSlug[]
+): OpenRouterProviderOptions {
+  return {
+    openrouter: {
+      provider: {
+        only,
+        require_parameters: true,
+      },
+    },
+  };
+}
+
+type RoutingModelConfig = {
+  model: ModelId;
+  providerOptions: OpenRouterProviderOptions;
+  providerLabel: string;
+  timeoutMs: number;
+};
+
+type RoutingPresetConfig = Record<ModelRouting, RoutingModelConfig>;
+
+const CURRENT_ROUTING_CONFIG: RoutingPresetConfig = {
+  fast: {
+    model: MODELS.GPT_OSS,
+    providerOptions: createOnlyProviderOptions([OPENROUTER_PROVIDERS.CEREBRAS]),
+    providerLabel: OPENROUTER_PROVIDERS.CEREBRAS,
+    timeoutMs: FAST_MODEL_TIMEOUT_MS,
+  },
+  reasoning: {
+    model: MODELS.KIMI_K2_6,
+    providerOptions: createOrderedProviderOptions({
+      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
+      allowFallbacks: false,
+    }),
+    providerLabel: `${OPENROUTER_PROVIDERS.BASETEN}/${OPENROUTER_PROVIDERS.WANDB_FP4}`,
+    timeoutMs: REASONING_MODEL_TIMEOUT_MS,
   },
 };
+
+const COST_OPTIMIZED_ROUTING_CONFIG: RoutingPresetConfig = {
+  fast: {
+    model: MODELS.GPT_OSS,
+    providerOptions: createOrderedProviderOptions({
+      order: [OPENROUTER_PROVIDERS.CEREBRAS, OPENROUTER_PROVIDERS.GROQ],
+      allowFallbacks: true,
+    }),
+    providerLabel: `${OPENROUTER_PROVIDERS.CEREBRAS}/${OPENROUTER_PROVIDERS.GROQ}`,
+    timeoutMs: FAST_MODEL_TIMEOUT_MS,
+  },
+  reasoning: {
+    model: MODELS.GPT_OSS,
+    providerOptions: createOrderedProviderOptions({
+      order: [OPENROUTER_PROVIDERS.CEREBRAS, OPENROUTER_PROVIDERS.GROQ],
+      allowFallbacks: true,
+    }),
+    providerLabel: `${OPENROUTER_PROVIDERS.CEREBRAS}/${OPENROUTER_PROVIDERS.GROQ}`,
+    timeoutMs: REASONING_MODEL_TIMEOUT_MS,
+  },
+};
+
+function getConfiguredRoutingPreset(): OpenRouterRoutingPreset {
+  const configuredPreset = process.env.OPENROUTER_ROUTING_PRESET;
+  if (configuredPreset === OPENROUTER_ROUTING_PRESETS.CURRENT) {
+    return OPENROUTER_ROUTING_PRESETS.CURRENT;
+  }
+  if (configuredPreset === OPENROUTER_ROUTING_PRESETS.COST_OPTIMIZED) {
+    return OPENROUTER_ROUTING_PRESETS.COST_OPTIMIZED;
+  }
+  return DEFAULT_OPENROUTER_ROUTING_PRESET;
+}
+
+const ACTIVE_OPENROUTER_ROUTING_PRESET = getConfiguredRoutingPreset();
+
+function getRoutingPresetConfig(): RoutingPresetConfig {
+  if (ACTIVE_OPENROUTER_ROUTING_PRESET === OPENROUTER_ROUTING_PRESETS.CURRENT) {
+    return CURRENT_ROUTING_CONFIG;
+  }
+  return COST_OPTIMIZED_ROUTING_CONFIG;
+}
+
+export const FAST_MODEL = getRoutingPresetConfig().fast.model;
+export const REASONING_MODEL = getRoutingPresetConfig().reasoning.model;
+export const AUTOCOMPLETE_MODEL = getRoutingPresetConfig().fast.model;
+
+export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  getRoutingPresetConfig().reasoning.providerOptions;
+
+export const FAST_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  getRoutingPresetConfig().fast.providerOptions;
 
 export type ModelRouting = "fast" | "reasoning";
 type JsonFailureLogLevel = "error" | "warn" | "info";
 const aiLogger = logger.withScope("AI");
+
+/**
+ * Backward-compatible alias for older fast-route imports.
+ * Prefer FAST_PROVIDER_OPTIONS for new code.
+ */
+export const CEREBRAS_PROVIDER_OPTIONS = FAST_PROVIDER_OPTIONS;
+
+export function getActiveOpenRouterRoutingPreset(): OpenRouterRoutingPreset {
+  return ACTIVE_OPENROUTER_ROUTING_PRESET;
+}
+
+export function getOpenRouterExtraBody(
+  providerOptions: OpenRouterProviderOptions
+): Record<string, JSONValue> {
+  return providerOptions.openrouter;
+}
+
+function getModelForRouting(routing: ModelRouting): RoutingModelConfig {
+  return getRoutingPresetConfig()[routing];
+}
+
+export function getRoutingTelemetry(routing: ModelRouting): {
+  model: ModelId;
+  providerLabel: string;
+  timeoutMs: number;
+} {
+  const { model, providerLabel, timeoutMs } = getModelForRouting(routing);
+
+  return {
+    model,
+    providerLabel,
+    timeoutMs,
+  };
+}
 
 function logJsonFailure(level: JsonFailureLogLevel, ...args: unknown[]) {
   if (level === "info") {
@@ -137,53 +279,6 @@ function logJsonFailure(level: JsonFailureLogLevel, ...args: unknown[]) {
 function logJsonAttemptFailure(level: JsonFailureLogLevel, ...args: unknown[]) {
   logJsonFailure(level === "info" ? "info" : "warn", ...args);
 }
-
-export function getOpenRouterExtraBody(
-  providerOptions: OpenRouterProviderOptions
-): Record<string, JSONValue> {
-  return providerOptions.openrouter;
-}
-
-function getModelForRouting(routing: ModelRouting) {
-  if (routing === "fast") {
-    return {
-      model: MODELS.GPT_OSS,
-      providerOptions: CEREBRAS_PROVIDER_OPTIONS,
-      providerLabel: OPENROUTER_PROVIDERS.CEREBRAS,
-      timeoutMs: FAST_MODEL_TIMEOUT_MS,
-    };
-  }
-
-  return {
-    model: MODELS.KIMI_K2_6,
-    providerOptions: AGENT_PROVIDER_OPTIONS,
-    providerLabel: `${OPENROUTER_PROVIDERS.BASETEN}/${OPENROUTER_PROVIDERS.WANDB_FP4}`,
-    timeoutMs: REASONING_MODEL_TIMEOUT_MS,
-  };
-}
-
-export function getRoutingTelemetry(routing: ModelRouting): {
-  model: ModelId;
-  providerLabel: string;
-  timeoutMs: number;
-} {
-  const { model, providerLabel, timeoutMs } = getModelForRouting(routing);
-
-  return {
-    model,
-    providerLabel,
-    timeoutMs,
-  };
-}
-
-export const CEREBRAS_PROVIDER_OPTIONS: OpenRouterProviderOptions = {
-  openrouter: {
-    provider: {
-      only: [OPENROUTER_PROVIDERS.CEREBRAS],
-      require_parameters: true,
-    },
-  },
-};
 
 // ============================================================================
 // Usage Extraction
@@ -287,7 +382,7 @@ interface RobustGenerateObjectOptions<T> {
   maxRetries?: number;
   /** Initial delay between retries in ms (default: 500) */
   initialDelayMs?: number;
-  /** fast = Cerebras GPT-OSS, reasoning = Kimi K2.6 with provider fallback */
+  /** fast/reasoning resolve through the active local routing preset */
   routing?: ModelRouting;
   /** Optional repair step before Zod validation for known provider edge cases. */
   normalizeParsed?: (value: unknown) => unknown;
@@ -300,8 +395,8 @@ interface RobustGenerateObjectOptions<T> {
 
 /**
  * Robustly generates a structured object with explicit model routing.
- * Onboarding paths use fast Cerebras inference; normal/background reasoning
- * paths use Kimi K2.6 with same-model provider fallback.
+ * The active preset decides which model/providers back "fast" and "reasoning".
+ * In the cost-optimized preset both routes use GPT-OSS with different timeouts.
  */
 export async function robustGenerateObject<T>({
   operation,

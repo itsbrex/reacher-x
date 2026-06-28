@@ -7,10 +7,10 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   AUTOCOMPLETE_MODEL,
-  CEREBRAS_PROVIDER_OPTIONS,
   createAIProvider,
   extractJsonPayload,
   extractUsage,
+  FAST_PROVIDER_OPTIONS,
 } from "./lib/ai";
 import { getStyleMemoryCategory } from "./lib/styleSourceCore";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -374,7 +374,7 @@ Rules:
       prompt,
       temperature: 0.15,
       maxOutputTokens: INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS,
-      providerOptions: CEREBRAS_PROVIDER_OPTIONS,
+      providerOptions: FAST_PROVIDER_OPTIONS,
     });
     const completionText = extractAutocompleteCompletion(result.text);
 
