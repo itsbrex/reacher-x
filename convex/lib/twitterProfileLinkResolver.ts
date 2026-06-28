@@ -11,8 +11,10 @@ import {
   selectTwitterDisplayText,
   type TwitterUrlEntity,
 } from "../../shared/lib/twitter/profileLinks";
+import { isPublicHttpUrl } from "../../shared/lib/utils/url/urlSafety";
 
 const URL_RESOLUTION_TIMEOUT_MS = 6000;
+const SITE_RESOLUTION_TIMEOUT_MS = 8000;
 const MAX_BIO_URL_ENTITIES = 5;
 const DEFAULT_FETCH_HEADERS = {
   "User-Agent":
@@ -36,44 +38,23 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function isPrivateHostname(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  if (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized === "0.0.0.0" ||
-    normalized === "::1" ||
-    normalized.endsWith(".localhost")
-  ) {
-    return true;
+function getEnvValue(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) {
+      return value;
+    }
   }
 
-  if (
-    normalized.startsWith("10.") ||
-    normalized.startsWith("192.168.") ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
-  ) {
-    return true;
-  }
-
-  return false;
+  return undefined;
 }
 
-function isPublicHttpUrl(url: string | undefined): url is string {
-  if (!url) {
-    return false;
-  }
-
-  const normalized = normalizeHttpUrl(url);
-  if (!normalized) {
-    return false;
-  }
-
-  try {
-    return !isPrivateHostname(new URL(normalized).hostname);
-  } catch {
-    return false;
-  }
+function getPublicSiteUrl(): string | undefined {
+  const siteUrl = getEnvValue(
+    "TWITTER_LINK_RESOLVER_BASE_URL",
+    "NEXT_PUBLIC_SITE_URL"
+  )?.replace(/\/$/, "");
+  return siteUrl && isPublicHttpUrl(siteUrl) ? siteUrl : undefined;
 }
 
 async function fetchResolvedUrl(
@@ -104,6 +85,52 @@ async function fetchResolvedUrl(
   }
 }
 
+async function resolveExternalUrlViaPublicSite(
+  url: string
+): Promise<string | undefined> {
+  const siteUrl = getPublicSiteUrl();
+  if (!siteUrl) {
+    return undefined;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    SITE_RESOLUTION_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(
+      `${siteUrl}/api/resolve-twitter-url?url=${encodeURIComponent(url)}`,
+      {
+        method: "GET",
+        redirect: "follow",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = asRecord(await response.json());
+    if (!payload || payload.success !== true) {
+      return undefined;
+    }
+
+    const resolvedUrl = asString(payload.resolvedUrl);
+    return isPublicHttpUrl(resolvedUrl) ? resolvedUrl : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function resolveExternalUrl(
   url: string
 ): Promise<string | undefined> {
@@ -116,11 +143,22 @@ export async function resolveExternalUrl(
     return normalized;
   }
 
-  return (
-    (await fetchResolvedUrl(normalized, "HEAD")) ??
-    (await fetchResolvedUrl(normalized, "GET")) ??
-    normalized
-  );
+  const headResolvedUrl = await fetchResolvedUrl(normalized, "HEAD");
+  if (headResolvedUrl && !isTwitterShortUrl(headResolvedUrl)) {
+    return headResolvedUrl;
+  }
+
+  const getResolvedUrl = await fetchResolvedUrl(normalized, "GET");
+  if (getResolvedUrl && !isTwitterShortUrl(getResolvedUrl)) {
+    return getResolvedUrl;
+  }
+
+  const siteResolvedUrl = await resolveExternalUrlViaPublicSite(normalized);
+  if (siteResolvedUrl && !isTwitterShortUrl(siteResolvedUrl)) {
+    return siteResolvedUrl;
+  }
+
+  return normalized;
 }
 
 async function resolveTwitterUrlEntity(
