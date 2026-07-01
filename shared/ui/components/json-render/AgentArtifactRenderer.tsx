@@ -15,6 +15,7 @@ import { OnboardingProgressCard } from "@/features/agent/ui/components/Onboardin
 import { PostCard } from "@/features/agent/ui/components/PostCard";
 import { InlineFeatureStrip } from "@/shared/ui/components/InlineFeatureStrip";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   OutreachPlanCard,
   type OutreachPlanCardTask,
@@ -326,15 +327,25 @@ function PlanPreviewArtifactCard({
   };
 }) {
   const { onOpenPlanPanel, onApprovePlan } = useAgentArtifactActions();
+  const livePlanData = useQuery(
+    api.outreach.getPlanById,
+    props.planId ? { planId: props.planId as Id<"outreachPlans"> } : "skip"
+  );
+  const liveStatus = livePlanData?.plan.status ?? props.status;
+  const liveRationale =
+    livePlanData?.plan.strategy.rationale ?? props.rationale;
+  const liveTasks =
+    (livePlanData?.tasks as OutreachPlanCardTask[] | undefined) ??
+    (props.tasks as OutreachPlanCardTask[]);
 
   return (
     <OutreachPlanCard
       variant="preview"
-      status={props.status}
-      rationale={props.rationale}
-      tasks={props.tasks as OutreachPlanCardTask[]}
+      status={liveStatus}
+      rationale={liveRationale}
+      tasks={liveTasks}
       onApprove={
-        props.status === "draft" && props.planId && onApprovePlan
+        liveStatus === "draft" && props.planId && onApprovePlan
           ? () => {
               void onApprovePlan(props.planId!);
             }
@@ -411,7 +422,17 @@ function DmDraftArtifactCard({
   };
 }) {
   const { onOpenPanel } = useAgentArtifactActions();
-  const platform = props.platform ?? "twitter";
+  const liveActionRequestData = useQuery(
+    api.socialActions.getActionRequestPanelContext,
+    props.actionRequestId
+      ? { actionRequestId: props.actionRequestId as Id<"agentActionRequests"> }
+      : "skip"
+  );
+  const platform =
+    liveActionRequestData?.platform ?? props.platform ?? "twitter";
+  const liveStatus = liveActionRequestData?.status ?? props.status;
+  const liveDraftContent =
+    liveActionRequestData?.content ?? props.draftContent ?? null;
 
   if (platform === "linkedin") {
     return (
@@ -421,9 +442,9 @@ function DmDraftArtifactCard({
           {props.message ? (
             <p className="text-muted-foreground text-xs">{props.message}</p>
           ) : null}
-          {props.draftContent ? (
+          {liveDraftContent ? (
             <p className="bg-background/80 rounded-md border px-2 py-1 text-xs whitespace-pre-wrap">
-              {props.draftContent}
+              {liveDraftContent}
             </p>
           ) : null}
         </div>
@@ -435,7 +456,7 @@ function DmDraftArtifactCard({
                 <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
               </div>
               <span className="text-sm font-medium">
-                {props.status === "completed"
+                {liveStatus === "completed"
                   ? "LinkedIn result →"
                   : "Review LinkedIn draft →"}
               </span>
@@ -451,11 +472,11 @@ function DmDraftArtifactCard({
                   platform: "linkedin",
                   prospectId: props.prospectId,
                   actionRequestId: props.actionRequestId,
-                  draftText: props.draftContent ?? undefined,
+                  draftText: liveDraftContent ?? undefined,
                 });
               }}
             >
-              {props.status === "completed" ? "Open result" : "Review"}
+              {liveStatus === "completed" ? "Open result" : "Review"}
             </Button>
           }
         />
@@ -473,7 +494,7 @@ function DmDraftArtifactCard({
           platform: "twitter",
           prospectId: props.prospectId,
           actionRequestId: props.actionRequestId,
-          draftText: props.draftContent ?? undefined,
+          draftText: liveDraftContent ?? undefined,
         });
       }}
     />
@@ -535,6 +556,7 @@ function TwitterActionArtifactCard({
     livePanelData?.sourcePostSummary ?? props.sourcePostSummary
   );
   const sourceContext = livePanelData?.sourceContext ?? props.sourceContext;
+  const liveStatus = livePanelData?.status ?? props.status;
 
   const canReviewInPanel =
     props.interactive !== false &&
@@ -555,19 +577,19 @@ function TwitterActionArtifactCard({
         "Connect X/Twitter in Settings → Connected accounts to message this prospect.");
 
   const reviewButtonLabel =
-    props.status === "completed" ? "Open result" : "Review";
+    liveStatus === "completed" ? "Open result" : "Review";
   const showInlineApprove =
-    props.status === "pending_approval" &&
+    liveStatus === "pending_approval" &&
     !!props.actionRequestId &&
     !canReviewInPanel;
 
   if (
     isReplyAction &&
-    (props.status === "pending_approval" || props.status === "completed")
+    (liveStatus === "pending_approval" || liveStatus === "completed")
   ) {
     return (
       <InlineReplyApprovalCard
-        status={props.status}
+        status={liveStatus}
         draftContent={liveDraftContent}
         mediaUrls={livePanelData?.mediaUrls ?? []}
         mediaDescriptions={livePanelData?.mediaDescriptions ?? []}
@@ -585,8 +607,7 @@ function TwitterActionArtifactCard({
                   postRef: sourcePostRef,
                   postSummary: sourcePostSummary,
                   context: sourceContext ?? undefined,
-                  panelMode:
-                    props.status === "completed" ? "posted" : "approval",
+                  panelMode: liveStatus === "completed" ? "posted" : "approval",
                   targetTweetId: props.targetTweetId ?? undefined,
                   actionRequestId: props.actionRequestId ?? undefined,
                 });
@@ -594,7 +615,7 @@ function TwitterActionArtifactCard({
             : undefined
         }
         onApprove={
-          props.status === "pending_approval" && props.actionRequestId
+          liveStatus === "pending_approval" && props.actionRequestId
             ? async () => {
                 try {
                   setPendingInlineAction("approve");
@@ -608,7 +629,7 @@ function TwitterActionArtifactCard({
             : undefined
         }
         onReject={
-          props.status === "pending_approval" && props.actionRequestId
+          liveStatus === "pending_approval" && props.actionRequestId
             ? async () => {
                 try {
                   setPendingInlineAction("reject");
@@ -665,7 +686,7 @@ function TwitterActionArtifactCard({
         {props.message && (
           <p className="text-muted-foreground text-xs">{props.message}</p>
         )}
-        {liveDraftContent && props.status === "pending_approval" && (
+        {liveDraftContent && liveStatus === "pending_approval" && (
           <p className="bg-background/80 rounded-md border px-2 py-1 text-xs whitespace-pre-wrap">
             {liveDraftContent}
           </p>
@@ -702,9 +723,9 @@ function TwitterActionArtifactCard({
               <ChangeHistoryIcon className="text-foreground size-4 fill-current" />
             </div>
             <span className="text-sm font-medium">
-              {props.status === "pending_approval"
+              {liveStatus === "pending_approval"
                 ? "Input required →"
-                : props.status === "completed"
+                : liveStatus === "completed"
                   ? "Action result →"
                   : "Action preview →"}
             </span>
@@ -743,7 +764,7 @@ function TwitterActionArtifactCard({
                       postSummary: sourcePostSummary,
                       context: sourceContext ?? undefined,
                       panelMode:
-                        props.status === "completed" ? "posted" : "approval",
+                        liveStatus === "completed" ? "posted" : "approval",
                       targetTweetId: props.targetTweetId ?? undefined,
                       actionRequestId: props.actionRequestId ?? undefined,
                     });
@@ -762,7 +783,7 @@ function TwitterActionArtifactCard({
                       postSummary: sourcePostSummary,
                       context: sourceContext ?? undefined,
                       panelMode:
-                        props.status === "completed" ? "posted" : "approval",
+                        liveStatus === "completed" ? "posted" : "approval",
                       targetTweetId: props.targetTweetId ?? undefined,
                       actionRequestId: props.actionRequestId ?? undefined,
                     });

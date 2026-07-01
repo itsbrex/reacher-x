@@ -461,6 +461,42 @@ function findSourcePostInProspect(
   };
 }
 
+function buildOutreachPlanViewTasks(
+  tasks: Doc<"outreachTasks">[],
+  prospect: Doc<"prospects"> | null
+) {
+  return tasks.map((task) => {
+    const fallbackSource = findSourcePostInProspect(
+      prospect,
+      task.targetTweetId
+    );
+    const sourcePostSummary =
+      task.approvalContext?.sourcePostSummary ??
+      fallbackSource?.sourcePostSummary;
+    const sourcePostRef =
+      task.approvalContext?.sourcePostRef ?? fallbackSource?.sourcePostRef;
+    const sourcePostData = fallbackSource?.sourcePostData;
+    const sourcePlatform =
+      task.approvalContext?.platform ?? fallbackSource?.platform;
+
+    return {
+      ...task,
+      approvalReady: Boolean(task.approvalEventId),
+      originalPost:
+        task.type === "comment" &&
+        sourcePlatform &&
+        (sourcePostSummary || sourcePostData)
+          ? {
+              platform: sourcePlatform,
+              postRef: sourcePostRef,
+              postSummary: sourcePostSummary,
+              postData: sourcePostData,
+            }
+          : null,
+    };
+  });
+}
+
 async function resolveTaskForPanel(args: {
   ctx: QueryCtx | MutationCtx;
   taskId?: Id<"outreachTasks">;
@@ -586,40 +622,37 @@ export const getProspectPlan = query({
     }
 
     const prospect = await ctx.db.get(prospectId);
-    const tasks = activePlan.tasks.map((task) => {
-      const fallbackSource = findSourcePostInProspect(
-        prospect,
-        task.targetTweetId
-      );
-      const sourcePostSummary =
-        task.approvalContext?.sourcePostSummary ??
-        fallbackSource?.sourcePostSummary;
-      const sourcePostRef =
-        task.approvalContext?.sourcePostRef ?? fallbackSource?.sourcePostRef;
-      const sourcePostData = fallbackSource?.sourcePostData;
-      const sourcePlatform =
-        task.approvalContext?.platform ?? fallbackSource?.platform;
-
-      return {
-        ...task,
-        approvalReady: Boolean(task.approvalEventId),
-        originalPost:
-          task.type === "comment" &&
-          sourcePlatform &&
-          (sourcePostSummary || sourcePostData)
-            ? {
-                platform: sourcePlatform,
-                postRef: sourcePostRef,
-                postSummary: sourcePostSummary,
-                postData: sourcePostData,
-              }
-            : null,
-      };
-    });
+    const tasks = buildOutreachPlanViewTasks(activePlan.tasks, prospect);
 
     return {
       plan: activePlan.plan,
       tasks,
+    };
+  },
+});
+
+/**
+ * Get a specific plan by id with tasks (public).
+ */
+export const getPlanById = query({
+  args: { planId: v.id("outreachPlans") },
+  handler: async (ctx, { planId }) => {
+    const user = await requireViewerUser(ctx);
+    const plan = await requireOwnedPlan(ctx, planId, {
+      user,
+      notFoundMessage: "Plan not found",
+      notAuthorizedMessage: "Not authorized to view this plan",
+    });
+
+    const tasks = await ctx.db
+      .query("outreachTasks")
+      .withIndex("by_plan_order", (q) => q.eq("planId", planId))
+      .collect();
+    const prospect = await ctx.db.get(plan.prospectId);
+
+    return {
+      plan,
+      tasks: buildOutreachPlanViewTasks(tasks, prospect),
     };
   },
 });

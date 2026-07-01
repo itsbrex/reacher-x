@@ -73,7 +73,10 @@ import { AgentArtifactRenderer } from "@/shared/ui/components/json-render";
 import { getAgentArtifactFromResult } from "@/shared/lib/json-render/agentArtifacts";
 import { logger } from "@/shared/lib/logger";
 import { AgentProspectEmptyState } from "./components/AgentProspectEmptyState";
-import { OutreachPlanCard } from "@/features/prospects/ui/components/outreach-plan";
+import {
+  OutreachPlanCard,
+  type OutreachPlanCardTask,
+} from "@/features/prospects/ui/components/outreach-plan";
 import { Button, buttonVariants } from "@/shared/ui/components/Button";
 import {
   Tooltip,
@@ -322,6 +325,57 @@ function ArtifactToolResult({
   );
 }
 
+function LivePlanPreviewCard({
+  planId,
+  fallbackStatus,
+  fallbackRationale,
+  fallbackTasks,
+  onOpenPlanPanel,
+  onApprovePlan,
+}: {
+  planId?: string;
+  fallbackStatus: string;
+  fallbackRationale: string;
+  fallbackTasks: OutreachPlanCardTask[];
+  onOpenPlanPanel?: () => void;
+  onApprovePlan: (planId: string) => void;
+}) {
+  const livePlanData = useQuery(
+    api.outreach.getPlanById,
+    planId ? { planId: planId as Id<"outreachPlans"> } : "skip"
+  );
+  const liveStatus = livePlanData?.plan.status ?? fallbackStatus;
+  const liveRationale =
+    livePlanData?.plan.strategy.rationale ?? fallbackRationale;
+  const liveTasks =
+    (livePlanData?.tasks as OutreachPlanCardTask[] | undefined) ??
+    fallbackTasks;
+
+  return (
+    <OutreachPlanCard
+      variant="preview"
+      status={liveStatus}
+      rationale={liveRationale}
+      tasks={liveTasks}
+      onApprove={
+        liveStatus === "draft" && planId
+          ? () => {
+              onApprovePlan(planId);
+            }
+          : undefined
+      }
+      footerAction={
+        onOpenPlanPanel
+          ? {
+              label: "Show plan",
+              onClick: onOpenPlanPanel,
+            }
+          : undefined
+      }
+    />
+  );
+}
+
 function ToolCallVisualization({
   toolCalls,
   onOpenPanelFromCard,
@@ -404,29 +458,18 @@ function ToolCallVisualization({
       ) {
         const planId = typeof plan.id === "string" ? plan.id : undefined;
         return (
-          <OutreachPlanCard
+          <LivePlanPreviewCard
             key={`${tc.toolName}-${idx}`}
-            variant="preview"
-            status={plan.status}
-            rationale={plan.strategy.rationale}
-            tasks={tasks}
-            onApprove={
-              plan.status === "draft" && planId
-                ? () => {
-                    void approvePlan({
-                      planId: planId as Id<"outreachPlans">,
-                    });
-                  }
-                : undefined
-            }
-            footerAction={
-              onOpenPlanPanel
-                ? {
-                    label: "Show plan",
-                    onClick: onOpenPlanPanel,
-                  }
-                : undefined
-            }
+            planId={planId}
+            fallbackStatus={plan.status}
+            fallbackRationale={plan.strategy.rationale}
+            fallbackTasks={tasks}
+            onOpenPlanPanel={onOpenPlanPanel}
+            onApprovePlan={(resolvedPlanId: string) => {
+              void approvePlan({
+                planId: resolvedPlanId as Id<"outreachPlans">,
+              });
+            }}
           />
         );
       }
