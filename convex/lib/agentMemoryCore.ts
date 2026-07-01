@@ -13,6 +13,7 @@ import {
   isWorkspaceAgentOpsDailyRecordEmpty,
   mergeWorkspaceAgentOpsContributions,
 } from "./agentOpsReadModelHelpers";
+import { getUtcDayStartTimestamp } from "./readModelHelpers";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 
 type MemoryDbReader = GenericDatabaseReader<any>;
@@ -652,6 +653,7 @@ export async function ensureWorkspaceAgentMemoryInventoryRecord(
     workspaceId: args.workspaceId,
     memoryId: args.record.memoryId,
     createdAt: args.record.createdAt,
+    createdDayStartUtcMs: getUtcDayStartTimestamp(args.record.createdAt),
     title: args.record.title,
     summary: args.record.summary,
     source: args.record.source,

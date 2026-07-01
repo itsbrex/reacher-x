@@ -38,7 +38,8 @@ import { listWorkspaceQueryPerformanceDailyRows } from "./workspaceQueryPerforma
 
 const AGENT_OPS_ACTIVITY_MEMORY_LIMIT = 80;
 const AGENT_OPS_MEMORY_PAGE_SIZE_MAX = 100;
-const AGENT_OPS_MEMORY_SCAN_BATCH_SIZE = 500;
+const AGENT_OPS_MEMORY_SCAN_BATCH_SIZE = 250;
+const UTC_DAY_MS = 24 * 60 * 60 * 1000;
 
 async function requireOwnedWorkspaceContext(
   ctx: QueryCtx,
@@ -61,17 +62,47 @@ function getWindowDayRange(window: TimeWindow) {
   };
 }
 
+function listWindowDayStarts(window: TimeWindow) {
+  const { startDayStartUtcMs, endDayStartUtcMs } = getWindowDayRange(window);
+  const dayStarts: number[] = [];
+
+  for (
+    let dayStartUtcMs = startDayStartUtcMs;
+    dayStartUtcMs <= endDayStartUtcMs;
+    dayStartUtcMs += UTC_DAY_MS
+  ) {
+    dayStarts.push(dayStartUtcMs);
+  }
+
+  return dayStarts;
+}
+
 type MemoryInventoryChunkResult = {
   page: WorkspaceAgentMemoryInventoryRecord[];
   continueCursor: string;
   isDone: boolean;
 };
 
-function isMemoryInventoryRowInWindow(
-  row: WorkspaceAgentMemoryInventoryRecord,
-  window: TimeWindow
+function compareMemoryInventoryRows(
+  left: WorkspaceAgentMemoryInventoryRecord,
+  right: WorkspaceAgentMemoryInventoryRecord,
+  sort: "impact_desc" | "confidence_desc" | "recent_desc"
 ) {
-  return row.createdAt >= window.startMs && row.createdAt < window.endMs;
+  if (sort === "impact_desc") {
+    if (right.impactScore !== left.impactScore) {
+      return right.impactScore - left.impactScore;
+    }
+    return right.createdAt - left.createdAt;
+  }
+
+  if (sort === "confidence_desc") {
+    if (right.confidence !== left.confidence) {
+      return right.confidence - left.confidence;
+    }
+    return right.createdAt - left.createdAt;
+  }
+
+  return right.createdAt - left.createdAt;
 }
 
 async function loadMemoryInventoryChunk(
@@ -84,43 +115,13 @@ async function loadMemoryInventoryChunk(
     limit: number;
   }
 ): Promise<MemoryInventoryChunkResult> {
-  if (args.sort === "recent_desc") {
-    const result: MemoryInventoryChunkResult = await ctx.runQuery(
-      internal.agentOpsReadModels
-        .listWorkspaceAgentMemoryInventoryRecentPageInternal,
-      {
-        workspaceId: args.workspaceId,
-        startMs: args.window.startMs,
-        endMs: args.window.endMs,
-        paginationOpts: {
-          cursor: args.cursor,
-          numItems: args.limit,
-        },
-      }
-    );
-    return result;
-  }
-
-  if (args.sort === "confidence_desc") {
-    const result: MemoryInventoryChunkResult = await ctx.runQuery(
-      internal.agentOpsReadModels
-        .listWorkspaceAgentMemoryInventoryConfidencePageInternal,
-      {
-        workspaceId: args.workspaceId,
-        paginationOpts: {
-          cursor: args.cursor,
-          numItems: args.limit,
-        },
-      }
-    );
-    return result;
-  }
-
   const result: MemoryInventoryChunkResult = await ctx.runQuery(
     internal.agentOpsReadModels
-      .listWorkspaceAgentMemoryInventoryImpactPageInternal,
+      .listWorkspaceAgentMemoryInventoryRecentPageInternal,
     {
       workspaceId: args.workspaceId,
+      startMs: args.window.startMs,
+      endMs: args.window.endMs,
       paginationOpts: {
         cursor: args.cursor,
         numItems: args.limit,
@@ -128,6 +129,133 @@ async function loadMemoryInventoryChunk(
     }
   );
   return result;
+}
+
+async function scanWindowMemoryInventoryMatches(
+  ctx: QueryCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    window: TimeWindow;
+    sort: "impact_desc" | "confidence_desc" | "recent_desc";
+    search?: string;
+    category?: string;
+    matchLimit: number | null;
+  }
+) {
+  const rows: WorkspaceAgentMemoryInventoryRecord[] = [];
+  let cursor: string | null = null;
+
+  while (true) {
+    const chunk = await loadMemoryInventoryChunk(ctx, {
+      workspaceId: args.workspaceId,
+      window: args.window,
+      sort: "recent_desc",
+      cursor,
+      limit: AGENT_OPS_MEMORY_SCAN_BATCH_SIZE,
+    });
+
+    for (const row of chunk.page) {
+      if (
+        !matchesAgentOpsMemoryInventoryFilters(row, {
+          search: args.search,
+          category: args.category,
+        })
+      ) {
+        continue;
+      }
+
+      rows.push(row);
+    }
+
+    if (chunk.isDone) {
+      break;
+    }
+
+    cursor = chunk.continueCursor;
+  }
+
+  rows.sort((left, right) =>
+    compareMemoryInventoryRows(left, right, args.sort)
+  );
+
+  const matches =
+    args.matchLimit === null ? rows : rows.slice(0, args.matchLimit);
+
+  return {
+    matches,
+    totalMatchedCount: rows.length,
+    reachedEnd: true,
+  };
+}
+
+async function loadTopWindowMemoryInventoryMatches(
+  ctx: QueryCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    window: TimeWindow;
+    sort: "impact_desc" | "confidence_desc";
+    matchLimit: number;
+  }
+) {
+  const dayStarts = listWindowDayStarts(args.window);
+  let perDayLimit = Math.min(
+    AGENT_OPS_MEMORY_SCAN_BATCH_SIZE,
+    Math.max(25, args.matchLimit * 4)
+  );
+
+  while (true) {
+    const dayResults: MemoryInventoryChunkResult[] = await Promise.all(
+      dayStarts.map((dayStartUtcMs) =>
+        ctx.runQuery(
+          args.sort === "impact_desc"
+            ? internal.agentOpsReadModels
+                .listWorkspaceAgentMemoryInventoryDayImpactPageInternal
+            : internal.agentOpsReadModels
+                .listWorkspaceAgentMemoryInventoryDayConfidencePageInternal,
+          {
+            workspaceId: args.workspaceId,
+            dayStartUtcMs,
+            paginationOpts: {
+              cursor: null,
+              numItems: perDayLimit,
+            },
+          }
+        )
+      )
+    );
+
+    const rows = dayResults
+      .flatMap((result) => result.page)
+      .filter(
+        (row) =>
+          row.createdAt >= args.window.startMs &&
+          row.createdAt < args.window.endMs
+      )
+      .sort((left, right) =>
+        compareMemoryInventoryRows(left, right, args.sort)
+      );
+    const isExhausted = dayResults.every(
+      (result) => result.isDone || result.page.length < perDayLimit
+    );
+
+    if (rows.length >= args.matchLimit || isExhausted) {
+      return {
+        matches: rows.slice(0, args.matchLimit),
+        totalMatchedCount: rows.length,
+        reachedEnd: isExhausted,
+      };
+    }
+
+    if (perDayLimit >= AGENT_OPS_MEMORY_SCAN_BATCH_SIZE) {
+      return {
+        matches: rows.slice(0, args.matchLimit),
+        totalMatchedCount: rows.length,
+        reachedEnd: false,
+      };
+    }
+
+    perDayLimit = Math.min(AGENT_OPS_MEMORY_SCAN_BATCH_SIZE, perDayLimit * 2);
+  }
 }
 
 async function scanMemoryInventoryMatches(
@@ -145,6 +273,10 @@ async function scanMemoryInventoryMatches(
   totalMatchedCount: number;
   reachedEnd: boolean;
 }> {
+  if (args.sort !== "recent_desc") {
+    return await scanWindowMemoryInventoryMatches(ctx, args);
+  }
+
   const matches: WorkspaceAgentMemoryInventoryRecord[] = [];
   let totalMatchedCount = 0;
   let cursor: string | null = null;
@@ -159,13 +291,6 @@ async function scanMemoryInventoryMatches(
     });
 
     for (const row of chunk.page) {
-      if (
-        args.sort !== "recent_desc" &&
-        !isMemoryInventoryRowInWindow(row, args.window)
-      ) {
-        continue;
-      }
-
       if (
         !matchesAgentOpsMemoryInventoryFilters(row, {
           search: args.search,
@@ -444,6 +569,48 @@ export const getAgentOpsMemoryInventoryPage = query({
     const availableCategories = [...WORKSPACE_MEMORY_CATEGORIES].sort(
       (left, right) => left.localeCompare(right)
     );
+
+    if (!hasDynamicFilters && sort !== "recent_desc") {
+      const estimatedTotalCount = await getUnfilteredMemoryInventoryCount(
+        ctx.db,
+        {
+          workspaceId: args.workspaceId,
+          window: normalizedWindow.current,
+        }
+      );
+      const estimatedTotalPages = Math.max(
+        1,
+        Math.ceil(estimatedTotalCount / pageSize)
+      );
+      const safeEstimatedPage = Math.min(
+        requestedPage,
+        estimatedTotalPages - 1
+      );
+      const startIndex = safeEstimatedPage * pageSize;
+      const topRowsResult = await loadTopWindowMemoryInventoryMatches(ctx, {
+        workspaceId: args.workspaceId,
+        window: normalizedWindow.current,
+        sort,
+        matchLimit: startIndex + pageSize,
+      });
+      const totalCount = topRowsResult.reachedEnd
+        ? topRowsResult.totalMatchedCount
+        : estimatedTotalCount;
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+      const safePage = Math.min(requestedPage, totalPages - 1);
+      const safeStartIndex = safePage * pageSize;
+
+      return buildAgentOpsMemoryInventoryPage({
+        rows: topRowsResult.matches.slice(
+          safeStartIndex,
+          safeStartIndex + pageSize
+        ),
+        page: safePage,
+        totalCount,
+        totalPages,
+        availableCategories,
+      });
+    }
 
     if (hasDynamicFilters) {
       const scanResult = await scanMemoryInventoryMatches(ctx, {

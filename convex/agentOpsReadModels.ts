@@ -30,8 +30,11 @@ import {
   type WorkspaceQueryPerformanceDailyRecord,
 } from "./lib/agentOpsReadModelHelpers";
 import { buildQueryCandidateCanonicalRecord } from "./lib/memoryHelpers";
+import { getUtcDayStartTimestamp } from "./lib/readModelHelpers";
 import { getNumberProperty, isRecord } from "./lib/typeGuards";
 import { memorySuggestionStatusValidator } from "./validators";
+
+const AGENT_MEMORY_DAY_BUCKET_BACKFILL_BATCH_SIZE = 500;
 
 export const listWorkspaceKeywordsPageForReadModelInternal = internalQuery({
   args: {
@@ -209,6 +212,31 @@ export const listWorkspaceAgentMemoryInventoryImpactPageInternal =
     },
   });
 
+export const listWorkspaceAgentMemoryInventoryDayImpactPageInternal =
+  internalQuery({
+    args: {
+      workspaceId: v.id("workspaces"),
+      dayStartUtcMs: v.number(),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, dayStartUtcMs, paginationOpts }) => {
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_day_and_impact_score_and_created_at", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("createdDayStartUtcMs", dayStartUtcMs)
+        )
+        .order("desc")
+        .paginate(paginationOpts);
+
+      return {
+        ...result,
+        page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
+      };
+    },
+  });
+
 export const listWorkspaceAgentMemoryInventoryConfidencePageInternal =
   internalQuery({
     args: {
@@ -228,6 +256,105 @@ export const listWorkspaceAgentMemoryInventoryConfidencePageInternal =
         ...result,
         page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
       };
+    },
+  });
+
+export const listWorkspaceAgentMemoryInventoryDayConfidencePageInternal =
+  internalQuery({
+    args: {
+      workspaceId: v.id("workspaces"),
+      dayStartUtcMs: v.number(),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, dayStartUtcMs, paginationOpts }) => {
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_day_and_confidence_and_created_at", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("createdDayStartUtcMs", dayStartUtcMs)
+        )
+        .order("desc")
+        .paginate(paginationOpts);
+
+      return {
+        ...result,
+        page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
+      };
+    },
+  });
+
+export const backfillWorkspaceAgentMemoryInventoryDayBucketsBatchInternal =
+  internalMutation({
+    args: {
+      workspaceId: v.id("workspaces"),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, paginationOpts }) => {
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_created_at", (q) =>
+          q.eq("workspaceId", workspaceId)
+        )
+        .paginate(paginationOpts);
+      let updated = 0;
+
+      for (const row of result.page) {
+        const createdDayStartUtcMs = getUtcDayStartTimestamp(row.createdAt);
+        if (row.createdDayStartUtcMs === createdDayStartUtcMs) {
+          continue;
+        }
+
+        await ctx.db.patch(row._id, { createdDayStartUtcMs });
+        updated += 1;
+      }
+
+      return {
+        continueCursor: result.continueCursor,
+        isDone: result.isDone,
+        scanned: result.page.length,
+        updated,
+      };
+    },
+  });
+
+export const backfillWorkspaceAgentMemoryInventoryDayBucketsInternal =
+  internalAction({
+    args: {
+      workspaceId: v.id("workspaces"),
+    },
+    handler: async (ctx, { workspaceId }) => {
+      let cursor: string | null = null;
+      let scanned = 0;
+      let updated = 0;
+
+      while (true) {
+        const result: {
+          continueCursor: string;
+          isDone: boolean;
+          scanned: number;
+          updated: number;
+        } = await ctx.runMutation(
+          internal.agentOpsReadModels
+            .backfillWorkspaceAgentMemoryInventoryDayBucketsBatchInternal,
+          {
+            workspaceId,
+            paginationOpts: {
+              cursor,
+              numItems: AGENT_MEMORY_DAY_BUCKET_BACKFILL_BATCH_SIZE,
+            },
+          }
+        );
+
+        scanned += result.scanned;
+        updated += result.updated;
+
+        if (result.isDone) {
+          return { scanned, updated };
+        }
+
+        cursor = result.continueCursor;
+      }
     },
   });
 
