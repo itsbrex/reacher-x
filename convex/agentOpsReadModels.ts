@@ -9,6 +9,7 @@ import {
 } from "./lib/functionBuilders";
 import {
   listWorkspaceAgentMemoriesPage,
+  type WorkspaceAgentMemoryInventoryRecord,
   type WorkspaceAgentMemoryRecord,
 } from "./lib/agentMemoryCore";
 import {
@@ -138,6 +139,95 @@ export const listWorkspaceBuiltInMemoriesPageForReadModelInternal =
         cursor: paginationOpts.cursor,
         limit: paginationOpts.numItems,
       });
+    },
+  });
+
+function toWorkspaceAgentMemoryInventoryRecord(
+  row: Doc<"workspaceAgentMemoryInventory">
+): WorkspaceAgentMemoryInventoryRecord {
+  return {
+    memoryId: row.memoryId,
+    createdAt: row.createdAt,
+    title: row.title,
+    summary: row.summary,
+    source: row.source,
+    category: row.category,
+    confidence: row.confidence,
+    impactScore: row.impactScore,
+    relatedQueriesCount: row.relatedQueriesCount,
+    evidenceCount: row.evidenceCount,
+  };
+}
+
+export const listWorkspaceAgentMemoryInventoryRecentPageInternal =
+  internalQuery({
+    args: {
+      workspaceId: v.id("workspaces"),
+      startMs: v.number(),
+      endMs: v.number(),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, startMs, endMs, paginationOpts }) => {
+      const clampedEndMs = Math.max(startMs, endMs - 1);
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_created_at", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .gte("createdAt", startMs)
+            .lte("createdAt", clampedEndMs)
+        )
+        .order("desc")
+        .paginate(paginationOpts);
+
+      return {
+        ...result,
+        page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
+      };
+    },
+  });
+
+export const listWorkspaceAgentMemoryInventoryImpactPageInternal =
+  internalQuery({
+    args: {
+      workspaceId: v.id("workspaces"),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, paginationOpts }) => {
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_impact_score_and_created_at", (q) =>
+          q.eq("workspaceId", workspaceId)
+        )
+        .order("desc")
+        .paginate(paginationOpts);
+
+      return {
+        ...result,
+        page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
+      };
+    },
+  });
+
+export const listWorkspaceAgentMemoryInventoryConfidencePageInternal =
+  internalQuery({
+    args: {
+      workspaceId: v.id("workspaces"),
+      paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, { workspaceId, paginationOpts }) => {
+      const result = await ctx.db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_confidence_and_created_at", (q) =>
+          q.eq("workspaceId", workspaceId)
+        )
+        .order("desc")
+        .paginate(paginationOpts);
+
+      return {
+        ...result,
+        page: result.page.map(toWorkspaceAgentMemoryInventoryRecord),
+      };
     },
   });
 

@@ -136,76 +136,58 @@ function buildAverageScore(args: { total: number; count: number }) {
   return roundTo(args.total / args.count, 1);
 }
 
-export function buildAgentOpsMemoryInventoryPage(args: {
-  memoryInventoryRows: WorkspaceAgentMemoryInventoryRecord[];
-  search?: string;
-  category?: string;
-  sort: "impact_desc" | "confidence_desc" | "recent_desc";
-  page: number;
-  pageSize: number;
-}): AgentOpsMemoryInventoryPage {
+export function matchesAgentOpsMemoryInventoryFilters(
+  row: WorkspaceAgentMemoryInventoryRecord,
+  args: {
+    search?: string;
+    category?: string | null;
+  }
+) {
   const normalizedSearch = args.search?.trim().toLowerCase() ?? "";
   const normalizedCategory =
     args.category && args.category !== "all" ? args.category : null;
 
-  const availableCategories = [...new Set(args.memoryInventoryRows.map((row) => row.category))].sort(
-    (left, right) => left.localeCompare(right)
-  );
+  const matchesCategory =
+    normalizedCategory === null || row.category === normalizedCategory;
+  const matchesSearch =
+    normalizedSearch.length === 0 ||
+    row.title.toLowerCase().includes(normalizedSearch) ||
+    row.summary.toLowerCase().includes(normalizedSearch) ||
+    row.source.toLowerCase().includes(normalizedSearch);
 
-  const filteredRows = args.memoryInventoryRows
-    .filter((row) => {
-      const matchesCategory =
-        normalizedCategory === null || row.category === normalizedCategory;
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        row.title.toLowerCase().includes(normalizedSearch) ||
-        row.summary.toLowerCase().includes(normalizedSearch) ||
-        row.source.toLowerCase().includes(normalizedSearch);
-      return matchesCategory && matchesSearch;
-    })
-    .map((row) => ({
-      memoryId: row.memoryId,
-      title: row.title,
-      summary: row.summary,
-      source: row.source,
-      category: row.category,
-      confidence: roundTo(row.confidence * 100, 1),
-      impactScore: roundTo(row.impactScore * 100, 1),
-      relatedQueries: row.relatedQueriesCount,
-      evidenceCount: row.evidenceCount,
-      createdAt: row.createdAt,
-    }));
+  return matchesCategory && matchesSearch;
+}
 
-  filteredRows.sort((left, right) => {
-    if (args.sort === "confidence_desc") {
-      if (right.confidence !== left.confidence) {
-        return right.confidence - left.confidence;
-      }
-      return right.createdAt - left.createdAt;
-    }
-
-    if (args.sort === "recent_desc") {
-      return right.createdAt - left.createdAt;
-    }
-
-    if (right.impactScore !== left.impactScore) {
-      return right.impactScore - left.impactScore;
-    }
-    return right.createdAt - left.createdAt;
-  });
-
-  const safePageSize = Math.max(1, args.pageSize);
-  const totalCount = filteredRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
-  const safePage = Math.min(Math.max(args.page, 0), totalPages - 1);
-  const startIndex = safePage * safePageSize;
-
+function buildAgentOpsMemoryInventoryRow(
+  row: WorkspaceAgentMemoryInventoryRecord
+) {
   return {
-    rows: filteredRows.slice(startIndex, startIndex + safePageSize),
-    page: safePage,
-    totalCount,
-    totalPages,
-    availableCategories,
+    memoryId: row.memoryId,
+    title: row.title,
+    summary: row.summary,
+    source: row.source,
+    category: row.category,
+    confidence: roundTo(row.confidence * 100, 1),
+    impactScore: roundTo(row.impactScore * 100, 1),
+    relatedQueries: row.relatedQueriesCount,
+    evidenceCount: row.evidenceCount,
+    createdAt: row.createdAt,
+  };
+}
+
+export function buildAgentOpsMemoryInventoryPage(args: {
+  rows: WorkspaceAgentMemoryInventoryRecord[];
+  page: number;
+  totalCount: number;
+  totalPages: number;
+  availableCategories: string[];
+}): AgentOpsMemoryInventoryPage {
+  return {
+    rows: args.rows.map(buildAgentOpsMemoryInventoryRow),
+    page: args.page,
+    totalCount: args.totalCount,
+    totalPages: args.totalPages,
+    availableCategories: args.availableCategories,
   };
 }
 

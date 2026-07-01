@@ -437,21 +437,41 @@ async function listWorkspaceProspectSummariesCreatedSortVisibilityPage(
 }> {
   const visibilityMode = resolveVisibilityMode(args);
   const createdOrder = args.sortBy === "newest_first" ? "desc" : "asc";
+  const useReadyCreatedIndex = visibilityMode === "ready_only";
   const baseQuery =
     args.platform !== undefined
-      ? db
-          .query("prospectSummaries")
-          .withIndex("by_workspace_platform_status_created", (q) =>
-            q
-              .eq("workspaceId", args.workspaceId)
-              .eq("platform", args.platform!)
-              .eq("status", args.status)
-          )
-      : db
-          .query("prospectSummaries")
-          .withIndex("by_workspace_status_created", (q) =>
-            q.eq("workspaceId", args.workspaceId).eq("status", args.status)
-          );
+      ? useReadyCreatedIndex
+        ? db
+            .query("prospectSummaries")
+            .withIndex("by_workspace_platform_status_ready_created", (q) =>
+              q
+                .eq("workspaceId", args.workspaceId)
+                .eq("platform", args.platform!)
+                .eq("status", args.status)
+                .eq("readyQualifiedEnriched", true)
+            )
+        : db
+            .query("prospectSummaries")
+            .withIndex("by_workspace_platform_status_created", (q) =>
+              q
+                .eq("workspaceId", args.workspaceId)
+                .eq("platform", args.platform!)
+                .eq("status", args.status)
+            )
+      : useReadyCreatedIndex
+        ? db
+            .query("prospectSummaries")
+            .withIndex("by_workspace_status_ready_created", (q) =>
+              q
+                .eq("workspaceId", args.workspaceId)
+                .eq("status", args.status)
+                .eq("readyQualifiedEnriched", true)
+            )
+        : db
+            .query("prospectSummaries")
+            .withIndex("by_workspace_status_created", (q) =>
+              q.eq("workspaceId", args.workspaceId).eq("status", args.status)
+            );
 
   const scan = await applyAdditionalFilters(baseQuery, args)
     .filter((q: any) =>
@@ -472,9 +492,7 @@ async function listWorkspaceProspectSummariesCreatedSortVisibilityPage(
       continue;
     }
 
-    if (row.readyQualifiedEnriched) {
-      visibleRows.push(row);
-    }
+    visibleRows.push(row);
   }
 
   const start = decodeCreatedSortCursor(args.paginationOpts.cursor);

@@ -1222,6 +1222,13 @@ export default defineSchema({
       "prospectCreatedAt",
       "sortQualificationScore",
     ])
+    .index("by_workspace_status_ready_created", [
+      "workspaceId",
+      "status",
+      "readyQualifiedEnriched",
+      "prospectCreatedAt",
+      "sortQualificationScore",
+    ])
     .index("by_workspace_status_type_score", [
       "workspaceId",
       "status",
@@ -1274,6 +1281,14 @@ export default defineSchema({
       "workspaceId",
       "platform",
       "status",
+      "prospectCreatedAt",
+      "sortQualificationScore",
+    ])
+    .index("by_workspace_platform_status_ready_created", [
+      "workspaceId",
+      "platform",
+      "status",
+      "readyQualifiedEnriched",
       "prospectCreatedAt",
       "sortQualificationScore",
     ])
@@ -1509,6 +1524,16 @@ export default defineSchema({
     evidenceCount: v.number(),
   })
     .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_workspace_impact_score_and_created_at", [
+      "workspaceId",
+      "impactScore",
+      "createdAt",
+    ])
+    .index("by_workspace_confidence_and_created_at", [
+      "workspaceId",
+      "confidence",
+      "createdAt",
+    ])
     .index("by_workspace_memory_id", ["workspaceId", "memoryId"])
     .index("by_memory_id", ["memoryId"]),
 

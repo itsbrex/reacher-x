@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./lib/functionBuilders";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import {
@@ -16,6 +17,7 @@ import {
 import {
   createTrendBucketSet,
   normalizeAnalyticsWindow,
+  sumHourlyFieldInWindow,
   type TimeWindow,
 } from "./lib/analyticsCore";
 import { listWorkspaceAnalyticsDailyRows } from "./workspaceAnalyticsDaily";
@@ -23,8 +25,11 @@ import { listWorkspaceAgentOpsDailyRows } from "./workspaceAgentOpsDaily";
 import {
   buildAgentOpsDashboardData,
   buildAgentOpsMemoryInventoryPage,
+  matchesAgentOpsMemoryInventoryFilters,
 } from "./lib/agentOpsCore";
 import {
+  type WorkspaceAgentMemoryInventoryRecord,
+  WORKSPACE_MEMORY_CATEGORIES,
   getWorkspaceAgentMemoryById,
   listWorkspaceAgentMemoryInventoryInWindow,
 } from "./lib/agentMemoryCore";
@@ -33,6 +38,7 @@ import { listWorkspaceQueryPerformanceDailyRows } from "./workspaceQueryPerforma
 
 const AGENT_OPS_ACTIVITY_MEMORY_LIMIT = 80;
 const AGENT_OPS_MEMORY_PAGE_SIZE_MAX = 100;
+const AGENT_OPS_MEMORY_SCAN_BATCH_SIZE = 500;
 
 async function requireOwnedWorkspaceContext(
   ctx: QueryCtx,
@@ -53,6 +59,169 @@ function getWindowDayRange(window: TimeWindow) {
     startDayStartUtcMs: getUtcDayStartTimestamp(window.startMs),
     endDayStartUtcMs: getUtcDayStartTimestamp(clampedEndMs),
   };
+}
+
+type MemoryInventoryChunkResult = {
+  page: WorkspaceAgentMemoryInventoryRecord[];
+  continueCursor: string;
+  isDone: boolean;
+};
+
+function isMemoryInventoryRowInWindow(
+  row: WorkspaceAgentMemoryInventoryRecord,
+  window: TimeWindow
+) {
+  return row.createdAt >= window.startMs && row.createdAt < window.endMs;
+}
+
+async function loadMemoryInventoryChunk(
+  ctx: QueryCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    window: TimeWindow;
+    sort: "impact_desc" | "confidence_desc" | "recent_desc";
+    cursor: string | null;
+    limit: number;
+  }
+): Promise<MemoryInventoryChunkResult> {
+  if (args.sort === "recent_desc") {
+    const result: MemoryInventoryChunkResult = await ctx.runQuery(
+      internal.agentOpsReadModels
+        .listWorkspaceAgentMemoryInventoryRecentPageInternal,
+      {
+        workspaceId: args.workspaceId,
+        startMs: args.window.startMs,
+        endMs: args.window.endMs,
+        paginationOpts: {
+          cursor: args.cursor,
+          numItems: args.limit,
+        },
+      }
+    );
+    return result;
+  }
+
+  if (args.sort === "confidence_desc") {
+    const result: MemoryInventoryChunkResult = await ctx.runQuery(
+      internal.agentOpsReadModels
+        .listWorkspaceAgentMemoryInventoryConfidencePageInternal,
+      {
+        workspaceId: args.workspaceId,
+        paginationOpts: {
+          cursor: args.cursor,
+          numItems: args.limit,
+        },
+      }
+    );
+    return result;
+  }
+
+  const result: MemoryInventoryChunkResult = await ctx.runQuery(
+    internal.agentOpsReadModels
+      .listWorkspaceAgentMemoryInventoryImpactPageInternal,
+    {
+      workspaceId: args.workspaceId,
+      paginationOpts: {
+        cursor: args.cursor,
+        numItems: args.limit,
+      },
+    }
+  );
+  return result;
+}
+
+async function scanMemoryInventoryMatches(
+  ctx: QueryCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    window: TimeWindow;
+    sort: "impact_desc" | "confidence_desc" | "recent_desc";
+    search?: string;
+    category?: string;
+    matchLimit: number | null;
+  }
+): Promise<{
+  matches: WorkspaceAgentMemoryInventoryRecord[];
+  totalMatchedCount: number;
+  reachedEnd: boolean;
+}> {
+  const matches: WorkspaceAgentMemoryInventoryRecord[] = [];
+  let totalMatchedCount = 0;
+  let cursor: string | null = null;
+
+  while (true) {
+    const chunk = await loadMemoryInventoryChunk(ctx, {
+      workspaceId: args.workspaceId,
+      window: args.window,
+      sort: args.sort,
+      cursor,
+      limit: AGENT_OPS_MEMORY_SCAN_BATCH_SIZE,
+    });
+
+    for (const row of chunk.page) {
+      if (
+        args.sort !== "recent_desc" &&
+        !isMemoryInventoryRowInWindow(row, args.window)
+      ) {
+        continue;
+      }
+
+      if (
+        !matchesAgentOpsMemoryInventoryFilters(row, {
+          search: args.search,
+          category: args.category,
+        })
+      ) {
+        continue;
+      }
+
+      totalMatchedCount += 1;
+
+      if (args.matchLimit === null || matches.length < args.matchLimit) {
+        matches.push(row);
+      }
+    }
+
+    if (chunk.isDone) {
+      return {
+        matches,
+        totalMatchedCount,
+        reachedEnd: true,
+      };
+    }
+
+    if (args.matchLimit !== null && totalMatchedCount >= args.matchLimit) {
+      return {
+        matches,
+        totalMatchedCount,
+        reachedEnd: false,
+      };
+    }
+
+    cursor = chunk.continueCursor;
+  }
+}
+
+async function getUnfilteredMemoryInventoryCount(
+  db: QueryCtx["db"],
+  args: {
+    workspaceId: Id<"workspaces">;
+    window: TimeWindow;
+  }
+) {
+  const dayRange = getWindowDayRange(args.window);
+  const agentOpsRows = await listWorkspaceAgentOpsDailyRows({
+    db,
+    workspaceId: args.workspaceId,
+    startDayStartUtcMs: dayRange.startDayStartUtcMs,
+    endDayStartUtcMs: dayRange.endDayStartUtcMs,
+  });
+
+  return sumHourlyFieldInWindow(
+    agentOpsRows,
+    "hourlyMemoriesWrittenCounts",
+    args.window
+  );
 }
 
 export const getAgentOpsDashboard = query({
@@ -253,6 +422,15 @@ export const getAgentOpsMemoryInventoryPage = query({
       ctx,
       args.workspaceId
     );
+    const requestedPage = Math.max(0, args.page ?? 0);
+    const pageSize = Math.min(
+      AGENT_OPS_MEMORY_PAGE_SIZE_MAX,
+      Math.max(1, args.pageSize ?? 10)
+    );
+    const sort = args.sort ?? "impact_desc";
+    const hasDynamicFilters =
+      (args.search?.trim().length ?? 0) > 0 ||
+      (args.category !== undefined && args.category !== "all");
 
     const normalizedWindow = normalizeAnalyticsWindow({
       range: args.range,
@@ -263,25 +441,66 @@ export const getAgentOpsMemoryInventoryPage = query({
       toDate: args.toDate,
     });
 
-    const memoryInventoryRows = await listWorkspaceAgentMemoryInventoryInWindow(
+    const availableCategories = [...WORKSPACE_MEMORY_CATEGORIES].sort(
+      (left, right) => left.localeCompare(right)
+    );
+
+    if (hasDynamicFilters) {
+      const scanResult = await scanMemoryInventoryMatches(ctx, {
+        workspaceId: args.workspaceId,
+        window: normalizedWindow.current,
+        sort,
+        search: args.search,
+        category: args.category,
+        matchLimit: null,
+      });
+      const totalCount = scanResult.totalMatchedCount;
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+      const safePage = Math.min(requestedPage, totalPages - 1);
+      const startIndex = safePage * pageSize;
+
+      return buildAgentOpsMemoryInventoryPage({
+        rows: scanResult.matches.slice(startIndex, startIndex + pageSize),
+        page: safePage,
+        totalCount,
+        totalPages,
+        availableCategories,
+      });
+    }
+
+    const estimatedTotalCount = await getUnfilteredMemoryInventoryCount(
       ctx.db,
       {
         workspaceId: args.workspaceId,
-        startMs: normalizedWindow.current.startMs,
-        endMs: normalizedWindow.current.endMs,
+        window: normalizedWindow.current,
       }
     );
+    const estimatedTotalPages = Math.max(
+      1,
+      Math.ceil(estimatedTotalCount / pageSize)
+    );
+    const safeEstimatedPage = Math.min(requestedPage, estimatedTotalPages - 1);
+    const startIndex = safeEstimatedPage * pageSize;
+    const scanResult = await scanMemoryInventoryMatches(ctx, {
+      workspaceId: args.workspaceId,
+      window: normalizedWindow.current,
+      sort,
+      matchLimit: startIndex + pageSize,
+    });
+
+    const totalCount = scanResult.reachedEnd
+      ? scanResult.totalMatchedCount
+      : Math.max(estimatedTotalCount, scanResult.totalMatchedCount);
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const safePage = Math.min(requestedPage, totalPages - 1);
+    const safeStartIndex = safePage * pageSize;
 
     return buildAgentOpsMemoryInventoryPage({
-      memoryInventoryRows,
-      search: args.search,
-      category: args.category,
-      sort: args.sort ?? "impact_desc",
-      page: Math.max(0, args.page ?? 0),
-      pageSize: Math.min(
-        AGENT_OPS_MEMORY_PAGE_SIZE_MAX,
-        Math.max(1, args.pageSize ?? 10)
-      ),
+      rows: scanResult.matches.slice(safeStartIndex, safeStartIndex + pageSize),
+      page: safePage,
+      totalCount,
+      totalPages,
+      availableCategories,
     });
   },
 });
