@@ -218,12 +218,18 @@ Use this memory as guidance when generating or refining outreach plans. Prefer p
       role: "system" as const,
       content:
         effectivePostLimit.mode === "short"
-          ? `## Connected X Account Limit
+          ? xSubscriptionType
+            ? `## Connected X Account Limit
 
 The workspace user's connected X account subscription type is ${xSubscriptionType ?? "unknown"}.
 For X replies/posts, you MUST keep all draft text within ${effectivePostLimit.maxWeighted} weighted characters.
 When in doubt, write shorter.
-If a draft would run long, compress it before calling plan or social-action tools.`
+If a draft would run long, rewrite it shorter before calling plan or social-action tools.`
+            : `## Connected X Account Limit
+
+The workspace user's connected X account subscription type is currently unavailable.
+Use the safe fallback limit: keep all X replies/posts within ${effectivePostLimit.maxWeighted} weighted characters.
+Do not assume long-form posting is available until the account metadata refreshes.`
           : `## Connected X Account Limit
 
 The workspace user's connected X account subscription type is ${xSubscriptionType ?? "unknown"}.

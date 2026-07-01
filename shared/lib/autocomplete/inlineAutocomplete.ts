@@ -41,7 +41,7 @@ export const INLINE_AUTOCOMPLETE_MAX_SUGGESTION_CHARS = 24;
 export const INLINE_AUTOCOMPLETE_MAX_SUGGESTION_WORDS = 4;
 // GPT-OSS uses mandatory reasoning tokens, so leave room for final text.
 export const INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS = 256;
-export const INLINE_AUTOCOMPLETE_DEBOUNCE_MS = 140;
+export const INLINE_AUTOCOMPLETE_DEBOUNCE_MS = 400;
 export const INLINE_AUTOCOMPLETE_NO_SUGGESTION = "__NO_COMPLETION__";
 
 const URL_LIKE_REGEX = /https?:\/\/\S*$/i;

@@ -216,13 +216,22 @@ function getRoutingPresetConfig(): RoutingPresetConfig {
 
 export const FAST_MODEL = getRoutingPresetConfig().fast.model;
 export const REASONING_MODEL = getRoutingPresetConfig().reasoning.model;
-export const AUTOCOMPLETE_MODEL = getRoutingPresetConfig().fast.model;
+export const HELPER_MODEL = MODELS.GPT_OSS;
+export const AUTOCOMPLETE_MODEL = HELPER_MODEL;
 
 export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   getRoutingPresetConfig().reasoning.providerOptions;
 
 export const FAST_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   getRoutingPresetConfig().fast.providerOptions;
+
+/**
+ * Background helper AI runs on a separate Groq lane so autocomplete and other
+ * non-critical helpers cannot consume the pinned main-agent provider capacity.
+ */
+export const HELPER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createOnlyProviderOptions([OPENROUTER_PROVIDERS.GROQ]);
+export const AUTOCOMPLETE_PROVIDER_OPTIONS = HELPER_PROVIDER_OPTIONS;
 
 /**
  * Tool-calling agents are pinned to Cerebras because streamed multi-step runs

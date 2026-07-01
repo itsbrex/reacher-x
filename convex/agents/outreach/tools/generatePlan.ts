@@ -239,12 +239,11 @@ export const generatePlan = createTool({
         args.tasks,
         args.strategy.targetTweetId
       );
-      const { tasks: repairedTasks, repairedCount } =
-        await repairOverLimitCommentTasks({
-          ctx,
-          userId,
-          tasks: normalizedTasks,
-        });
+      const { tasks: repairedTasks } = await repairOverLimitCommentTasks({
+        ctx,
+        userId,
+        tasks: normalizedTasks,
+      });
       const canDeferCommentTarget = allowsDeferredNextPostTarget(repairedTasks);
       const invalidCommentTask = repairedTasks.find(
         (task) =>
@@ -288,9 +287,7 @@ export const generatePlan = createTool({
       return {
         success: true,
         message:
-          repairedCount > 0
-            ? "Plan created successfully. I also tightened one or more X reply drafts so they fit the connected account's posting limit."
-            : "Plan created successfully! The prospect now has a draft outreach plan ready for your review.",
+          "Plan created successfully! The prospect now has a draft outreach plan ready for your review.",
         _internalPlanId: planId,
         plan: {
           id: planId,

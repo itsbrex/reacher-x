@@ -3,14 +3,14 @@
 import { generateText } from "ai";
 import { v } from "convex/values";
 import { action } from "./lib/functionBuilders";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   AUTOCOMPLETE_MODEL,
+  AUTOCOMPLETE_PROVIDER_OPTIONS,
   createAIProvider,
   extractJsonPayload,
   extractUsage,
-  FAST_PROVIDER_OPTIONS,
 } from "./lib/ai";
 import { getStyleMemoryCategory } from "./lib/styleSourceCore";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -33,6 +33,7 @@ type ProspectDoc = Doc<"prospects">;
 const MAX_STYLE_PROFILE_CHARS = 700;
 const MAX_REPLY_CONTEXT_CHARS = 320;
 const MAX_TONE_HINT_CHARS = 120;
+const THREAD_HELPER_CONTROL_POLL_MS = 150;
 
 function extractAutocompleteCompletion(text: string) {
   const rawText = text.trim();
@@ -65,6 +66,98 @@ async function getCurrentUser(ctx: any): Promise<ViewerUser> {
   }
 
   return user;
+}
+
+function buildEmptyInlineAutocompleteResponse(): InlineAutocompleteResponse {
+  return {
+    suggestion: "",
+    latencyMs: 0,
+    model: AUTOCOMPLETE_MODEL,
+    workspaceId: undefined,
+    styleProfileCategory: undefined,
+    styleProfileApplied: false,
+  };
+}
+
+async function getOwnedThread(ctx: any, userId: Id<"users">, threadId: string) {
+  const thread = await ctx.runQuery(components.agent.threads.getThread, {
+    threadId,
+  });
+  if (!thread || thread.userId !== userId) {
+    throw new Error("Not authorized");
+  }
+  return thread;
+}
+
+async function isThreadGenerationRunning(ctx: any, threadId: string) {
+  const streams = await ctx.runQuery(components.agent.streams.list, {
+    threadId,
+    statuses: ["streaming"],
+  });
+  return streams.length > 0;
+}
+
+function startThreadHelperCancellationWatcher(args: {
+  ctx: any;
+  threadId?: string;
+  initialVersion: number;
+}) {
+  if (!args.threadId) {
+    return {
+      abortSignal: undefined as AbortSignal | undefined,
+      stop() {},
+    };
+  }
+
+  const abortController = new AbortController();
+  let disposed = false;
+  let polling = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  const poll = async () => {
+    if (disposed || polling || abortController.signal.aborted) {
+      return;
+    }
+
+    polling = true;
+    try {
+      const nextVersion: number = await args.ctx.runQuery(
+        internal.autocompleteControl.getThreadHelperCancellationVersionInternal,
+        {
+          threadId: args.threadId,
+        }
+      );
+      if (nextVersion > args.initialVersion) {
+        abortController.abort(
+          new Error("Inline autocomplete request canceled.")
+        );
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        "[autocomplete] Unable to poll helper cancellation state.",
+        error
+      );
+    } finally {
+      polling = false;
+    }
+
+    if (!disposed && !abortController.signal.aborted) {
+      timeoutHandle = setTimeout(poll, THREAD_HELPER_CONTROL_POLL_MS);
+    }
+  };
+
+  timeoutHandle = setTimeout(poll, THREAD_HELPER_CONTROL_POLL_MS);
+
+  return {
+    abortSignal: abortController.signal,
+    stop() {
+      disposed = true;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    },
+  };
 }
 
 function getPlatformCandidates(
@@ -256,7 +349,6 @@ async function resolveStyleProfile(args: {
 
   return null;
 }
-
 export const getInlineSuggestion = action({
   args: {
     enabled: v.optional(v.boolean()),
@@ -283,18 +375,25 @@ export const getInlineSuggestion = action({
   },
   handler: async (ctx, args): Promise<InlineAutocompleteResponse> => {
     if (!shouldRequestInlineAutocomplete(args)) {
-      return {
-        suggestion: "",
-        latencyMs: 0,
-        model: AUTOCOMPLETE_MODEL,
-        workspaceId: undefined,
-        styleProfileCategory: undefined,
-        styleProfileApplied: false,
-      };
+      return buildEmptyInlineAutocompleteResponse();
     }
 
     const startedAt = getCurrentUTCTimestamp();
     const user = await getCurrentUser(ctx);
+    let helperCancellationVersion = 0;
+    if (args.threadId) {
+      await getOwnedThread(ctx, user._id, args.threadId);
+      if (await isThreadGenerationRunning(ctx, args.threadId)) {
+        return buildEmptyInlineAutocompleteResponse();
+      }
+      helperCancellationVersion = await ctx.runQuery(
+        internal.autocompleteControl.getThreadHelperCancellationVersionInternal,
+        {
+          threadId: args.threadId,
+        }
+      );
+    }
+
     const { workspace, prospect } = await resolveWorkspaceAndProspectContext({
       ctx,
       user,
@@ -368,14 +467,31 @@ Rules:
       )
       .join("\n\n");
 
-    const result = await generateText({
-      model: provider(AUTOCOMPLETE_MODEL) as any,
-      system: systemPrompt,
-      prompt,
-      temperature: 0.15,
-      maxOutputTokens: INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS,
-      providerOptions: FAST_PROVIDER_OPTIONS,
+    const cancellationWatcher = startThreadHelperCancellationWatcher({
+      ctx,
+      threadId: args.threadId,
+      initialVersion: helperCancellationVersion,
     });
+
+    let result;
+    try {
+      result = await generateText({
+        model: provider(AUTOCOMPLETE_MODEL) as any,
+        system: systemPrompt,
+        prompt,
+        temperature: 0.15,
+        maxOutputTokens: INLINE_AUTOCOMPLETE_MAX_OUTPUT_TOKENS,
+        providerOptions: AUTOCOMPLETE_PROVIDER_OPTIONS,
+        abortSignal: cancellationWatcher.abortSignal,
+      });
+    } catch (error) {
+      if (cancellationWatcher.abortSignal?.aborted) {
+        return buildEmptyInlineAutocompleteResponse();
+      }
+      throw error;
+    } finally {
+      cancellationWatcher.stop();
+    }
     const completionText = extractAutocompleteCompletion(result.text);
 
     const normalizedSuggestion = normalizeInlineAutocompleteSuggestion({

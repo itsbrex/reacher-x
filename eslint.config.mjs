@@ -1,4 +1,5 @@
 import { defineConfig, globalIgnores } from "eslint/config";
+import convexPlugin from "@convex-dev/eslint-plugin";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import prettier from "eslint-plugin-prettier/recommended";
 
@@ -88,6 +89,16 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["convex/prospectListFeed.ts"],
+    plugins: {
+      "@convex-dev": convexPlugin,
+    },
+    rules: {
+      "@convex-dev/no-filter-in-query": "error",
+      "@convex-dev/no-collect-in-query": "error",
     },
   },
 ]);

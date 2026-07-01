@@ -51,6 +51,7 @@ const X_USER_SELF_METADATA_FIELDS = [
 ] as const;
 
 const X_PROFILE_HYDRATION_RETRY_DELAYS_MS = [400, 1_200, 2_400] as const;
+const X_SUBSCRIPTION_METADATA_STALE_MS = 24 * 60 * 60 * 1000;
 
 function parseXSubscriptionTypeForStored(
   raw: unknown
@@ -713,6 +714,52 @@ async function refreshXAccount(
   return await readStoredAccount(ctx, store, userId);
 }
 
+function shouldRefreshXSubscriptionMetadata(account: {
+  status?: unknown;
+  xSubscriptionType?: unknown;
+  xSubscriptionUpdatedAt?: unknown;
+}) {
+  if (account.status !== "connected") {
+    return false;
+  }
+
+  const updatedAt =
+    typeof account.xSubscriptionUpdatedAt === "number"
+      ? account.xSubscriptionUpdatedAt
+      : 0;
+
+  return (
+    typeof account.xSubscriptionType !== "string" ||
+    updatedAt <= getCurrentUTCTimestamp() - X_SUBSCRIPTION_METADATA_STALE_MS
+  );
+}
+
+async function refreshXSubscriptionMetadata(
+  ctx: any,
+  store: XStoreRefs,
+  userId: Id<"users">,
+  account: any
+) {
+  const accessToken = decryptXSecret(account.accessToken);
+  const me = await fetchCurrentXUser(accessToken, account);
+  const verifiedAt = getCurrentUTCTimestamp();
+  const meSubscriptionType = pickSubscriptionTypeFromMe(me);
+  const subscriptionType = meSubscriptionType ?? account.xSubscriptionType;
+  const xSubscriptionUpdatedAt =
+    meSubscriptionType !== undefined
+      ? verifiedAt
+      : account.xSubscriptionUpdatedAt;
+
+  await patchAccount(ctx, store, userId, {
+    xSubscriptionType: subscriptionType,
+    xSubscriptionUpdatedAt,
+    xVerified: pickVerifiedFromMe(me),
+    lastVerifiedAt: verifiedAt,
+  });
+
+  return await readStoredAccount(ctx, store, userId);
+}
+
 export async function getXConnectionStatusForUser(
   ctx: any,
   store: XStoreRefs,
@@ -751,6 +798,22 @@ export async function getXConnectionStatusForUser(
     try {
       account = await refreshXAccount(ctx, store, userId, account);
     } catch {
+      account = await readStoredAccount(ctx, store, userId);
+    }
+  }
+
+  if (!account) {
+    return buildDisconnectedXConnectionStatus();
+  }
+
+  if (shouldRefreshXSubscriptionMetadata(account)) {
+    try {
+      account = await refreshXSubscriptionMetadata(ctx, store, userId, account);
+    } catch (error) {
+      console.warn(
+        "[xdkAuth] Unable to refresh X subscription metadata; using stored fallback limit.",
+        error
+      );
       account = await readStoredAccount(ctx, store, userId);
     }
   }

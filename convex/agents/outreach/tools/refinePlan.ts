@@ -277,7 +277,7 @@ export const refinePlan = createTool({
           logEvent.set({
             plan: {
               id: planId,
-              repaired_task_count: repairedTaskResult?.repairedCount ?? 0,
+              repaired_task_count: 0,
               task_count: updatedTasks.length,
             },
           });
@@ -285,9 +285,7 @@ export const refinePlan = createTool({
           return {
             success: true,
             message:
-              (repairedTaskResult?.repairedCount ?? 0) > 0
-                ? "Plan updated successfully. I also tightened one or more X reply drafts so they fit the connected account's posting limit."
-                : "Plan updated successfully! The changes have been applied.",
+              "Plan updated successfully! The changes have been applied.",
             plan: updatedPlanData
               ? {
                   id: updatedPlanData.plan._id,

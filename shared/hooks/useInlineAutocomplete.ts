@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { usePostHog } from "posthog-js/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -64,6 +64,9 @@ export function useInlineAutocomplete(args: {
   ) as (
     request: InlineAutocompleteRequest
   ) => Promise<InlineAutocompleteResponse>;
+  const cancelThreadHelperRequests = useMutation(
+    autocompleteApi.autocompleteControl.cancelThreadHelperRequests
+  ) as (args: { threadId: string }) => Promise<unknown>;
   const posthog = usePostHog();
   const [state, setState] = useState<InlineAutocompleteState>(EMPTY_STATE);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,14 +79,49 @@ export function useInlineAutocomplete(args: {
     debounceMs
   );
   const requestMapRef = useRef(new Map<string, InlineAutocompleteRequest>());
+  const requestRef = useRef<InlineAutocompleteRequest | null>(request);
+  const enabledRef = useRef(enabled);
   const activeRequestIdRef = useRef(0);
   const dismissedSignatureRef = useRef<string | null>(null);
+  const inFlightSignatureRef = useRef<string | null>(null);
+  const queuedSignatureRef = useRef<string | null>(null);
+  const canceledInFlightSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    requestRef.current = request;
+    enabledRef.current = enabled;
+  }, [enabled, request]);
 
   useEffect(() => {
     if (request && requestSignature) {
       requestMapRef.current.set(requestSignature, request);
     }
   }, [request, requestSignature]);
+
+  const resolveRequestForSignature = useCallback((signature: string | null) => {
+    if (!signature) {
+      return requestRef.current;
+    }
+    return requestMapRef.current.get(signature) ?? requestRef.current;
+  }, []);
+
+  const cancelActiveThreadHelperRequests = useCallback(
+    (signature?: string | null) => {
+      const requestToCancel = resolveRequestForSignature(
+        signature ?? inFlightSignatureRef.current ?? state.requestSignature
+      );
+      const threadId = requestToCancel?.threadId;
+      if (!threadId) {
+        return;
+      }
+      void cancelThreadHelperRequests({ threadId }).catch(() => {});
+    },
+    [
+      cancelThreadHelperRequests,
+      resolveRequestForSignature,
+      state.requestSignature,
+    ]
+  );
 
   const clearSuggestion = useCallback(
     (reason: InlineAutocompleteDismissReason) => {
@@ -94,11 +132,14 @@ export function useInlineAutocomplete(args: {
         }
 
         if (current.suggestion && current.requestSignature) {
+          const currentRequest = resolveRequestForSignature(
+            current.requestSignature
+          );
           posthog?.capture("inline_autocomplete_dismissed", {
             reason,
-            surface: request?.surface ?? "composer",
-            surfaceLabel: request?.surfaceLabel,
-            platform: request?.platform ?? "generic",
+            surface: currentRequest?.surface ?? "composer",
+            surfaceLabel: currentRequest?.surfaceLabel,
+            platform: currentRequest?.platform ?? "generic",
             suggestionLength: current.suggestion.length,
             workspaceId: current.workspaceId,
             styleProfileCategory: current.styleProfileCategory,
@@ -108,7 +149,7 @@ export function useInlineAutocomplete(args: {
         return EMPTY_STATE;
       });
     },
-    [posthog, request]
+    [posthog, resolveRequestForSignature]
   );
 
   const dismissSuggestionAfterEffect = useCallback(
@@ -120,15 +161,119 @@ export function useInlineAutocomplete(args: {
     [clearSuggestion]
   );
 
+  const startSuggestionRequest = useCallback(
+    (signature: string) => {
+      if (!enabledRef.current || !signature) {
+        return;
+      }
+
+      if (inFlightSignatureRef.current) {
+        queuedSignatureRef.current = signature;
+        return;
+      }
+
+      const nextRequest = requestMapRef.current.get(signature);
+      if (!shouldRequestInlineAutocomplete(nextRequest)) {
+        return;
+      }
+
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
+      inFlightSignatureRef.current = signature;
+      canceledInFlightSignatureRef.current = null;
+      queueMicrotask(() => {
+        setIsLoading(true);
+      });
+
+      void getInlineSuggestion(nextRequest)
+        .then((result) => {
+          if (activeRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          const suggestion = result.suggestion.trimEnd();
+          if (!suggestion) {
+            startTransition(() => {
+              setState(EMPTY_STATE);
+              setIsLoading(false);
+            });
+            return;
+          }
+
+          startTransition(() => {
+            setState({
+              suggestion,
+              latencyMs: result.latencyMs,
+              model: result.model,
+              workspaceId: result.workspaceId,
+              styleProfileCategory: result.styleProfileCategory,
+              styleProfileApplied: result.styleProfileApplied,
+              requestSignature: signature,
+            });
+            setIsLoading(false);
+          });
+
+          posthog?.capture("inline_autocomplete_shown", {
+            surface: nextRequest.surface ?? "composer",
+            surfaceLabel: nextRequest.surfaceLabel,
+            platform: nextRequest.platform ?? "generic",
+            suggestionLength: suggestion.length,
+            latencyMs: result.latencyMs,
+            model: result.model,
+            workspaceId: result.workspaceId,
+            styleProfileCategory: result.styleProfileCategory,
+            styleProfileApplied: result.styleProfileApplied,
+          });
+        })
+        .catch(() => {
+          if (activeRequestIdRef.current !== requestId) {
+            return;
+          }
+          startTransition(() => {
+            setState(EMPTY_STATE);
+            setIsLoading(false);
+          });
+        })
+        .finally(() => {
+          if (inFlightSignatureRef.current === signature) {
+            inFlightSignatureRef.current = null;
+          }
+          canceledInFlightSignatureRef.current = null;
+
+          const queuedSignature = queuedSignatureRef.current;
+          queuedSignatureRef.current = null;
+          if (
+            queuedSignature &&
+            queuedSignature !== signature &&
+            enabledRef.current
+          ) {
+            queueMicrotask(() => {
+              startSuggestionRequest(queuedSignature);
+            });
+          }
+        });
+    },
+    [getInlineSuggestion, posthog]
+  );
+
   useEffect(() => {
     if (!enabled || !shouldRequestInlineAutocomplete(request)) {
       activeRequestIdRef.current += 1;
+      queuedSignatureRef.current = null;
+      if (
+        inFlightSignatureRef.current &&
+        canceledInFlightSignatureRef.current !== inFlightSignatureRef.current
+      ) {
+        canceledInFlightSignatureRef.current = inFlightSignatureRef.current;
+        cancelActiveThreadHelperRequests(inFlightSignatureRef.current);
+      }
       if (isLoading || state.suggestion || state.requestSignature) {
         dismissSuggestionAfterEffect("disabled");
       }
       return;
     }
   }, [
+    cancelActiveThreadHelperRequests,
     dismissSuggestionAfterEffect,
     enabled,
     isLoading,
@@ -136,6 +281,23 @@ export function useInlineAutocomplete(args: {
     state.requestSignature,
     state.suggestion,
   ]);
+
+  useEffect(() => {
+    if (
+      !requestSignature ||
+      !inFlightSignatureRef.current ||
+      requestSignature === inFlightSignatureRef.current
+    ) {
+      return;
+    }
+
+    queuedSignatureRef.current = requestSignature;
+    activeRequestIdRef.current += 1;
+    if (canceledInFlightSignatureRef.current !== inFlightSignatureRef.current) {
+      canceledInFlightSignatureRef.current = inFlightSignatureRef.current;
+      cancelActiveThreadHelperRequests(inFlightSignatureRef.current);
+    }
+  }, [cancelActiveThreadHelperRequests, requestSignature]);
 
   useEffect(() => {
     if (
@@ -170,71 +332,24 @@ export function useInlineAutocomplete(args: {
       return;
     }
 
-    const requestId = activeRequestIdRef.current + 1;
-    activeRequestIdRef.current = requestId;
-    queueMicrotask(() => {
-      setIsLoading(true);
-    });
-
-    void getInlineSuggestion(nextRequest)
-      .then((result) => {
-        if (activeRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        const suggestion = result.suggestion.trimEnd();
-        if (!suggestion) {
-          startTransition(() => {
-            setState(EMPTY_STATE);
-            setIsLoading(false);
-          });
-          return;
-        }
-
-        startTransition(() => {
-          setState({
-            suggestion,
-            latencyMs: result.latencyMs,
-            model: result.model,
-            workspaceId: result.workspaceId,
-            styleProfileCategory: result.styleProfileCategory,
-            styleProfileApplied: result.styleProfileApplied,
-            requestSignature: debouncedRequestSignature,
-          });
-          setIsLoading(false);
-        });
-
-        posthog?.capture("inline_autocomplete_shown", {
-          surface: nextRequest.surface ?? "composer",
-          surfaceLabel: nextRequest.surfaceLabel,
-          platform: nextRequest.platform ?? "generic",
-          suggestionLength: suggestion.length,
-          latencyMs: result.latencyMs,
-          model: result.model,
-          workspaceId: result.workspaceId,
-          styleProfileCategory: result.styleProfileCategory,
-          styleProfileApplied: result.styleProfileApplied,
-        });
-      })
-      .catch(() => {
-        if (activeRequestIdRef.current !== requestId) {
-          return;
-        }
-        startTransition(() => {
-          setState(EMPTY_STATE);
-          setIsLoading(false);
-        });
-      });
-  }, [debouncedRequestSignature, enabled, getInlineSuggestion, posthog]);
+    startSuggestionRequest(debouncedRequestSignature);
+  }, [debouncedRequestSignature, enabled, startSuggestionRequest]);
 
   const dismissSuggestion = useCallback(
     (reason: InlineAutocompleteDismissReason) => {
       if (state.requestSignature) {
         dismissedSignatureRef.current = state.requestSignature;
       }
+      if (
+        inFlightSignatureRef.current &&
+        canceledInFlightSignatureRef.current !== inFlightSignatureRef.current
+      ) {
+        canceledInFlightSignatureRef.current = inFlightSignatureRef.current;
+        cancelActiveThreadHelperRequests(inFlightSignatureRef.current);
+      }
       clearSuggestion(reason);
     },
-    [clearSuggestion, state.requestSignature]
+    [cancelActiveThreadHelperRequests, clearSuggestion, state.requestSignature]
   );
 
   const recordAccepted = useCallback(() => {
@@ -242,10 +357,11 @@ export function useInlineAutocomplete(args: {
       return;
     }
 
+    const currentRequest = resolveRequestForSignature(state.requestSignature);
     posthog?.capture("inline_autocomplete_accepted", {
-      surface: request?.surface ?? "composer",
-      surfaceLabel: request?.surfaceLabel,
-      platform: request?.platform ?? "generic",
+      surface: currentRequest?.surface ?? "composer",
+      surfaceLabel: currentRequest?.surfaceLabel,
+      platform: currentRequest?.platform ?? "generic",
       suggestionLength: state.suggestion.length,
       latencyMs: state.latencyMs,
       model: state.model,
@@ -257,7 +373,7 @@ export function useInlineAutocomplete(args: {
     dismissedSignatureRef.current = null;
     setState(EMPTY_STATE);
     setIsLoading(false);
-  }, [posthog, request, state]);
+  }, [posthog, resolveRequestForSignature, state]);
 
   return {
     suggestion: state.suggestion,

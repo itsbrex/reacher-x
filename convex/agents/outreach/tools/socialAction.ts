@@ -14,10 +14,7 @@ import {
   ensureWorkspaceStyleReady,
   extractProspectThreadContext,
 } from "./helpers";
-import {
-  getEffectivePostLimitForAgentUser,
-  shortenDraftToEffectiveXLimit,
-} from "./xPostLimitHelpers";
+import { getEffectivePostLimitForAgentUser } from "./xPostLimitHelpers";
 import { getPostTextLimitError } from "../../../../shared/lib/twitter/xPostTextLimit";
 
 const internalLinkedInApi = (internal as any).linkedin;
@@ -230,22 +227,15 @@ export const socialAction = createTool({
       const limit = await getEffectivePostLimitForAgentUser(ctx, userId);
       const limitError = getPostTextLimitError(normalizedText, limit);
       if (limitError) {
-        const shortened = await shortenDraftToEffectiveXLimit({
-          text: normalizedText,
-          limit,
-        });
-        if (!shortened) {
-          return {
-            success: false,
-            executed: false,
-            pendingApproval: false,
-            actionKey: args.action,
-            title: "Draft exceeds X limit",
-            message: limitError,
-            error: limitError,
-          };
-        }
-        normalizedText = shortened;
+        return {
+          success: false,
+          executed: false,
+          pendingApproval: false,
+          actionKey: args.action,
+          title: "Draft exceeds X limit",
+          message: `${limitError} Regenerate the draft shorter instead of auto-shortening it.`,
+          error: limitError,
+        };
       }
     }
 

@@ -18,6 +18,13 @@ import twitterText from "twitter-text";
 export const X_POST_WEIGHTED_MAX = 280;
 
 /**
+ * Conservative fallback when the connected account subscription type is
+ * unknown. This keeps drafts comfortably within the standard X reply budget
+ * until the account metadata is refreshed.
+ */
+export const X_POST_SAFE_FALLBACK_MAX = 200;
+
+/**
  * Long-form post body cap for paid X tiers (Premium product). Adjust if X docs change.
  * See https://docs.x.com/x-api/posts/create-post (TweetText / long-form behavior).
  */
@@ -54,7 +61,10 @@ export function inferPostLimitFromSubscriptionType(
   ) {
     return { mode: "long", maxChars: X_LONG_FORM_POST_MAX_CHARS };
   }
-  return { mode: "short", maxWeighted: X_POST_WEIGHTED_MAX };
+  if (subscriptionType === "None") {
+    return { mode: "short", maxWeighted: X_POST_WEIGHTED_MAX };
+  }
+  return { mode: "short", maxWeighted: X_POST_SAFE_FALLBACK_MAX };
 }
 
 export function getXPostWeightedLength(text: string): number {

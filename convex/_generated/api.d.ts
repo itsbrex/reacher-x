@@ -48,6 +48,7 @@ import type * as agents_tools_workspaceSetupContext from "../agents/tools/worksp
 import type * as analytics from "../analytics.js";
 import type * as archivedProspectPause from "../archivedProspectPause.js";
 import type * as autocomplete from "../autocomplete.js";
+import type * as autocompleteControl from "../autocompleteControl.js";
 import type * as billing from "../billing.js";
 import type * as chat from "../chat.js";
 import type * as crons from "../crons.js";
@@ -225,6 +226,7 @@ import type * as xActivity from "../xActivity.js";
 import type * as xConversationDiscovery from "../xConversationDiscovery.js";
 import type * as xMutations from "../xMutations.js";
 import type * as xPostLimits from "../xPostLimits.js";
+import type * as xPostLimitsActions from "../xPostLimitsActions.js";
 import type * as xStore from "../xStore.js";
 
 import type {
@@ -274,6 +276,7 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   archivedProspectPause: typeof archivedProspectPause;
   autocomplete: typeof autocomplete;
+  autocompleteControl: typeof autocompleteControl;
   billing: typeof billing;
   chat: typeof chat;
   crons: typeof crons;
@@ -451,6 +454,7 @@ declare const fullApi: ApiFromModules<{
   xConversationDiscovery: typeof xConversationDiscovery;
   xMutations: typeof xMutations;
   xPostLimits: typeof xPostLimits;
+  xPostLimitsActions: typeof xPostLimitsActions;
   xStore: typeof xStore;
 }>;
 
