@@ -3,7 +3,6 @@
 import { useCallback, useMemo } from "react";
 import type { DateRange } from "react-day-picker";
 
-import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { DateRangeInputPicker } from "@/features/analytics/ui/components/DateRangeInputPicker";
 import {
@@ -11,7 +10,7 @@ import {
   PageHeader,
   PageLayout,
 } from "@/features/webapp/ui/components";
-import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
+import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/components/Button";
 import { RangeHistogramField } from "@/shared/ui/components/RangeHistogramField";
@@ -25,6 +24,7 @@ import {
 } from "@/shared/ui/components/Select";
 import { Separator } from "@/shared/ui/components/Separator";
 
+import { useProspectListFitScoreHistogram } from "../../hooks/useProspectListFitScoreHistogram";
 import {
   getProspectListFilterArgs,
   getProspectListFilterSummaryTokens,
@@ -92,6 +92,15 @@ export function ProspectListFilterPanel({
     () => getProspectListFilterSummaryTokens(draftFilters, defaultFilters),
     [defaultFilters, draftFilters]
   );
+  const titleSuffix = useMemo(
+    () =>
+      summaryTokens.length > 0 ? (
+        <span className="text-muted-foreground max-w-44 truncate font-mono text-xs font-medium">
+          · {summaryTokens.join(" · ")}
+        </span>
+      ) : null,
+    [summaryTokens]
+  );
   const histogramFilterArgs = useMemo(() => {
     const {
       fitScoreMin: _fitScoreMin,
@@ -100,29 +109,23 @@ export function ProspectListFilterPanel({
     } = getProspectListFilterArgs(draftFilters);
     return rest;
   }, [draftFilters]);
-
-  const histogramFilteredQuery = useQueryWithStatus(
-    api.prospectSummaries.getWorkspaceFitScoreHistogram,
-    workspaceId
-      ? {
-          workspaceId,
-          status,
-          platform:
-            draftFilters.platform === "all" ? undefined : draftFilters.platform,
-          prospectType:
-            draftFilters.prospectType === "both"
-              ? undefined
-              : draftFilters.prospectType,
-          createdAfterMs: histogramFilterArgs.createdAfterMs,
-          createdBeforeMs: histogramFilterArgs.createdBeforeMs,
-        }
-      : "skip"
-  );
-
-  const binCounts = histogramFilteredQuery.data?.binCounts ?? Array(10).fill(0);
-  const supportingText = histogramFilteredQuery.isError
+  const histogramQuery = useProspectListFitScoreHistogram({
+    open,
+    workspaceId,
+    status,
+    platform:
+      draftFilters.platform === "all" ? undefined : draftFilters.platform,
+    prospectType:
+      draftFilters.prospectType === "both"
+        ? undefined
+        : draftFilters.prospectType,
+    createdAfterMs: histogramFilterArgs.createdAfterMs,
+    createdBeforeMs: histogramFilterArgs.createdBeforeMs,
+  });
+  const supportingText = histogramQuery.isError
     ? "We couldn't load the current fit-score distribution, but your range will still be applied."
     : `Drag to narrow ${entityPluralLower} by fit score.`;
+  const binCounts = histogramQuery.binCounts;
 
   const updateDraftFilters = useCallback(
     (nextFilters: ProspectListFilters) => {
@@ -209,13 +212,7 @@ export function ProspectListFilterPanel({
       <PageLayout className="flex h-full flex-col md:w-full">
         <PageHeader
           title="Filter"
-          titleSuffix={
-            summaryTokens.length > 0 ? (
-              <span className="text-muted-foreground max-w-44 truncate font-mono text-xs font-medium">
-                · {summaryTokens.join(" · ")}
-              </span>
-            ) : null
-          }
+          titleSuffix={titleSuffix}
           onBack={onClose}
           actions={
             <>

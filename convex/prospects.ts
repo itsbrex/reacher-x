@@ -2494,9 +2494,12 @@ export const backfillTwitterLinkMetadataForProspectsInternal = internalAction({
     const skippedProspectIds: Id<"prospects">[] = [];
 
     for (const prospectId of args.prospectIds) {
-      const prospect = (await ctx.runQuery(internal.prospects.getProspectInternal, {
-        prospectId,
-      })) as Doc<"prospects"> | null;
+      const prospect = (await ctx.runQuery(
+        internal.prospects.getProspectInternal,
+        {
+          prospectId,
+        }
+      )) as Doc<"prospects"> | null;
 
       if (!prospect || prospect.platform !== "twitter") {
         skippedProspectIds.push(prospectId);
@@ -3122,25 +3125,117 @@ export const listAutoPlanEligibleProspectsForWorkspace = internalQuery({
   },
 });
 
+type CapacityCandidateSummary = Pick<
+  Doc<"prospectSummaries">,
+  | "prospectId"
+  | "origin"
+  | "status"
+  | "qualificationStatus"
+  | "enrichmentStatus"
+  | "planGenerationStatus"
+>;
+
+function isCapacityCandidateSummary(summary: CapacityCandidateSummary) {
+  if (summary.origin === "setup_preview") {
+    return false;
+  }
+
+  if (summary.planGenerationStatus === "generating") {
+    return true;
+  }
+
+  if (summary.qualificationStatus === "pending") {
+    return true;
+  }
+
+  return (
+    summary.qualificationStatus === "qualified" &&
+    summary.enrichmentStatus !== "enriched"
+  );
+}
+
+async function listWorkspaceCapacityCandidateSummaries(
+  db: QueryCtx["db"],
+  workspaceId: Id<"workspaces">
+): Promise<CapacityCandidateSummary[]> {
+  const [
+    pendingQualificationRows,
+    generatingPlanRows,
+    qualifiedPendingEnrichmentRows,
+    qualifiedPartialEnrichmentRows,
+    qualifiedFailedEnrichmentRows,
+  ] = await Promise.all([
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_qualification", (q) =>
+        q.eq("workspaceId", workspaceId).eq("qualificationStatus", "pending")
+      )
+      .collect(),
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_plan_generation", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("planGenerationStatus", "generating")
+      )
+      .collect(),
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_qualification_and_enrichment", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("qualificationStatus", "qualified")
+          .eq("enrichmentStatus", "pending")
+      )
+      .collect(),
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_qualification_and_enrichment", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("qualificationStatus", "qualified")
+          .eq("enrichmentStatus", "partial")
+      )
+      .collect(),
+    db
+      .query("prospectSummaries")
+      .withIndex("by_workspace_qualification_and_enrichment", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("qualificationStatus", "qualified")
+          .eq("enrichmentStatus", "failed")
+      )
+      .collect(),
+  ]);
+
+  const byProspectId = new Map<string, CapacityCandidateSummary>();
+  for (const summary of [
+    ...pendingQualificationRows,
+    ...generatingPlanRows,
+    ...qualifiedPendingEnrichmentRows,
+    ...qualifiedPartialEnrichmentRows,
+    ...qualifiedFailedEnrichmentRows,
+  ]) {
+    if (!isCapacityCandidateSummary(summary)) {
+      continue;
+    }
+
+    byProspectId.set(String(summary.prospectId), summary);
+  }
+
+  return [...byProspectId.values()];
+}
+
 export const listWorkspaceCapacityCandidatesInternal = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    const summaries = await ctx.db
-      .query("prospectSummaries")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-      .collect();
-
-    const candidateIds = summaries
-      .filter(
-        (prospect) =>
-          prospect.origin !== "setup_preview" &&
-          (prospect.planGenerationStatus === "generating" ||
-            prospect.qualificationStatus !== "qualified" ||
-            prospect.enrichmentStatus !== "enriched")
-      )
-      .map((prospect) => prospect.prospectId);
+    const summaries = await listWorkspaceCapacityCandidateSummaries(
+      ctx.db,
+      args.workspaceId
+    );
+    const candidateIds = summaries.map((prospect) => prospect.prospectId);
 
     const prospects = await Promise.all(
       candidateIds.map((prospectId) => ctx.db.get(prospectId))
@@ -3157,22 +3252,10 @@ export const listWorkspaceCapacityRestartCandidatesInternal = internalQuery({
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    const prospects = await ctx.db
-      .query("prospectSummaries")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-      .collect();
-
-    return prospects
-      .filter(
-        (prospect) =>
-          prospect.origin !== "setup_preview" &&
-          prospect.status !== "archived" &&
-          (prospect.qualificationStatus !== "qualified" &&
-          prospect.qualificationStatus !== "disqualified"
-            ? true
-            : prospect.qualificationStatus === "qualified" &&
-              prospect.enrichmentStatus !== "enriched")
-      )
+    return (
+      await listWorkspaceCapacityCandidateSummaries(ctx.db, args.workspaceId)
+    )
+      .filter((prospect) => prospect.status !== "archived")
       .map((prospect) => ({
         _id: prospect.prospectId,
         status: prospect.status,

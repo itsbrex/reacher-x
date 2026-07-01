@@ -178,6 +178,15 @@ export default defineSchema({
     .index("by_state", ["state"])
     .index("by_user_expires_at", ["userId", "expiresAt"]),
 
+  threadHelperAiControls: defineTable({
+    userId: v.id("users"),
+    threadId: v.string(),
+    cancellationVersion: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_thread", ["threadId"])
+    .index("by_user_and_thread", ["userId", "threadId"]),
+
   linkedinAccounts: defineTable({
     userId: v.id("users"),
     accountId: v.string(),
@@ -1192,6 +1201,22 @@ export default defineSchema({
     .index("by_user_qualification", ["userId", "qualificationStatus"])
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_created", ["workspaceId", "prospectCreatedAt"])
+    .index("by_workspace_qualification", [
+      "workspaceId",
+      "qualificationStatus",
+      "prospectCreatedAt",
+    ])
+    .index("by_workspace_qualification_and_enrichment", [
+      "workspaceId",
+      "qualificationStatus",
+      "enrichmentStatus",
+      "prospectCreatedAt",
+    ])
+    .index("by_workspace_plan_generation", [
+      "workspaceId",
+      "planGenerationStatus",
+      "prospectCreatedAt",
+    ])
     .index("by_setup_session_revision", ["setupSessionId", "setupRevision"])
     .index("by_workspace_score", [
       "workspaceId",
@@ -1514,6 +1539,7 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     memoryId: v.string(),
     createdAt: v.number(),
+    createdDayStartUtcMs: v.optional(v.number()),
     title: v.string(),
     summary: v.string(),
     source: workspaceMemorySourceValidator,
@@ -1524,6 +1550,18 @@ export default defineSchema({
     evidenceCount: v.number(),
   })
     .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_workspace_day_and_impact_score_and_created_at", [
+      "workspaceId",
+      "createdDayStartUtcMs",
+      "impactScore",
+      "createdAt",
+    ])
+    .index("by_workspace_day_and_confidence_and_created_at", [
+      "workspaceId",
+      "createdDayStartUtcMs",
+      "confidence",
+      "createdAt",
+    ])
     .index("by_workspace_impact_score_and_created_at", [
       "workspaceId",
       "impactScore",

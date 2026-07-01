@@ -1118,22 +1118,25 @@ async function countWorkspaceProspectSummariesByStatus(
     fitScoreMax: args.fitScoreMax,
   });
 
-  const countRows = async (rows: Doc<"prospectSummaries">[]) => {
-    if (!actionableOnly) {
-      return rows.length;
+  const countRows = async (rows: AsyncIterable<Doc<"prospectSummaries">>) => {
+    let count = 0;
+
+    for await (const row of rows) {
+      if (
+        actionableOnly &&
+        !(await resolveProspectSummaryActionableReady(db, row))
+      ) {
+        continue;
+      }
+
+      count += 1;
     }
 
-    let count = 0;
-    for (const row of rows) {
-      if (await resolveProspectSummaryActionableReady(db, row)) {
-        count += 1;
-      }
-    }
     return count;
   };
 
   if (trimmedSearch) {
-    const rows = await db
+    const rows = db
       .query("prospectSummaries")
       .withSearchIndex("search_prospect_summaries", (q) =>
         q
@@ -1169,15 +1172,14 @@ async function countWorkspaceProspectSummariesByStatus(
         }
 
         return q.and(...clauses);
-      })
-      .collect();
+      });
 
     return await countRows(rows);
   }
 
   if (args.platform !== undefined && readyOnly) {
-    return (
-      await applyAdditionalFilters(
+    return await countRows(
+      applyAdditionalFilters(
         db
           .query("prospectSummaries")
           .withIndex("by_workspace_platform_status_ready_score", (q) =>
@@ -1190,12 +1192,12 @@ async function countWorkspaceProspectSummariesByStatus(
               .lte("sortQualificationScore", fitScoreMax)
           ),
         args
-      ).collect()
-    ).length;
+      )
+    );
   }
 
   if (args.platform !== undefined) {
-    const rows = await applyAdditionalFilters(
+    const rows = applyAdditionalFilters(
       db
         .query("prospectSummaries")
         .withIndex("by_workspace_platform_status_score", (q) =>
@@ -1207,14 +1209,14 @@ async function countWorkspaceProspectSummariesByStatus(
             .lte("sortQualificationScore", fitScoreMax)
         ),
       args
-    ).collect();
+    );
 
     return await countRows(rows);
   }
 
   if (readyOnly) {
-    return (
-      await applyAdditionalFilters(
+    return await countRows(
+      applyAdditionalFilters(
         db
           .query("prospectSummaries")
           .withIndex("by_workspace_status_ready_score", (q) =>
@@ -1226,11 +1228,11 @@ async function countWorkspaceProspectSummariesByStatus(
               .lte("sortQualificationScore", fitScoreMax)
           ),
         args
-      ).collect()
-    ).length;
+      )
+    );
   }
 
-  const rows = await applyAdditionalFilters(
+  const rows = applyAdditionalFilters(
     db
       .query("prospectSummaries")
       .withIndex("by_workspace_status_score", (q) =>
@@ -1241,7 +1243,7 @@ async function countWorkspaceProspectSummariesByStatus(
           .lte("sortQualificationScore", fitScoreMax)
       ),
     args
-  ).collect();
+  );
 
   return await countRows(rows);
 }
@@ -1303,44 +1305,40 @@ export const getWorkspaceFitScoreHistogram = query({
       notAuthorizedMessage: "Not authorized to view this workspace",
     });
 
-    let query;
-    if (args.platform && args.status) {
-      const platform = args.platform;
-      const status = args.status;
-      query = ctx.db
-        .query("prospectSummaries")
-        .withIndex("by_workspace_platform_status_score", (q) =>
-          q
-            .eq("workspaceId", args.workspaceId)
-            .eq("platform", platform)
-            .eq("status", status)
-        );
-    } else if (args.platform) {
-      const platform = args.platform;
-      query = ctx.db
-        .query("prospectSummaries")
-        .withIndex("by_workspace_platform_score", (q) =>
-          q.eq("workspaceId", args.workspaceId).eq("platform", platform)
-        );
-    } else if (args.status) {
-      const status = args.status;
-      query = ctx.db
-        .query("prospectSummaries")
-        .withIndex("by_workspace_status_score", (q) =>
-          q.eq("workspaceId", args.workspaceId).eq("status", status)
-        );
-    } else {
-      query = ctx.db
-        .query("prospectSummaries")
-        .withIndex("by_workspace", (q) =>
-          q.eq("workspaceId", args.workspaceId)
-        );
-    }
-
-    const summaries = await applyAdditionalFilters(query, args).collect();
+    const baseQuery =
+      args.platform && args.status
+        ? ctx.db
+            .query("prospectSummaries")
+            .withIndex("by_workspace_platform_status_score", (q) =>
+              q
+                .eq("workspaceId", args.workspaceId)
+                .eq("platform", args.platform!)
+                .eq("status", args.status!)
+            )
+        : args.platform
+          ? ctx.db
+              .query("prospectSummaries")
+              .withIndex("by_workspace_platform_score", (q) =>
+                q
+                  .eq("workspaceId", args.workspaceId)
+                  .eq("platform", args.platform!)
+              )
+          : args.status
+            ? ctx.db
+                .query("prospectSummaries")
+                .withIndex("by_workspace_status_score", (q) =>
+                  q
+                    .eq("workspaceId", args.workspaceId)
+                    .eq("status", args.status!)
+                )
+            : ctx.db
+                .query("prospectSummaries")
+                .withIndex("by_workspace", (q) =>
+                  q.eq("workspaceId", args.workspaceId)
+                );
     const binCounts = Array.from({ length: 10 }, () => 0);
 
-    for (const summary of summaries) {
+    for await (const summary of applyAdditionalFilters(baseQuery, args)) {
       const score =
         typeof summary.qualificationScore === "number"
           ? Math.max(0, Math.min(100, Math.round(summary.qualificationScore)))

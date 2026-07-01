@@ -9,7 +9,12 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import {
+  useConvex,
+  useMutation,
+  usePaginatedQuery,
+  useQuery,
+} from "convex/react";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -106,6 +111,16 @@ type WorkspaceSetupStatus =
 type TabType = "new" | "contacted" | "in_progress";
 type ProspectSummary = Doc<"prospectSummaries">;
 type ProspectStageCounts = Record<TabType, number>;
+type ProspectListFeedState = {
+  hasSnapshot: boolean;
+  pendingCount: number;
+  pendingCountCapped: boolean;
+  pendingPreview: Array<{
+    prospectId: Id<"prospects">;
+    displayName: string;
+    avatarUrl?: string;
+  }>;
+};
 type TabAttentionState = Record<TabType, boolean>;
 type StageCountBaseline = {
   scopeKey: string | null;
@@ -151,17 +166,35 @@ function WaitingStateMetric({
 
 export default function ProspectsPage() {
   const router = useRouter();
+  const convex = useConvex();
   const { entityPlural, pageLabels, routes, stageLabels } =
     useActiveUseCaseLabels();
   const { openProspect, prospectId } = useProspectProfile();
   const { clearStack } = usePanelStack();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<TabType>("new");
+  const [prefetchedBrowseScopeKey, setPrefetchedBrowseScopeKey] = useState<
+    string | null
+  >(null);
   const [stageCountBaseline, setStageCountBaseline] =
     useState<StageCountBaseline>({
       scopeKey: null,
       counts: {},
     });
+  const [stageCountsState, setStageCountsState] = useState<{
+    scopeKey: string | null;
+    value: ProspectStageCounts | undefined;
+  }>({
+    scopeKey: null,
+    value: undefined,
+  });
+  const [feedStateState, setFeedStateState] = useState<{
+    scopeKey: string | null;
+    value: ProspectListFeedState | undefined;
+  }>({
+    scopeKey: null,
+    value: undefined,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const trimmedSearchQuery = searchQuery.trim();
   const browseMode = trimmedSearchQuery === "";
@@ -268,22 +301,6 @@ export default function ProspectsPage() {
     () => getProspectListFilterArgs(appliedFilters),
     [appliedFilters]
   );
-  const stageCounts = useQuery(
-    api.prospectSummaries.getWorkspaceProspectStageCounts,
-    workspaceId && fitScoreRange
-      ? {
-          workspaceId,
-          fitScoreMin: appliedFilterArgs.fitScoreMin,
-          fitScoreMax: appliedFilterArgs.fitScoreMax,
-          platform: appliedFilterArgs.platform,
-          prospectType: appliedFilterArgs.prospectType,
-          createdAfterMs: appliedFilterArgs.createdAfterMs,
-          createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-          visibilityMode,
-          searchQuery: trimmedSearchQuery || undefined,
-        }
-      : "skip"
-  ) as ProspectStageCounts | undefined;
   const stageCountScopeKey = useMemo(
     () =>
       [
@@ -309,6 +326,110 @@ export default function ProspectsPage() {
       trimmedSearchQuery,
     ]
   );
+  const browseScopeKey = useMemo(
+    () =>
+      [
+        workspaceId,
+        browseMode ? "browse" : "search",
+        visibilityMode,
+        appliedSort,
+        appliedFilterArgs.fitScoreMin,
+        appliedFilterArgs.fitScoreMax,
+        appliedFilterArgs.platform ?? "all",
+        appliedFilterArgs.prospectType ?? "both",
+        appliedFilterArgs.createdAfterMs ?? "none",
+        appliedFilterArgs.createdBeforeMs ?? "none",
+      ].join("|"),
+    [
+      workspaceId,
+      browseMode,
+      visibilityMode,
+      appliedSort,
+      appliedFilterArgs.fitScoreMin,
+      appliedFilterArgs.fitScoreMax,
+      appliedFilterArgs.platform,
+      appliedFilterArgs.prospectType,
+      appliedFilterArgs.createdAfterMs,
+      appliedFilterArgs.createdBeforeMs,
+    ]
+  );
+  const enabledTabs = useMemo(
+    () => ({
+      new: activeTab === "new" || prefetchedBrowseScopeKey === browseScopeKey,
+      contacted:
+        activeTab === "contacted" ||
+        prefetchedBrowseScopeKey === browseScopeKey,
+      in_progress:
+        activeTab === "in_progress" ||
+        prefetchedBrowseScopeKey === browseScopeKey,
+    }),
+    [activeTab, browseScopeKey, prefetchedBrowseScopeKey]
+  );
+  const stageCounts =
+    stageCountsState.scopeKey === stageCountScopeKey
+      ? stageCountsState.value
+      : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!workspaceId || !fitScoreRange) {
+      return;
+    }
+
+    void convex
+      .query(api.prospectSummaries.getWorkspaceProspectStageCounts, {
+        workspaceId,
+        fitScoreMin: appliedFilterArgs.fitScoreMin,
+        fitScoreMax: appliedFilterArgs.fitScoreMax,
+        platform: appliedFilterArgs.platform,
+        prospectType: appliedFilterArgs.prospectType,
+        createdAfterMs: appliedFilterArgs.createdAfterMs,
+        createdBeforeMs: appliedFilterArgs.createdBeforeMs,
+        visibilityMode,
+        searchQuery: trimmedSearchQuery || undefined,
+      })
+      .then((counts) => {
+        if (!cancelled) {
+          setStageCountsState({
+            scopeKey: stageCountScopeKey,
+            value: counts as ProspectStageCounts,
+          });
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          "[ProspectsPage] Failed to load stage counts",
+          {
+            workspaceId: String(workspaceId),
+          },
+          error
+        );
+        if (!cancelled) {
+          setStageCountsState({
+            scopeKey: stageCountScopeKey,
+            value: undefined,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    convex,
+    workspaceId,
+    fitScoreRange,
+    appliedFilterArgs.fitScoreMin,
+    appliedFilterArgs.fitScoreMax,
+    appliedFilterArgs.platform,
+    appliedFilterArgs.prospectType,
+    appliedFilterArgs.createdAfterMs,
+    appliedFilterArgs.createdBeforeMs,
+    visibilityMode,
+    stageCountScopeKey,
+    trimmedSearchQuery,
+  ]);
 
   const tabAttention = useMemo<TabAttentionState>(() => {
     if (!stageCounts) {
@@ -360,7 +481,7 @@ export default function ProspectsPage() {
 
   const newProspectsQuery = usePaginatedQuery(
     api.prospectListFeed.listStableWorkspaceProspectSummaries,
-    workspaceId && fitScoreRange && browseMode
+    enabledTabs.new && workspaceId && fitScoreRange && browseMode
       ? {
           workspaceId,
           status: "new",
@@ -378,7 +499,7 @@ export default function ProspectsPage() {
   );
   const contactedProspectsQuery = usePaginatedQuery(
     api.prospectListFeed.listStableWorkspaceProspectSummaries,
-    workspaceId && fitScoreRange && browseMode
+    enabledTabs.contacted && workspaceId && fitScoreRange && browseMode
       ? {
           workspaceId,
           status: "contacted",
@@ -396,7 +517,7 @@ export default function ProspectsPage() {
   );
   const inProgressProspectsQuery = usePaginatedQuery(
     api.prospectListFeed.listStableWorkspaceProspectSummaries,
-    workspaceId && fitScoreRange && browseMode
+    enabledTabs.in_progress && workspaceId && fitScoreRange && browseMode
       ? {
           workspaceId,
           status: "in_progress",
@@ -417,24 +538,14 @@ export default function ProspectsPage() {
     () => TAB_DEFINITIONS.find((t) => t.id === activeTab)!.status,
     [activeTab]
   );
-
-  const feedState = useQuery(
-    api.prospectListFeed.getProspectListFeedState,
-    workspaceId && fitScoreRange && browseMode
-      ? {
-          workspaceId,
-          status: activeTabStatus,
-          sortBy: appliedSort,
-          fitScoreMin: appliedFilterArgs.fitScoreMin,
-          fitScoreMax: appliedFilterArgs.fitScoreMax,
-          platform: appliedFilterArgs.platform,
-          prospectType: appliedFilterArgs.prospectType,
-          createdAfterMs: appliedFilterArgs.createdAfterMs,
-          createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-          visibilityMode,
-        }
-      : "skip"
+  const feedStateScopeKey = useMemo(
+    () => [browseScopeKey, activeTabStatus].join("|"),
+    [activeTabStatus, browseScopeKey]
   );
+  const feedState =
+    feedStateState.scopeKey === feedStateScopeKey
+      ? feedStateState.value
+      : undefined;
   const onboardingProgress = useQuery(
     api.prospects.getOnboardingProgress,
     workspaceId ? { workspaceId } : "skip"
@@ -499,6 +610,102 @@ export default function ProspectsPage() {
     inProgressProspectsQuery.status,
     newProspectsQuery.status,
   ]);
+  const refreshFeedState = useCallback(async () => {
+    if (!workspaceId || !fitScoreRange || !browseMode) {
+      return;
+    }
+
+    try {
+      const nextFeedState = await convex.query(
+        api.prospectListFeed.getProspectListFeedState,
+        {
+          workspaceId,
+          status: activeTabStatus,
+          sortBy: appliedSort,
+          fitScoreMin: appliedFilterArgs.fitScoreMin,
+          fitScoreMax: appliedFilterArgs.fitScoreMax,
+          platform: appliedFilterArgs.platform,
+          prospectType: appliedFilterArgs.prospectType,
+          createdAfterMs: appliedFilterArgs.createdAfterMs,
+          createdBeforeMs: appliedFilterArgs.createdBeforeMs,
+          visibilityMode,
+        }
+      );
+
+      setFeedStateState({
+        scopeKey: feedStateScopeKey,
+        value: nextFeedState as ProspectListFeedState,
+      });
+    } catch (error) {
+      console.warn(
+        "[ProspectsPage] Failed to load feed state",
+        {
+          status: activeTabStatus,
+          workspaceId: String(workspaceId),
+        },
+        error
+      );
+      setFeedStateState({
+        scopeKey: feedStateScopeKey,
+        value: undefined,
+      });
+    }
+  }, [
+    convex,
+    workspaceId,
+    fitScoreRange,
+    browseMode,
+    activeTabStatus,
+    appliedSort,
+    appliedFilterArgs.fitScoreMin,
+    appliedFilterArgs.fitScoreMax,
+    appliedFilterArgs.platform,
+    appliedFilterArgs.prospectType,
+    appliedFilterArgs.createdAfterMs,
+    appliedFilterArgs.createdBeforeMs,
+    visibilityMode,
+    feedStateScopeKey,
+  ]);
+
+  useEffect(() => {
+    if (!browseMode || !workspaceId || !fitScoreRange) {
+      return;
+    }
+
+    if (currentTabStatus === "LoadingFirstPage") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPrefetchedBrowseScopeKey((current) =>
+        current === browseScopeKey ? current : browseScopeKey
+      );
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    browseMode,
+    browseScopeKey,
+    currentTabStatus,
+    fitScoreRange,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceId || !fitScoreRange || !browseMode) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void refreshFeedState();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [browseMode, fitScoreRange, refreshFeedState, workspaceId]);
 
   const browseLoadMore = useCallback(() => {
     switch (activeTab) {
@@ -552,6 +759,8 @@ export default function ProspectsPage() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!browseMode) return;
     if (!workspaceId || !fitScoreRange) return;
     if (feedState === undefined) return;
@@ -570,7 +779,22 @@ export default function ProspectsPage() {
       fitScoreMax: appliedFilterArgs.fitScoreMax,
       createdAfterMs: appliedFilterArgs.createdAfterMs,
       createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-    });
+    })
+      .then(() => (!cancelled ? refreshFeedState() : undefined))
+      .catch((error) => {
+        console.warn(
+          "[ProspectsPage] Failed to sync feed snapshot",
+          {
+            status: activeTabStatus,
+            workspaceId: String(workspaceId),
+          },
+          error
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTabStatus,
     appliedFilterArgs.createdAfterMs,
@@ -586,6 +810,7 @@ export default function ProspectsPage() {
     tabProspects.length,
     visibilityMode,
     workspaceId,
+    refreshFeedState,
   ]);
 
   const handleMergePending = () => {
@@ -601,7 +826,18 @@ export default function ProspectsPage() {
         fitScoreMax: appliedFilterArgs.fitScoreMax,
         createdAfterMs: appliedFilterArgs.createdAfterMs,
         createdBeforeMs: appliedFilterArgs.createdBeforeMs,
-      });
+      })
+        .then(() => refreshFeedState())
+        .catch((error) => {
+          console.warn(
+            "[ProspectsPage] Failed to merge pending prospects",
+            {
+              status: activeTabStatus,
+              workspaceId: String(workspaceId),
+            },
+            error
+          );
+        });
     });
   };
 
