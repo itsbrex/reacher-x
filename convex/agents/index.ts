@@ -6,8 +6,8 @@ import { wrapLanguageModel } from "ai";
 import { components, internal } from "../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  FAST_MODEL,
-  FAST_PROVIDER_OPTIONS,
+  PINNED_AGENT_MODEL,
+  PINNED_AGENT_PROVIDER_OPTIONS,
   getOpenRouterExtraBody,
 } from "../lib/ai";
 import {
@@ -63,10 +63,10 @@ function getOpenRouterProvider() {
 
 const openrouter = getOpenRouterProvider();
 const setupLanguageModel = wrapLanguageModel({
-  // Setup stays on the fast route; the shared AI preset decides whether that
-  // means single-provider Cerebras or the cost-optimized fallback chain.
-  model: openrouter(FAST_MODEL, {
-    extraBody: getOpenRouterExtraBody(FAST_PROVIDER_OPTIONS),
+  // Pin tool-calling setup runs to the validated Cerebras route. This avoids
+  // provider roulette for multi-step streamed agent turns.
+  model: openrouter(PINNED_AGENT_MODEL, {
+    extraBody: getOpenRouterExtraBody(PINNED_AGENT_PROVIDER_OPTIONS),
   }) as any,
   middleware: openRouterMetadataMiddleware,
 });

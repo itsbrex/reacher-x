@@ -1,4 +1,5 @@
 import type { LanguageModelMiddleware, ProviderMetadata } from "ai";
+import { normalizeUnknownError } from "./errorHelpers";
 
 type WrapGenerateOptions = Parameters<
   NonNullable<LanguageModelMiddleware["wrapGenerate"]>
@@ -212,6 +213,62 @@ function normalizeContentArray<T extends unknown[]>(
   return [...nonSourceContent, ...mergedContent] as T;
 }
 
+function normalizeStreamErrors<T>(
+  stream: ReadableStream<T>
+): ReadableStream<T> {
+  let reader: ReadableStreamDefaultReader<T> | null = stream.getReader();
+
+  return new ReadableStream<T>({
+    async pull(controller) {
+      if (!reader) {
+        controller.close();
+        return;
+      }
+
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          try {
+            reader.releaseLock();
+          } catch {
+            // Best effort only.
+          }
+          reader = null;
+          controller.close();
+          return;
+        }
+
+        controller.enqueue(value);
+      } catch (error) {
+        const normalizedError = normalizeUnknownError(error);
+        try {
+          reader?.releaseLock();
+        } catch {
+          // Best effort only.
+        }
+        reader = null;
+        controller.error(normalizedError);
+      }
+    },
+    async cancel(reason) {
+      if (!reader) {
+        return;
+      }
+
+      try {
+        await reader.cancel(reason);
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch {
+          // Best effort only.
+        }
+        reader = null;
+      }
+    },
+  });
+}
+
 export function sanitizeTelemetryPayload(value: unknown): unknown {
   return sanitizeJsonValue(value) ?? null;
 }
@@ -258,7 +315,12 @@ export function sanitizeProviderMetadataForConvex(
 export const openRouterMetadataMiddleware: LanguageModelMiddleware = {
   specificationVersion: "v3",
   async wrapGenerate({ doGenerate }: WrapGenerateOptions) {
-    const result = await doGenerate();
+    let result;
+    try {
+      result = await doGenerate();
+    } catch (error) {
+      throw normalizeUnknownError(error);
+    }
     const additionalSources = extractOpenRouterSources(result.providerMetadata);
 
     return {
@@ -270,50 +332,57 @@ export const openRouterMetadataMiddleware: LanguageModelMiddleware = {
     };
   },
   async wrapStream({ doStream }: WrapStreamOptions) {
-    const result = await doStream();
+    let result;
+    try {
+      result = await doStream();
+    } catch (error) {
+      throw normalizeUnknownError(error);
+    }
     const seenSources = new Set<string>();
 
     return {
       ...result,
-      stream: result.stream.pipeThrough(
-        new TransformStream({
-          transform(part, controller) {
-            const providerMetadata =
-              isRecord(part) && "providerMetadata" in part
-                ? (part.providerMetadata as ProviderMetadata | undefined)
-                : undefined;
+      stream: normalizeStreamErrors(
+        result.stream.pipeThrough(
+          new TransformStream({
+            transform(part, controller) {
+              const providerMetadata =
+                isRecord(part) && "providerMetadata" in part
+                  ? (part.providerMetadata as ProviderMetadata | undefined)
+                  : undefined;
 
-            for (const source of extractOpenRouterSources(providerMetadata)) {
-              const key = sourceKey(source);
-              if (seenSources.has(key)) {
-                continue;
+              for (const source of extractOpenRouterSources(providerMetadata)) {
+                const key = sourceKey(source);
+                if (seenSources.has(key)) {
+                  continue;
+                }
+                seenSources.add(key);
+                controller.enqueue(source);
               }
-              seenSources.add(key);
-              controller.enqueue(source);
-            }
 
-            if (!isRecord(part)) {
-              controller.enqueue(part);
-              return;
-            }
+              if (!isRecord(part)) {
+                controller.enqueue(part);
+                return;
+              }
 
-            // Sanitize nested object values to strip $-prefixed keys
-            // (e.g. $schema from OpenRouter) that Convex rejects. The
-            // agent library persists stream deltas directly to the DB.
-            const sanitized = Object.fromEntries(
-              Object.entries(part).map(([key, val]) => [
-                key,
-                key === "providerMetadata"
-                  ? normalizeOpenRouterProviderMetadata(providerMetadata)
-                  : typeof val === "object" && val !== null
-                    ? sanitizeJsonValue(val)
-                    : val,
-              ])
-            );
+              // Sanitize nested object values to strip $-prefixed keys
+              // (e.g. $schema from OpenRouter) that Convex rejects. The
+              // agent library persists stream deltas directly to the DB.
+              const sanitized = Object.fromEntries(
+                Object.entries(part).map(([key, val]) => [
+                  key,
+                  key === "providerMetadata"
+                    ? normalizeOpenRouterProviderMetadata(providerMetadata)
+                    : typeof val === "object" && val !== null
+                      ? sanitizeJsonValue(val)
+                      : val,
+                ])
+              );
 
-            controller.enqueue(sanitized as unknown as typeof part);
-          },
-        })
+              controller.enqueue(sanitized as unknown as typeof part);
+            },
+          })
+        )
       ),
     };
   },

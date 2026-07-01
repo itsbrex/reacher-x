@@ -224,6 +224,19 @@ export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
 export const FAST_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   getRoutingPresetConfig().fast.providerOptions;
 
+/**
+ * Tool-calling agents are pinned to Cerebras because streamed multi-step runs
+ * aborted intermittently when OpenRouter routed GPT-OSS traffic to Groq.
+ *
+ * Keep this route separate from the broader preset-based fast/reasoning
+ * routing so autocomplete and non-agent text generation can still evolve
+ * independently.
+ */
+export const PINNED_AGENT_MODEL = MODELS.GPT_OSS;
+
+export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createOnlyProviderOptions([OPENROUTER_PROVIDERS.CEREBRAS]);
+
 export type ModelRouting = "fast" | "reasoning";
 type JsonFailureLogLevel = "error" | "warn" | "info";
 const aiLogger = logger.withScope("AI");

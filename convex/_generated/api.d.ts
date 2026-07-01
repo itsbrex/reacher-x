@@ -85,6 +85,7 @@ import type * as lib_discoveryEdgesCore from "../lib/discoveryEdgesCore.js";
 import type * as lib_embeddingModels from "../lib/embeddingModels.js";
 import type * as lib_enrichmentCore from "../lib/enrichmentCore.js";
 import type * as lib_enrichmentPool from "../lib/enrichmentPool.js";
+import type * as lib_errorHelpers from "../lib/errorHelpers.js";
 import type * as lib_functionBuilders from "../lib/functionBuilders.js";
 import type * as lib_learningCore from "../lib/learningCore.js";
 import type * as lib_linkdapiBudget from "../lib/linkdapiBudget.js";
@@ -310,6 +311,7 @@ declare const fullApi: ApiFromModules<{
   "lib/embeddingModels": typeof lib_embeddingModels;
   "lib/enrichmentCore": typeof lib_enrichmentCore;
   "lib/enrichmentPool": typeof lib_enrichmentPool;
+  "lib/errorHelpers": typeof lib_errorHelpers;
   "lib/functionBuilders": typeof lib_functionBuilders;
   "lib/learningCore": typeof lib_learningCore;
   "lib/linkdapiBudget": typeof lib_linkdapiBudget;

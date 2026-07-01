@@ -41,6 +41,10 @@ import {
   requireUser,
 } from "./lib/accessHelpers";
 import { createNotification } from "./lib/outreachCore";
+import {
+  normalizeUnknownError,
+  stringifyUnknownError,
+} from "./lib/errorHelpers";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import { getProspectDisplayFields } from "./lib/notificationHelpers";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
@@ -156,13 +160,18 @@ async function getPlainTextMessageById(
   ctx: ActionCtx,
   messageId: string
 ): Promise<string> {
+  const message = await getThreadMessageById(ctx, messageId);
+  return typeof message?.text === "string" ? message.text : "";
+}
+
+async function getThreadMessageById(ctx: ActionCtx, messageId: string) {
   const [message] = await ctx.runQuery(
     components.agent.messages.getMessagesByIds,
     {
       messageIds: [messageId],
     }
   );
-  return typeof message?.text === "string" ? message.text : "";
+  return message;
 }
 
 const USER_STOPPED_ERROR_MESSAGE = "Generation stopped.";
@@ -171,6 +180,11 @@ const TIMED_OUT_ERROR_MESSAGE =
   "That response took too long and stopped before it finished.";
 const TIMED_OUT_VISIBLE_MESSAGE =
   "That response took too long and stopped before it finished. Please try again.";
+const DEFAULT_AGENT_STREAM_DELTAS = {
+  chunking: "word" as const,
+  throttleMs: 100,
+};
+const RETRYABLE_AGENT_TURN_MESSAGE_WINDOW = 50;
 
 async function listPendingAssistantMessages(ctx: ViewerCtx, threadId: string) {
   const pendingMessages = await ctx.runQuery(
@@ -232,7 +246,71 @@ function isEmptyEmbeddingInputError(error: unknown): boolean {
   return error.message.includes("Input is empty");
 }
 
-async function streamOutreachTextWithFallback(
+async function canRetryAgentTurnWithoutDuplicatingTools(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId?: string;
+  }
+) {
+  if (!args.promptMessageId) {
+    return false;
+  }
+
+  const promptMessage = await getThreadMessageById(ctx, args.promptMessageId);
+  if (!promptMessage) {
+    return false;
+  }
+
+  const threadMessages = await ctx.runQuery(
+    components.agent.messages.listMessagesByThreadId,
+    {
+      threadId: args.threadId,
+      order: "desc",
+      paginationOpts: {
+        numItems: RETRYABLE_AGENT_TURN_MESSAGE_WINDOW,
+        cursor: null,
+      },
+    }
+  );
+
+  return !threadMessages.page.some((message) => {
+    if (message.order !== promptMessage.order) {
+      return false;
+    }
+
+    return (
+      message._id !== promptMessage._id && message.message?.role === "tool"
+    );
+  });
+}
+
+async function runOutreachStreamText(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId?: string;
+    system: string;
+    tools: OutreachAgentTools;
+    contextOptions?: ReturnType<typeof buildDisabledHistorySearchContextOptions>;
+  }
+) {
+  return outreachAgent.streamText(
+    ctx,
+    { threadId: args.threadId },
+    {
+      ...(args.promptMessageId ? { promptMessageId: args.promptMessageId } : {}),
+      system: args.system,
+      tools: args.tools,
+    },
+    {
+      contextOptions: args.contextOptions,
+      saveStreamDeltas: DEFAULT_AGENT_STREAM_DELTAS,
+    }
+  );
+}
+
+async function runOutreachStreamTextWithHistoryFallback(
   ctx: ActionCtx,
   args: {
     threadId: string;
@@ -242,30 +320,15 @@ async function streamOutreachTextWithFallback(
     preferHistorySearch?: boolean;
   }
 ) {
-  const saveStreamDeltas = {
-    chunking: "word" as const,
-    throttleMs: 100,
-  };
   const initialContextOptions = args.preferHistorySearch
     ? undefined
     : buildDisabledHistorySearchContextOptions();
 
   try {
-    return await outreachAgent.streamText(
-      ctx,
-      { threadId: args.threadId },
-      {
-        ...(args.promptMessageId
-          ? { promptMessageId: args.promptMessageId }
-          : {}),
-        system: args.system,
-        tools: args.tools,
-      },
-      {
-        contextOptions: initialContextOptions,
-        saveStreamDeltas,
-      }
-    );
+    return await runOutreachStreamText(ctx, {
+      ...args,
+      contextOptions: initialContextOptions,
+    });
   } catch (error) {
     if (
       initialContextOptions !== undefined ||
@@ -279,21 +342,121 @@ async function streamOutreachTextWithFallback(
       { threadId: args.threadId }
     );
 
-    return await outreachAgent.streamText(
-      ctx,
-      { threadId: args.threadId },
+    return runOutreachStreamText(ctx, {
+      ...args,
+      contextOptions: buildDisabledHistorySearchContextOptions(),
+    });
+  }
+}
+
+async function runSetupStreamText(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId?: string;
+    prompt?: string;
+    system: string;
+  }
+) {
+  return setupAgent.streamText(
+    ctx,
+    { threadId: args.threadId },
+    {
+      ...(args.promptMessageId ? { promptMessageId: args.promptMessageId } : {}),
+      ...(args.prompt ? { prompt: args.prompt } : {}),
+      system: args.system,
+    },
+    {
+      saveStreamDeltas: DEFAULT_AGENT_STREAM_DELTAS,
+    }
+  );
+}
+
+async function streamOutreachTextWithFallback(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId?: string;
+    system: string;
+    tools: OutreachAgentTools;
+    preferHistorySearch?: boolean;
+  }
+) {
+  const executeAttempt = async () => {
+    const result = await runOutreachStreamTextWithHistoryFallback(ctx, args);
+    await result.consumeStream();
+    return result;
+  };
+
+  try {
+    return await executeAttempt();
+  } catch (error) {
+    const shouldRetry = await canRetryAgentTurnWithoutDuplicatingTools(ctx, {
+      threadId: args.threadId,
+      promptMessageId: args.promptMessageId,
+    });
+
+    if (!shouldRetry) {
+      throw normalizeUnknownError(error);
+    }
+
+    chatLogger.warn(
+      "Outreach stream aborted before any tool result was saved; retrying once on the pinned safe provider",
       {
-        ...(args.promptMessageId
-          ? { promptMessageId: args.promptMessageId }
-          : {}),
-        system: args.system,
-        tools: args.tools,
-      },
-      {
-        contextOptions: buildDisabledHistorySearchContextOptions(),
-        saveStreamDeltas,
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+        errorMessage: stringifyUnknownError(error),
       }
     );
+
+    try {
+      return await executeAttempt();
+    } catch (retryError) {
+      throw normalizeUnknownError(retryError);
+    }
+  }
+}
+
+async function streamSetupTextWithRetry(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+    system: string;
+  }
+) {
+  const executeAttempt = async () => {
+    const result = await runSetupStreamText(ctx, args);
+    await result.consumeStream();
+    return result;
+  };
+
+  try {
+    return await executeAttempt();
+  } catch (error) {
+    const shouldRetry = await canRetryAgentTurnWithoutDuplicatingTools(ctx, {
+      threadId: args.threadId,
+      promptMessageId: args.promptMessageId,
+    });
+
+    if (!shouldRetry) {
+      throw normalizeUnknownError(error);
+    }
+
+    chatLogger.warn(
+      "Setup stream aborted before any tool result was saved; retrying once on the pinned safe provider",
+      {
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+        errorMessage: stringifyUnknownError(error),
+      }
+    );
+
+    try {
+      return await executeAttempt();
+    } catch (retryError) {
+      throw normalizeUnknownError(retryError);
+    }
   }
 }
 
@@ -862,7 +1025,6 @@ export const streamOutreachResponse = internalAction({
         preferHistorySearch: shouldUseHistorySearch,
       });
 
-      await result.consumeStream();
       await persistRawModelResponse(ctx, {
         threadId: args.threadId,
         agentName: "Outreach Agent",
@@ -922,15 +1084,16 @@ export const streamOutreachResponse = internalAction({
         pendingAskHuman: askHumanCalls.length > 0,
       };
     } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
       chatLogger.error(
         "Outreach stream error",
         {
           threadId: args.threadId,
           promptMessageId: args.promptMessageId,
         },
-        error
+        normalizedError
       );
-      throw error;
+      throw normalizedError;
     }
   },
 });
@@ -1419,25 +1582,12 @@ export const streamAgentResponse = internalAction({
       const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
       // Stream text with delta persistence for all clients
       // Per docs: pass { saveStreamDeltas: true } to enable streaming
-      const result = await setupAgent.streamText(
-        ctx,
-        { threadId: args.threadId },
-        {
-          promptMessageId: args.promptMessageId,
-          system: buildSetupAgentPrompt(useCase),
-        },
-        {
-          saveStreamDeltas: {
-            // Per docs: chunking can be "word", "line", regex, or custom function
-            chunking: "word",
-            // Per docs: throttleMs controls how frequently deltas are saved
-            throttleMs: 100,
-          },
-        }
-      );
+      const result = await streamSetupTextWithRetry(ctx, {
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+        system: buildSetupAgentPrompt(useCase),
+      });
 
-      // Consume the stream to ensure completion
-      await result.consumeStream();
       await persistRawModelResponse(ctx, {
         threadId: args.threadId,
         agentName: "Setup Agent",
@@ -1451,15 +1601,16 @@ export const streamAgentResponse = internalAction({
         finishReason: await result.finishReason,
       };
     } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
       chatLogger.error(
         "Setup agent stream error",
         {
           threadId: args.threadId,
           promptMessageId: args.promptMessageId,
         },
-        error
+        normalizedError
       );
-      throw error;
+      throw normalizedError;
     }
   },
 });
@@ -1481,20 +1632,11 @@ export const triggerAgentGreeting = internalAction({
       // Use a special init prompt to trigger the agent greeting
       // This prompt is filtered out in the UI (see useAgentChat.ts)
       // The agent's system prompt instructs it to call getUserStatus first
-      const result = await setupAgent.streamText(
-        ctx,
-        { threadId: args.threadId },
-        {
-          prompt: "__INIT__",
-          system: buildSetupAgentPrompt(useCase),
-        },
-        {
-          saveStreamDeltas: {
-            chunking: "word",
-            throttleMs: 100,
-          },
-        }
-      );
+      const result = await runSetupStreamText(ctx, {
+        threadId: args.threadId,
+        prompt: "__INIT__",
+        system: buildSetupAgentPrompt(useCase),
+      });
 
       await result.consumeStream();
       await persistRawModelResponse(ctx, {
@@ -1510,12 +1652,13 @@ export const triggerAgentGreeting = internalAction({
         finishReason: await result.finishReason,
       };
     } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
       chatLogger.error(
         "Agent greeting error",
         { threadId: args.threadId },
-        error
+        normalizedError
       );
-      throw error;
+      throw normalizedError;
     }
   },
 });
@@ -1752,7 +1895,6 @@ export const respondToAskHuman = internalAction({
       preferHistorySearch: true,
     });
 
-    await result.consumeStream();
     await persistRawModelResponse(ctx, {
       threadId: args.threadId,
       agentName: "Outreach Agent",

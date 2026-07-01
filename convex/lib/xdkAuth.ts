@@ -8,8 +8,11 @@ import {
   buildXClient,
   computeXTokenExpiry,
   createXOAuth2,
+  exchangeXAuthorizationCode,
   getDefaultXRedirectUri,
+  isReconnectRequiredXOAuthError,
   parseGrantedScopes,
+  refreshXAccessToken,
 } from "./xdkClient";
 import {
   getXExecutionFailure,
@@ -30,17 +33,24 @@ import { X_CORE_SCOPES } from "./xScopes";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 export type { XAccountStatus, XConnectionStatus } from "./xConnectionStateCore";
 
-/** GET /2/users/me user.fields — https://docs.x.com/x-api/users/get-my-user */
-const USER_ME_FIELDS = [
+/** GET /2/users/me minimal identity fields — https://docs.x.com/x-api/users/get-my-user */
+const X_USER_IDENTITY_FIELDS = [
   "id",
   "name",
   "username",
   "profile_image_url",
   "verified",
   "verified_type",
+];
+
+/** Best-effort metadata fields that should not block reconnect if X is flaky. */
+const X_USER_SELF_METADATA_FIELDS = [
+  ...X_USER_IDENTITY_FIELDS,
   "subscription_type",
   "subscription",
 ] as const;
+
+const X_PROFILE_HYDRATION_RETRY_DELAYS_MS = [400, 1_200, 2_400] as const;
 
 function parseXSubscriptionTypeForStored(
   raw: unknown
@@ -75,6 +85,10 @@ type XStoreRefs = {
   completeXAuthSessionInternal: unknown;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function pickString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -103,12 +117,278 @@ function pickVerifiedFromMe(me: unknown): boolean {
   return false;
 }
 
-function shouldRequireReconnectForRefreshFailure(failure: {
-  classification: string;
-}): boolean {
+async function readXResponseBody(response: Response): Promise<unknown> {
+  const rawBody = await response.text();
+  const trimmedBody = rawBody.trim();
+
+  if (trimmedBody.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmedBody) as Record<string, unknown>;
+  } catch {
+    return trimmedBody;
+  }
+}
+
+function isHtmlLikeBody(body: unknown): boolean {
+  return typeof body === "string" && /<(!doctype|html|body)\b/i.test(body);
+}
+
+function pickXResponseMessage(body: unknown): string | undefined {
+  if (typeof body === "string") {
+    if (isHtmlLikeBody(body)) {
+      return undefined;
+    }
+    const trimmed = body.trim();
+    return trimmed.length > 0 ? trimmed.slice(0, 280) : undefined;
+  }
+
+  if (!isRecord(body)) {
+    return undefined;
+  }
+
+  for (const key of [
+    "detail",
+    "message",
+    "title",
+    "error_description",
+    "error",
+  ]) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function buildXApiErrorMessage(args: {
+  operation: string;
+  response: Response;
+  body: unknown;
+}): string {
+  const detail = pickXResponseMessage(args.body);
+
+  if (args.response.status >= 500) {
+    return `${args.operation} failed (${args.response.status} ${args.response.statusText}): X is temporarily unavailable. Please try again in a few minutes.`;
+  }
+
+  if (isHtmlLikeBody(args.body)) {
+    return `${args.operation} failed (${args.response.status} ${args.response.statusText}): X returned an unexpected HTML error page.`;
+  }
+
+  return detail
+    ? `${args.operation} failed (${args.response.status} ${args.response.statusText}): ${detail}`
+    : `${args.operation} failed (${args.response.status} ${args.response.statusText}).`;
+}
+
+class XApiRequestError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+  readonly body: unknown;
+
+  constructor(args: { operation: string; response: Response; body: unknown }) {
+    super(buildXApiErrorMessage(args));
+    this.name = "XApiRequestError";
+    this.status = args.response.status;
+    this.statusText = args.response.statusText;
+    this.body = args.body;
+  }
+}
+
+function shouldRetryXProfileHydration(error: unknown): boolean {
+  if (!(error instanceof XApiRequestError)) {
+    return false;
+  }
+
+  return (
+    error.status === 401 ||
+    error.status === 408 ||
+    error.status === 429 ||
+    error.status >= 500
+  );
+}
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchXUser(
+  accessToken: string,
+  args: {
+    url: URL;
+    operation: string;
+  }
+): Promise<Record<string, unknown>> {
+  const response = await fetch(args.url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const body = await readXResponseBody(response);
+
+  if (!response.ok) {
+    throw new XApiRequestError({
+      operation: args.operation,
+      response,
+      body,
+    });
+  }
+
+  const user = isRecord(body) ? body.data : undefined;
+  if (!isRecord(user)) {
+    throw new Error(`${args.operation} returned an unexpected payload.`);
+  }
+
+  return user;
+}
+
+async function fetchCurrentXUserIdentity(
+  accessToken: string
+): Promise<Record<string, unknown>> {
+  const url = new URL("https://api.x.com/2/users/me");
+  url.searchParams.set("user.fields", [...X_USER_IDENTITY_FIELDS].join(","));
+  return await fetchXUser(accessToken, {
+    url,
+    operation: "X GET /2/users/me",
+  });
+}
+
+async function fetchCurrentXUserMetadata(
+  accessToken: string
+): Promise<Record<string, unknown>> {
+  const url = new URL("https://api.x.com/2/users/me");
+  url.searchParams.set(
+    "user.fields",
+    [...X_USER_SELF_METADATA_FIELDS].join(",")
+  );
+  return await fetchXUser(accessToken, {
+    url,
+    operation: "X GET /2/users/me",
+  });
+}
+
+async function fetchXUserById(
+  accessToken: string,
+  userId: string
+): Promise<Record<string, unknown>> {
+  const url = new URL(
+    `https://api.x.com/2/users/${encodeURIComponent(userId)}`
+  );
+  url.searchParams.set("user.fields", [...X_USER_IDENTITY_FIELDS].join(","));
+  return await fetchXUser(accessToken, {
+    url,
+    operation: `X GET /2/users/${userId}`,
+  });
+}
+
+async function fetchXUserByUsername(
+  accessToken: string,
+  username: string
+): Promise<Record<string, unknown>> {
+  const url = new URL(
+    `https://api.x.com/2/users/by/username/${encodeURIComponent(username)}`
+  );
+  url.searchParams.set("user.fields", [...X_USER_IDENTITY_FIELDS].join(","));
+  return await fetchXUser(accessToken, {
+    url,
+    operation: `X GET /2/users/by/username/${username}`,
+  });
+}
+
+function mergePreferredXUserMetadata(
+  identity: Record<string, unknown>,
+  metadata?: Record<string, unknown>
+): Record<string, unknown> {
+  if (!metadata) {
+    return identity;
+  }
+
+  return {
+    ...identity,
+    ...metadata,
+  };
+}
+
+async function fetchCurrentXUser(
+  accessToken: string,
+  fallbackAccount?: {
+    xUserId?: unknown;
+    username?: unknown;
+  }
+): Promise<Record<string, unknown>> {
+  let lastError: unknown;
+
+  for (const retryDelayMs of [0, ...X_PROFILE_HYDRATION_RETRY_DELAYS_MS]) {
+    if (retryDelayMs > 0) {
+      await delayMs(retryDelayMs);
+    }
+
+    try {
+      const identity = await fetchCurrentXUserIdentity(accessToken);
+
+      try {
+        const metadata = await fetchCurrentXUserMetadata(accessToken);
+        return mergePreferredXUserMetadata(identity, metadata);
+      } catch (metadataError) {
+        console.warn(
+          "[xdkAuth] X self-profile metadata fetch failed after identity succeeded.",
+          metadataError
+        );
+        return identity;
+      }
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryXProfileHydration(error)) {
+        break;
+      }
+    }
+  }
+
+  const fallbackUserId = pickString(fallbackAccount?.xUserId);
+  if (fallbackUserId) {
+    try {
+      console.warn(
+        "[xdkAuth] Falling back to X user lookup by stored user ID after self-profile lookup failed."
+      );
+      return await fetchXUserById(accessToken, fallbackUserId);
+    } catch (fallbackError) {
+      lastError = fallbackError;
+    }
+  }
+
+  const fallbackUsername = pickString(fallbackAccount?.username);
+  if (fallbackUsername) {
+    try {
+      console.warn(
+        "[xdkAuth] Falling back to X user lookup by stored username after self-profile lookup failed."
+      );
+      return await fetchXUserByUsername(accessToken, fallbackUsername);
+    } catch (fallbackError) {
+      lastError = fallbackError;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("X user profile lookup failed.");
+}
+
+function shouldRequireReconnectForRefreshFailure(
+  failure: {
+    classification: string;
+  },
+  error: unknown
+): boolean {
   return (
     failure.classification === "reauth_required" ||
-    failure.classification === "scope_missing"
+    failure.classification === "scope_missing" ||
+    isReconnectRequiredXOAuthError(error)
   );
 }
 
@@ -128,7 +408,9 @@ function canRetryReconnectStatus(account: {
 
   return (
     !lastRefreshError.includes("missing required scopes") &&
-    !lastRefreshError.includes("refresh token is missing")
+    !lastRefreshError.includes("refresh token is missing") &&
+    !lastRefreshError.includes("token was invalid") &&
+    !lastRefreshError.includes("authorization code")
   );
 }
 
@@ -173,7 +455,7 @@ async function persistAccount(
     activitySubscriptionsLastAuthMode?: "app" | "user";
   }
 ) {
-  const now = Date.now();
+  const now = getCurrentUTCTimestamp();
   const existingAccount = await readStoredAccount(ctx, store, args.userId);
   const styleSourceKey = buildStyleSourceKey("twitter", args.xUserId);
   const styleSourceVersion = getNextStyleSourceVersion({
@@ -208,7 +490,7 @@ async function patchAccount(
     userId,
     patch: {
       ...patch,
-      updatedAt: Date.now(),
+      updatedAt: getCurrentUTCTimestamp(),
     },
   });
 }
@@ -229,7 +511,7 @@ export async function beginXAuthorizationForUser(
   await oauth2.setPkceParameters(codeVerifier, codeChallenge);
 
   const redirectUrl = await oauth2.getAuthorizationUrl(state);
-  const now = Date.now();
+  const now = getCurrentUTCTimestamp();
   await ctx.runMutation(store.createXAuthSessionInternal, {
     userId: args.userId,
     state,
@@ -261,27 +543,28 @@ export async function completeXAuthorizationForUser(
   if (session.completedAt) {
     throw new Error("This X authorization session has already been used.");
   }
-  if (session.expiresAt <= Date.now()) {
+  if (session.expiresAt <= getCurrentUTCTimestamp()) {
     throw new Error("This X authorization session has expired. Start again.");
   }
 
+  const existingAccount = await readStoredAccount(ctx, store, args.userId);
   const codeVerifier = decryptXSecret(session.codeVerifier);
-  const oauth2 = createXOAuth2({
+  const token = await exchangeXAuthorizationCode({
+    code: args.code,
+    codeVerifier,
     redirectUri: session.redirectUri,
-    scope: X_CORE_SCOPES,
   });
-  await oauth2.setPkceParameters(codeVerifier);
-
-  const token = await oauth2.exchangeCode(args.code, codeVerifier);
-  const client = buildXClient(token.access_token);
-  const meResponse = await client.users.getMe({
-    userFields: [...USER_ME_FIELDS],
-  });
-  const me = meResponse.data;
+  const me = await fetchCurrentXUser(token.access_token, existingAccount);
   const grantedScopes = parseGrantedScopes(token);
   const missingScopes = getMissingXScopes(grantedScopes);
-  const now = Date.now();
+  const now = getCurrentUTCTimestamp();
   const subType = pickSubscriptionTypeFromMe(me);
+  const xSubscriptionType =
+    subType ?? existingAccount?.xSubscriptionType ?? undefined;
+  const xSubscriptionUpdatedAt =
+    subType !== undefined
+      ? now
+      : (existingAccount?.xSubscriptionUpdatedAt as number | undefined);
 
   await persistAccount(ctx, store, {
     userId: args.userId,
@@ -302,8 +585,8 @@ export async function completeXAuthorizationForUser(
       missingScopes.length > 0
         ? `Missing required scopes: ${missingScopes.join(", ")}`
         : undefined,
-    xSubscriptionType: subType,
-    xSubscriptionUpdatedAt: subType !== undefined ? now : undefined,
+    xSubscriptionType,
+    xSubscriptionUpdatedAt,
   });
 
   await ctx.runMutation(store.completeXAuthSessionInternal, {
@@ -330,47 +613,55 @@ async function refreshXAccount(
   if (!refreshToken) {
     await patchAccount(ctx, store, userId, {
       status: "reconnect_required",
-      lastRefreshAttemptAt: Date.now(),
+      lastRefreshAttemptAt: getCurrentUTCTimestamp(),
       lastRefreshError: "Refresh token is missing.",
     });
     throw new Error("Reconnect required: refresh token is missing.");
   }
 
-  const oauth2 = createXOAuth2({
-    redirectUri: getDefaultXRedirectUri(),
-    scope: X_CORE_SCOPES,
-  });
-  oauth2.setToken(
-    {
-      access_token: decryptXSecret(account.accessToken),
-      refresh_token: refreshToken,
-      expires_in: Math.max(
-        0,
-        Math.floor((account.expiresAt - Date.now()) / 1000)
-      ),
-      scope: (account.grantedScopes ?? []).join(" "),
-      token_type: account.tokenType,
-    },
-    account.expiresAt
-  );
-
-  const refreshAttemptAt = Date.now();
+  const refreshAttemptAt = getCurrentUTCTimestamp();
 
   try {
-    const refreshedToken = await oauth2.refreshToken(refreshToken);
-    const client = buildXClient(refreshedToken.access_token);
-    const meResponse = await client.users.getMe({
-      userFields: [...USER_ME_FIELDS],
+    const refreshedToken = await refreshXAccessToken({
+      refreshToken,
     });
-    const me = meResponse.data;
     const grantedScopes = parseGrantedScopes(refreshedToken);
     const missingScopes = getMissingXScopes(grantedScopes);
+    const refreshedExpiresAt = computeXTokenExpiry(refreshedToken.expires_in);
+    const nextStatus =
+      missingScopes.length > 0 ? "reconnect_required" : "connected";
+
+    await persistAccount(ctx, store, {
+      userId,
+      xUserId: account.xUserId,
+      username: account.username,
+      displayName: account.displayName,
+      profileImageUrl: account.profileImageUrl,
+      xVerified: account.xVerified,
+      accessToken: refreshedToken.access_token,
+      refreshToken: refreshedToken.refresh_token ?? refreshToken,
+      expiresAt: refreshedExpiresAt,
+      grantedScopes,
+      tokenType: refreshedToken.token_type,
+      status: nextStatus,
+      lastVerifiedAt: account.lastVerifiedAt,
+      lastRefreshAttemptAt: refreshAttemptAt,
+      lastRefreshError:
+        missingScopes.length > 0
+          ? `Missing required scopes: ${missingScopes.join(", ")}`
+          : undefined,
+      xSubscriptionType: account.xSubscriptionType,
+      xSubscriptionUpdatedAt: account.xSubscriptionUpdatedAt,
+    });
+
+    const me = await fetchCurrentXUser(refreshedToken.access_token, account);
+    const verifiedAt = getCurrentUTCTimestamp();
     const meSub = pickSubscriptionTypeFromMe(me);
     const xSubscriptionType =
       meSub !== undefined ? meSub : account.xSubscriptionType;
     const xSubscriptionUpdatedAt =
       meSub !== undefined
-        ? Date.now()
+        ? verifiedAt
         : (account.xSubscriptionUpdatedAt as number | undefined);
 
     await persistAccount(ctx, store, {
@@ -382,11 +673,11 @@ async function refreshXAccount(
       xVerified: pickVerifiedFromMe(me),
       accessToken: refreshedToken.access_token,
       refreshToken: refreshedToken.refresh_token ?? refreshToken,
-      expiresAt: computeXTokenExpiry(refreshedToken.expires_in),
+      expiresAt: refreshedExpiresAt,
       grantedScopes,
       tokenType: refreshedToken.token_type,
-      status: missingScopes.length > 0 ? "reconnect_required" : "connected",
-      lastVerifiedAt: Date.now(),
+      status: nextStatus,
+      lastVerifiedAt: verifiedAt,
       lastRefreshAttemptAt: refreshAttemptAt,
       lastRefreshError:
         missingScopes.length > 0
@@ -397,14 +688,22 @@ async function refreshXAccount(
     });
   } catch (error) {
     const failure = getXExecutionFailure(error);
-    const reconnectRequired = shouldRequireReconnectForRefreshFailure(failure);
-    const tokenStillUsable = account.expiresAt > Date.now();
-    await patchAccount(ctx, store, userId, {
-      status: reconnectRequired
+    const reconnectRequired = shouldRequireReconnectForRefreshFailure(
+      failure,
+      error
+    );
+    const latestAccount = await readStoredAccount(ctx, store, userId);
+    const tokenStillUsable =
+      (latestAccount?.expiresAt ?? account.expiresAt) >
+      getCurrentUTCTimestamp();
+    const fallbackStatus =
+      latestAccount?.status === "reconnect_required"
         ? "reconnect_required"
         : tokenStillUsable
           ? "connected"
-          : "expired",
+          : "expired";
+    await patchAccount(ctx, store, userId, {
+      status: reconnectRequired ? "reconnect_required" : fallbackStatus,
       lastRefreshAttemptAt: refreshAttemptAt,
       lastRefreshError: failure.message,
     });
@@ -444,7 +743,7 @@ export async function getXConnectionStatusForUser(
   const shouldRetryReconnect =
     missingScopes.length === 0 && canRetryReconnectStatus(account);
   const shouldRefresh =
-    account.expiresAt <= Date.now() + 60_000 ||
+    account.expiresAt <= getCurrentUTCTimestamp() + 60_000 ||
     account.status === "expired" ||
     shouldRetryReconnect;
 
@@ -462,7 +761,7 @@ export async function getXConnectionStatusForUser(
 
   if (
     account.status === "connected" &&
-    account.expiresAt <= Date.now() &&
+    account.expiresAt <= getCurrentUTCTimestamp() &&
     account.status !== "reconnect_required"
   ) {
     await patchAccount(ctx, store, userId, {
@@ -518,7 +817,7 @@ export async function getXProviderContextForUser(
   const shouldRetryReconnect = canRetryReconnectStatus(account);
   if (
     account.status === "expired" ||
-    account.expiresAt <= Date.now() + 60_000 ||
+    account.expiresAt <= getCurrentUTCTimestamp() + 60_000 ||
     shouldRetryReconnect
   ) {
     account = await refreshXAccount(ctx, store, args.userId, account);

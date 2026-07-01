@@ -11,6 +11,10 @@ import { internal, api, components } from "./_generated/api";
 import { createThread } from "@convex-dev/agent";
 import { outreachAgent } from "./agents/outreach";
 import { buildOutreachAgentPrompt } from "./agents/prompts";
+import {
+  normalizeUnknownError,
+  stringifyUnknownError,
+} from "./lib/errorHelpers";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import { outreachPlanPool } from "./lib/outreachPlanPool";
 import { AUTO_PLAN_GENERATION_THRESHOLD } from "./lib/outreachCore";
@@ -941,8 +945,8 @@ Remember: Quality over quantity. The goal is genuine connection, not spam, and s
       });
 
       const duration = getCurrentUTCTimestamp() - startTime;
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+      const normalizedError = normalizeUnknownError(error);
+      const errorMessage = stringifyUnknownError(error);
 
       outreachActionsLogger.error(
         "Auto plan generation failed",
@@ -952,11 +956,11 @@ Remember: Quality over quantity. The goal is genuine connection, not spam, and s
           durationMs: duration,
           errorMessage,
         },
-        error instanceof Error ? error : new Error(String(errorMessage))
+        normalizedError
       );
 
       // Re-throw for Workpool retry
-      throw error;
+      throw normalizedError;
     }
   },
 });

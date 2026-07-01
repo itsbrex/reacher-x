@@ -7,8 +7,8 @@ import { wrapLanguageModel } from "ai";
 import { components, internal } from "../../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  AGENT_PROVIDER_OPTIONS,
-  REASONING_MODEL,
+  PINNED_AGENT_MODEL,
+  PINNED_AGENT_PROVIDER_OPTIONS,
   getOpenRouterExtraBody,
 } from "../../lib/ai";
 import {
@@ -87,8 +87,8 @@ function getOpenRouterProvider() {
 
 const openrouter = getOpenRouterProvider();
 const outreachLanguageModel = wrapLanguageModel({
-  model: openrouter(REASONING_MODEL, {
-    extraBody: getOpenRouterExtraBody(AGENT_PROVIDER_OPTIONS),
+  model: openrouter(PINNED_AGENT_MODEL, {
+    extraBody: getOpenRouterExtraBody(PINNED_AGENT_PROVIDER_OPTIONS),
   }) as any,
   middleware: openRouterMetadataMiddleware,
 });
