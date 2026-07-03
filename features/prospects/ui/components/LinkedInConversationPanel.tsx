@@ -316,7 +316,7 @@ export function LinkedInConversationPanel({
             mediaKinds: resolvedMediaKinds,
           });
           toast.success("DM approved.", {
-            description: "Sending in background...",
+            description: "Queued. We'll notify you if LinkedIn blocks it.",
           });
           return;
         }

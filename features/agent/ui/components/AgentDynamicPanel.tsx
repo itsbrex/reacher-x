@@ -650,6 +650,14 @@ export function AgentDynamicPanel({
     mode,
     taskPanelData,
   ]);
+  const queuedApprovalDescription = useMemo(() => {
+    const platform = isActionRequestPanel
+      ? actionPanelData?.platform
+      : taskPanelPlatform;
+    return platform === "linkedin"
+      ? "Queued. We'll notify you if LinkedIn blocks it."
+      : "Queued. We'll notify you if X blocks it.";
+  }, [actionPanelData?.platform, isActionRequestPanel, taskPanelPlatform]);
 
   const handleSubmit = useCallback(
     async (
@@ -725,10 +733,7 @@ export function AgentDynamicPanel({
                 ? "DM approved."
                 : "Reply approved.",
             {
-              description:
-                taskPanelData?.kind === "dm"
-                  ? "Sending in background..."
-                  : "Posting in background...",
+              description: queuedApprovalDescription,
             }
           );
         }
@@ -755,6 +760,7 @@ export function AgentDynamicPanel({
       approveTaskWithEdits,
       isActionRequestPanel,
       mode,
+      queuedApprovalDescription,
       taskPanelData,
       updatePendingTaskDraft,
     ]

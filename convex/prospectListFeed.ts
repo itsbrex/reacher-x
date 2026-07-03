@@ -19,10 +19,11 @@ import {
   prospectVisibilityModeValidator,
 } from "./validators";
 
-const DEFAULT_STABLE_BATCH_SIZE = 40;
+const DEFAULT_STABLE_BATCH_SIZE = 160;
 const MAX_STABLE_BATCH_SIZE = 160;
 const MAX_PENDING_SCAN = 500;
-const CURSOR_PREFIX = "ppfs2:";
+const CURSOR_PREFIX = "ppfs3:";
+const LEGACY_CURSOR_PREFIX = "ppfs2:";
 
 type FeedAccessCtx = Pick<QueryCtx, "db"> | Pick<MutationCtx, "db">;
 type FeedDb = QueryCtx["db"] | MutationCtx["db"];
@@ -41,7 +42,7 @@ type FeedSnapshotState = {
 };
 type FeedCursorState = {
   sourceCursor: string | null;
-  offset: number;
+  bufferedSummaryIds: Id<"prospectSummaries">[];
 };
 type FeedListArgs = {
   workspaceId: Id<"workspaces">;
@@ -63,44 +64,57 @@ type ProspectReadyTimestampSource = Pick<
 };
 
 function encodeCursor(state: FeedCursorState): string {
+  if (state.sourceCursor === null && state.bufferedSummaryIds.length === 0) {
+    return "";
+  }
+
   return `${CURSOR_PREFIX}${encodeURIComponent(JSON.stringify(state))}`;
 }
 
 function decodeCursor(cursor: string | null): FeedCursorState {
-  if (!cursor?.startsWith(CURSOR_PREFIX)) {
+  if (
+    !cursor?.startsWith(CURSOR_PREFIX) &&
+    !cursor?.startsWith(LEGACY_CURSOR_PREFIX)
+  ) {
     return {
       sourceCursor: null,
-      offset: 0,
+      bufferedSummaryIds: [],
     };
   }
 
   try {
+    const prefix = cursor.startsWith(CURSOR_PREFIX)
+      ? CURSOR_PREFIX
+      : LEGACY_CURSOR_PREFIX;
     const decoded = JSON.parse(
-      decodeURIComponent(cursor.slice(CURSOR_PREFIX.length))
+      decodeURIComponent(cursor.slice(prefix.length))
     ) as Partial<FeedCursorState>;
+    const bufferedSummaryIds = Array.isArray(decoded.bufferedSummaryIds)
+      ? decoded.bufferedSummaryIds.filter(
+          (summaryId): summaryId is Id<"prospectSummaries"> =>
+            typeof summaryId === "string"
+        )
+      : [];
 
     if (
-      (decoded.sourceCursor !== null &&
-        decoded.sourceCursor !== undefined &&
-        typeof decoded.sourceCursor !== "string") ||
-      typeof decoded.offset !== "number" ||
-      !Number.isFinite(decoded.offset) ||
-      decoded.offset < 0
+      decoded.sourceCursor !== null &&
+      decoded.sourceCursor !== undefined &&
+      typeof decoded.sourceCursor !== "string"
     ) {
       return {
         sourceCursor: null,
-        offset: 0,
+        bufferedSummaryIds: [],
       };
     }
 
     return {
       sourceCursor: decoded.sourceCursor ?? null,
-      offset: Math.floor(decoded.offset),
+      bufferedSummaryIds,
     };
   } catch {
     return {
       sourceCursor: null,
-      offset: 0,
+      bufferedSummaryIds: [],
     };
   }
 }
@@ -257,6 +271,50 @@ function getStableBatchSize(numItems: number) {
   );
 }
 
+function matchesBufferedStableRow(
+  row: Doc<"prospectSummaries">,
+  args: FeedListArgs
+) {
+  if (row.workspaceId !== args.workspaceId || row.status !== args.status) {
+    return false;
+  }
+
+  if (
+    args.visibilityMode === "ready_only" &&
+    row.readyQualifiedEnriched !== true
+  ) {
+    return false;
+  }
+
+  if (
+    args.visibilityMode === "actionable_only" &&
+    row.actionableReady !== true
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+async function loadBufferedStableRows(
+  db: FeedDb,
+  args: FeedListArgs & {
+    snapshot: FeedSnapshotState;
+  },
+  bufferedSummaryIds: Id<"prospectSummaries">[]
+) {
+  const bufferedRows = await Promise.all(
+    bufferedSummaryIds.map((summaryId) => db.get(summaryId))
+  );
+
+  return bufferedRows.filter(
+    (row): row is Doc<"prospectSummaries"> =>
+      row !== null &&
+      matchesBufferedStableRow(row, args) &&
+      getProspectSummaryReadyTimestamp(row) <= args.snapshot.readyAtWatermark
+  );
+}
+
 async function listStableFeedPage(
   db: FeedDb,
   args: FeedListArgs & {
@@ -270,76 +328,62 @@ async function listStableFeedPage(
   const targetCount = Math.max(1, args.paginationOpts.numItems);
   const batchSize = getStableBatchSize(targetCount);
   const cursorState = decodeCursor(args.paginationOpts.cursor);
-  const page: Doc<"prospectSummaries">[] = [];
-  let sourceCursor = cursorState.sourceCursor;
-  let rawOffset = cursorState.offset;
+  const bufferedRows = await loadBufferedStableRows(
+    db,
+    args,
+    cursorState.bufferedSummaryIds
+  );
 
-  while (true) {
-    const batch = await listWorkspaceProspectSummariesPage(db, {
-      workspaceId: args.workspaceId,
-      sortBy: args.sortBy,
-      platform: args.platform,
-      prospectType: args.prospectType,
-      status: args.status,
-      fitScoreMin: args.fitScoreMin,
-      fitScoreMax: args.fitScoreMax,
-      createdAfterMs: args.createdAfterMs,
-      createdBeforeMs: args.createdBeforeMs,
-      visibilityMode: args.visibilityMode,
-      paginationOpts: {
-        cursor: sourceCursor,
-        numItems: batchSize,
-      },
+  if (bufferedRows.length >= targetCount) {
+    const remainingBufferedSummaryIds = bufferedRows
+      .slice(targetCount)
+      .map((row) => row._id);
+    const continueCursor = encodeCursor({
+      sourceCursor: cursorState.sourceCursor,
+      bufferedSummaryIds: remainingBufferedSummaryIds,
     });
 
-    let consumedInBatch = 0;
-    for (const row of batch.page) {
-      if (consumedInBatch < rawOffset) {
-        consumedInBatch += 1;
-        continue;
-      }
-
-      consumedInBatch += 1;
-      if (
-        getProspectSummaryReadyTimestamp(row) > args.snapshot.readyAtWatermark
-      ) {
-        continue;
-      }
-
-      page.push(row);
-      if (page.length >= targetCount) {
-        const continueCursor =
-          consumedInBatch < batch.page.length
-            ? encodeCursor({
-                sourceCursor,
-                offset: consumedInBatch,
-              })
-            : batch.isDone
-              ? ""
-              : encodeCursor({
-                  sourceCursor: batch.continueCursor,
-                  offset: 0,
-                });
-
-        return {
-          page,
-          isDone: continueCursor.length === 0,
-          continueCursor,
-        };
-      }
-    }
-
-    if (batch.isDone) {
-      return {
-        page,
-        isDone: true,
-        continueCursor: "",
-      };
-    }
-
-    sourceCursor = batch.continueCursor;
-    rawOffset = 0;
+    return {
+      page: bufferedRows.slice(0, targetCount),
+      isDone: continueCursor.length === 0,
+      continueCursor,
+    };
   }
+
+  const batch = await listWorkspaceProspectSummariesPage(db, {
+    workspaceId: args.workspaceId,
+    sortBy: args.sortBy,
+    platform: args.platform,
+    prospectType: args.prospectType,
+    status: args.status,
+    fitScoreMin: args.fitScoreMin,
+    fitScoreMax: args.fitScoreMax,
+    createdAfterMs: args.createdAfterMs,
+    createdBeforeMs: args.createdBeforeMs,
+    visibilityMode: args.visibilityMode,
+    paginationOpts: {
+      cursor: cursorState.sourceCursor,
+      numItems: batchSize,
+    },
+  });
+  const nextStableRows = batch.page.filter(
+    (row) =>
+      getProspectSummaryReadyTimestamp(row) <= args.snapshot.readyAtWatermark
+  );
+  const combinedRows = [...bufferedRows, ...nextStableRows];
+  const remainingBufferedSummaryIds = combinedRows
+    .slice(targetCount)
+    .map((row) => row._id);
+  const continueCursor = encodeCursor({
+    sourceCursor: batch.isDone ? null : batch.continueCursor,
+    bufferedSummaryIds: remainingBufferedSummaryIds,
+  });
+
+  return {
+    page: combinedRows.slice(0, targetCount),
+    isDone: continueCursor.length === 0,
+    continueCursor,
+  };
 }
 
 async function getPendingFeedState(
@@ -354,64 +398,43 @@ async function getPendingFeedState(
     avatarUrl?: string;
   }> = [];
   let pendingCount = 0;
-  let scanned = 0;
-  let cursor: string | null = null;
-  const batchSize = Math.min(
-    getStableBatchSize(DEFAULT_STABLE_BATCH_SIZE),
-    MAX_PENDING_SCAN
-  );
+  const batch = await listWorkspaceProspectSummariesPage(db, {
+    workspaceId: args.workspaceId,
+    sortBy: args.sortBy,
+    platform: args.platform,
+    prospectType: args.prospectType,
+    status: args.status,
+    fitScoreMin: args.fitScoreMin,
+    fitScoreMax: args.fitScoreMax,
+    createdAfterMs: args.createdAfterMs,
+    createdBeforeMs: args.createdBeforeMs,
+    visibilityMode: args.visibilityMode,
+    paginationOpts: {
+      cursor: null,
+      numItems: MAX_PENDING_SCAN,
+    },
+  });
 
-  while (scanned < MAX_PENDING_SCAN) {
-    const remaining = MAX_PENDING_SCAN - scanned;
-    const batch = await listWorkspaceProspectSummariesPage(db, {
-      workspaceId: args.workspaceId,
-      sortBy: args.sortBy,
-      platform: args.platform,
-      prospectType: args.prospectType,
-      status: args.status,
-      fitScoreMin: args.fitScoreMin,
-      fitScoreMax: args.fitScoreMax,
-      createdAfterMs: args.createdAfterMs,
-      createdBeforeMs: args.createdBeforeMs,
-      visibilityMode: args.visibilityMode,
-      paginationOpts: {
-        cursor,
-        numItems: Math.min(batchSize, remaining),
-      },
-    });
-
-    for (const row of batch.page) {
-      scanned += 1;
-      if (
-        getProspectSummaryReadyTimestamp(row) <= args.snapshot.readyAtWatermark
-      ) {
-        continue;
-      }
-
-      pendingCount += 1;
-      if (pendingPreview.length < 3) {
-        pendingPreview.push({
-          prospectId: row.prospectId,
-          displayName: row.displayName,
-          avatarUrl: row.avatarUrl,
-        });
-      }
+  for (const row of batch.page) {
+    if (
+      getProspectSummaryReadyTimestamp(row) <= args.snapshot.readyAtWatermark
+    ) {
+      continue;
     }
 
-    if (batch.isDone) {
-      return {
-        pendingCount,
-        pendingCountCapped: false,
-        pendingPreview,
-      };
+    pendingCount += 1;
+    if (pendingPreview.length < 3) {
+      pendingPreview.push({
+        prospectId: row.prospectId,
+        displayName: row.displayName,
+        avatarUrl: row.avatarUrl,
+      });
     }
-
-    cursor = batch.continueCursor;
   }
 
   return {
     pendingCount,
-    pendingCountCapped: true,
+    pendingCountCapped: !batch.isDone,
     pendingPreview,
   };
 }

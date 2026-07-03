@@ -317,7 +317,7 @@ export function XConversationPanel({
             mediaKinds: resolvedMediaKinds,
           });
           toast.success("DM approved.", {
-            description: "Sending in background...",
+            description: "Queued. We'll notify you if X blocks it.",
           });
           return;
         }
