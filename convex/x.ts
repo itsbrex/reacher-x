@@ -19,6 +19,7 @@ import {
 } from "./lib/xDm";
 import {
   executeCuratedTwitterAction,
+  formatXWriteActionError,
   getDmEvents,
   getDmEventsByConversationId,
   getHydratedConversationByThreadId,
@@ -1011,75 +1012,6 @@ function assertValidMediaDescriptions(
   }
 }
 
-function isUnreadableXdkBodyMessage(message: string | undefined): boolean {
-  if (!message) {
-    return false;
-  }
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("body is unusable") ||
-    normalized.includes("body has already been read")
-  );
-}
-
-function formatDirectXWriteActionError(error: unknown): Error {
-  const failure = getXExecutionFailure(error);
-  const normalizedMessage = failure.message.toLowerCase();
-  const detail =
-    failure.message &&
-    !/^http \d+:/i.test(failure.message) &&
-    failure.message.toLowerCase() !== "forbidden" &&
-    !isUnreadableXdkBodyMessage(failure.message)
-      ? failure.message
-      : undefined;
-
-  switch (failure.classification) {
-    case "reauth_required":
-      return new Error(
-        "Your X session has expired. Reconnect your account in Settings -> Connected accounts."
-      );
-    case "scope_missing":
-      return new Error(
-        detail ??
-          "Reconnect your X account and approve the required X write permissions, including media access."
-      );
-    case "duplicate_content":
-      return new Error(
-        detail ??
-          "X rejected this as duplicate content. Edit the message and try again."
-      );
-    case "content_too_long":
-      return new Error(
-        detail ??
-          "X rejected this because it is too long. Shorten it and try again."
-      );
-    case "target_not_found":
-      return new Error(
-        detail ?? "The target post is no longer available on X."
-      );
-    case "rate_limited":
-      return new Error(
-        detail ?? "X rate limited this action. Wait a moment and try again."
-      );
-    case "api_policy_forbidden":
-      if (
-        normalizedMessage.includes(
-          "reply to this conversation is not allowed because you have not been mentioned or otherwise engaged"
-        )
-      ) {
-        return new Error(
-          "X's public API blocked this reply for this conversation, even though the same reply may still work on x.com. This is an X API policy mismatch, not a fake app error."
-        );
-      }
-      return new Error(
-        detail ??
-          "X blocked this action. The author may have limited replies, or your account/app is not permitted to perform this write action."
-      );
-    default:
-      return new Error(detail ?? "X could not complete this action right now.");
-  }
-}
-
 async function handleDirectXWriteActionError(
   ctx: any,
   userId: Id<"users">,
@@ -1106,7 +1038,7 @@ async function handleDirectXWriteActionError(
     });
   }
 
-  return formatDirectXWriteActionError(error);
+  return formatXWriteActionError(error);
 }
 
 export const getTwitterConnectionStatus = action({

@@ -117,6 +117,7 @@ import type * as lib_prospectSearchMerge from "../lib/prospectSearchMerge.js";
 import type * as lib_prospectSearchText from "../lib/prospectSearchText.js";
 import type * as lib_prospectingHelpers from "../lib/prospectingHelpers.js";
 import type * as lib_publicSocialCore from "../lib/publicSocialCore.js";
+import type * as lib_publicThreadXCore from "../lib/publicThreadXCore.js";
 import type * as lib_qualificationCore from "../lib/qualificationCore.js";
 import type * as lib_qualificationPool from "../lib/qualificationPool.js";
 import type * as lib_ragIndexing from "../lib/ragIndexing.js";
@@ -345,6 +346,7 @@ declare const fullApi: ApiFromModules<{
   "lib/prospectSearchText": typeof lib_prospectSearchText;
   "lib/prospectingHelpers": typeof lib_prospectingHelpers;
   "lib/publicSocialCore": typeof lib_publicSocialCore;
+  "lib/publicThreadXCore": typeof lib_publicThreadXCore;
   "lib/qualificationCore": typeof lib_qualificationCore;
   "lib/qualificationPool": typeof lib_qualificationPool;
   "lib/ragIndexing": typeof lib_ragIndexing;

@@ -7,6 +7,7 @@ import { internal, components } from "./_generated/api";
 import {
   type TwitterActionExecutionResult,
   executeCuratedTwitterAction,
+  formatXWriteActionError,
   getXExecutionFailure,
 } from "./lib/xdkTwitterProvider";
 import {
@@ -860,12 +861,13 @@ export const executeActionRequestInternal = internalAction({
       return { success: true, result: execution };
     } catch (error) {
       const failure = getXExecutionFailure(error);
+      const formattedMessage = formatXWriteActionError(error).message;
 
       await ctx.runMutation(internal.socialActions.failActionRequestInternal, {
         actionRequestId,
         errorSummary: summarizeTwitterActionError({
           classification: failure.classification,
-          message: failure.message,
+          message: formattedMessage,
           retryable: failure.retryable,
           suggestion: failure.suggestion,
           code: failure.code,
@@ -878,14 +880,17 @@ export const executeActionRequestInternal = internalAction({
         {
           actionRequestId,
           type: "social_action_failed",
-          message: failure.message,
+          message: formattedMessage,
         }
       );
 
       return {
         success: false,
-        error: failure.message,
-        failure,
+        error: formattedMessage,
+        failure: {
+          ...failure,
+          message: formattedMessage,
+        },
       };
     }
   },

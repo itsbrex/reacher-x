@@ -26,6 +26,7 @@ import {
 } from "./lib/xdkAuth";
 import {
   executeCuratedTwitterAction,
+  formatXWriteActionError,
   getXExecutionFailure,
 } from "./lib/xdkTwitterProvider";
 import { getTwitterActionCatalogEntry } from "./lib/twitterActionCatalog";
@@ -100,12 +101,25 @@ function getAttemptId(): string {
 
 const outreachActionsLogger = logger.withScope("OutreachActions");
 
-function parseTwitterError(error: unknown): StructuredOutreachError {
+function shouldNotifyTaskExecutionFailure(
+  classification: OutreachFailureClass
+): boolean {
+  return classification !== "reauth_required" && classification !== "scope_missing";
+}
+
+function parseTwitterError(
+  error: unknown,
+  options?: { platform?: "twitter" | "linkedin" }
+): StructuredOutreachError {
   const xFailure = getXExecutionFailure(error);
   if (xFailure) {
+    const formattedMessage =
+      options?.platform === "linkedin"
+        ? xFailure.message
+        : formatXWriteActionError(error).message;
     return {
       classification: xFailure.classification,
-      message: xFailure.message,
+      message: formattedMessage,
       retryable: xFailure.retryable,
       suggestion: xFailure.suggestion,
       code: xFailure.code,
@@ -222,6 +236,15 @@ export const executeCommentTask = internalAction({
           },
         },
       });
+
+      await ctx.runMutation(
+        internal.outreach.createTaskExecutionFailureNotification,
+        {
+          taskId: args.taskId,
+          attemptId,
+          message: errorDetails.message,
+        }
+      );
 
       await bridgeStatusMessage();
       return {
@@ -345,7 +368,7 @@ export const executeCommentTask = internalAction({
         attemptId,
       };
     } catch (error) {
-      const errorDetails = parseTwitterError(error);
+      const errorDetails = parseTwitterError(error, { platform: "twitter" });
 
       await ctx.runMutation(internal.outreach.updateTaskResult, {
         taskId: args.taskId,
@@ -371,6 +394,17 @@ export const executeCommentTask = internalAction({
       if (errorDetails.retryable) {
         throw new Error(
           `${errorDetails.classification}:${args.planId}:${args.taskId}:${attemptId}:${errorDetails.message}`
+        );
+      }
+
+      if (shouldNotifyTaskExecutionFailure(errorDetails.classification)) {
+        await ctx.runMutation(
+          internal.outreach.createTaskExecutionFailureNotification,
+          {
+            taskId: args.taskId,
+            attemptId,
+            message: errorDetails.message,
+          }
         );
       }
 
@@ -505,7 +539,7 @@ export const executeDmTask = internalAction({
         attemptId,
       };
     } catch (error) {
-      const structured = parseTwitterError(error);
+      const structured = parseTwitterError(error, { platform });
       await ctx.runMutation(internal.outreach.updateTaskResult, {
         taskId: args.taskId,
         status: "failed",
@@ -518,6 +552,17 @@ export const executeDmTask = internalAction({
           platform,
         },
       });
+
+      if (shouldNotifyTaskExecutionFailure(structured.classification)) {
+        await ctx.runMutation(
+          internal.outreach.createTaskExecutionFailureNotification,
+          {
+            taskId: args.taskId,
+            attemptId,
+            message: structured.message,
+          }
+        );
+      }
 
       await bridgeStatusMessage();
 

@@ -3,6 +3,7 @@
 import { Buffer } from "node:buffer";
 import { ApiError, type Client } from "@xdevplatform/xdk";
 import type { CuratedTwitterActionKey } from "./twitterActionCatalog";
+import { getXAppBearerToken } from "./xdkClient";
 import type {
   Entities,
   Media,
@@ -14,6 +15,10 @@ import type {
   HydratedTwitterProfile,
   TwitterTimelineMode,
 } from "../../shared/lib/twitter/hydration";
+import {
+  getCurrentUTCTimestamp,
+  parseIsoToTimestamp,
+} from "../../shared/lib/utils/time/timeUtils";
 
 export type TwitterActionFailureClass =
   | "reauth_required"
@@ -163,6 +168,7 @@ const MAX_TIMELINE_SCAN_PAGES = 6;
 const MAX_CONVERSATION_PAGES = 5;
 const TIMELINE_FETCH_PAGE_SIZE = 100;
 const CONVERSATION_FETCH_PAGE_SIZE = 100;
+const PUBLIC_THREAD_TIMELINE_SCAN_PAGES = 30;
 
 type TimelineCursorState = {
   rawPageToken?: string;
@@ -592,6 +598,46 @@ function mapPostsResponseToLegacyTweets(response: any): Tweet[] {
   );
 }
 
+async function fetchXAppJson(
+  path: string,
+  params?: URLSearchParams
+): Promise<Record<string, unknown>> {
+  const response = await fetch(
+    `https://api.x.com${path}${params ? `?${params.toString()}` : ""}`,
+    {
+      headers: {
+        Authorization: `Bearer ${getXAppBearerToken()}`,
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(
+      `X API request failed (${response.status} ${response.statusText})`
+    );
+  }
+
+  return payload;
+}
+
+function buildXHydrationParams() {
+  const params = new URLSearchParams();
+  params.set("tweet.fields", X_POST_FIELDS.join(","));
+  params.set("user.fields", X_USER_FIELDS.join(","));
+  params.set("media.fields", X_MEDIA_FIELDS.join(","));
+  params.set("expansions", X_POST_EXPANSIONS.join(","));
+  return params;
+}
+
+function getTweetCreatedAtTimestamp(tweet: Pick<Tweet, "tweet_created_at">) {
+  const parsed = tweet.tweet_created_at
+    ? parseIsoToTimestamp(tweet.tweet_created_at)
+    : undefined;
+  return typeof parsed === "number" ? parsed : getCurrentUTCTimestamp();
+}
+
 function isReplyPost(post: Record<string, unknown>): boolean {
   const referencedTweets = getReferencedTweets(post);
   return (
@@ -847,6 +893,86 @@ export async function getHydratedConversationByThreadId(
   };
 }
 
+export async function getHydratedPublicThreadFromAuthorTimeline(
+  threadId: string
+): Promise<HydratedTwitterConversationPayload | null> {
+  const rootParams = buildXHydrationParams();
+  const rootResponse = await fetchXAppJson(
+    `/2/tweets/${encodeURIComponent(threadId)}`,
+    rootParams
+  );
+  const rootTweets = mapPostsResponseToLegacyTweets(rootResponse);
+  const rootTweet =
+    rootTweets.find((tweet) => tweet.id_str === threadId) ?? rootTweets[0];
+
+  if (!rootTweet?.id_str) {
+    return null;
+  }
+
+  const conversationId = rootTweet.conversation_id_str ?? rootTweet.id_str;
+  const authorId =
+    rootTweet.user?.id_str ??
+    asString((rootResponse.data as Record<string, unknown> | undefined)?.author_id);
+  if (!authorId) {
+    return {
+      threadId,
+      conversationId,
+      tweets: [rootTweet],
+      fetchedAt: getCurrentUTCTimestamp(),
+    };
+  }
+
+  const rootTimestamp = getTweetCreatedAtTimestamp(rootTweet);
+  const tweetsById = new Map<string, Tweet>([[rootTweet.id_str, rootTweet]]);
+  let paginationToken: string | undefined;
+
+  for (let page = 0; page < PUBLIC_THREAD_TIMELINE_SCAN_PAGES; page += 1) {
+    const params = buildXHydrationParams();
+    params.set("max_results", String(TIMELINE_FETCH_PAGE_SIZE));
+    if (paginationToken) {
+      params.set("pagination_token", paginationToken);
+    }
+
+    const response = await fetchXAppJson(
+      `/2/users/${encodeURIComponent(authorId)}/tweets`,
+      params
+    );
+    const pageTweets = mapPostsResponseToLegacyTweets(response);
+
+    for (const tweet of pageTweets) {
+      if (!tweet.id_str || tweet.conversation_id_str !== conversationId) {
+        continue;
+      }
+      tweetsById.set(tweet.id_str, tweet);
+    }
+
+    const oldestPageTimestamp = pageTweets.reduce((oldest, tweet) => {
+      const createdAt = getTweetCreatedAtTimestamp(tweet);
+      return createdAt < oldest ? createdAt : oldest;
+    }, Number.POSITIVE_INFINITY);
+
+    paginationToken = getNextToken((response as { meta?: unknown }).meta);
+    if (
+      !paginationToken ||
+      (Number.isFinite(oldestPageTimestamp) &&
+        oldestPageTimestamp <= rootTimestamp)
+    ) {
+      break;
+    }
+  }
+
+  const tweets = Array.from(tweetsById.values()).sort((left, right) => {
+    return getTweetCreatedAtTimestamp(left) - getTweetCreatedAtTimestamp(right);
+  });
+
+  return {
+    threadId,
+    conversationId,
+    tweets,
+    fetchedAt: getCurrentUTCTimestamp(),
+  };
+}
+
 function pickMessageFromErrorData(data: unknown): string | undefined {
   if (typeof data === "string") {
     const trimmed = data.trim();
@@ -913,6 +1039,17 @@ function pickErrorMessage(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : "Unknown X API error";
+}
+
+function isUnreadableXdkBodyMessage(message: string | undefined): boolean {
+  if (!message) {
+    return false;
+  }
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("body is unusable") ||
+    normalized.includes("body has already been read")
+  );
 }
 
 export function getXExecutionFailure(error: unknown): TwitterActionFailure {
@@ -1035,6 +1172,64 @@ export function getXExecutionFailure(error: unknown): TwitterActionFailure {
     code,
     details,
   };
+}
+
+export function formatXWriteActionError(error: unknown): Error {
+  const failure = getXExecutionFailure(error);
+  const normalizedMessage = failure.message.toLowerCase();
+  const detail =
+    failure.message &&
+    !/^http \d+:/i.test(failure.message) &&
+    failure.message.toLowerCase() !== "forbidden" &&
+    !isUnreadableXdkBodyMessage(failure.message)
+      ? failure.message
+      : undefined;
+
+  switch (failure.classification) {
+    case "reauth_required":
+      return new Error(
+        "Your X session has expired. Reconnect your account in Settings -> Connected accounts."
+      );
+    case "scope_missing":
+      return new Error(
+        detail ??
+          "Reconnect your X account and approve the required X write permissions, including media access."
+      );
+    case "duplicate_content":
+      return new Error(
+        detail ??
+          "X rejected this as duplicate content. Edit the message and try again."
+      );
+    case "content_too_long":
+      return new Error(
+        detail ??
+          "X rejected this because it is too long. Shorten it and try again."
+      );
+    case "target_not_found":
+      return new Error(
+        detail ?? "The target post is no longer available on X."
+      );
+    case "rate_limited":
+      return new Error(
+        detail ?? "X rate limited this action. Wait a moment and try again."
+      );
+    case "api_policy_forbidden":
+      if (
+        normalizedMessage.includes(
+          "reply to this conversation is not allowed because you have not been mentioned or otherwise engaged"
+        )
+      ) {
+        return new Error(
+          "X's public API blocked this reply for this conversation, even though the same reply may still work on x.com. This is an X API policy mismatch, not a fake app error."
+        );
+      }
+      return new Error(
+        detail ??
+          "X blocked this action. The author may have limited replies, or your account/app is not permitted to perform this write action."
+      );
+    default:
+      return new Error(detail ?? "X could not complete this action right now.");
+  }
 }
 
 function extractId(result: any): string | undefined {

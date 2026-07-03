@@ -2116,6 +2116,54 @@ export const createHumanNotification = internalMutation({
   },
 });
 
+export const createTaskExecutionFailureNotification = internalMutation({
+  args: {
+    taskId: v.id("outreachTasks"),
+    attemptId: v.string(),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) {
+      return null;
+    }
+
+    const plan = await ctx.db.get(task.planId);
+    if (!plan) {
+      return null;
+    }
+
+    const prospect = await ctx.db.get(plan.prospectId);
+    const display = getProspectDisplayFields(prospect);
+    const platform =
+      task.approvalContext?.platform ??
+      (task.type === "dm" && prospect?.platform === "linkedin"
+        ? "linkedin"
+        : "twitter");
+    const title =
+      platform === "linkedin"
+        ? "LinkedIn message failed"
+        : task.type === "dm"
+          ? "DM failed on X/Twitter"
+          : "Reply failed on X/Twitter";
+
+    return await upsertNotificationByKey(ctx, {
+      userId: plan.userId,
+      workspaceId: plan.workspaceId,
+      type: "error",
+      notificationKey: `outreach-task-failed:${args.taskId}:${args.attemptId}`,
+      title,
+      message: args.message,
+      prospectId: plan.prospectId,
+      planId: plan._id,
+      taskId: task._id,
+      threadId: plan.threadId,
+      contextPlatform: platform,
+      ...display,
+    });
+  },
+});
+
 // Note: executeCommentTask and parseTwitterError live in outreachActions.ts
 // because authenticated Twitter actions run in the Node.js runtime.
 

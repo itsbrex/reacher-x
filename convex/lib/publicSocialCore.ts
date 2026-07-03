@@ -4,6 +4,7 @@ import {
   getCurrentUTCTimestamp,
   parseIsoToTimestamp,
 } from "../../shared/lib/utils/time/timeUtils";
+import { fetchPublicThreadFromXApi } from "./publicThreadXCore";
 import { acquireSocialApiBudget } from "./socialApiBudget";
 import { mapSocialApiTweet } from "./socialApiTwitterMap";
 
@@ -267,6 +268,21 @@ export async function fetchPublicThreadById(
   threadId: string
 ): Promise<Thread | null> {
   try {
+    const thread = await fetchPublicThreadFromXApi(threadId);
+    if (thread?.tweets.length) {
+      return thread;
+    }
+  } catch (error) {
+    publicSocialLogger.warn(
+      "[publicSocial] Failed to hydrate public thread from X timeline",
+      {
+        threadId,
+        error,
+      }
+    );
+  }
+
+  try {
     const threadData = (await fetchSocialApiJson(
       ctx,
       "publicSocial.fetchPublicThreadById",
@@ -280,7 +296,17 @@ export async function fetchPublicThreadById(
       : [];
 
     if (tweets.length === 0) {
-      return null;
+      const fallbackTweets = await fetchPublicTweetsByIds(ctx, [threadId]);
+      const fallbackTweet = fallbackTweets[0];
+      if (!fallbackTweet) {
+        return null;
+      }
+
+      return {
+        threadId,
+        postedAt: getTweetTimestamp(fallbackTweet),
+        tweets: [fallbackTweet],
+      };
     }
 
     return {
@@ -295,6 +321,17 @@ export async function fetchPublicThreadById(
         error,
       });
     }
-    return null;
+
+    const fallbackTweets = await fetchPublicTweetsByIds(ctx, [threadId]);
+    const fallbackTweet = fallbackTweets[0];
+    if (!fallbackTweet) {
+      return null;
+    }
+
+    return {
+      threadId,
+      postedAt: getTweetTimestamp(fallbackTweet),
+      tweets: [fallbackTweet],
+    };
   }
 }
