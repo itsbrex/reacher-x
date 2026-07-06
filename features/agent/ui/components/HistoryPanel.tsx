@@ -49,6 +49,18 @@ interface SearchState {
 
 const historyPanelLogger = logger.withScope("HistoryPanel");
 
+function dedupeThreadsById<T extends ThreadWithMessage>(threads: T[]): T[] {
+  const seenThreadIds = new Set<string>();
+  return threads.filter((thread) => {
+    if (seenThreadIds.has(thread._id)) {
+      return false;
+    }
+
+    seenThreadIds.add(thread._id);
+    return true;
+  });
+}
+
 export interface HistoryPanelProps {
   scope:
     | {
@@ -224,10 +236,12 @@ export function HistoryPanel({
   const displayedThreads = React.useMemo((): ThreadWithMessage[] => {
     // If actively searching, only show search results (may be empty)
     if (debouncedQuery.trim()) {
-      return searchState.results.map((r) => r.thread as ThreadWithMessage);
+      return dedupeThreadsById(
+        searchState.results.map((r) => r.thread as ThreadWithMessage)
+      );
     }
     // No search query - show all threads
-    return threadsResult.results as ThreadWithMessage[];
+    return dedupeThreadsById(threadsResult.results as ThreadWithMessage[]);
   }, [debouncedQuery, searchState.results, threadsResult.results]);
 
   // Get highlighted match preview for a thread if in search mode

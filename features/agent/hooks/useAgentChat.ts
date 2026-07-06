@@ -23,6 +23,7 @@ import {
 import { useConvexReady, useQueryWithStatus } from "@/shared/hooks";
 import { logger } from "@/shared/lib/logger";
 import { resolveAgentThreadInitializationMode } from "@/features/agent/lib/agentThreadInitialization";
+import { updatePendingTurnPhase } from "@/features/agent/lib/pendingTurnState";
 import { getUIMessageDisplayText } from "@/features/agent/lib/uiMessageText";
 
 // ============================================================================
@@ -741,12 +742,7 @@ export function useAgentChat(
     if (pendingTurn.order === null) {
       if (isStreaming) {
         setPendingTurn((current) =>
-          current?.id !== pendingTurn.id || current.phase === "stopping"
-            ? current
-            : {
-                ...current,
-                phase: "streaming",
-              }
+          updatePendingTurnPhase(current, pendingTurn.id, "streaming")
         );
         return;
       }
@@ -774,24 +770,14 @@ export function useAgentChat(
 
     if (matchingAssistantMessage.status === "streaming") {
       setPendingTurn((current) =>
-        current?.id !== pendingTurn.id || current.phase === "stopping"
-          ? current
-          : {
-              ...current,
-              phase: "streaming",
-            }
+        updatePendingTurnPhase(current, pendingTurn.id, "streaming")
       );
       return;
     }
 
     if (!hasVisiblePersistedUserPrompt) {
       setPendingTurn((current) =>
-        current?.id !== pendingTurn.id || current.phase === "stopping"
-          ? current
-          : {
-              ...current,
-              phase: "streaming",
-            }
+        updatePendingTurnPhase(current, pendingTurn.id, "streaming")
       );
       return;
     }
@@ -1284,12 +1270,9 @@ export function useAgentChat(
     const targetThreadId = pendingTurn?.threadId ?? threadId;
     stopTargetThreadIdRef.current = targetThreadId;
     setPendingTurn((current) =>
-      current
-        ? {
-            ...current,
-            phase: "stopping",
-          }
-        : current
+      current === null
+        ? current
+        : updatePendingTurnPhase(current, current.id, "stopping")
     );
     if (targetThreadId) {
       suppressNextFailureToastThreadIdsRef.current.add(targetThreadId);

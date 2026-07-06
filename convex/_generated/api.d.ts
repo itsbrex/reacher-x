@@ -149,6 +149,7 @@ import type * as lib_socialApiBudget from "../lib/socialApiBudget.js";
 import type * as lib_socialApiTwitterMap from "../lib/socialApiTwitterMap.js";
 import type * as lib_styleDistillation from "../lib/styleDistillation.js";
 import type * as lib_styleSourceCore from "../lib/styleSourceCore.js";
+import type * as lib_threadHistoryHelpers from "../lib/threadHistoryHelpers.js";
 import type * as lib_triggers from "../lib/triggers.js";
 import type * as lib_twitterActionCatalog from "../lib/twitterActionCatalog.js";
 import type * as lib_twitterActionPolicy from "../lib/twitterActionPolicy.js";
@@ -393,6 +394,7 @@ declare const fullApi: ApiFromModules<{
   "lib/socialApiTwitterMap": typeof lib_socialApiTwitterMap;
   "lib/styleDistillation": typeof lib_styleDistillation;
   "lib/styleSourceCore": typeof lib_styleSourceCore;
+  "lib/threadHistoryHelpers": typeof lib_threadHistoryHelpers;
   "lib/triggers": typeof lib_triggers;
   "lib/twitterActionCatalog": typeof lib_twitterActionCatalog;
   "lib/twitterActionPolicy": typeof lib_twitterActionPolicy;

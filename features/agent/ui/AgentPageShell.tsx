@@ -277,6 +277,17 @@ export function AgentPageShell() {
   const isSetupRoute = pathname === "/agent/setup";
   const canUseThreadHistory = !isSetupRoute && (!!prospectId || !!workspaceId);
 
+  useEffect(() => {
+    if (isSetupRoute || !effectiveThreadId || threadId) {
+      return;
+    }
+
+    setParams({
+      threadId: effectiveThreadId,
+      action: null,
+    });
+  }, [effectiveThreadId, isSetupRoute, setParams, threadId]);
+
   const agentProspectQuery = useAgentProspectQuery(prospectId);
   const historyProspectArchived =
     agentProspectQuery.data?.status === "archived";
@@ -357,12 +368,14 @@ export function AgentPageShell() {
     }
 
     if (routePanelKeyRef.current !== nextRoutePanelKey) {
-      setRightPanelSessionActive(false);
-      setCardPayload(null);
-      closeProfile();
-      closeProspect();
-      setPlanPanelProspectId(null);
-      setProspectPanelSessionProspectId(null);
+      queueMicrotask(() => {
+        setRightPanelSessionActive(false);
+        setCardPayload(null);
+        closeProfile();
+        closeProspect();
+        setPlanPanelProspectId(null);
+        setProspectPanelSessionProspectId(null);
+      });
       routePanelKeyRef.current = nextRoutePanelKey;
     }
   }, [
@@ -372,6 +385,10 @@ export function AgentPageShell() {
     setRightPanelSessionActive,
     threadId,
   ]);
+
+  const selectedThreadProspectId = threadSelectedContext?.prospectId
+    ? String(threadSelectedContext.prospectId)
+    : null;
 
   useEffect(() => {
     const hasPanelQueryParams = Boolean(
@@ -500,9 +517,6 @@ export function AgentPageShell() {
 
   const handleOpenPlanPanel = useCallback(
     (targetProspectId?: string | null) => {
-      const selectedThreadProspectId = threadSelectedContext?.prospectId
-        ? String(threadSelectedContext.prospectId)
-        : null;
       const resolvedProspectId =
         typeof targetProspectId === "string" &&
         targetProspectId.trim().length > 0
@@ -527,9 +541,9 @@ export function AgentPageShell() {
     [
       closeProspect,
       prospectId,
+      selectedThreadProspectId,
       setParams,
       setRightPanelSessionActive,
-      threadSelectedContext?.prospectId,
     ]
   );
 

@@ -3,6 +3,7 @@ import type { Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { logger } from "../../shared/lib/logger";
+import { dedupeThreadHistoryLinksByThreadId } from "./threadHistoryHelpers";
 import { agentComponentThreadStatusValidator } from "../validators";
 
 type RelationshipDb = QueryCtx["db"] | MutationCtx["db"];
@@ -64,7 +65,7 @@ export async function listProspectThreadLinksByProspect(
     prospectId,
     "prospectId"
   );
-  return sortLinksByNewest(links);
+  return dedupeThreadHistoryLinksByThreadId(sortLinksByNewest(links));
 }
 
 export async function listProspectThreadIdsByProspect(

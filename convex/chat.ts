@@ -62,10 +62,12 @@ import {
   getSetupThreadTitle,
   parseSetupThreadState,
 } from "./lib/setupThreadHelpers";
+import { dedupeThreadHistoryLinksByThreadId } from "./lib/threadHistoryHelpers";
 import {
   ensureWorkspaceThreadLink,
   getLatestActiveWorkspaceThreadLink,
   getWorkspaceThreadContextByThreadId,
+  listWorkspaceThreadIdsByWorkspace,
   listWorkspaceThreadLinksByThreadId,
 } from "./lib/workspaceThreadHelpers";
 import {
@@ -775,6 +777,7 @@ const DEFAULT_AGENT_STREAM_DELTAS = {
   throttleMs: 100,
 };
 const RETRYABLE_AGENT_TURN_MESSAGE_WINDOW = 50;
+const ORPHANED_PENDING_ASSISTANT_WINDOW_MS = 15_000;
 
 async function listPendingAssistantMessages(ctx: ViewerCtx, threadId: string) {
   const pendingMessages = await ctx.runQuery(
@@ -1235,7 +1238,8 @@ async function buildThreadHistoryEntries(
     includeFirstMessage?: boolean;
   } = {}
 ) {
-  const rowsNeedingFallback = rows.filter((row) =>
+  const dedupedRows = dedupeThreadHistoryLinksByThreadId(rows);
+  const rowsNeedingFallback = dedupedRows.filter((row) =>
     shouldFetchThreadHistoryFallback(row, options)
   );
   const fallbackThreads = await Promise.all(
@@ -1254,7 +1258,7 @@ async function buildThreadHistoryEntries(
 
   const entries: ThreadHistoryEntry[] = [];
 
-  for (const row of rows) {
+  for (const row of dedupedRows) {
     const fallbackThread = fallbackByThreadId.get(row.threadId);
     if (
       shouldFetchThreadHistoryFallback(row, options) &&
@@ -1650,7 +1654,7 @@ export const listWorkspaceThreadsWithMessages = query({
       }
     );
     const linkedThreadIds = new Set(
-      threadsWithMessages.map((thread) => thread._id)
+      await listWorkspaceThreadIdsByWorkspace(ctx.db, workspace._id)
     );
     const legacyThreads = await listLegacyWorkspaceThreadsByTitle(ctx, {
       userId: user._id,
@@ -2705,6 +2709,21 @@ export const getThreadGenerationState = query({
       return {
         status: "stalled" as const,
         order: stalledMessage.order,
+      };
+    }
+
+    const now = getCurrentUTCTimestamp();
+    const orphanedPendingMessage = pendingAssistantMessages.find(
+      (message) =>
+        !activeOrders.has(message.order) &&
+        !abortedOrders.has(message.order) &&
+        now - message._creationTime >= ORPHANED_PENDING_ASSISTANT_WINDOW_MS
+    );
+
+    if (orphanedPendingMessage) {
+      return {
+        status: "stalled" as const,
+        order: orphanedPendingMessage.order,
       };
     }
 

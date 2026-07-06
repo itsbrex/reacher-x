@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { logger } from "../../shared/lib/logger";
 import { agentComponentThreadStatusValidator } from "../validators";
+import { dedupeThreadHistoryLinksByThreadId } from "./threadHistoryHelpers";
 
 type WorkspaceThreadDb = QueryCtx["db"] | MutationCtx["db"];
 const workspaceThreadHelpersLogger = logger.withScope("WorkspaceThreadHelpers");
@@ -66,7 +67,7 @@ export async function listWorkspaceThreadLinksByWorkspace(
     workspaceId,
     "workspaceId"
   );
-  return sortLinksByNewest(links);
+  return dedupeThreadHistoryLinksByThreadId(sortLinksByNewest(links));
 }
 
 export async function listWorkspaceThreadIdsByWorkspace(
