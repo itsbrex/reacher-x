@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractTextFromEditorState } from "../shared/lib/utils/url/urlDetection.ts";
+import { extractTextFromEditorState } from "../shared/lib/utils/url/urlDetection";
 
 test("extractTextFromEditorState preserves lexical mention nodes", () => {
   const text = extractTextFromEditorState({

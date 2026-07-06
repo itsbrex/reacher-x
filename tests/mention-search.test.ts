@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   buildMentionEntityContentSignature,
   getLocalMentionResults,
-} from "../shared/lib/mentions/mentionSearch.ts";
-import type { MentionEntitySearchResult } from "../shared/lib/mentions/mentionEntities.ts";
+} from "../shared/lib/mentions/mentionSearch";
+import type { MentionEntitySearchResult } from "../shared/lib/mentions/mentionEntities";
 
 const LOGAN_ENTITY: MentionEntitySearchResult = {
   id: "prospect:logan",

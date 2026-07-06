@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAgentThreadInitializationMode } from "../features/agent/lib/agentThreadInitialization.ts";
+import { resolveAgentThreadInitializationMode } from "../features/agent/lib/agentThreadInitialization";
 
 test("explicit thread routes keep loading the selected thread", () => {
   assert.equal(

@@ -4,15 +4,15 @@ import {
   buildMentionEntityReferenceLine,
   normalizeMentionEntitySearchResult,
   type MentionEntitySearchResult,
-} from "../shared/lib/mentions/mentionEntities.ts";
+} from "../shared/lib/mentions/mentionEntities";
 import {
   buildAgentMentionReplacementText,
   filterSelectedMentionEntitiesByInput,
-} from "../features/agent/lib/entityMentions.ts";
+} from "../features/agent/lib/entityMentions";
 import {
   buildComposerMentionInsertionText,
   buildInitialMediaUploadFromMentionEntity,
-} from "../features/composer/lib/entityMentions.ts";
+} from "../features/composer/lib/entityMentions";
 
 test("agent mention helpers keep visible inline text and drop partial false positives", () => {
   const personEntity: MentionEntitySearchResult = {

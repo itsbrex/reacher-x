@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveOutreachPlanPreviewState } from "../shared/lib/outreach/planPreviewState.ts";
+import { resolveOutreachPlanPreviewState } from "../shared/lib/outreach/planPreviewState";
 
 test("returns a disabled deleted tombstone once a persisted plan has been deleted", () => {
   const result = resolveOutreachPlanPreviewState({

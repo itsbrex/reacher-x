@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getProspectDisplayTimestamp } from "../features/prospects/lib/getProspectDisplayTimestamp.ts";
+import { getProspectDisplayTimestamp } from "../features/prospects/lib/getProspectDisplayTimestamp";
 
 test("new prospects prefer readyAt, then qualifiedAt, then createdAt", () => {
   assert.equal(

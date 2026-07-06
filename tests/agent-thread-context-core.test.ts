@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAgentThreadSelection } from "../convex/lib/agentThreadContextCore.ts";
+import { resolveAgentThreadSelection } from "../convex/lib/agentThreadContextCore";
 
 function createEntity(
   overrides: Partial<{

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAgentComposerSubmission } from "../features/agent/lib/buildAgentComposerMessage.ts";
-import { parseLegacyAgentMessageContent } from "../shared/lib/mentions/messageContext.ts";
+import { buildAgentComposerSubmission } from "../features/agent/lib/buildAgentComposerMessage";
+import { parseLegacyAgentMessageContent } from "../shared/lib/mentions/messageContext";
 
 test("buildAgentComposerSubmission returns plain input when no references are attached", () => {
   assert.deepEqual(
