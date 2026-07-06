@@ -29,6 +29,7 @@ export interface OverviewTabProps {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  phone?: string;
   finance?: { displayValue: string };
   location?: string;
   foundViaLabel?: string;
@@ -52,6 +53,7 @@ export function OverviewTab({
   websiteDisplayText,
   bioUrlEntities,
   email,
+  phone,
   finance,
   location,
   foundViaLabel,
@@ -110,6 +112,7 @@ export function OverviewTab({
           websiteHref={websiteHref}
           websiteDisplayText={websiteDisplayText}
           email={email}
+          phone={phone}
           finance={finance?.displayValue}
           location={location}
           foundViaLabel={foundViaLabel}

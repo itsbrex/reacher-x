@@ -74,6 +74,7 @@ export interface EnrichmentResult {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  phone?: string;
   location?: string;
   finance?: FinanceData;
   painPoints: PainPointWithSolution[];
@@ -601,6 +602,7 @@ export async function enrichLinkedInProfile(params: {
     let company: string | undefined;
     let websiteUrl: string | undefined;
     let email: string | undefined;
+    let phone: string | undefined;
     let location: string | undefined;
     let briefIntro: string | undefined;
 
@@ -640,6 +642,7 @@ export async function enrichLinkedInProfile(params: {
       // Contact info
       if (contactInfo) {
         email = (contactInfo.emailAddress as string) || undefined;
+        phone = (contactInfo.phoneNumber as string) || undefined;
 
         const websites = contactInfo.websites as
           | Array<{ url: string }>
@@ -658,6 +661,7 @@ export async function enrichLinkedInProfile(params: {
       company,
       websiteUrl,
       email,
+      phone,
       location,
       finance,
       painPoints,

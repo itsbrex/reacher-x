@@ -2167,6 +2167,7 @@ export const updateProspectEnrichment = internalMutation({
     websiteDisplayText: v.optional(v.string()),
     bioUrlEntities: v.optional(v.array(twitterUrlEntityValidator)),
     email: v.optional(v.string()),
+    phone: v.optional(v.string()),
     location: v.optional(v.string()),
     pipelineStage: v.optional(prospectStatusValidator),
     finance: v.optional(
@@ -2242,6 +2243,7 @@ export const updateProspectEnrichment = internalMutation({
       updateData.bioUrlEntities = args.bioUrlEntities;
     }
     if (args.email !== undefined) updateData.email = args.email;
+    if (args.phone !== undefined) updateData.phone = args.phone;
     if (args.location !== undefined) updateData.location = args.location;
     if (args.pipelineStage !== undefined)
       updateData.pipelineStage = args.pipelineStage;

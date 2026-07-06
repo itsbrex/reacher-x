@@ -6,6 +6,7 @@
 "use client";
 
 import * as React from "react";
+import { PhoneIcon } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   formatUrlDisplayText,
@@ -49,6 +50,8 @@ export interface ProspectDetailsCardProps {
   websiteDisplayText?: string;
   /** Email address */
   email?: string;
+  /** Phone number */
+  phone?: string;
   /** Finance display value (e.g., "$9000-$14000") */
   finance?: string;
   /** Location */
@@ -165,6 +168,7 @@ export function ProspectDetailsCard({
   websiteHref,
   websiteDisplayText,
   email,
+  phone,
   finance,
   location,
   foundViaLabel,
@@ -184,7 +188,7 @@ export function ProspectDetailsCard({
       : undefined);
 
   // Determine which fields are visible
-  const hasHiddenFields = Boolean(email || finance || location);
+  const hasHiddenFields = Boolean(finance || location);
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -257,18 +261,25 @@ export function ProspectDetailsCard({
         </DetailRow>
       )}
 
-      {/* Hidden fields (Email, Finance, Location) - shown when expanded */}
+      {email ? (
+        <DetailRow icon={<MailIcon className="fill-current" />} label="Email">
+          <a href={`mailto:${email}`} className="text-primary hover:underline">
+            {email}
+          </a>
+        </DetailRow>
+      ) : null}
+
+      {phone ? (
+        <DetailRow icon={<PhoneIcon className="size-4" />} label="Phone">
+          <a href={`tel:${phone}`} className="text-primary hover:underline">
+            {phone}
+          </a>
+        </DetailRow>
+      ) : null}
+
+      {/* Hidden fields (Finance, Location) - shown when expanded */}
       {showMore && (
         <>
-          {email && (
-            <DetailRow
-              icon={<MailIcon className="fill-current" />}
-              label="Email"
-            >
-              {email}
-            </DetailRow>
-          )}
-
           {finance && (
             <DetailRow
               icon={<PaidIcon className="fill-current" />}

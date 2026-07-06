@@ -332,6 +332,7 @@ export function sanitizeLinkedInContactInfoForWorkflow(
 
   return compactObject({
     emailAddress: asString(value.emailAddress),
+    phoneNumber: asString(value.phoneNumber),
     websites:
       websites.length > 0
         ? compactArray(

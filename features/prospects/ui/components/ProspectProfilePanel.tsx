@@ -73,6 +73,7 @@ export interface ProspectProfileData {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  phone?: string;
   finance?: {
     displayValue: string;
     evidencePosts?: unknown[];
@@ -431,6 +432,7 @@ export function ProspectProfilePanel({
                         websiteHref={prospect.websiteHref}
                         websiteDisplayText={prospect.websiteDisplayText}
                         email={prospect.email}
+                        phone={prospect.phone}
                         finance={prospect.finance?.displayValue}
                         location={prospect.location}
                         foundViaLabel={
