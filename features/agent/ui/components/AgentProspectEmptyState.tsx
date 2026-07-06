@@ -101,7 +101,7 @@ export function AgentProspectEmptyState({
           variant="outline"
           size="xs"
           className="mt-2"
-          onClick={onViewProfile}
+          onClick={() => onViewProfile()}
         >
           View profile
         </Button>

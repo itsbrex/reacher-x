@@ -2,13 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import {
-  useNotificationWorkspace,
-  useQueryWithStatus,
-} from "@/shared/hooks";
+import { useNotificationWorkspace, useQueryWithStatus } from "@/shared/hooks";
 import {
   PageContent,
   PageHeader,
@@ -21,6 +18,7 @@ import { Button } from "@/shared/ui/components/Button";
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const convex = useConvex();
   const {
     error: notificationWorkspaceError,
     isLoading: isNotificationWorkspaceLoading,
@@ -64,8 +62,16 @@ export default function NotificationsPage() {
       });
     }
 
-    if (notification.targetHref) {
-      router.push(notification.targetHref);
+    const resolvedTargetHref = await convex.query(
+      api.outreach.resolveNotificationTarget,
+      {
+        notificationId: notification._id as Id<"outreachNotifications">,
+        workspaceId: workspaceId as Id<"workspaces">,
+      }
+    );
+
+    if (resolvedTargetHref) {
+      router.push(resolvedTargetHref);
       return;
     }
 

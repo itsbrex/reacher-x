@@ -14,7 +14,7 @@ import {
   openRouterMetadataMiddleware,
   sanitizeProviderMetadataForConvex,
 } from "../lib/agentMetadata";
-import { buildSetupAgentPrompt } from "./prompts";
+import { buildMainAgentPrompt, buildSetupAgentPrompt } from "./prompts";
 import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "../../shared/lib/workspaceUseCases";
 import {
   analyzeUrl,
@@ -28,7 +28,25 @@ import {
   enrichProspect,
   rememberWorkspaceMemory,
   searchWorkspaceMemories,
+  continueProspectThread,
+  listProspectPlans,
+  updatePlansBatch,
 } from "./tools";
+import {
+  approveSocialActionRequest,
+  approveTask,
+  askHuman,
+  cancelPlan,
+  deletePlan,
+  displayEntity,
+  getProspectPlan,
+  getSocialContext,
+  inspectWorkspace,
+  pausePlan,
+  researchProspect,
+  resumePlan,
+  socialAction,
+} from "./outreach/tools";
 
 // ============================================================================
 // Lazy Model Provider
@@ -62,13 +80,64 @@ function getOpenRouterProvider() {
 }
 
 const openrouter = getOpenRouterProvider();
-const setupLanguageModel = wrapLanguageModel({
+const workspaceLanguageModel = wrapLanguageModel({
   // Pin tool-calling setup runs to the validated Cerebras route. This avoids
   // provider roulette for multi-step streamed agent turns.
   model: openrouter(PINNED_AGENT_MODEL, {
     extraBody: getOpenRouterExtraBody(PINNED_AGENT_PROVIDER_OPTIONS),
   }) as any,
   middleware: openRouterMetadataMiddleware,
+});
+
+const mainAgentBaseTools = {
+  // Workspace context + discovery
+  inspectWorkspace,
+  searchProspects,
+  listProspectPlans,
+  updatePlansBatch,
+  // Selected prospect context
+  getSocialContext,
+  getProspectPlan,
+  researchProspect,
+  continueProspectThread,
+  // Plan management
+  pausePlan,
+  resumePlan,
+  cancelPlan,
+  deletePlan,
+  // Direct actions + UI
+  displayEntity,
+  socialAction,
+  approveSocialActionRequest,
+  approveTask,
+  askHuman,
+  // Memory
+  rememberWorkspaceMemory,
+  searchWorkspaceMemories,
+} as const;
+
+export const mainAgent = new Agent(components.agent, {
+  name: "Main Agent",
+  languageModel: workspaceLanguageModel,
+  instructions: buildMainAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
+  tools: mainAgentBaseTools,
+  maxSteps: 15,
+  contextOptions: {
+    recentMessages: 20,
+  },
+  usageHandler: async (ctx, args) => {
+    await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
+      userId: args.userId,
+      threadId: args.threadId,
+      agentName: args.agentName,
+      model: args.model,
+      provider: args.provider,
+      usage: args.usage,
+      providerMetadata: sanitizeProviderMetadataForConvex(
+        args.providerMetadata
+      ),
+    });
+  },
 });
 
 // ============================================================================
@@ -87,7 +156,7 @@ const setupLanguageModel = wrapLanguageModel({
  */
 export const setupAgent = new Agent(components.agent, {
   name: "Setup Agent",
-  languageModel: setupLanguageModel,
+  languageModel: workspaceLanguageModel,
   instructions: buildSetupAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
   tools: {
     // Setup tools
@@ -106,6 +175,9 @@ export const setupAgent = new Agent(components.agent, {
     // Workspace memory tools
     rememberWorkspaceMemory,
     searchWorkspaceMemories,
+    // Main △ Agent fan-out (workspace-wide plan control)
+    listProspectPlans,
+    updatePlansBatch,
   },
   // Allow multiple tool calls for complex flows
   maxSteps: 15,

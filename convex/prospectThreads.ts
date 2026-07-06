@@ -3,6 +3,7 @@ import { paginationOptsValidator } from "convex/server";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ThreadDoc } from "@convex-dev/agent";
+import { createThread } from "@convex-dev/agent";
 import { logger } from "../shared/lib/logger";
 import {
   action,
@@ -13,6 +14,7 @@ import {
 import {
   type ProspectThreadStatus,
   ensureProspectThreadLink,
+  getLatestActiveProspectThreadLink,
   getProspectThreadContextByThreadId,
   listProspectThreadLinksByProspect,
   listProspectThreadIdsByProspect,
@@ -78,6 +80,68 @@ export const ensureThreadLink = internalMutation({
   },
   handler: async (ctx, args) => {
     return await ensureProspectThreadLink(ctx, args);
+  },
+});
+
+export const ensureActiveThreadForProspectInternal = internalMutation({
+  args: {
+    prospectId: v.id("prospects"),
+    threadSummary: v.optional(v.string()),
+  },
+  handler: async (ctx, { prospectId, threadSummary }) => {
+    const prospect = await ctx.db.get(prospectId);
+    if (!prospect) {
+      throw new Error("Prospect not found");
+    }
+
+    const existingLink = await getLatestActiveProspectThreadLink(
+      ctx.db,
+      prospectId
+    );
+    if (existingLink) {
+      const existingThread = await ctx.runQuery(
+        components.agent.threads.getThread,
+        {
+          threadId: existingLink.threadId,
+        }
+      );
+
+      if (existingThread) {
+        if (threadSummary && !existingThread.summary) {
+          await ctx.runMutation(components.agent.threads.updateThread, {
+            threadId: existingThread._id,
+            patch: { summary: threadSummary },
+          });
+          await ctx.db.patch(existingLink._id, {
+            threadSummary,
+          });
+        }
+
+        return {
+          threadId: existingThread._id,
+          created: false,
+        };
+      }
+    }
+
+    const threadId = await createThread(ctx, components.agent, {
+      userId: prospect.userId,
+      title: `outreach:${prospectId}`,
+      ...(threadSummary ? { summary: threadSummary } : {}),
+    });
+
+    await ensureProspectThreadLink(ctx, {
+      prospectId,
+      threadId,
+      userId: prospect.userId,
+      threadStatus: "active",
+      ...(threadSummary ? { threadSummary } : {}),
+    });
+
+    return {
+      threadId,
+      created: true,
+    };
   },
 });
 

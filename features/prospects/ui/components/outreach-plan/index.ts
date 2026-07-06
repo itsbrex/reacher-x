@@ -12,4 +12,5 @@ export {
   shouldEnableStrategyExpansion,
   type PlanStrategyContentProps,
 } from "./PlanStrategyContent";
+export { PlanActionMenu } from "./PlanActionMenu";
 export { TaskItem, type TaskItemProps, type TaskItemMode } from "./TaskItem";

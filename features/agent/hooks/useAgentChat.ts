@@ -16,8 +16,13 @@ import {
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  normalizeAgentMessageContextMetadata,
+  type AgentMessageContextMetadata,
+} from "@/shared/lib/mentions/messageContext";
 import { useConvexReady, useQueryWithStatus } from "@/shared/hooks";
 import { logger } from "@/shared/lib/logger";
+import { resolveAgentThreadInitializationMode } from "@/features/agent/lib/agentThreadInitialization";
 import { getUIMessageDisplayText } from "@/features/agent/lib/uiMessageText";
 
 // ============================================================================
@@ -32,6 +37,8 @@ export interface UseAgentChatOptions {
   threadId?: string | null;
   /** Prospect ID for context. If provided, uses prospect-specific thread functions. */
   prospectId?: string | null;
+  /** Workspace ID for workspace-scoped `/agent` chat. */
+  workspaceId?: string | null;
   /** Action to perform. "generatePlan"/"newWorkspace" trigger auto-prompting. */
   action?: string | null;
   /** Incremented by the parent when the user explicitly asks for a fresh thread. */
@@ -42,6 +49,11 @@ export interface UserData {
   firstName?: string | null;
   lastName?: string | null;
   profileImageUrl?: string | null;
+}
+
+export interface AgentChatMessageInput {
+  prompt: string;
+  metadata?: AgentMessageContextMetadata | null;
 }
 
 export type PendingTurnPhase =
@@ -91,7 +103,7 @@ export interface UseAgentChatReturn {
 
   // Actions
   setInput: (value: string) => void;
-  sendMessage: (content?: string) => void;
+  sendMessage: (content?: string | AgentChatMessageInput) => void;
   stop: () => void;
   loadMore: () => void;
   hasMore: boolean;
@@ -124,6 +136,7 @@ export function useAgentChat(
   const {
     threadId: propThreadId,
     prospectId,
+    workspaceId,
     action,
     newThreadSignal,
   } = options;
@@ -144,6 +157,7 @@ export function useAgentChat(
 
   // Track previous prospectId to detect changes for isolation
   const prevProspectIdRef = useRef<string | null | undefined>(undefined);
+  const prevWorkspaceIdRef = useRef<string | null | undefined>(workspaceId);
   const prevPropThreadIdRef = useRef<string | null | undefined>(propThreadId);
   const syncedPropThreadIdRef = useRef<string | null | undefined>(propThreadId);
   const prevNewThreadSignalRef = useRef(newThreadSignal);
@@ -162,7 +176,6 @@ export function useAgentChat(
   const isSetupRoute = pathname === "/agent/setup";
   const shouldResolveSetupBootstrap =
     isSetupRoute && !prospectId && !propThreadId;
-  const getOrCreateThread = useMutation(api.chat.getOrCreateThread);
 
   const setupBootstrapStateQuery = useQueryWithStatus(
     api.setupSessions.getSetupBootstrapState,
@@ -194,6 +207,9 @@ export function useAgentChat(
   // For auto-prompting (action=generatePlan), use createProspectThreadWithPrompt
   const createProspectThreadWithPromptMutation = useMutation(
     api.chat.createProspectThreadWithPrompt
+  );
+  const createWorkspaceThreadWithPromptMutation = useMutation(
+    api.chat.createWorkspaceThreadWithPrompt
   );
   // For setup bootstrap / resume
   const startSetupSessionMutation = useMutation(
@@ -351,7 +367,41 @@ export function useAgentChat(
     }
   }, [prospectId, propThreadId]);
 
-  // Initialize thread on mount
+  useEffect(() => {
+    if (prospectId) {
+      prevWorkspaceIdRef.current = workspaceId;
+      return;
+    }
+
+    if (prevWorkspaceIdRef.current === undefined) {
+      prevWorkspaceIdRef.current = workspaceId;
+      return;
+    }
+
+    if (prevWorkspaceIdRef.current !== workspaceId) {
+      setInternalThreadId((current) =>
+        current === (propThreadId ?? null) ? current : (propThreadId ?? null)
+      );
+      setGeneratedThreadId((current) => (current === null ? current : null));
+      setError((current) => (current === undefined ? current : undefined));
+      setInputValue("");
+      setPendingTurn((current) => (current === null ? current : null));
+      generatedThreadUrlSyncRef.current = null;
+      chatSessionEpochRef.current += 1;
+      explicitNewThreadRef.current = false;
+      hasTriggeredAutoGenRef.current = false;
+      stopRequestedRef.current = false;
+      stopTargetThreadIdRef.current = null;
+      setIsInitialized(false);
+      prevWorkspaceIdRef.current = workspaceId;
+      return;
+    }
+
+    prevWorkspaceIdRef.current = workspaceId;
+  }, [prospectId, propThreadId, workspaceId]);
+
+  // Resolve initial route state on mount. Bare workspace `/agent` stays a draft
+  // composer until the user selects a history item or sends the first message.
   useEffect(() => {
     if (convexReadyError) {
       setError(convexReadyError);
@@ -360,21 +410,30 @@ export function useAgentChat(
     }
     if (!isConvexReady || isInitialized) return;
 
-    // If threadId is provided via props, we're ready
-    if (propThreadId) {
+    const initializationMode = resolveAgentThreadInitializationMode({
+      threadId: propThreadId ?? null,
+      prospectId: prospectId ?? null,
+      shouldResolveSetupBootstrap,
+    });
+
+    if (initializationMode === "explicitThread") {
       setIsInitialized(true);
       return;
     }
 
-    // Prospect routes are fresh by default. History/thread links pass threadId.
-    if (prospectId) {
+    // Prospect and workspace routes are fresh by default. History/thread links
+    // pass threadId explicitly.
+    if (
+      initializationMode === "prospectDraft" ||
+      initializationMode === "workspaceDraft"
+    ) {
       setIsInitialized(true);
       return;
     }
 
     // The setup route bootstraps its own setup thread. If no bootstrap is needed,
     // let the route guard redirect away instead of creating a generic chat thread.
-    if (shouldResolveSetupBootstrap) {
+    if (initializationMode === "setupBootstrap") {
       if (setupBootstrapStateQuery.isPending) {
         return;
       }
@@ -392,32 +451,13 @@ export function useAgentChat(
       setIsInitialized(true);
       return;
     }
-
-    // Setup flow: get or create the user's general thread
-    const initThread = async () => {
-      try {
-        const result = await getOrCreateThread();
-        setInternalThreadId(result.threadId);
-        setIsInitialized(true);
-      } catch (err) {
-        agentChatLogger.error("Failed to initialize thread", err);
-        setError(
-          err instanceof Error ? err : new Error("Failed to initialize")
-        );
-        setIsInitialized(true);
-      }
-    };
-
-    initThread();
   }, [
     convexReadyError,
     isConvexReady,
     isInitialized,
     propThreadId,
     prospectId,
-    action,
     shouldResolveSetupBootstrap,
-    getOrCreateThread,
     existingSetupSession?.sessionId,
     existingSetupSession?.threadId,
     setupBootstrapStateQuery.error,
@@ -1004,9 +1044,22 @@ export function useAgentChat(
 
   // Send message handler - uses different mutation based on context
   const sendMessage = useCallback(
-    async (content?: string) => {
-      const messageContent = (content ?? inputValue).trim();
-      if (!messageContent) return;
+    async (content?: string | AgentChatMessageInput) => {
+      const payload =
+        typeof content === "string"
+          ? {
+              prompt: content,
+              metadata: null,
+            }
+          : (content ?? {
+              prompt: inputValue,
+              metadata: null,
+            });
+      const normalizedMetadata = normalizeAgentMessageContextMetadata(
+        payload.metadata
+      );
+      const messageContent = payload.prompt.trim();
+      if (!messageContent && !normalizedMetadata) return;
       if (!isConvexReady || isConvexReadyLoading) return;
 
       const startedChatSessionEpoch = chatSessionEpochRef.current;
@@ -1027,6 +1080,7 @@ export function useAgentChat(
           const result = await createProspectThreadWithPromptMutation({
             prospectId: prospectId as Id<"prospects">,
             prompt: messageContent,
+            metadata: normalizedMetadata ?? undefined,
           });
 
           if (chatSessionEpochRef.current !== startedChatSessionEpoch) {
@@ -1073,8 +1127,66 @@ export function useAgentChat(
         return;
       }
 
-      // Existing thread case
-      if (!threadId) return;
+      if (!threadId) {
+        if (!prospectId) {
+          setInputValue("");
+          setLocalLoading(true);
+          setError(undefined);
+
+          try {
+            const result = await createWorkspaceThreadWithPromptMutation({
+              workspaceId:
+                workspaceId !== null && workspaceId !== undefined
+                  ? (workspaceId as Id<"workspaces">)
+                  : undefined,
+              prompt: messageContent,
+              metadata: normalizedMetadata ?? undefined,
+            });
+
+            if (chatSessionEpochRef.current !== startedChatSessionEpoch) {
+              return;
+            }
+
+            generatedThreadUrlSyncRef.current = result.threadId;
+            explicitNewThreadRef.current = false;
+            setInternalThreadId(result.threadId);
+            setGeneratedThreadId(result.threadId);
+            setPendingTurn((current) =>
+              current?.id !== nextPendingTurn.id
+                ? current
+                : {
+                    ...current,
+                    threadId: result.threadId,
+                    order: result.order,
+                    phase: current.phase === "stopping" ? "stopping" : "queued",
+                  }
+            );
+          } catch (err) {
+            if (chatSessionEpochRef.current !== startedChatSessionEpoch) {
+              return;
+            }
+
+            agentChatLogger.error("Failed to create workspace thread", err);
+            const nextError =
+              err instanceof Error ? err : new Error("Failed to send message");
+            setError(nextError);
+            setPendingTurn((current) =>
+              current?.id !== nextPendingTurn.id
+                ? current
+                : {
+                    ...current,
+                    phase: "failed",
+                    errorMessage: nextError.message,
+                  }
+            );
+          } finally {
+            if (chatSessionEpochRef.current === startedChatSessionEpoch) {
+              setLocalLoading(false);
+            }
+          }
+        }
+        return;
+      }
 
       setInputValue("");
       setLocalLoading(true);
@@ -1086,6 +1198,7 @@ export function useAgentChat(
           const result = await sendProspectMessageMutation({
             threadId,
             prompt: messageContent,
+            metadata: normalizedMetadata ?? undefined,
           });
 
           if (chatSessionEpochRef.current !== startedChatSessionEpoch) {
@@ -1107,6 +1220,7 @@ export function useAgentChat(
           const result = await sendMessageMutation({
             threadId,
             prompt: messageContent,
+            metadata: normalizedMetadata ?? undefined,
           });
 
           if (chatSessionEpochRef.current !== startedChatSessionEpoch) {
@@ -1158,6 +1272,8 @@ export function useAgentChat(
       sendMessageMutation,
       sendProspectMessageMutation,
       createProspectThreadWithPromptMutation,
+      createWorkspaceThreadWithPromptMutation,
+      workspaceId,
     ]
   );
 

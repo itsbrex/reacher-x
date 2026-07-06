@@ -35,6 +35,8 @@ export interface UseXAccountConnectionOptions {
   enabled?: boolean;
   /** When true, shows a one-time recoverable style-sync toast on Connected Accounts. */
   showStyleSyncIssueToast?: boolean;
+  /** Fires once right after the X OAuth exchange completes successfully. */
+  onConnected?: () => void;
 }
 
 export function useXAccountConnection({
@@ -42,6 +44,7 @@ export function useXAccountConnection({
   resolveCallbackUrl,
   enabled = true,
   showStyleSyncIssueToast: shouldShowStyleSyncIssueToast = false,
+  onConnected,
 }: UseXAccountConnectionOptions) {
   const [{ code, state, error, error_description }, setOauthParams] =
     useQueryStates({
@@ -56,6 +59,7 @@ export function useXAccountConnection({
   const completeXConnection = useAction(api.x.completeTwitterConnection);
   const disconnectTwitter = useAction(api.x.disconnectTwitter);
   const getXStatusRef = useRef(getXStatus);
+  const onConnectedRef = useRef(onConnected);
   const authExchangeKeyRef = useRef<string | null>(null);
   const shownStyleSyncIssueKeyRef = useRef<string | null>(null);
   const styleSyncRefreshTimeoutsRef = useRef<number[]>([]);
@@ -68,6 +72,10 @@ export function useXAccountConnection({
   useEffect(() => {
     getXStatusRef.current = getXStatus;
   }, [getXStatus]);
+
+  useEffect(() => {
+    onConnectedRef.current = onConnected;
+  }, [onConnected]);
 
   const clearStyleSyncRefreshTimeouts = useCallback(() => {
     for (const timeoutId of styleSyncRefreshTimeoutsRef.current) {
@@ -199,6 +207,7 @@ export function useXAccountConnection({
           description: "Your X/Twitter account is ready.",
         });
         schedulePostConnectStatusChecks();
+        onConnectedRef.current?.();
       } catch (exchangeError) {
         logger.error("Failed to finalize X connection:", exchangeError);
         toast.error("Unable to connect X/Twitter", {

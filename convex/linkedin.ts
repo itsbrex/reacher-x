@@ -674,9 +674,14 @@ async function resolveLinkedInThreadContext(
     internal.prospectThreads.getThreadProspectContext,
     { threadId }
   );
+  const threadWorkspaceContext = await ctx.runQuery(
+    internal.workspaceThreads.getThreadWorkspaceContext,
+    { threadId }
+  );
 
   const prospectId = threadProspectContext?.prospectId;
-  const workspaceId = threadProspectContext?.workspaceId;
+  const workspaceId =
+    threadProspectContext?.workspaceId ?? threadWorkspaceContext?.workspaceId;
   const prospect = prospectId
     ? await ctx.runQuery(internal.prospects.getProspectInternal, { prospectId })
     : null;

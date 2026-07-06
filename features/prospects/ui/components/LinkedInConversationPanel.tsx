@@ -202,6 +202,9 @@ export function LinkedInConversationPanel({
           taskId: taskId as Id<"outreachTasks">,
           expectedType: "dm",
           content: nextValue,
+          mediaUrls: taskDraft?.mediaUrls,
+          mediaDescriptions: taskDraft?.mediaDescriptions,
+          mediaKinds: taskDraft?.mediaKinds,
         });
         return;
       }
@@ -212,6 +215,18 @@ export function LinkedInConversationPanel({
       await updatePendingActionRequestDraft({
         actionRequestId: actionRequestId as Id<"agentActionRequests">,
         content: nextValue,
+        mediaUrls:
+          resolvedData?.draftAttachments
+            ?.map(
+              (attachment: LinkedInConversationAttachmentSummary) =>
+                attachment.url
+            )
+            .filter((url: string | undefined): url is string => Boolean(url)) ??
+          undefined,
+        mediaDescriptions: resolvedData?.draftAttachments?.map(
+          (attachment: LinkedInConversationAttachmentSummary) =>
+            attachment.altText ?? ""
+        ),
       });
     },
   });
@@ -407,7 +422,7 @@ export function LinkedInConversationPanel({
         {onViewProfile ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onViewProfile}>
+            <DropdownMenuItem onClick={() => onViewProfile()}>
               <PersonIcon className="fill-current" aria-hidden />
               View profile
             </DropdownMenuItem>
@@ -684,6 +699,11 @@ export function LinkedInConversationPanel({
                 prospectId,
                 maxLength: LINKEDIN_DM_TEXT_MAX,
                 characterCountMode: "raw",
+              }}
+              entityMentions={{
+                prospectId,
+                remoteAllowedKinds: ["prospect", "post", "attachment"],
+                personTextMode: "label",
               }}
               className="rounded-xl border p-2"
               onContentChange={(content) => {

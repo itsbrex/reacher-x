@@ -17,6 +17,7 @@ import {
   buildPlanSnapshot,
   getProspectActivePlan,
   createOutreachPlan,
+  deleteOutreachPlanCascade,
   refinePlan as refinePlanCore,
   approvePlan as approvePlanCore,
   getProspectActivityLog,
@@ -29,12 +30,14 @@ import {
 import { recordMemoryWorkflowEvent } from "./lib/memoryCore";
 import {
   extractAvatarUrl,
+  buildNotificationTargetHref,
   extractDisplayName,
   extractScreenName,
   getProspectDisplayFields,
   upsertNotificationByKey,
   dismissNotificationsByKey,
 } from "./lib/notificationHelpers";
+import { getLatestActiveProspectThreadLink } from "./lib/relationshipHelpers";
 import {
   outreachStrategyValidator,
   outreachTaskTimingValidator,
@@ -67,6 +70,7 @@ import {
 } from "./lib/typeGuards";
 import {
   getDefaultWorkspaceForUser,
+  getOwnedPlan,
   getOwnedTask,
   requireOwnedPlan,
   requireOwnedProspect,
@@ -136,7 +140,8 @@ function buildProspectsFoundNotificationKey(
   workspaceId: Id<"workspaces">,
   workflowId: string
 ) {
-  return `prospects-found:${workspaceId}:${workflowId}`;
+  void workflowId;
+  return `prospects-found:${workspaceId}`;
 }
 
 function buildPlanCompletedNotificationKey(planId: Id<"outreachPlans">) {
@@ -638,11 +643,10 @@ export const getPlanById = query({
   args: { planId: v.id("outreachPlans") },
   handler: async (ctx, { planId }) => {
     const user = await requireViewerUser(ctx);
-    const plan = await requireOwnedPlan(ctx, planId, {
-      user,
-      notFoundMessage: "Plan not found",
-      notAuthorizedMessage: "Not authorized to view this plan",
-    });
+    const plan = await getOwnedPlan(ctx, planId, user._id);
+    if (!plan) {
+      return null;
+    }
 
     const tasks = await ctx.db
       .query("outreachTasks")
@@ -844,7 +848,77 @@ export const listNotifications = query({
       .order("desc")
       .take(100);
 
-    return notifications;
+    return [...notifications].sort((a, b) => {
+      const aPending = a.status === "pending" ? 0 : 1;
+      const bPending = b.status === "pending" ? 0 : 1;
+      if (aPending !== bPending) {
+        return aPending - bPending;
+      }
+
+      const getTypePriority = (type: Doc<"outreachNotifications">["type"]) => {
+        switch (type) {
+          case "prospect_replied":
+            return 0;
+          case "ask_human":
+            return 1;
+          case "social_action_request":
+            return 2;
+          case "prospects_found":
+            return 3;
+          default:
+            return 4;
+        }
+      };
+
+      const typePriorityDiff =
+        getTypePriority(a.type) - getTypePriority(b.type);
+      if (typePriorityDiff !== 0) {
+        return typePriorityDiff;
+      }
+
+      return b._creationTime - a._creationTime;
+    });
+  },
+});
+
+export const resolveNotificationTarget = query({
+  args: {
+    notificationId: v.id("outreachNotifications"),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, { notificationId, workspaceId }) => {
+    const user = await requireViewerUser(ctx);
+    const notification = await ctx.db.get(notificationId);
+    if (!notification || notification.userId !== user._id) {
+      return null;
+    }
+
+    const resolvedWorkspaceId = workspaceId ?? notification.workspaceId;
+    await requireOwnedWorkspace(ctx, resolvedWorkspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage:
+        "Not authorized to resolve notifications for this workspace",
+    });
+
+    let resolvedThreadId = notification.threadId;
+    if (notification.prospectId) {
+      const activeThread = await getLatestActiveProspectThreadLink(
+        ctx.db,
+        notification.prospectId
+      );
+      resolvedThreadId = activeThread?.threadId ?? resolvedThreadId;
+    }
+
+    return (
+      buildNotificationTargetHref({
+        targetHref: notification.targetHref,
+        prospectId: notification.prospectId,
+        threadId: resolvedThreadId,
+        taskId: notification.taskId,
+        actionRequestId: notification.actionRequestId,
+      }) ?? notification.targetHref
+    );
   },
 });
 
@@ -965,11 +1039,11 @@ export const createProspectsFoundNotification = internalMutation({
         workspaceId,
         workflowId
       ),
-      title: `${prospectsFound} new ${entityPluralLower} found`,
+      title: `△ Agent found ${prospectsFound} new ${entityPluralLower}`,
       message:
         messageParts.length > 0
-          ? messageParts.join(", ")
-          : `New ${entityPluralLower} are ready for review.`,
+          ? `${messageParts.join(", ")}. Review the strongest matches when you're ready.`
+          : `Fresh ${entityPluralLower} are ready for review.`,
       targetHref: "/",
     });
   },
@@ -1502,11 +1576,13 @@ export const updatePlan = internalMutation({
         })
       )
     ),
+    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await refinePlanCore(ctx, args.planId, {
       strategy: args.strategy,
       tasks: args.tasks as OutreachTaskInput[] | undefined,
+      threadId: args.threadId,
     });
   },
 });
@@ -1660,19 +1736,147 @@ export const pausePlan = mutation({
   },
 });
 
+async function cancelOwnedPlan(
+  ctx: MutationCtx,
+  planId: Id<"outreachPlans">
+): Promise<void> {
+  const user = await requireViewerUser(ctx);
+  const plan = await requireOwnedPlan(ctx, planId, {
+    user,
+    notFoundMessage: "Plan not found",
+    notAuthorizedMessage: "Not authorized to cancel this plan",
+  });
+
+  if (
+    plan.status !== "draft" &&
+    plan.status !== "approved" &&
+    plan.status !== "executing" &&
+    plan.status !== "paused" &&
+    plan.status !== "blocked_auth"
+  ) {
+    throw new Error(
+      "Can only cancel draft, approved, executing, paused, or blocked plans"
+    );
+  }
+
+  await ctx.db.patch(planId, {
+    status: "abandoned",
+    updatedAt: getCurrentUTCTimestamp(),
+  });
+  await recordMemoryWorkflowEvent(ctx, {
+    workspaceId: plan.workspaceId,
+    eventType: "outreach_plan_abandoned",
+    sourceType: "outreach_plan",
+    sourceId: String(planId),
+    planId,
+    prospectId: plan.prospectId,
+    payload: {
+      previousStatus: plan.status,
+      nextStatus: "abandoned",
+    },
+  });
+}
+
 /**
  * Abandon a plan (public).
  */
 export const abandonPlan = mutation({
   args: { planId: v.id("outreachPlans") },
   handler: async (ctx, { planId }) => {
+    await cancelOwnedPlan(ctx, planId);
+  },
+});
+
+/**
+ * Cancel a plan (public alias for product copy).
+ */
+export const cancelPlan = mutation({
+  args: { planId: v.id("outreachPlans") },
+  handler: async (ctx, { planId }) => {
+    await cancelOwnedPlan(ctx, planId);
+  },
+});
+
+/**
+ * Permanently delete a plan and its dependent UI/runtime records.
+ */
+export const deletePlan = mutation({
+  args: { planId: v.id("outreachPlans") },
+  handler: async (ctx, { planId }) => {
     const user = await requireViewerUser(ctx);
     const plan = await requireOwnedPlan(ctx, planId, {
       user,
       notFoundMessage: "Plan not found",
-      notAuthorizedMessage: "Not authorized to abandon this plan",
+      notAuthorizedMessage: "Not authorized to delete this plan",
     });
 
+    await deleteOutreachPlanCascade(ctx, plan);
+    return { success: true };
+  },
+});
+
+/**
+ * Plan lifecycle control for the △ Agent (internal, no viewer auth).
+ * Mirrors the public pause/resume/cancel guards. The caller (agent tool)
+ * is responsible for resolving the plan from thread context.
+ */
+export const setPlanLifecycleInternal = internalMutation({
+  args: {
+    planId: v.id("outreachPlans"),
+    action: v.union(
+      v.literal("pause"),
+      v.literal("resume"),
+      v.literal("cancel")
+    ),
+  },
+  handler: async (
+    ctx,
+    { planId, action }
+  ): Promise<{ status: Doc<"outreachPlans">["status"] }> => {
+    const plan = await ctx.db.get(planId);
+    if (!plan) {
+      throw new Error("Plan not found");
+    }
+
+    if (action === "pause") {
+      if (plan.status !== "executing") {
+        throw new Error("Can only pause executing plans");
+      }
+      await ctx.db.patch(planId, {
+        status: "paused",
+        updatedAt: getCurrentUTCTimestamp(),
+      });
+      return { status: "paused" };
+    }
+
+    if (action === "resume") {
+      if (plan.status !== "paused" && plan.status !== "blocked_auth") {
+        throw new Error("Can only resume paused or blocked plans");
+      }
+      await ctx.db.patch(planId, {
+        status: "approved",
+        updatedAt: getCurrentUTCTimestamp(),
+      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.workflows.outreach.startOutreachWorkflow,
+        { planId }
+      );
+      return { status: "approved" };
+    }
+
+    // Cancel
+    if (
+      plan.status !== "draft" &&
+      plan.status !== "approved" &&
+      plan.status !== "executing" &&
+      plan.status !== "paused" &&
+      plan.status !== "blocked_auth"
+    ) {
+      throw new Error(
+        "Can only cancel draft, approved, executing, paused, or blocked plans"
+      );
+    }
     await ctx.db.patch(planId, {
       status: "abandoned",
       updatedAt: getCurrentUTCTimestamp(),
@@ -1689,6 +1893,84 @@ export const abandonPlan = mutation({
         nextStatus: "abandoned",
       },
     });
+    return { status: "abandoned" };
+  },
+});
+
+/**
+ * Permanently delete a plan for the △ Agent after thread-context resolution.
+ */
+export const deletePlanInternal = internalMutation({
+  args: {
+    planId: v.id("outreachPlans"),
+  },
+  handler: async (ctx, { planId }) => {
+    const plan = await ctx.db.get(planId);
+    if (!plan) {
+      throw new Error("Plan not found");
+    }
+
+    await deleteOutreachPlanCascade(ctx, plan);
+    return { success: true };
+  },
+});
+
+const WORKSPACE_PLAN_OVERVIEW_STATUSES = [
+  "draft",
+  "approved",
+  "executing",
+  "paused",
+  "blocked_auth",
+] as const;
+
+/**
+ * Workspace-wide plan overview for the main △ Agent (internal).
+ * Returns active plans with prospect display info for fan-out decisions.
+ */
+export const listWorkspacePlansInternal = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  handler: async (ctx, { workspaceId }) => {
+    const plansByStatus = await Promise.all(
+      WORKSPACE_PLAN_OVERVIEW_STATUSES.map((status) =>
+        ctx.db
+          .query("outreachPlans")
+          .withIndex("by_workspace_status", (q) =>
+            q.eq("workspaceId", workspaceId).eq("status", status)
+          )
+          .order("desc")
+          .take(50)
+      )
+    );
+
+    const plans = plansByStatus.flat();
+    return await Promise.all(
+      plans.map(async (plan) => {
+        const prospect = await ctx.db.get(plan.prospectId);
+        const tasks = await ctx.db
+          .query("outreachTasks")
+          .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+          .collect();
+        const completedTasks = tasks.filter(
+          (task) => task.status === "completed"
+        ).length;
+        return {
+          planId: plan._id,
+          prospectId: plan.prospectId,
+          prospectName:
+            prospect?.displayName ?? prospect?.externalId ?? "Unknown",
+          prospectPlatform: prospect?.platform ?? "twitter",
+          prospectStatus: prospect?.status ?? "unknown",
+          planStatus: plan.status,
+          version: plan.version,
+          rationale: plan.strategy.rationale,
+          taskCount: tasks.length,
+          completedTasks,
+          updatedAt: plan.updatedAt,
+        };
+      })
+    );
   },
 });
 
@@ -1733,6 +2015,7 @@ export const getPendingTaskForProspect = internalQuery({
     const plan = await ctx.db
       .query("outreachPlans")
       .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+      .order("desc")
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "approved"),
@@ -1901,6 +2184,7 @@ export const getActivePlanForProspect = internalQuery({
     return await ctx.db
       .query("outreachPlans")
       .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+      .order("desc")
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "draft"),
@@ -1924,6 +2208,7 @@ export const getProspectActivePlanInternal = internalQuery({
     const plan = await ctx.db
       .query("outreachPlans")
       .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+      .order("desc")
       .filter((q) =>
         q.and(
           q.neq(q.field("status"), "completed"),
@@ -2529,7 +2814,7 @@ async function handleProspectResponseCore(
       title:
         args.responseChannel === "linkedin_invite"
           ? `${prospectDisplayName || entitySingular} accepted your invitation`
-          : `${prospectDisplayName || entitySingular} replied`,
+          : `Reply from ${prospectDisplayName || entitySingular}`,
       message: args.responseText
         ? `"${args.responseText.substring(0, 100)}${args.responseText.length > 100 ? "..." : ""}"`
         : args.responseChannel === "linkedin_invite"
@@ -2688,7 +2973,7 @@ async function handleProspectResponseCore(
   const title =
     args.responseChannel === "linkedin_invite"
       ? `${prospectDisplayName || entitySingular} accepted your invitation`
-      : `${prospectDisplayName || entitySingular} replied`;
+      : `Reply from ${prospectDisplayName || entitySingular}`;
 
   await ctx.db.insert("outreachNotifications", {
     userId: plan.userId,

@@ -31,6 +31,7 @@ import { LinkedInReplyComposer } from "./LinkedInReplyComposer";
 import { LinkedInCommentItem } from "./LinkedInCommentItem";
 import { extractTextFromEditorState } from "@/shared/lib/utils";
 import { toast } from "sonner";
+import { buildLinkedInPostMentionEntities } from "./linkedinComposerMentions";
 
 const INITIAL_COMMENT_LIMIT = 10;
 
@@ -722,6 +723,19 @@ export function LinkedInCommentThread({
   );
 
   const topLevelComments = thread?.topLevelComments.items ?? [];
+  const visibleThreadComments = topLevelComments.flatMap((comment) => [
+    comment,
+    ...(repliesState[comment.id]?.page?.items ?? []),
+  ]);
+  const topLevelMentionEntities = React.useMemo(
+    () =>
+      buildLinkedInPostMentionEntities({
+        post,
+        resolvedPost: thread?.resolvedPost ?? null,
+        comments: visibleThreadComments,
+      }),
+    [post, thread?.resolvedPost, visibleThreadComments]
+  );
   const showComposer = thread?.eligibility.enabled === true;
 
   return (
@@ -769,6 +783,7 @@ export function LinkedInCommentThread({
               submitLabel={isPostingTopLevel ? "Posting..." : "Comment"}
               initialValue={topLevelInitialValue}
               disabled={isPostingTopLevel}
+              localMentionEntities={topLevelMentionEntities}
               onSubmit={handleTopLevelSubmit}
             />
           ) : thread?.eligibility.reasonCode === "missing_connection" ? (
@@ -827,6 +842,7 @@ export function LinkedInCommentThread({
                       <LinkedInCommentItem
                         key={comment.id}
                         comment={comment}
+                        sourcePost={thread?.resolvedPost ?? post}
                         prospectId={prospectId}
                         showReplyComposer={isReplyComposerOpen}
                         replyComposerKey={`linkedin-reply-${comment.id}-${replyComposerVersions[comment.id] ?? 0}`}

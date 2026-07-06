@@ -96,21 +96,57 @@ export const outreachPlanWorkflow = workflowManager.define({
     );
     const prospectDisplayFields = getProspectDisplayFields(prospect);
 
-    // Step 3: Execute tasks in order
+    // Step 3: Execute tasks in order, re-reading the latest plan state so
+    // refinements to future tasks can take effect while a plan is executing.
     let completedTasks = 0;
+    let nextTaskOrder = 1;
 
-    for (const task of tasks) {
-      // Skip already completed tasks (for resume from pause)
-      if (
-        task.status === "completed" ||
-        task.status === "skipped" ||
-        task.status === "waiting_response"
-      ) {
-        completedTasks++;
-        continue;
+    while (true) {
+      const latestState = await step.runQuery(
+        internal.outreach.getPlanInternal,
+        {
+          planId: args.planId,
+        }
+      );
+      if (!latestState) {
+        return {
+          success: false,
+          status: "failed",
+          error: "Plan disappeared while executing workflow",
+        };
       }
 
-      // Update task status
+      const currentPlan = latestState.plan;
+      if (currentPlan.status === "abandoned") {
+        return { success: true, status: "abandoned" };
+      }
+      if (
+        currentPlan.status === "paused" ||
+        currentPlan.status === "blocked_auth"
+      ) {
+        return { success: true, status: currentPlan.status };
+      }
+
+      const task = latestState.tasks.find(
+        (candidate: (typeof latestState.tasks)[number]) =>
+          candidate.order >= nextTaskOrder &&
+          candidate.status !== "completed" &&
+          candidate.status !== "skipped" &&
+          candidate.status !== "waiting_response"
+      );
+
+      if (!task) {
+        completedTasks = latestState.tasks.filter(
+          (candidate: (typeof latestState.tasks)[number]) =>
+            candidate.status === "completed" ||
+            candidate.status === "skipped" ||
+            candidate.status === "waiting_response"
+        ).length;
+        break;
+      }
+
+      nextTaskOrder = task.order + 1;
+
       await step.runMutation(internal.outreach.updateTaskStatus, {
         taskId: task._id,
         status: "executing",
@@ -128,29 +164,37 @@ export const outreachPlanWorkflow = workflowManager.define({
             throw new Error("Task missing required content or target tweet ID");
           }
 
-          // Create notification for user to approve the tweet before posting
-          const approvalSignal = await step.runMutation(
-            internal.outreach.createTaskApprovalNotification,
+          const agentSettings = await step.runQuery(
+            internal.workspaces.getWorkspaceAgentSettingsInternal,
             {
-              userId: plan.userId,
-              workspaceId: plan.workspaceId,
-              prospectId: plan.prospectId,
-              planId: args.planId,
-              taskId: task._id,
-              workflowId,
-              content: task.content,
-              platform: task.approvalContext?.platform ?? "twitter",
-              targetTweetId: task.targetTweetId,
-              threadId: plan.threadId,
-              ...prospectDisplayFields,
+              workspaceId: currentPlan.workspaceId,
             }
           );
+          const requiresApproval = agentSettings?.autonomyMode !== "autonomous";
 
-          // Wait for human approval before posting
-          if (!approvalSignal?.approvalEventId) {
-            throw new Error("Approval event ID missing for comment task");
+          if (requiresApproval) {
+            const approvalSignal = await step.runMutation(
+              internal.outreach.createTaskApprovalNotification,
+              {
+                userId: currentPlan.userId,
+                workspaceId: currentPlan.workspaceId,
+                prospectId: currentPlan.prospectId,
+                planId: args.planId,
+                taskId: task._id,
+                workflowId,
+                content: task.content,
+                platform: task.approvalContext?.platform ?? "twitter",
+                targetTweetId: task.targetTweetId,
+                threadId: currentPlan.threadId,
+                ...prospectDisplayFields,
+              }
+            );
+
+            if (!approvalSignal?.approvalEventId) {
+              throw new Error("Approval event ID missing for comment task");
+            }
+            await step.awaitEvent({ id: approvalSignal.approvalEventId });
           }
-          await step.awaitEvent({ id: approvalSignal.approvalEventId });
 
           // Execute comment task after approval - with delay if specified
           const delayMs = getTaskDelay(task.timing);
@@ -195,8 +239,8 @@ export const outreachPlanWorkflow = workflowManager.define({
               await step.runMutation(
                 internal.outreach.markProspectContactedFromSuccessfulComment,
                 {
-                  prospectId: plan.prospectId,
-                  workspaceId: plan.workspaceId,
+                  prospectId: currentPlan.prospectId,
+                  workspaceId: currentPlan.workspaceId,
                   description: contactedActivityDescription,
                 }
               );
@@ -219,26 +263,36 @@ export const outreachPlanWorkflow = workflowManager.define({
           }
 
           const platform = task.approvalContext?.platform ?? "twitter";
-          const approvalSignal = await step.runMutation(
-            internal.outreach.createTaskApprovalNotification,
+          const agentSettings = await step.runQuery(
+            internal.workspaces.getWorkspaceAgentSettingsInternal,
             {
-              userId: plan.userId,
-              workspaceId: plan.workspaceId,
-              prospectId: plan.prospectId,
-              planId: args.planId,
-              taskId: task._id,
-              workflowId,
-              content: task.content || "",
-              platform,
-              threadId: plan.threadId,
-              ...prospectDisplayFields,
+              workspaceId: currentPlan.workspaceId,
             }
           );
+          const requiresApproval = agentSettings?.autonomyMode !== "autonomous";
 
-          if (!approvalSignal?.approvalEventId) {
-            throw new Error("Approval event ID missing for DM task");
+          if (requiresApproval) {
+            const approvalSignal = await step.runMutation(
+              internal.outreach.createTaskApprovalNotification,
+              {
+                userId: currentPlan.userId,
+                workspaceId: currentPlan.workspaceId,
+                prospectId: currentPlan.prospectId,
+                planId: args.planId,
+                taskId: task._id,
+                workflowId,
+                content: task.content || "",
+                platform,
+                threadId: currentPlan.threadId,
+                ...prospectDisplayFields,
+              }
+            );
+
+            if (!approvalSignal?.approvalEventId) {
+              throw new Error("Approval event ID missing for DM task");
+            }
+            await step.awaitEvent({ id: approvalSignal.approvalEventId });
           }
-          await step.awaitEvent({ id: approvalSignal.approvalEventId });
 
           const delayMs = getTaskDelay(task.timing);
           const executionResult = await step.runAction(
@@ -280,8 +334,8 @@ export const outreachPlanWorkflow = workflowManager.define({
               await step.runMutation(
                 internal.outreach.markProspectContactedFromSuccessfulOutreach,
                 {
-                  prospectId: plan.prospectId,
-                  workspaceId: plan.workspaceId,
+                  prospectId: currentPlan.prospectId,
+                  workspaceId: currentPlan.workspaceId,
                   title: "Started outreach",
                   description: contactedActivityDescription,
                 }
@@ -307,7 +361,7 @@ export const outreachPlanWorkflow = workflowManager.define({
             const monitorResult = await step.runAction(
               internal.prospectMonitors.createProspectMonitor,
               {
-                prospectId: plan.prospectId,
+                prospectId: currentPlan.prospectId,
                 planId: args.planId,
               }
             );
@@ -337,9 +391,9 @@ export const outreachPlanWorkflow = workflowManager.define({
         } else if (task.type === "ask_human") {
           // Create notification for user
           await step.runMutation(internal.outreach.createHumanNotification, {
-            userId: plan.userId,
-            workspaceId: plan.workspaceId,
-            prospectId: plan.prospectId,
+            userId: currentPlan.userId,
+            workspaceId: currentPlan.workspaceId,
+            prospectId: currentPlan.prospectId,
             planId: args.planId,
             taskId: task._id,
             message: task.description,
@@ -509,7 +563,7 @@ export const startOutreachWorkflow = internalAction({
       planId: args.planId,
     });
     if (!planData) {
-      throw new Error("Plan not found");
+      return { workflowId: "" };
     }
 
     const limitState = await ctx.runQuery(

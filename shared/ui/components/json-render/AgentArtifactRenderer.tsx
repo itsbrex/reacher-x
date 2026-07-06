@@ -35,12 +35,14 @@ import {
   getTwitterPostRef,
   summarizeTwitterPost,
 } from "@/shared/lib/twitter/contracts";
+import { useOutreachPlanPreviewState } from "@/shared/hooks";
 
 interface AgentArtifactActionContextValue {
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
   onOpenPostPanel?: (payload: InlinePanelOpenPayload) => void;
   onOpenPanel?: (payload: InlinePanelOpenPayload) => void;
   onApprovePlan?: (planId: string) => void | Promise<void>;
+  onDeletePlan?: (planId: string) => void | Promise<void>;
 }
 
 const AgentArtifactActionContext =
@@ -159,17 +161,9 @@ function PostArtifactCard({
   const { onOpenPanel } = useAgentArtifactActions();
   const postRef = getTwitterPostRef(props.postRef);
   const postSummary = summarizeTwitterPost(props.postSummary ?? props.postData);
-
-  if (props.interactive !== false && onOpenPanel) {
-    return (
-      <InlinePanelTriggerCard
-        platform={props.platform}
-        postData={props.postData ?? undefined}
-        postRef={postRef}
-        postSummary={postSummary}
-        context={props.context ?? undefined}
-        panelMode={props.panelMode ?? undefined}
-        onOpenPanel={() => {
+  const handleOpenPanel =
+    props.interactive !== false && onOpenPanel
+      ? () => {
           if (props.openKind === "post_list") {
             onOpenPanel({
               kind: "post_list",
@@ -194,18 +188,18 @@ function PostArtifactCard({
             panelMode: props.panelMode ?? undefined,
             targetTweetId: props.targetTweetId ?? undefined,
           });
-        }}
-      />
-    );
-  }
+        }
+      : undefined;
 
   return (
-    <PostCard
+    <InlinePanelTriggerCard
       platform={props.platform}
       postData={props.postData ?? undefined}
       postRef={postRef}
       postSummary={postSummary}
       context={props.context ?? undefined}
+      panelMode={props.panelMode ?? undefined}
+      onOpenPanel={handleOpenPanel}
     />
   );
 }
@@ -321,41 +315,53 @@ function PlanPreviewArtifactCard({
 }: {
   props: {
     planId?: string | null;
+    prospectId?: string | null;
     status: string;
     rationale: string;
     tasks: AgentArtifactTask[];
   };
 }) {
-  const { onOpenPlanPanel, onApprovePlan } = useAgentArtifactActions();
-  const livePlanData = useQuery(
-    api.outreach.getPlanById,
-    props.planId ? { planId: props.planId as Id<"outreachPlans"> } : "skip"
-  );
-  const liveStatus = livePlanData?.plan.status ?? props.status;
-  const liveRationale =
-    livePlanData?.plan.strategy.rationale ?? props.rationale;
-  const liveTasks =
-    (livePlanData?.tasks as OutreachPlanCardTask[] | undefined) ??
-    (props.tasks as OutreachPlanCardTask[]);
+  const { onOpenPlanPanel, onApprovePlan, onDeletePlan } =
+    useAgentArtifactActions();
+  const { resolvedPlanPreview } = useOutreachPlanPreviewState({
+    planId: props.planId,
+    fallbackStatus: props.status,
+    fallbackRationale: props.rationale,
+    fallbackTasks: props.tasks as OutreachPlanCardTask[],
+  });
+
+  if (!resolvedPlanPreview) {
+    return null;
+  }
 
   return (
     <OutreachPlanCard
       variant="preview"
-      status={liveStatus}
-      rationale={liveRationale}
-      tasks={liveTasks}
+      status={resolvedPlanPreview.status}
+      rationale={resolvedPlanPreview.rationale}
+      tasks={resolvedPlanPreview.tasks}
+      actionsDisabled={resolvedPlanPreview.actionsDisabled}
       onApprove={
-        liveStatus === "draft" && props.planId && onApprovePlan
+        resolvedPlanPreview.status === "draft" && props.planId && onApprovePlan
           ? () => {
               void onApprovePlan(props.planId!);
             }
+          : undefined
+      }
+      onDeletePlan={
+        props.planId && onDeletePlan
+          ? () => onDeletePlan(props.planId!)
           : undefined
       }
       footerAction={
         onOpenPlanPanel
           ? {
               label: "Show plan",
-              onClick: onOpenPlanPanel,
+              onClick: () => onOpenPlanPanel(props.prospectId ?? null),
+              disabled: resolvedPlanPreview.showPlanDisabled,
+              title: resolvedPlanPreview.showPlanDisabled
+                ? "This plan has been deleted"
+                : undefined,
             }
           : undefined
       }
@@ -822,10 +828,11 @@ const { registry } = defineRegistry(agentArtifactCatalog, {
 
 export interface AgentArtifactRendererProps {
   artifact: AgentArtifactEnvelope;
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
   onOpenPostPanel?: (payload: InlinePanelOpenPayload) => void;
   onOpenPanel?: (payload: InlinePanelOpenPayload) => void;
   onApprovePlan?: (planId: string) => void | Promise<void>;
+  onDeletePlan?: (planId: string) => void | Promise<void>;
 }
 
 export function AgentArtifactRenderer({
@@ -834,6 +841,7 @@ export function AgentArtifactRenderer({
   onOpenPostPanel,
   onOpenPanel,
   onApprovePlan,
+  onDeletePlan,
 }: AgentArtifactRendererProps) {
   const resolvedOpenPanel = onOpenPostPanel ?? onOpenPanel;
   const validatedArtifact = React.useMemo(
@@ -846,8 +854,9 @@ export function AgentArtifactRenderer({
       onOpenPostPanel: resolvedOpenPanel,
       onOpenPanel: resolvedOpenPanel,
       onApprovePlan,
+      onDeletePlan,
     }),
-    [onApprovePlan, onOpenPlanPanel, resolvedOpenPanel]
+    [onApprovePlan, onDeletePlan, onOpenPlanPanel, resolvedOpenPanel]
   );
 
   if (!validatedArtifact) {

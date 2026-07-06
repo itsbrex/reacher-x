@@ -12,6 +12,7 @@ import {
 import { ComposerBaseProps } from "../types";
 import { getXPostWeightedLength } from "@/shared/lib/twitter/xPostTextLimit";
 import { extractTextFromEditorState } from "@/shared/lib/utils/url/urlDetection";
+import type { ComposerEntityMentionsConfig } from "../types";
 
 interface ComposerEditorProps extends ComposerBaseProps {
   showToolbar?: boolean;
@@ -20,6 +21,8 @@ interface ComposerEditorProps extends ComposerBaseProps {
   onBridgeReady?: (api: ComposerEditorAPI) => void;
   onFormattingChange?: (state: FormattingState) => void;
   extraPlugins?: React.ReactNode;
+  enableEntityMentions?: boolean;
+  entityMentions?: ComposerEntityMentionsConfig;
 }
 
 export function ComposerEditor({
@@ -33,6 +36,8 @@ export function ComposerEditor({
   contentEditableClassName,
   composerPlaceholderClassName,
   inlineAutocompleteContext,
+  enableEntityMentions = false,
+  entityMentions,
   onContentChange,
   onBridgeReady,
   onFormattingChange,
@@ -100,6 +105,8 @@ export function ComposerEditor({
           composerPlaceholderClassName={composerPlaceholderClassName}
           editable={!disabled}
           inlineAutocompleteContext={inlineAutocompleteContext}
+          enableEntityMentions={enableEntityMentions}
+          entityMentions={entityMentions}
           extraPlugins={
             <>
               <ToolbarBridgePlugin

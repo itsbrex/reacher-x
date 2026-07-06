@@ -264,6 +264,7 @@ export const refinePlan = createTool({
             planId,
             strategy: args.strategy,
             tasks: candidateTasks,
+            threadId: ctx.threadId ?? undefined,
           });
 
           const updatedPlanData = await ctx.runQuery(
@@ -306,6 +307,7 @@ export const refinePlan = createTool({
             artifact: updatedPlanData
               ? createPlanPreviewArtifact({
                   planId: updatedPlanData.plan._id,
+                  prospectId: updatedPlanData.plan.prospectId,
                   status: updatedPlanData.plan.status,
                   rationale: updatedPlanData.plan.strategy.rationale,
                   tasks: updatedTasks.map(

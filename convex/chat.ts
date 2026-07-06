@@ -26,9 +26,10 @@ import {
   type UIMessage,
   type StreamArgs,
 } from "@convex-dev/agent";
-import { setupAgent } from "./agents";
+import { mainAgent, setupAgent } from "./agents";
 import { outreachAgent, outreachAgentBaseTools } from "./agents/outreach";
 import {
+  buildMainAgentPrompt,
   buildOutreachAgentPrompt,
   buildSetupAgentPrompt,
 } from "./agents/prompts";
@@ -37,6 +38,7 @@ import {
   getOwnedProspect,
   getUserByIdentity,
   requireOwnedProspect,
+  requireOwnedWorkspace,
   requireProspectNotArchived,
   requireUser,
 } from "./lib/accessHelpers";
@@ -50,23 +52,72 @@ import { getProspectDisplayFields } from "./lib/notificationHelpers";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
 import {
   ensureProspectThreadLink,
+  getLatestActiveProspectThreadLink,
   getProspectThreadContextByThreadId,
   getProspectThreadLinkByThreadId,
   listProspectThreadLinksByThreadId,
   listProspectThreadLinksByProspect,
 } from "./lib/relationshipHelpers";
-import { parseSetupThreadState } from "./lib/setupThreadHelpers";
-import { urgencyLevelValidator } from "./validators";
+import {
+  getSetupThreadTitle,
+  parseSetupThreadState,
+} from "./lib/setupThreadHelpers";
+import {
+  ensureWorkspaceThreadLink,
+  getLatestActiveWorkspaceThreadLink,
+  getWorkspaceThreadContextByThreadId,
+  listWorkspaceThreadLinksByThreadId,
+} from "./lib/workspaceThreadHelpers";
+import {
+  agentMessageContextMetadataValidator,
+  urgencyLevelValidator,
+} from "./validators";
 import {
   getWorkspaceUseCase,
   type WorkspaceUseCaseDefinition,
 } from "../shared/lib/workspaceUseCases";
+import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { logger } from "../shared/lib/logger";
+import {
+  normalizeAgentMessageContextMetadata,
+  type AgentMessageContextMetadata,
+} from "../shared/lib/mentions/messageContext";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
 type OutreachAgentTools = typeof outreachAgentBaseTools;
 const chatLogger = logger.withScope("Chat");
+type WorkspaceAgentSurface = "main" | "setup";
+type HiddenContextMessage = {
+  role: "system";
+  content: string;
+};
+type ThreadRouteContextResult =
+  | { kind: "missing" }
+  | {
+      kind: "prospect";
+      prospectId: Id<"prospects">;
+      workspaceId: Id<"workspaces">;
+    }
+  | {
+      kind: "workspace";
+      workspaceId: Id<"workspaces">;
+    }
+  | { kind: "setup_draft" }
+  | { kind: "unknown" };
+type ThreadSelectedContextResult = {
+  threadId: string;
+  routeKind: "prospect" | "workspace" | "setup" | "unknown";
+  workspaceId: Id<"workspaces"> | null;
+  prospectId: Id<"prospects"> | null;
+  planId: Id<"outreachPlans"> | null;
+  taskId: Id<"outreachTasks"> | null;
+  postId: string | null;
+  postPlatform: "twitter" | "linkedin" | null;
+  postUrl: string | null;
+  source: "thread" | "tagged" | "none";
+  ambiguousProspectIds: string[];
+};
 
 async function getViewerUser(ctx: ViewerCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -146,6 +197,16 @@ async function getWorkspaceIdForSetupThread(
   ctx: ReadableCtx,
   threadId: string
 ): Promise<Id<"workspaces"> | null> {
+  const workspaceThreadContext = await ctx.runQuery(
+    internal.workspaceThreads.getThreadWorkspaceContext,
+    {
+      threadId,
+    }
+  );
+  if (workspaceThreadContext) {
+    return workspaceThreadContext.workspaceId;
+  }
+
   const setupSession = await ctx.runQuery(
     internal.setupSessions.getByThreadIdInternal,
     {
@@ -153,7 +214,33 @@ async function getWorkspaceIdForSetupThread(
     }
   );
 
-  return setupSession?.targetWorkspaceId ?? null;
+  if (setupSession?.targetWorkspaceId) {
+    return setupSession.targetWorkspaceId;
+  }
+
+  const thread = await ctx.runQuery(components.agent.threads.getThread, {
+    threadId,
+  });
+  const parsedState = parseSetupThreadState(thread?.title);
+  if (parsedState?.kind === "workspace") {
+    return parsedState.workspaceId as Id<"workspaces">;
+  }
+
+  return null;
+}
+
+async function resolveWorkspaceAgentSurface(
+  ctx: ReadableCtx,
+  threadId: string
+): Promise<WorkspaceAgentSurface> {
+  const selectedContext = await ctx.runQuery(
+    internal.agentThreadContext.resolveSelectedContextForThread,
+    {
+      threadId,
+    }
+  );
+
+  return selectedContext?.routeKind === "workspace" ? "main" : "setup";
 }
 
 async function getPlainTextMessageById(
@@ -172,6 +259,509 @@ async function getThreadMessageById(ctx: ActionCtx, messageId: string) {
     }
   );
   return message;
+}
+
+async function getAgentMessageContextMetadataById(
+  ctx: ActionCtx,
+  messageId: string
+): Promise<AgentMessageContextMetadata | null> {
+  const context = await ctx.runQuery(
+    internal.chat.getAgentMessageContextInternal,
+    {
+      messageId,
+    }
+  );
+  if (!context) {
+    return null;
+  }
+
+  return normalizeAgentMessageContextMetadata({
+    version: 1,
+    promptTextSource: context.promptTextSource,
+    taggedEntities: context.taggedEntities,
+    attachments: context.attachments,
+  });
+}
+
+async function getLatestSuccessfulUserMessageForThread(
+  ctx: ActionCtx,
+  threadId: string
+): Promise<{
+  messageId: string;
+  prompt: string;
+  metadata: AgentMessageContextMetadata | null;
+} | null> {
+  const messages = await ctx.runQuery(
+    components.agent.messages.listMessagesByThreadId,
+    {
+      threadId,
+      order: "desc",
+      statuses: ["success"],
+      paginationOpts: { numItems: 25, cursor: null },
+    }
+  );
+
+  const latestUserMessage = messages.page.find(
+    (message) => message.message?.role === "user"
+  );
+
+  if (!latestUserMessage) {
+    return null;
+  }
+
+  const prompt =
+    typeof latestUserMessage.text === "string"
+      ? latestUserMessage.text.trim()
+      : "";
+  const metadata = await getAgentMessageContextMetadataById(
+    ctx,
+    latestUserMessage._id
+  );
+
+  return {
+    messageId: latestUserMessage._id,
+    prompt,
+    metadata,
+  };
+}
+
+type AgentThreadScopeContext =
+  | {
+      kind: "prospect";
+      workspaceId: Id<"workspaces">;
+      prospectId: Id<"prospects">;
+    }
+  | {
+      kind: "workspace" | "setup";
+      workspaceId: Id<"workspaces">;
+      prospectId: null;
+    }
+  | {
+      kind: "unknown";
+      workspaceId: null;
+      prospectId: null;
+    };
+
+async function resolveAgentThreadScopeContext(
+  ctx: ReadableCtx,
+  threadId: string
+): Promise<AgentThreadScopeContext> {
+  const prospectThreadContext = await ctx.runQuery(
+    internal.prospectThreads.getThreadProspectContext,
+    {
+      threadId,
+    }
+  );
+  if (prospectThreadContext) {
+    return {
+      kind: "prospect",
+      workspaceId: prospectThreadContext.workspaceId,
+      prospectId: prospectThreadContext.prospectId,
+    };
+  }
+
+  const workspaceThreadContext = await ctx.runQuery(
+    internal.workspaceThreads.getThreadWorkspaceContext,
+    {
+      threadId,
+    }
+  );
+  if (workspaceThreadContext?.workspaceId) {
+    return {
+      kind: "workspace",
+      workspaceId: workspaceThreadContext.workspaceId,
+      prospectId: null,
+    };
+  }
+
+  const setupWorkspaceId = await getWorkspaceIdForSetupThread(ctx, threadId);
+  if (setupWorkspaceId) {
+    return {
+      kind: "setup",
+      workspaceId: setupWorkspaceId,
+      prospectId: null,
+    };
+  }
+
+  return {
+    kind: "unknown",
+    workspaceId: null,
+    prospectId: null,
+  };
+}
+
+async function persistAgentMessageContext(
+  ctx: MutationCtx,
+  args: {
+    threadId: string;
+    messageId: string;
+    userId: Id<"users">;
+    metadata: AgentMessageContextMetadata | null;
+  }
+) {
+  if (!args.metadata) {
+    return;
+  }
+
+  const scope = await resolveAgentThreadScopeContext(ctx, args.threadId);
+  await ctx.db.insert("agentMessageContexts", {
+    threadId: args.threadId,
+    messageId: args.messageId,
+    userId: args.userId,
+    workspaceId: scope.workspaceId ?? undefined,
+    prospectId: scope.prospectId ?? undefined,
+    promptTextSource: args.metadata.promptTextSource,
+    taggedEntities: args.metadata.taggedEntities,
+    attachments: args.metadata.attachments,
+    createdAt: getCurrentUTCTimestamp(),
+  });
+}
+
+export const persistAgentMessageContextInternal = internalMutation({
+  args: {
+    threadId: v.string(),
+    messageId: v.string(),
+    userId: v.id("users"),
+    metadata: v.optional(agentMessageContextMetadataValidator),
+  },
+  handler: async (ctx, args) => {
+    await persistAgentMessageContext(ctx, {
+      threadId: args.threadId,
+      messageId: args.messageId,
+      userId: args.userId,
+      metadata: normalizeAgentMessageContextMetadata(args.metadata),
+    });
+  },
+});
+
+function buildResolvedAttachmentLine(args: {
+  fileName: string;
+  mediaUrl: string | null;
+}) {
+  return args.mediaUrl
+    ? `Attachment: ${args.fileName} (${args.mediaUrl})`
+    : `Attachment: ${args.fileName}`;
+}
+
+async function buildResolvedTaggedEntityLine(
+  ctx: ActionCtx,
+  scope: AgentThreadScopeContext,
+  entity: AgentMessageContextMetadata["taggedEntities"][number]
+): Promise<string | null> {
+  switch (entity.kind) {
+    case "prospect": {
+      const prospectId = entity.prospectId ?? entity.entityId;
+      if (!prospectId) {
+        return null;
+      }
+
+      const prospect = await ctx.runQuery(
+        internal.prospects.getProspectInternal,
+        {
+          prospectId: prospectId as Id<"prospects">,
+        }
+      );
+      if (!prospect) {
+        return null;
+      }
+      if (scope.workspaceId && prospect.workspaceId !== scope.workspaceId) {
+        return null;
+      }
+      if (scope.prospectId && prospect._id !== scope.prospectId) {
+        return null;
+      }
+
+      const { prospectDisplayName, prospectScreenName } =
+        getProspectDisplayFields(prospect);
+      const label =
+        prospectDisplayName ??
+        prospect.displayName ??
+        prospect.title ??
+        prospect.externalId;
+
+      return `Prospect: ${label} (prospectId: ${String(prospect._id)}; workspaceId: ${String(prospect.workspaceId)}${prospectScreenName ? `; handle: @${prospectScreenName}` : ""})`;
+    }
+    case "plan": {
+      const planId = entity.planId ?? entity.entityId;
+      if (!planId) {
+        return null;
+      }
+
+      const planData = await ctx.runQuery(internal.outreach.getPlanInternal, {
+        planId: planId as Id<"outreachPlans">,
+      });
+      const plan = planData?.plan ?? null;
+      if (!plan) {
+        return null;
+      }
+      if (scope.workspaceId && plan.workspaceId !== scope.workspaceId) {
+        return null;
+      }
+      if (scope.prospectId && plan.prospectId !== scope.prospectId) {
+        return null;
+      }
+
+      const prospect = await ctx.runQuery(
+        internal.prospects.getProspectInternal,
+        {
+          prospectId: plan.prospectId,
+        }
+      );
+      const { prospectDisplayName } = getProspectDisplayFields(prospect);
+      const prospectLabel =
+        prospectDisplayName ??
+        prospect?.displayName ??
+        prospect?.title ??
+        entity.label;
+
+      return `Plan: Plan for ${prospectLabel} (planId: ${String(plan._id)}; prospectId: ${String(plan.prospectId)}; workspaceId: ${String(plan.workspaceId)}; status: ${plan.status})`;
+    }
+    case "task": {
+      const taskId = entity.taskId ?? entity.entityId;
+      if (!taskId) {
+        return null;
+      }
+
+      const task = await ctx.runQuery(internal.outreach.getTaskInternal, {
+        taskId: taskId as Id<"outreachTasks">,
+      });
+      if (!task) {
+        return null;
+      }
+      const planData = await ctx.runQuery(internal.outreach.getPlanInternal, {
+        planId: task.planId,
+      });
+      const plan = planData?.plan ?? null;
+      if (!plan) {
+        return null;
+      }
+      if (scope.workspaceId && plan.workspaceId !== scope.workspaceId) {
+        return null;
+      }
+      if (scope.prospectId && plan.prospectId !== scope.prospectId) {
+        return null;
+      }
+
+      const prospect = await ctx.runQuery(
+        internal.prospects.getProspectInternal,
+        {
+          prospectId: plan.prospectId,
+        }
+      );
+      const { prospectDisplayName } = getProspectDisplayFields(prospect);
+      const prospectLabel =
+        prospectDisplayName ??
+        prospect?.displayName ??
+        prospect?.title ??
+        entity.label;
+      const summary = task.content?.trim() || task.description.trim();
+
+      return `Task: Task ${task.order} for ${prospectLabel} (taskId: ${String(task._id)}; planId: ${String(plan._id)}; prospectId: ${String(plan.prospectId)}; status: ${task.status}; type: ${task.type}; summary: ${summary})`;
+    }
+    case "attachment": {
+      const upload = entity.entityId
+        ? await ctx.runQuery(internal.chat.getMediaUploadInternal, {
+            uploadId: entity.entityId as Id<"mediaUploads">,
+          })
+        : null;
+      if (!upload) {
+        return entity.attachmentUrl
+          ? buildResolvedAttachmentLine({
+              fileName: entity.label,
+              mediaUrl: entity.attachmentUrl,
+            })
+          : null;
+      }
+      if (
+        scope.workspaceId &&
+        upload.workspaceId &&
+        upload.workspaceId !== scope.workspaceId
+      ) {
+        return null;
+      }
+
+      return buildResolvedAttachmentLine({
+        fileName: upload.displayName ?? upload.fileName,
+        mediaUrl: await ctx.storage.getUrl(upload.storageId),
+      });
+    }
+    case "post": {
+      if (
+        scope.workspaceId &&
+        entity.workspaceId &&
+        entity.workspaceId !== String(scope.workspaceId)
+      ) {
+        return null;
+      }
+      if (
+        scope.prospectId &&
+        entity.prospectId &&
+        entity.prospectId !== String(scope.prospectId)
+      ) {
+        return null;
+      }
+
+      if (entity.referenceText?.trim()) {
+        return entity.referenceText.trim();
+      }
+
+      if (!entity.postId && !entity.entityId) {
+        return null;
+      }
+
+      return `Post: ${entity.label} (${[
+        entity.postPlatform ? `platform: ${entity.postPlatform}` : null,
+        `postId: ${entity.postId ?? entity.entityId}`,
+        entity.postUrl ? `url: ${entity.postUrl}` : null,
+        entity.prospectId ? `prospectId: ${entity.prospectId}` : null,
+      ]
+        .filter(Boolean)
+        .join("; ")})`;
+    }
+    default:
+      return null;
+  }
+}
+
+async function buildResolvedAttachmentReferenceLine(
+  ctx: ActionCtx,
+  scope: AgentThreadScopeContext,
+  attachment: AgentMessageContextMetadata["attachments"][number]
+): Promise<string | null> {
+  if (attachment.uploadId) {
+    const upload = await ctx.runQuery(internal.chat.getMediaUploadInternal, {
+      uploadId: attachment.uploadId as Id<"mediaUploads">,
+    });
+    if (upload) {
+      if (
+        scope.workspaceId &&
+        upload.workspaceId &&
+        upload.workspaceId !== scope.workspaceId
+      ) {
+        return null;
+      }
+
+      return buildResolvedAttachmentLine({
+        fileName: upload.displayName ?? upload.fileName,
+        mediaUrl: await ctx.storage.getUrl(upload.storageId),
+      });
+    }
+  }
+
+  if (!attachment.mediaUrl) {
+    return null;
+  }
+
+  return buildResolvedAttachmentLine({
+    fileName: attachment.fileName,
+    mediaUrl: attachment.mediaUrl,
+  });
+}
+
+async function buildAgentTurnContextMessages(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+  }
+): Promise<HiddenContextMessage[]> {
+  const metadata = await getAgentMessageContextMetadataById(
+    ctx,
+    args.promptMessageId
+  );
+  if (!metadata) {
+    return [];
+  }
+
+  const scope = await resolveAgentThreadScopeContext(ctx, args.threadId);
+  const taggedEntityLines = (
+    await Promise.all(
+      metadata.taggedEntities.map((entity) =>
+        buildResolvedTaggedEntityLine(ctx, scope, entity)
+      )
+    )
+  ).filter((line): line is string => Boolean(line));
+  const attachmentLines = (
+    await Promise.all(
+      metadata.attachments.map((attachment) =>
+        buildResolvedAttachmentReferenceLine(ctx, scope, attachment)
+      )
+    )
+  ).filter((line): line is string => Boolean(line));
+
+  if (taggedEntityLines.length === 0 && attachmentLines.length === 0) {
+    return [];
+  }
+
+  const sections: string[] = [
+    "These references were explicitly selected in the UI for the current request.",
+    "Treat them as deliberate context even when the visible user message is short or does not repeat the details.",
+  ];
+
+  if (taggedEntityLines.length > 0) {
+    sections.push(
+      "",
+      "Tagged entities:",
+      ...taggedEntityLines.map((line) => `- ${line}`)
+    );
+  }
+
+  if (attachmentLines.length > 0) {
+    sections.push(
+      "",
+      "Attached media:",
+      ...attachmentLines.map((line) => `- ${line}`)
+    );
+  }
+
+  return [
+    {
+      role: "system",
+      content: sections.join("\n"),
+    },
+  ];
+}
+
+async function listLegacyWorkspaceThreadsByTitle(
+  ctx: ReadableCtx,
+  args: {
+    userId: Id<"users">;
+    workspaceId: Id<"workspaces">;
+    limit?: number;
+  }
+): Promise<ThreadDoc[]> {
+  const targetTitle = getSetupThreadTitle(String(args.workspaceId));
+  const limit = Math.max(1, args.limit ?? 50);
+  const matches: ThreadDoc[] = [];
+  let cursor: string | null = null;
+
+  while (matches.length < limit) {
+    const page: {
+      page: ThreadDoc[];
+      continueCursor: string;
+      isDone: boolean;
+    } = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+      userId: args.userId,
+      paginationOpts: {
+        cursor,
+        numItems: 100,
+      },
+    });
+
+    matches.push(
+      ...page.page
+        .filter((thread) => thread.title === targetTitle)
+        .slice(0, limit)
+    );
+
+    if (page.isDone) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  return matches.slice(0, limit);
 }
 
 const USER_STOPPED_ERROR_MESSAGE = "Generation stopped.";
@@ -292,14 +882,20 @@ async function runOutreachStreamText(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
-    contextOptions?: ReturnType<typeof buildDisabledHistorySearchContextOptions>;
+    messages?: HiddenContextMessage[];
+    contextOptions?: ReturnType<
+      typeof buildDisabledHistorySearchContextOptions
+    >;
   }
 ) {
   return outreachAgent.streamText(
     ctx,
     { threadId: args.threadId },
     {
-      ...(args.promptMessageId ? { promptMessageId: args.promptMessageId } : {}),
+      ...(args.promptMessageId
+        ? { promptMessageId: args.promptMessageId }
+        : {}),
+      ...(args.messages?.length ? { messages: args.messages } : {}),
       system: args.system,
       tools: args.tools,
     },
@@ -317,6 +913,7 @@ async function runOutreachStreamTextWithHistoryFallback(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
+    messages?: HiddenContextMessage[];
     preferHistorySearch?: boolean;
   }
 ) {
@@ -356,14 +953,45 @@ async function runSetupStreamText(
     promptMessageId?: string;
     prompt?: string;
     system: string;
+    messages?: HiddenContextMessage[];
   }
 ) {
   return setupAgent.streamText(
     ctx,
     { threadId: args.threadId },
     {
-      ...(args.promptMessageId ? { promptMessageId: args.promptMessageId } : {}),
+      ...(args.promptMessageId
+        ? { promptMessageId: args.promptMessageId }
+        : {}),
       ...(args.prompt ? { prompt: args.prompt } : {}),
+      ...(args.messages?.length ? { messages: args.messages } : {}),
+      system: args.system,
+    },
+    {
+      saveStreamDeltas: DEFAULT_AGENT_STREAM_DELTAS,
+    }
+  );
+}
+
+async function runMainStreamText(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId?: string;
+    prompt?: string;
+    system: string;
+    messages?: HiddenContextMessage[];
+  }
+) {
+  return mainAgent.streamText(
+    ctx,
+    { threadId: args.threadId },
+    {
+      ...(args.promptMessageId
+        ? { promptMessageId: args.promptMessageId }
+        : {}),
+      ...(args.prompt ? { prompt: args.prompt } : {}),
+      ...(args.messages?.length ? { messages: args.messages } : {}),
       system: args.system,
     },
     {
@@ -379,6 +1007,7 @@ async function streamOutreachTextWithFallback(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
+    messages?: HiddenContextMessage[];
     preferHistorySearch?: boolean;
   }
 ) {
@@ -423,6 +1052,7 @@ async function streamSetupTextWithRetry(
     threadId: string;
     promptMessageId: string;
     system: string;
+    messages?: HiddenContextMessage[];
   }
 ) {
   const executeAttempt = async () => {
@@ -445,6 +1075,50 @@ async function streamSetupTextWithRetry(
 
     chatLogger.warn(
       "Setup stream aborted before any tool result was saved; retrying once on the pinned safe provider",
+      {
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+        errorMessage: stringifyUnknownError(error),
+      }
+    );
+
+    try {
+      return await executeAttempt();
+    } catch (retryError) {
+      throw normalizeUnknownError(retryError);
+    }
+  }
+}
+
+async function streamMainTextWithRetry(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+    system: string;
+    messages?: HiddenContextMessage[];
+  }
+) {
+  const executeAttempt = async () => {
+    const result = await runMainStreamText(ctx, args);
+    await result.consumeStream();
+    return result;
+  };
+
+  try {
+    return await executeAttempt();
+  } catch (error) {
+    const shouldRetry = await canRetryAgentTurnWithoutDuplicatingTools(ctx, {
+      threadId: args.threadId,
+      promptMessageId: args.promptMessageId,
+    });
+
+    if (!shouldRetry) {
+      throw normalizeUnknownError(error);
+    }
+
+    chatLogger.warn(
+      "Main-agent stream aborted before any tool result was saved; retrying once on the pinned safe provider",
       {
         threadId: args.threadId,
         promptMessageId: args.promptMessageId,
@@ -519,12 +1193,12 @@ async function finalizePendingAssistantMessageForOrder(
   return true;
 }
 
-type ProspectThreadLinkRow = Pick<
-  Doc<"prospectThreads">,
+type ThreadHistoryLinkRow = Pick<
+  Doc<"prospectThreads"> | Doc<"workspaceAgentThreads">,
   "_creationTime" | "threadId" | "threadStatus" | "threadSummary"
 >;
 
-type ProspectThreadHistoryEntry = {
+type ThreadHistoryEntry = {
   _id: string;
   _creationTime: number;
   status: "active" | "archived";
@@ -532,17 +1206,14 @@ type ProspectThreadHistoryEntry = {
   firstMessage?: string;
 };
 
-function normalizeProspectThreadStatus(
-  status:
-    | ProspectThreadLinkRow["threadStatus"]
-    | ThreadDoc["status"]
-    | undefined
+function normalizeThreadHistoryStatus(
+  status: ThreadHistoryLinkRow["threadStatus"] | ThreadDoc["status"] | undefined
 ): "active" | "archived" {
   return status === "archived" ? "archived" : "active";
 }
 
-function shouldFetchProspectThreadFallback(
-  row: ProspectThreadLinkRow,
+function shouldFetchThreadHistoryFallback(
+  row: ThreadHistoryLinkRow,
   options: {
     includeFirstMessage?: boolean;
   }
@@ -556,16 +1227,16 @@ function shouldFetchProspectThreadFallback(
   );
 }
 
-async function buildProspectThreadHistoryEntries(
+async function buildThreadHistoryEntries(
   ctx: ReadableCtx,
-  rows: ProspectThreadLinkRow[],
+  rows: ThreadHistoryLinkRow[],
   options: {
     activeOnly?: boolean;
     includeFirstMessage?: boolean;
   } = {}
 ) {
   const rowsNeedingFallback = rows.filter((row) =>
-    shouldFetchProspectThreadFallback(row, options)
+    shouldFetchThreadHistoryFallback(row, options)
   );
   const fallbackThreads = await Promise.all(
     rowsNeedingFallback.map((row) =>
@@ -581,18 +1252,18 @@ async function buildProspectThreadHistoryEntries(
     ])
   );
 
-  const entries: ProspectThreadHistoryEntry[] = [];
+  const entries: ThreadHistoryEntry[] = [];
 
   for (const row of rows) {
     const fallbackThread = fallbackByThreadId.get(row.threadId);
     if (
-      shouldFetchProspectThreadFallback(row, options) &&
+      shouldFetchThreadHistoryFallback(row, options) &&
       fallbackThread === null
     ) {
       continue;
     }
 
-    const status = normalizeProspectThreadStatus(
+    const status = normalizeThreadHistoryStatus(
       row.threadStatus ?? fallbackThread?.status
     );
     if (options.activeOnly && status !== "active") {
@@ -642,34 +1313,371 @@ export const createChatThread = mutation({
  * when the mutation is called twice quickly (e.g., React StrictMode).
  */
 export const getOrCreateThread = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, { workspaceId }) => {
     const user = await requireViewerUser(ctx);
+    const workspace = workspaceId
+      ? await requireOwnedWorkspace(ctx, workspaceId, {
+          user,
+          notFoundMessage: "Workspace not found",
+          notAuthorizedMessage: "Not authorized",
+        })
+      : await getDefaultWorkspaceForUser(ctx, user._id);
 
-    // Check if user has any threads - per docs
-    const existingThreads = await ctx.runQuery(
-      components.agent.threads.listThreadsByUserId,
-      { userId: user._id, paginationOpts: { numItems: 1, cursor: null } }
-    );
+    if (workspace) {
+      const existingActiveLink = await getLatestActiveWorkspaceThreadLink(
+        ctx.db,
+        workspace._id
+      );
+      if (existingActiveLink) {
+        const existingThread = await ctx.runQuery(
+          components.agent.threads.getThread,
+          {
+            threadId: existingActiveLink.threadId,
+          }
+        );
 
-    if (existingThreads.page.length > 0) {
-      const threadId = existingThreads.page[0]._id;
-      // Return existing thread - do NOT trigger greeting here
-      // The greeting may already be in-flight or streamed
-      return { threadId, isNew: false };
+        if (existingThread && existingThread.userId === user._id) {
+          return { threadId: existingThread._id, isNew: false };
+        }
+      }
+
+      const legacyThreads = await listLegacyWorkspaceThreadsByTitle(ctx, {
+        userId: user._id,
+        workspaceId: workspace._id,
+        limit: 5,
+      });
+      const legacyActiveThread =
+        legacyThreads.find((thread) => thread.status !== "archived") ??
+        legacyThreads[0];
+      if (legacyActiveThread) {
+        await ensureWorkspaceThreadLink(ctx, {
+          workspaceId: workspace._id,
+          threadId: legacyActiveThread._id,
+          userId: user._id,
+          threadStatus:
+            legacyActiveThread.status === "archived" ? "archived" : "active",
+          threadSummary: legacyActiveThread.summary ?? undefined,
+        });
+        return { threadId: legacyActiveThread._id, isNew: false };
+      }
+    }
+
+    if (!workspace) {
+      // Check if user has any threads - per docs
+      const existingThreads = await ctx.runQuery(
+        components.agent.threads.listThreadsByUserId,
+        { userId: user._id, paginationOpts: { numItems: 1, cursor: null } }
+      );
+
+      if (existingThreads.page.length > 0) {
+        const threadId = existingThreads.page[0]._id;
+        // Return existing thread - do NOT trigger greeting here
+        // The greeting may already be in-flight or streamed
+        return { threadId, isNew: false };
+      }
     }
 
     // Create a new thread
     const threadId = await createThread(ctx, components.agent, {
       userId: user._id,
+      title: workspace ? getSetupThreadTitle(String(workspace._id)) : undefined,
     });
 
-    // Trigger the agent to greet the user - only for truly new threads
-    await ctx.scheduler.runAfter(0, internal.chat.triggerAgentGreeting, {
+    if (workspace) {
+      await ensureWorkspaceThreadLink(ctx, {
+        workspaceId: workspace._id,
+        threadId,
+        userId: user._id,
+        threadStatus: "active",
+      });
+    }
+
+    // Only setup-owned bootstrap threads should auto-greet. Workspace `/agent`
+    // threads start as draft composers and should not behave like onboarding.
+    if (!workspace) {
+      await ctx.scheduler.runAfter(0, internal.chat.triggerAgentGreeting, {
+        threadId,
+      });
+    }
+
+    return { threadId, isNew: true };
+  },
+});
+
+/**
+ * Creates a workspace-scoped `/agent` thread without sending a prompt yet.
+ * Used by mobile history so "New" can navigate directly into a fresh thread.
+ */
+export const createWorkspaceThread = mutation({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, { workspaceId }) => {
+    const user = await requireViewerUser(ctx);
+    const workspace = workspaceId
+      ? await requireOwnedWorkspace(ctx, workspaceId, {
+          user,
+          notFoundMessage: "Workspace not found",
+          notAuthorizedMessage: "Not authorized",
+        })
+      : await getDefaultWorkspaceForUser(ctx, user._id);
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    const threadId = await createThread(ctx, components.agent, {
+      userId: user._id,
+      title: getSetupThreadTitle(String(workspace._id)),
+    });
+
+    await ensureWorkspaceThreadLink(ctx, {
+      workspaceId: workspace._id,
+      threadId,
+      userId: user._id,
+      threadStatus: "active",
+    });
+
+    return { threadId };
+  },
+});
+
+/**
+ * Creates a brand-new workspace-scoped thread and sends the initial prompt in
+ * one flow. This is used after an explicit "New" action in `/agent`, so it
+ * must never fall back to an older workspace thread.
+ */
+export const createWorkspaceThreadWithPrompt = mutation({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    prompt: v.string(),
+    metadata: v.optional(agentMessageContextMetadataValidator),
+  },
+  handler: async (ctx, { workspaceId, prompt, metadata }) => {
+    const trimmedPrompt = prompt.trim();
+    const normalizedMetadata = normalizeAgentMessageContextMetadata(metadata);
+    if (!trimmedPrompt && !normalizedMetadata) {
+      throw new Error("Message cannot be empty.");
+    }
+
+    const user = await requireViewerUser(ctx);
+    const workspace = workspaceId
+      ? await requireOwnedWorkspace(ctx, workspaceId, {
+          user,
+          notFoundMessage: "Workspace not found",
+          notAuthorizedMessage: "Not authorized",
+        })
+      : await getDefaultWorkspaceForUser(ctx, user._id);
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    const threadSummary = trimmedPrompt.slice(0, 150);
+    const threadId = await createThread(ctx, components.agent, {
+      userId: user._id,
+      title: getSetupThreadTitle(String(workspace._id)),
+      summary: threadSummary,
+    });
+
+    await ensureWorkspaceThreadLink(ctx, {
+      workspaceId: workspace._id,
+      threadId,
+      userId: user._id,
+      threadStatus: "active",
+      threadSummary,
+    });
+
+    const { messageId, message } = await saveMessage(ctx, components.agent, {
+      threadId,
+      prompt: trimmedPrompt,
+    });
+    await persistAgentMessageContext(ctx, {
+      threadId,
+      messageId,
+      userId: user._id,
+      metadata: normalizedMetadata,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.chat.streamAgentResponse, {
+      threadId,
+      promptMessageId: messageId,
+    });
+    await recordWorkspaceActivityWithDb(ctx, workspace._id);
+
+    return { threadId, messageId, order: message.order };
+  },
+});
+
+export const getThreadRouteContext = query({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (ctx, { threadId }): Promise<ThreadRouteContextResult> => {
+    const user = await requireViewerUser(ctx);
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
 
-    return { threadId, isNew: true };
+    if (!thread) {
+      return { kind: "missing" as const };
+    }
+    if (thread.userId !== user._id) {
+      throw new Error("Not authorized");
+    }
+
+    const prospectThreadContext = await getProspectThreadContextByThreadId(
+      ctx.db,
+      threadId
+    );
+    if (prospectThreadContext) {
+      return {
+        kind: "prospect" as const,
+        prospectId: prospectThreadContext.prospect._id,
+        workspaceId: prospectThreadContext.prospect.workspaceId,
+      };
+    }
+
+    const workspaceThreadContext = await getWorkspaceThreadContextByThreadId(
+      ctx.db,
+      threadId
+    );
+    if (workspaceThreadContext) {
+      return {
+        kind: "workspace" as const,
+        workspaceId: workspaceThreadContext.workspace._id,
+      };
+    }
+
+    const setupSession = await ctx.runQuery(
+      internal.setupSessions.getByThreadIdInternal,
+      {
+        threadId,
+      }
+    );
+    const sessionWorkspaceId =
+      setupSession?.targetWorkspaceId ?? setupSession?.existingWorkspaceId;
+    if (sessionWorkspaceId) {
+      return {
+        kind: "workspace" as const,
+        workspaceId: sessionWorkspaceId,
+      };
+    }
+
+    const parsedState = parseSetupThreadState(thread.title);
+    if (parsedState?.kind === "workspace") {
+      return {
+        kind: "workspace" as const,
+        workspaceId: parsedState.workspaceId as Id<"workspaces">,
+      };
+    }
+
+    if (parsedState?.kind === "draft") {
+      return { kind: "setup_draft" as const };
+    }
+
+    return { kind: "unknown" as const };
+  },
+});
+
+export const getThreadSelectedContext = query({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (
+    ctx,
+    { threadId }
+  ): Promise<ThreadSelectedContextResult | null> => {
+    const user = await requireViewerUser(ctx);
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+
+    if (!thread) {
+      return null;
+    }
+    if (thread.userId !== user._id) {
+      throw new Error("Not authorized");
+    }
+
+    return await ctx.runQuery(
+      internal.agentThreadContext.resolveSelectedContextForThread,
+      {
+        threadId,
+      }
+    );
+  },
+});
+
+export const listWorkspaceThreadsWithMessages = query({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { workspaceId, paginationOpts }) => {
+    const user = await requireViewerUser(ctx);
+    const workspace = workspaceId
+      ? await requireOwnedWorkspace(ctx, workspaceId, {
+          user,
+          notFoundMessage: "Workspace not found",
+          notAuthorizedMessage: "Not authorized",
+        })
+      : await getDefaultWorkspaceForUser(ctx, user._id);
+
+    if (!workspace) {
+      return {
+        page: [] as ThreadHistoryEntry[],
+        continueCursor: "",
+        isDone: true,
+      };
+    }
+
+    const page = await ctx.db
+      .query("workspaceAgentThreads")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspace._id))
+      .order("desc")
+      .paginate(paginationOpts);
+
+    const threadsWithMessages = await buildThreadHistoryEntries(
+      ctx,
+      page.page,
+      {
+        activeOnly: true,
+        includeFirstMessage: true,
+      }
+    );
+    const linkedThreadIds = new Set(
+      threadsWithMessages.map((thread) => thread._id)
+    );
+    const legacyThreads = await listLegacyWorkspaceThreadsByTitle(ctx, {
+      userId: user._id,
+      workspaceId: workspace._id,
+      limit: paginationOpts.numItems ?? 20,
+    });
+    const legacyEntries = legacyThreads
+      .filter((thread) => !linkedThreadIds.has(thread._id))
+      .filter(
+        (thread) => normalizeThreadHistoryStatus(thread.status) === "active"
+      )
+      .map((thread) => ({
+        _id: thread._id,
+        _creationTime: thread._creationTime,
+        status: normalizeThreadHistoryStatus(thread.status),
+        title: thread.title,
+        firstMessage: thread.summary ?? undefined,
+      }));
+    const mergedPage = [...threadsWithMessages, ...legacyEntries]
+      .sort((left, right) => right._creationTime - left._creationTime)
+      .slice(0, paginationOpts.numItems ?? 20);
+
+    return {
+      page: mergedPage,
+      continueCursor: page.continueCursor,
+      isDone: page.isDone && legacyEntries.length === 0,
+    };
   },
 });
 
@@ -726,13 +1734,9 @@ export const getProspectThread = query({
     if (!prospect) return null;
 
     const links = await listProspectThreadLinksByProspect(ctx.db, prospect._id);
-    const prospectThreads = await buildProspectThreadHistoryEntries(
-      ctx,
-      links,
-      {
-        activeOnly: true,
-      }
-    );
+    const prospectThreads = await buildThreadHistoryEntries(ctx, links, {
+      activeOnly: true,
+    });
 
     const existingThread = prospectThreads[0];
 
@@ -740,19 +1744,45 @@ export const getProspectThread = query({
   },
 });
 
+export const getActiveThreadForProspect = query({
+  args: {
+    prospectId: v.id("prospects"),
+  },
+  handler: async (ctx, { prospectId }) => {
+    const user = await getViewerUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const prospect = await getOwnedProspect(ctx, prospectId, user._id);
+    if (!prospect) {
+      return null;
+    }
+
+    const link = await getLatestActiveProspectThreadLink(ctx.db, prospect._id);
+    if (!link) {
+      return null;
+    }
+
+    return { threadId: link.threadId };
+  },
+});
+
 /**
- * Creates a prospect thread AND sends an initial prompt in one flow.
- * Used for "Generate Plan" action where we need auto-prompting.
- * Stores the first message in thread summary for efficient display.
+ * Creates a brand-new prospect-scoped thread and sends an initial prompt in
+ * one flow. This powers draft mode on `/agent?prospectId=...`, so it must
+ * never silently reuse an older thread after the operator clicks "New".
  */
 export const createProspectThreadWithPrompt = mutation({
   args: {
     prospectId: v.id("prospects"),
     prompt: v.string(),
+    metadata: v.optional(agentMessageContextMetadataValidator),
   },
-  handler: async (ctx, { prospectId, prompt }) => {
+  handler: async (ctx, { prospectId, prompt, metadata }) => {
     const trimmedPrompt = prompt.trim();
-    if (!trimmedPrompt) {
+    const normalizedMetadata = normalizeAgentMessageContextMetadata(metadata);
+    if (!trimmedPrompt && !normalizedMetadata) {
       throw new Error("Message cannot be empty.");
     }
     const user = await requireViewerUser(ctx);
@@ -765,10 +1795,11 @@ export const createProspectThreadWithPrompt = mutation({
 
     // Keep the title human-readable, but store the canonical relationship locally.
     // Use summary field to store first user message for display.
+    const threadSummary = trimmedPrompt.slice(0, 150);
     const threadId = await createThread(ctx, components.agent, {
       userId: user._id,
       title: `outreach:${prospectId}`,
-      summary: trimmedPrompt.slice(0, 150),
+      summary: threadSummary,
     });
 
     await ensureProspectThreadLink(ctx, {
@@ -776,13 +1807,19 @@ export const createProspectThreadWithPrompt = mutation({
       threadId,
       userId: user._id,
       threadStatus: "active",
-      threadSummary: trimmedPrompt.slice(0, 150),
+      threadSummary,
     });
 
     // Save the user's prompt message
     const { messageId, message } = await saveMessage(ctx, components.agent, {
       threadId,
       prompt: trimmedPrompt,
+    });
+    await persistAgentMessageContext(ctx, {
+      threadId,
+      messageId,
+      userId: user._id,
+      metadata: normalizedMetadata,
     });
 
     // Schedule outreach agent response
@@ -792,6 +1829,115 @@ export const createProspectThreadWithPrompt = mutation({
     });
 
     return { threadId, messageId, order: message.order };
+  },
+});
+
+/**
+ * Fan-out: deliver an operator instruction to each prospect's own △ Agent
+ * thread and schedule an agent turn per prospect (internal; called by the
+ * main △ Agent's updatePlansBatch tool).
+ *
+ * Each prospect gets its own thread turn so refinements happen with full
+ * per-prospect context. Runs are staggered to avoid a thundering herd.
+ */
+export const fanOutProspectInstructionsInternal = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    prospectIds: v.array(v.id("prospects")),
+    instruction: v.string(),
+  },
+  handler: async (
+    ctx,
+    { workspaceId, prospectIds, instruction }
+  ): Promise<{
+    dispatched: number;
+    skipped: Array<{ prospectId: string; reason: string }>;
+  }> => {
+    const trimmedInstruction = instruction.trim();
+    if (!trimmedInstruction) {
+      throw new Error("Instruction cannot be empty.");
+    }
+
+    const FAN_OUT_LIMIT = 25;
+    const STAGGER_MS = 3_000;
+    const targets = prospectIds.slice(0, FAN_OUT_LIMIT);
+    const skipped: Array<{ prospectId: string; reason: string }> = [];
+    let dispatched = 0;
+    let workspaceUserId: Id<"users"> | null = null;
+
+    const prompt = [
+      "Operator instruction (sent to multiple prospects at once):",
+      trimmedInstruction,
+      "",
+      "Apply this instruction to THIS prospect. Review the current plan and refine it (or explain briefly why no change is needed). Keep the response short.",
+    ].join("\n");
+
+    for (const prospectId of targets) {
+      const prospect = await ctx.db.get(prospectId);
+      if (!prospect || prospect.workspaceId !== workspaceId) {
+        skipped.push({
+          prospectId: String(prospectId),
+          reason: "not in this workspace",
+        });
+        continue;
+      }
+      if (prospect.status === "archived") {
+        skipped.push({ prospectId: String(prospectId), reason: "archived" });
+        continue;
+      }
+      workspaceUserId = prospect.userId;
+
+      let threadId: string;
+      const existingLink = await getLatestActiveProspectThreadLink(
+        ctx.db,
+        prospectId
+      );
+      if (existingLink) {
+        threadId = existingLink.threadId;
+      } else {
+        threadId = await createThread(ctx, components.agent, {
+          userId: prospect.userId,
+          title: `outreach:${prospectId}`,
+          summary: trimmedInstruction.slice(0, 150),
+        });
+        await ensureProspectThreadLink(ctx, {
+          prospectId,
+          threadId,
+          userId: prospect.userId,
+          threadStatus: "active",
+          threadSummary: trimmedInstruction.slice(0, 150),
+        });
+      }
+
+      const { messageId } = await saveMessage(ctx, components.agent, {
+        threadId,
+        prompt,
+      });
+
+      await ctx.scheduler.runAfter(
+        dispatched * STAGGER_MS,
+        internal.chat.streamOutreachResponse,
+        {
+          threadId,
+          promptMessageId: messageId,
+        }
+      );
+      dispatched += 1;
+    }
+
+    if (dispatched > 0 && workspaceUserId) {
+      await createNotification(ctx, {
+        userId: workspaceUserId,
+        workspaceId,
+        type: "outreach_sent",
+        title: `△ Agent is updating ${dispatched} plan${dispatched === 1 ? "" : "s"}`,
+        message: `Your instruction is being applied across ${dispatched} prospect${dispatched === 1 ? "" : "s"}: "${trimmedInstruction.slice(0, 120)}"`,
+        notificationKey: `plans-batch:${workspaceId}:${getCurrentUTCTimestamp()}`,
+        targetHref: "/prospects",
+      });
+    }
+
+    return { dispatched, skipped };
   },
 });
 
@@ -816,13 +1962,9 @@ export const listProspectThreads = query({
       .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
       .order("desc")
       .paginate(paginationOpts);
-    const prospectThreads = await buildProspectThreadHistoryEntries(
-      ctx,
-      page.page,
-      {
-        activeOnly: true,
-      }
-    );
+    const prospectThreads = await buildThreadHistoryEntries(ctx, page.page, {
+      activeOnly: true,
+    });
 
     return {
       page: prospectThreads.map((thread) => ({
@@ -861,7 +2003,7 @@ export const listProspectThreadsWithMessages = query({
       .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
       .order("desc")
       .paginate(paginationOpts);
-    const threadsWithMessages = await buildProspectThreadHistoryEntries(
+    const threadsWithMessages = await buildThreadHistoryEntries(
       ctx,
       page.page,
       {
@@ -900,10 +2042,17 @@ export const deleteThread = mutation({
       ctx.db,
       threadId
     );
+    const workspaceThreadLinks = await listWorkspaceThreadLinksByThreadId(
+      ctx.db,
+      threadId
+    );
 
     await outreachAgent.deleteThreadAsync(ctx, { threadId });
 
-    await Promise.all(threadLinks.map((link) => ctx.db.delete(link._id)));
+    await Promise.all([
+      ...threadLinks.map((link) => ctx.db.delete(link._id)),
+      ...workspaceThreadLinks.map((link) => ctx.db.delete(link._id)),
+    ]);
   },
 });
 
@@ -915,10 +2064,12 @@ export const sendProspectMessage = mutation({
   args: {
     threadId: v.string(),
     prompt: v.string(),
+    metadata: v.optional(agentMessageContextMetadataValidator),
   },
-  handler: async (ctx, { threadId, prompt }) => {
+  handler: async (ctx, { threadId, prompt, metadata }) => {
     const trimmedPrompt = prompt.trim();
-    if (!trimmedPrompt) {
+    const normalizedMetadata = normalizeAgentMessageContextMetadata(metadata);
+    if (!trimmedPrompt && !normalizedMetadata) {
       throw new Error("Message cannot be empty.");
     }
     const user = await requireViewerUser(ctx);
@@ -958,6 +2109,12 @@ export const sendProspectMessage = mutation({
       threadId,
       prompt: trimmedPrompt,
     });
+    await persistAgentMessageContext(ctx, {
+      threadId,
+      messageId,
+      userId: user._id,
+      metadata: normalizedMetadata,
+    });
 
     // Schedule outreach agent response
     await ctx.scheduler.runAfter(0, internal.chat.streamOutreachResponse, {
@@ -985,6 +2142,129 @@ export const getProspectForThreadInternal = internalQuery({
   },
 });
 
+export const getMediaUploadInternal = internalQuery({
+  args: { uploadId: v.id("mediaUploads") },
+  handler: async (ctx, { uploadId }) => {
+    return await ctx.db.get(uploadId);
+  },
+});
+
+export const getAgentMessageContextInternal = internalQuery({
+  args: { messageId: v.string() },
+  handler: async (ctx, { messageId }) => {
+    return await ctx.db
+      .query("agentMessageContexts")
+      .withIndex("by_message", (q) => q.eq("messageId", messageId))
+      .first();
+  },
+});
+
+async function runStreamOutreachResponse(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+  }
+): Promise<{
+  text: string;
+  finishReason: string | null;
+  pendingAskHuman: boolean;
+} | void> {
+  try {
+    const prospect = await ctx.runQuery(
+      internal.chat.getProspectForThreadInternal,
+      { threadId: args.threadId }
+    );
+    if (prospect?.status === "archived") {
+      return;
+    }
+
+    const useCase = await resolveOutreachUseCaseForThread(ctx, args.threadId);
+    const tools = await getOutreachToolsForThread(ctx, args.threadId);
+    const promptText = await getPlainTextMessageById(ctx, args.promptMessageId);
+    const hiddenContextMessages = await buildAgentTurnContextMessages(ctx, {
+      threadId: args.threadId,
+      promptMessageId: args.promptMessageId,
+    });
+    const hasSearchablePrompt = promptText.trim().length > 0;
+    const hasSearchableHistory = await hasSearchableThreadHistory(ctx, {
+      threadId: args.threadId,
+      excludeMessageId: args.promptMessageId,
+    });
+    const shouldUseHistorySearch = hasSearchablePrompt && hasSearchableHistory;
+    const result = await streamOutreachTextWithFallback(ctx, {
+      threadId: args.threadId,
+      promptMessageId: args.promptMessageId,
+      system: buildOutreachAgentPrompt(useCase),
+      tools,
+      messages: hiddenContextMessages,
+      preferHistorySearch: shouldUseHistorySearch,
+    });
+
+    await persistRawModelResponse(ctx, {
+      threadId: args.threadId,
+      agentName: "Outreach Agent",
+      request: result.request,
+      response: result.response,
+      providerMetadata: result.providerMetadata,
+    });
+
+    const toolCalls = await result.toolCalls;
+    const askHumanCalls = toolCalls.filter((tc) => tc.toolName === "askHuman");
+
+    for (const call of askHumanCalls) {
+      const toolArgs =
+        "args" in call
+          ? (call.args as {
+              question: string;
+              context?: string;
+              urgency?: "low" | "medium" | "high";
+              options?: string[];
+            })
+          : null;
+
+      if (!toolArgs) {
+        chatLogger.warn("askHuman tool call missing args", {
+          threadId: args.threadId,
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+        });
+        continue;
+      }
+
+      await ctx.runMutation(internal.chat.createAskHumanNotification, {
+        threadId: args.threadId,
+        toolCallId: call.toolCallId,
+        question: toolArgs.question,
+        context: toolArgs.context,
+        urgency: toolArgs.urgency,
+        options: toolArgs.options,
+      });
+    }
+
+    await ctx.runAction(internal.chat.reconcileOutreachTaskStatusAfterStream, {
+      threadId: args.threadId,
+    });
+
+    return {
+      text: await result.text,
+      finishReason: await result.finishReason,
+      pendingAskHuman: askHumanCalls.length > 0,
+    };
+  } catch (error) {
+    const normalizedError = normalizeUnknownError(error);
+    chatLogger.error(
+      "Outreach stream error",
+      {
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+      },
+      normalizedError
+    );
+    throw normalizedError;
+  }
+}
+
 /**
  * Internal action for streaming outreach agent response.
  * Detects askHuman tool calls and creates notifications.
@@ -995,106 +2275,108 @@ export const streamOutreachResponse = internalAction({
     promptMessageId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const prospect = await ctx.runQuery(
-        internal.chat.getProspectForThreadInternal,
-        { threadId: args.threadId }
+    return await runStreamOutreachResponse(ctx, args);
+  },
+});
+
+/**
+ * Continue work for the selected prospect in that prospect's own △ Agent
+ * thread, while the user stays in the main workspace thread.
+ *
+ * The latest successful user message from the workspace thread is copied into
+ * the canonical prospect thread so the persisted thread history reflects the
+ * real instruction that produced the plan.
+ */
+export const continueProspectThreadFromWorkspace = internalAction({
+  args: {
+    prospectId: v.id("prospects"),
+    sourceThreadId: v.string(),
+  },
+  handler: async (
+    ctx,
+    { prospectId, sourceThreadId }
+  ): Promise<{
+    success: true;
+    threadId: string;
+    forwardedMessageId: string;
+    assistantText: string | undefined;
+    plan: Doc<"outreachPlans"> | null;
+    tasks: Doc<"outreachTasks">[];
+  }> => {
+    const sourceMessage = await getLatestSuccessfulUserMessageForThread(
+      ctx,
+      sourceThreadId
+    );
+    if (!sourceMessage) {
+      throw new Error(
+        "Could not find a user message to forward into the selected prospect thread."
       );
-      if (prospect?.status === "archived") {
-        return;
-      }
-
-      const useCase = await resolveOutreachUseCaseForThread(ctx, args.threadId);
-      const tools = await getOutreachToolsForThread(ctx, args.threadId);
-      const promptText = await getPlainTextMessageById(
-        ctx,
-        args.promptMessageId
-      );
-      const hasSearchablePrompt = promptText.trim().length > 0;
-      const hasSearchableHistory = await hasSearchableThreadHistory(ctx, {
-        threadId: args.threadId,
-        excludeMessageId: args.promptMessageId,
-      });
-      const shouldUseHistorySearch =
-        hasSearchablePrompt && hasSearchableHistory;
-      const result = await streamOutreachTextWithFallback(ctx, {
-        threadId: args.threadId,
-        promptMessageId: args.promptMessageId,
-        system: buildOutreachAgentPrompt(useCase),
-        tools,
-        preferHistorySearch: shouldUseHistorySearch,
-      });
-
-      await persistRawModelResponse(ctx, {
-        threadId: args.threadId,
-        agentName: "Outreach Agent",
-        request: result.request,
-        response: result.response,
-        providerMetadata: result.providerMetadata,
-      });
-
-      // Check for askHuman tool calls
-      const toolCalls = await result.toolCalls;
-      const askHumanCalls = toolCalls.filter(
-        (tc) => tc.toolName === "askHuman"
-      );
-
-      // Create notifications for each askHuman call
-      for (const call of askHumanCalls) {
-        // Type guard: check if args exists (handles both TypedToolCall and DynamicToolCall)
-        const toolArgs =
-          "args" in call
-            ? (call.args as {
-                question: string;
-                context?: string;
-                urgency?: "low" | "medium" | "high";
-                options?: string[];
-              })
-            : null;
-
-        if (!toolArgs) {
-          chatLogger.warn("askHuman tool call missing args", {
-            threadId: args.threadId,
-            toolCallId: call.toolCallId,
-            toolName: call.toolName,
-          });
-          continue;
-        }
-
-        await ctx.runMutation(internal.chat.createAskHumanNotification, {
-          threadId: args.threadId,
-          toolCallId: call.toolCallId,
-          question: toolArgs.question,
-          context: toolArgs.context,
-          urgency: toolArgs.urgency,
-          options: toolArgs.options,
-        });
-      }
-
-      await ctx.runAction(
-        internal.chat.reconcileOutreachTaskStatusAfterStream,
-        {
-          threadId: args.threadId,
-        }
-      );
-
-      return {
-        text: await result.text,
-        finishReason: await result.finishReason,
-        pendingAskHuman: askHumanCalls.length > 0,
-      };
-    } catch (error) {
-      const normalizedError = normalizeUnknownError(error);
-      chatLogger.error(
-        "Outreach stream error",
-        {
-          threadId: args.threadId,
-          promptMessageId: args.promptMessageId,
-        },
-        normalizedError
-      );
-      throw normalizedError;
     }
+
+    const forwardedPrompt =
+      sourceMessage.prompt ||
+      "Create or update the outreach plan for this prospect using the latest workspace-thread instruction.";
+
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
+      {
+        prospectId,
+      }
+    );
+    if (!prospect) {
+      throw new Error("Prospect not found");
+    }
+    if (prospect.status === "archived") {
+      throw new Error("Prospect is archived");
+    }
+
+    const ensuredThread: {
+      threadId: string;
+      created: boolean;
+    } = await ctx.runMutation(
+      internal.prospectThreads.ensureActiveThreadForProspectInternal,
+      {
+        prospectId,
+        threadSummary: forwardedPrompt.slice(0, 150),
+      }
+    );
+
+    const { messageId } = await saveMessage(ctx, components.agent, {
+      threadId: ensuredThread.threadId,
+      prompt: forwardedPrompt,
+    });
+    if (sourceMessage.metadata) {
+      await ctx.runMutation(internal.chat.persistAgentMessageContextInternal, {
+        threadId: ensuredThread.threadId,
+        messageId,
+        userId: prospect.userId,
+        metadata: sourceMessage.metadata,
+      });
+    }
+
+    const streamResult = await runStreamOutreachResponse(ctx, {
+      threadId: ensuredThread.threadId,
+      promptMessageId: messageId,
+    });
+
+    const planData: {
+      plan: Doc<"outreachPlans">;
+      tasks: Doc<"outreachTasks">[];
+    } | null = await ctx.runQuery(
+      internal.outreach.getProspectActivePlanInternal,
+      {
+        prospectId,
+      }
+    );
+
+    return {
+      success: true,
+      threadId: ensuredThread.threadId,
+      forwardedMessageId: messageId,
+      assistantText: streamResult?.text,
+      plan: planData?.plan ?? null,
+      tasks: planData?.tasks ?? [],
+    };
   },
 });
 
@@ -1284,6 +2566,46 @@ function emptyListThreadMessagesResult(streamArgs: StreamArgs | undefined) {
   return { ...paginated, streams };
 }
 
+async function attachAgentMessageContextMetadata(
+  ctx: QueryCtx,
+  messages: UIMessage[]
+) {
+  const contextRows = await Promise.all(
+    messages
+      .filter((message) => message.role === "user")
+      .map(async (message) => {
+        const context = await ctx.db
+          .query("agentMessageContexts")
+          .withIndex("by_message", (q) => q.eq("messageId", message.id))
+          .first();
+        return context ? [message.id, context] : null;
+      })
+  );
+
+  const contextByMessageId = new Map(
+    contextRows.filter(
+      (entry): entry is [string, Doc<"agentMessageContexts">] => Boolean(entry)
+    )
+  );
+
+  return messages.map((message) => {
+    const context = contextByMessageId.get(message.id);
+    if (!context) {
+      return message;
+    }
+
+    return {
+      ...message,
+      metadata: {
+        version: 1,
+        promptTextSource: context.promptTextSource,
+        taggedEntities: context.taggedEntities,
+        attachments: context.attachments,
+      },
+    };
+  });
+}
+
 /**
  * List messages in a thread with streaming support.
  * Per docs: https://docs.convex.dev/agents/streaming#retrieving-streamed-deltas
@@ -1316,6 +2638,10 @@ export const listThreadMessages = query({
     // Fetches the regular non-streaming messages
     // Per docs: pass args directly to listUIMessages
     const paginated = await listUIMessages(ctx, components.agent, args);
+    const pageWithMetadata = await attachAgentMessageContextMetadata(
+      ctx,
+      paginated.page
+    );
 
     // Sync streaming deltas - per docs
     const streams = await syncStreams(ctx, components.agent, {
@@ -1325,7 +2651,7 @@ export const listThreadMessages = query({
       includeStatuses: ["streaming", "aborted", "finished"],
     });
 
-    return { ...paginated, streams };
+    return { ...paginated, page: pageWithMetadata, streams };
   },
 });
 
@@ -1461,8 +2787,17 @@ export const initiateStreamingMessage = mutation({
   args: {
     threadId: v.string(),
     prompt: v.string(),
+    metadata: v.optional(agentMessageContextMetadataValidator),
   },
   handler: async (ctx, args) => {
+    const trimmedPrompt = args.prompt.trim();
+    const normalizedMetadata = normalizeAgentMessageContextMetadata(
+      args.metadata
+    );
+    if (!trimmedPrompt && !normalizedMetadata) {
+      throw new Error("Message cannot be empty.");
+    }
+
     const user = await requireViewerUser(ctx);
 
     // Verify user has access to this thread
@@ -1478,10 +2813,34 @@ export const initiateStreamingMessage = mutation({
       throw new Error("Not authorized to access this thread");
     }
 
+    const workspaceThreadLink = await getWorkspaceThreadContextByThreadId(
+      ctx.db,
+      args.threadId
+    );
+    if (!thread.summary) {
+      const threadSummary = trimmedPrompt.slice(0, 150);
+      await ctx.runMutation(components.agent.threads.updateThread, {
+        threadId: args.threadId,
+        patch: { summary: threadSummary },
+      });
+      if (workspaceThreadLink) {
+        await ctx.db.patch(workspaceThreadLink.link._id, {
+          threadStatus: "active",
+          threadSummary,
+        });
+      }
+    }
+
     // Save the user's message first - per docs
     const { messageId, message } = await saveMessage(ctx, components.agent, {
       threadId: args.threadId,
-      prompt: args.prompt,
+      prompt: trimmedPrompt,
+    });
+    await persistAgentMessageContext(ctx, {
+      threadId: args.threadId,
+      messageId,
+      userId: user._id,
+      metadata: normalizedMetadata,
     });
 
     // Schedule the streaming action
@@ -1489,9 +2848,19 @@ export const initiateStreamingMessage = mutation({
       threadId: args.threadId,
       promptMessageId: messageId,
     });
-    const workspaceId = await getWorkspaceIdForSetupThread(ctx, args.threadId);
-    if (workspaceId) {
-      await recordWorkspaceActivityWithDb(ctx, workspaceId);
+    if (workspaceThreadLink) {
+      await recordWorkspaceActivityWithDb(
+        ctx,
+        workspaceThreadLink.workspace._id
+      );
+    } else {
+      const workspaceId = await getWorkspaceIdForSetupThread(
+        ctx,
+        args.threadId
+      );
+      if (workspaceId) {
+        await recordWorkspaceActivityWithDb(ctx, workspaceId);
+      }
     }
 
     return {
@@ -1580,17 +2949,29 @@ export const streamAgentResponse = internalAction({
   handler: async (ctx, args) => {
     try {
       const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
-      // Stream text with delta persistence for all clients
-      // Per docs: pass { saveStreamDeltas: true } to enable streaming
-      const result = await streamSetupTextWithRetry(ctx, {
+      const surface = await resolveWorkspaceAgentSurface(ctx, args.threadId);
+      const hiddenContextMessages = await buildAgentTurnContextMessages(ctx, {
         threadId: args.threadId,
         promptMessageId: args.promptMessageId,
-        system: buildSetupAgentPrompt(useCase),
       });
+      const result =
+        surface === "main"
+          ? await streamMainTextWithRetry(ctx, {
+              threadId: args.threadId,
+              promptMessageId: args.promptMessageId,
+              messages: hiddenContextMessages,
+              system: buildMainAgentPrompt(useCase),
+            })
+          : await streamSetupTextWithRetry(ctx, {
+              threadId: args.threadId,
+              promptMessageId: args.promptMessageId,
+              messages: hiddenContextMessages,
+              system: buildSetupAgentPrompt(useCase),
+            });
 
       await persistRawModelResponse(ctx, {
         threadId: args.threadId,
-        agentName: "Setup Agent",
+        agentName: surface === "main" ? "Main Agent" : "Setup Agent",
         request: result.request,
         response: result.response,
         providerMetadata: result.providerMetadata,
@@ -1603,7 +2984,7 @@ export const streamAgentResponse = internalAction({
     } catch (error) {
       const normalizedError = normalizeUnknownError(error);
       chatLogger.error(
-        "Setup agent stream error",
+        "Workspace agent stream error",
         {
           threadId: args.threadId,
           promptMessageId: args.promptMessageId,
@@ -1628,6 +3009,14 @@ export const triggerAgentGreeting = internalAction({
   },
   handler: async (ctx, args) => {
     try {
+      const surface = await resolveWorkspaceAgentSurface(ctx, args.threadId);
+      if (surface === "main") {
+        return {
+          text: "",
+          finishReason: "stop",
+        };
+      }
+
       const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
       // Use a special init prompt to trigger the agent greeting
       // This prompt is filtered out in the UI (see useAgentChat.ts)
@@ -1679,6 +3068,11 @@ export const sendMessage = action({
     message: v.string(),
   },
   handler: async (ctx, args) => {
+    const trimmedMessage = args.message.trim();
+    if (!trimmedMessage) {
+      throw new Error("Message cannot be empty.");
+    }
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -1702,24 +3096,69 @@ export const sendMessage = action({
       throw new Error("Not authorized to access this thread");
     }
 
-    // Generate text response using the agent - per docs
-    const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
-
-    const result = await setupAgent.generateText(
-      ctx,
-      { threadId: args.threadId },
-      { prompt: args.message, system: buildSetupAgentPrompt(useCase) }
+    const workspaceThreadContext = await ctx.runQuery(
+      internal.workspaceThreads.getThreadWorkspaceContext,
+      {
+        threadId: args.threadId,
+      }
     );
+    if (!thread.summary) {
+      const threadSummary = trimmedMessage.slice(0, 150);
+      await ctx.runMutation(components.agent.threads.updateThread, {
+        threadId: args.threadId,
+        patch: { summary: threadSummary },
+      });
+      if (workspaceThreadContext) {
+        await ctx.runMutation(internal.workspaceThreads.ensureThreadLink, {
+          workspaceId: workspaceThreadContext.workspaceId,
+          threadId: args.threadId,
+          userId: user._id,
+          threadStatus: "active",
+          threadSummary,
+        });
+      }
+    }
+
+    const surface = await resolveWorkspaceAgentSurface(ctx, args.threadId);
+    const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
+    const result =
+      surface === "main"
+        ? await mainAgent.generateText(
+            ctx,
+            { threadId: args.threadId },
+            { prompt: trimmedMessage, system: buildMainAgentPrompt(useCase) }
+          )
+        : await setupAgent.generateText(
+            ctx,
+            { threadId: args.threadId },
+            { prompt: trimmedMessage, system: buildSetupAgentPrompt(useCase) }
+          );
     await persistRawModelResponse(ctx, {
       userId: user._id,
       threadId: args.threadId,
-      agentName: "Setup Agent",
+      agentName: surface === "main" ? "Main Agent" : "Setup Agent",
       request: result.request,
       response: result.response,
       providerMetadata: result.providerMetadata,
     });
-    const workspaceId = await getWorkspaceIdForSetupThread(ctx, args.threadId);
-    if (workspaceId) {
+    if (workspaceThreadContext) {
+      await ctx.runMutation(
+        internal.workspaces.recordWorkspaceActivityInternal,
+        {
+          workspaceId: workspaceThreadContext.workspaceId,
+        }
+      );
+    } else {
+      const workspaceId = await getWorkspaceIdForSetupThread(
+        ctx,
+        args.threadId
+      );
+      if (!workspaceId) {
+        return {
+          text: result.text,
+          finishReason: result.finishReason,
+        };
+      }
       await ctx.runMutation(
         internal.workspaces.recordWorkspaceActivityInternal,
         {
@@ -1966,6 +3405,30 @@ function extractMatchPreview(
   return preview;
 }
 
+function extractFetchedContextMessageText(content: unknown): string {
+  const messageContent =
+    content && typeof content === "object" && "content" in content
+      ? (content as { content?: unknown }).content
+      : undefined;
+  if (typeof messageContent === "string") {
+    return messageContent;
+  }
+  if (Array.isArray(messageContent)) {
+    return messageContent
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (part && typeof part === "object" && "text" in part) {
+          return String(part.text ?? "");
+        }
+        return "";
+      })
+      .join(" ");
+  }
+  return "";
+}
+
 /**
  * Search messages in prospect threads using hybrid text + vector search.
  * Uses agent's built-in search capabilities per docs/convex/llm-context.md.
@@ -2010,12 +3473,12 @@ export const searchProspectMessages = action({
       )
       .filter(
         (threadLink: (typeof threadLinks)[number]) =>
-          normalizeProspectThreadStatus(threadLink.threadStatus) === "active"
+          normalizeThreadHistoryStatus(threadLink.threadStatus) === "active"
       )
       .map((threadLink: (typeof threadLinks)[number]) => ({
         _id: threadLink.threadId,
         _creationTime: threadLink._creationTime,
-        status: normalizeProspectThreadStatus(threadLink.threadStatus),
+        status: normalizeThreadHistoryStatus(threadLink.threadStatus),
       }));
 
     if (prospectThreads.length === 0) {
@@ -2050,30 +3513,6 @@ export const searchProspectMessages = action({
         });
 
         if (messages.length > 0) {
-          // Helper to extract text from message content
-          const extractText = (
-            content: (typeof messages)[0]["message"]
-          ): string => {
-            const c = content?.content;
-            if (typeof c === "string") return c;
-            if (Array.isArray(c)) {
-              return c
-                .map((part) => {
-                  if (typeof part === "string") return part;
-                  if (
-                    typeof part === "object" &&
-                    part !== null &&
-                    "text" in part
-                  ) {
-                    return String((part as { text: unknown }).text);
-                  }
-                  return "";
-                })
-                .join(" ");
-            }
-            return "";
-          };
-
           // Find message containing the exact query (case-insensitive)
           // Both text search and vector search may return semantically similar
           // but not exact matches - we only want to show threads where the
@@ -2081,7 +3520,7 @@ export const searchProspectMessages = action({
           const lowerQuery = args.query.toLowerCase();
           let matchedText = "";
           for (const msg of messages) {
-            const text = extractText(msg.message);
+            const text = extractFetchedContextMessageText(msg.message);
             if (text.toLowerCase().includes(lowerQuery)) {
               matchedText = text;
               break;
@@ -2114,6 +3553,149 @@ export const searchProspectMessages = action({
     }
 
     // Sort by number of matches (threads with more matches first)
+    results.sort((a, b) => b.matchCount - a.matchCount);
+
+    return { threads: results };
+  },
+});
+
+export const searchWorkspaceMessages = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.runQuery(internal.users.getUserByWorkosIdInternal, {
+      workosUserId: identity.subject,
+    });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const workspace = args.workspaceId
+      ? await ctx.runQuery(internal.workspaces.getById, {
+          workspaceId: args.workspaceId,
+        })
+      : await ctx.runQuery(internal.workspaces.getDefaultWorkspaceInternal, {
+          userId: user._id,
+        });
+    if (!workspace || workspace.userId !== user._id) {
+      throw new Error("Workspace not found");
+    }
+
+    const threadLinks = await ctx.runQuery(
+      internal.workspaceThreads.listThreadLinksForWorkspace,
+      {
+        workspaceId: workspace._id,
+      }
+    );
+    const workspaceThreads = threadLinks
+      .filter((threadLink: (typeof threadLinks)[number]) => {
+        return threadLink.userId === user._id;
+      })
+      .filter((threadLink: (typeof threadLinks)[number]) => {
+        return (
+          normalizeThreadHistoryStatus(threadLink.threadStatus) === "active"
+        );
+      })
+      .map((threadLink: (typeof threadLinks)[number]) => ({
+        _id: threadLink.threadId,
+        _creationTime: threadLink._creationTime,
+        status: normalizeThreadHistoryStatus(threadLink.threadStatus),
+      }));
+    const linkedThreadIds = new Set(
+      workspaceThreads.map(
+        (thread: (typeof workspaceThreads)[number]) => thread._id
+      )
+    );
+    const legacyThreads = await listLegacyWorkspaceThreadsByTitle(ctx, {
+      userId: user._id,
+      workspaceId: workspace._id,
+      limit: 50,
+    });
+    const mergedWorkspaceThreads = [
+      ...workspaceThreads,
+      ...legacyThreads
+        .filter((thread) => !linkedThreadIds.has(thread._id))
+        .filter(
+          (thread) => normalizeThreadHistoryStatus(thread.status) === "active"
+        )
+        .map((thread) => ({
+          _id: thread._id,
+          _creationTime: thread._creationTime,
+          status: normalizeThreadHistoryStatus(thread.status),
+        })),
+    ];
+
+    if (mergedWorkspaceThreads.length === 0) {
+      return { threads: [] };
+    }
+
+    type SearchResult = {
+      threadId: string;
+      thread: (typeof mergedWorkspaceThreads)[0];
+      matchPreview: string;
+      matchCount: number;
+    };
+
+    const results: SearchResult[] = [];
+
+    for (const thread of mergedWorkspaceThreads) {
+      try {
+        const messages = await mainAgent.fetchContextMessages(ctx, {
+          userId: user._id,
+          threadId: thread._id,
+          searchText: args.query,
+          contextOptions: {
+            recentMessages: 0,
+            searchOptions: {
+              limit: args.limit ?? 10,
+              textSearch: true,
+              vectorSearch: true,
+            },
+          },
+        });
+
+        if (messages.length === 0) {
+          continue;
+        }
+
+        const lowerQuery = args.query.toLowerCase();
+        let matchedText = "";
+        for (const msg of messages) {
+          const text = extractFetchedContextMessageText(msg.message);
+          if (text.toLowerCase().includes(lowerQuery)) {
+            matchedText = text;
+            break;
+          }
+        }
+
+        if (matchedText) {
+          results.push({
+            threadId: thread._id,
+            thread,
+            matchPreview: extractMatchPreview(matchedText, args.query),
+            matchCount: messages.length,
+          });
+        }
+      } catch (error) {
+        chatLogger.warn(
+          "Workspace thread history search failed",
+          {
+            workspaceId: String(workspace._id),
+            threadId: thread._id,
+          },
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
+    }
+
     results.sort((a, b) => b.matchCount - a.matchCount);
 
     return { threads: results };

@@ -15,6 +15,9 @@ export const processUploadedMedia = action({
     fileName: v.string(),
     mimeType: v.string(),
     size: v.number(),
+    workspaceId: v.optional(v.id("workspaces")),
+    displayName: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (
     ctx,
@@ -38,6 +41,9 @@ export const processUploadedMedia = action({
         fileName: args.fileName,
         mimeType: args.mimeType,
         size: args.size,
+        workspaceId: args.workspaceId,
+        displayName: args.displayName,
+        tags: args.tags,
       }
     );
 

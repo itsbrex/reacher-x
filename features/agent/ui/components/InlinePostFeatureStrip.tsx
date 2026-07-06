@@ -38,19 +38,16 @@ export function InlinePostFeatureStrip({
         </>
       }
       trailing={
-        <>
-          <Button size="xs" disabled={!canOpen} onClick={onOpenPanel}>
-            View
-          </Button>
-          <Button
-            size="xsIcon"
-            variant="outline"
-            disabled={!canOpen}
-            onClick={onOpenPanel}
-          >
-            <OpenInNewIcon className="fill-current" />
-          </Button>
-        </>
+        canOpen ? (
+          <>
+            <Button size="xs" onClick={onOpenPanel}>
+              View
+            </Button>
+            <Button size="xsIcon" variant="outline" onClick={onOpenPanel}>
+              <OpenInNewIcon className="fill-current" />
+            </Button>
+          </>
+        ) : null
       }
     />
   );

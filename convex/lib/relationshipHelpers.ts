@@ -75,6 +75,14 @@ export async function listProspectThreadIdsByProspect(
   return links.map((link) => link.threadId);
 }
 
+export async function getLatestActiveProspectThreadLink(
+  db: RelationshipDb,
+  prospectId: Id<"prospects">
+): Promise<ProspectThreadLink | null> {
+  const links = await listProspectThreadLinksByProspect(db, prospectId);
+  return links.find((link) => link.threadStatus !== "archived") ?? null;
+}
+
 export async function getProspectThreadLinkByThreadId(
   db: RelationshipDb,
   threadId: string

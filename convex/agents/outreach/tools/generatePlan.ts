@@ -13,8 +13,11 @@ import {
   type AgentArtifactEnvelope,
 } from "../../../../shared/lib/json-render/agentArtifacts";
 import {
+  AMBIGUOUS_PROSPECT_SELECTION_MESSAGE,
+  MISSING_PROSPECT_SELECTION_MESSAGE,
   ensureWorkspaceStyleReady,
   extractProspectThreadContext,
+  resolveExecutionThreadId,
 } from "./helpers";
 import { X_LONG_FORM_POST_MAX_CHARS } from "../../../../shared/lib/twitter/xPostTextLimit";
 import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
@@ -190,7 +193,7 @@ export const generatePlan = createTool({
         return {
           success: false,
           message:
-            "Unable to create plan - could not determine prospect. Please call this from a prospect thread.",
+            "Unable to create plan - " + MISSING_PROSPECT_SELECTION_MESSAGE,
           error: "Missing prospect or workspace context",
         };
       }
@@ -228,6 +231,7 @@ export const generatePlan = createTool({
           tasks: existingTasks,
           artifact: createPlanPreviewArtifact({
             planId: existingPlan.plan._id,
+            prospectId: existingPlan.plan.prospectId,
             status: existingPlan.plan.status,
             rationale: existingPlan.plan.strategy.rationale,
             tasks: toPlanPreviewTasks(existingTasks),
@@ -275,13 +279,25 @@ export const generatePlan = createTool({
         }
       }
 
+      const executionThreadId = await resolveExecutionThreadId(
+        ctx,
+        "generatePlan"
+      );
+      if (!executionThreadId) {
+        return {
+          success: false,
+          message: AMBIGUOUS_PROSPECT_SELECTION_MESSAGE,
+          error: "Ambiguous prospect context",
+        };
+      }
+
       const planId = await ctx.runMutation(internal.outreach.createPlan, {
         prospectId,
         workspaceId,
         userId,
         strategy: args.strategy,
         tasks: repairedTasks,
-        threadId: ctx.threadId ?? undefined,
+        threadId: executionThreadId,
       });
 
       return {
@@ -306,6 +322,7 @@ export const generatePlan = createTool({
         })),
         artifact: createPlanPreviewArtifact({
           planId,
+          prospectId,
           status: "draft",
           rationale: args.strategy.rationale,
           tasks: repairedTasks.map((task, index) => ({

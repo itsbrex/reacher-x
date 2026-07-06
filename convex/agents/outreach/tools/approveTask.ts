@@ -7,7 +7,10 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../../_generated/api";
-import { extractProspectIdFromThread } from "./helpers";
+import {
+  extractProspectIdFromThread,
+  MISSING_PROSPECT_SELECTION_MESSAGE,
+} from "./helpers";
 import { runLoggedAgentTool } from "../../tools/logging";
 
 // ============================================================================
@@ -57,8 +60,7 @@ export const approveTask = createTool({
             logEvent.warn("Could not extract prospectId from thread context");
             return {
               success: false,
-              message:
-                "Could not determine prospect. Please call this from a prospect thread.",
+              message: MISSING_PROSPECT_SELECTION_MESSAGE,
               error: "No prospect context found",
             };
           }

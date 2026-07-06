@@ -13,6 +13,7 @@ export interface OpenReplyPanelParams {
   tweetId: string;
   threadId: string;
   initialTweet?: Tweet | null;
+  prospectId?: string;
 }
 
 export type OpenReplyPanelFn = (params: OpenReplyPanelParams) => void;

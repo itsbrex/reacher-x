@@ -42,9 +42,11 @@ export function extractTextFromEditorState(editorState: unknown): string {
       type?: string;
       text?: string;
       children?: unknown[];
+      mentionName?: string;
     };
     const type = n.type;
     const text = typeof n.text === "string" ? n.text : "";
+    const mentionName = typeof n.mentionName === "string" ? n.mentionName : "";
     const children = Array.isArray(n.children) ? n.children : [];
 
     // Preserve soft line breaks
@@ -57,6 +59,10 @@ export function extractTextFromEditorState(editorState: unknown): string {
 
     // Text node
     if (text) return text;
+
+    if (type === "MentionNode" && mentionName) {
+      return `@${mentionName}`;
+    }
 
     // Block nodes: add newline after their content
     if (type === "paragraph" || type === "heading" || type === "quote") {

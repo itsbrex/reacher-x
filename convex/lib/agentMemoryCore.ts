@@ -413,6 +413,94 @@ function getComponentMemoryWriter(db: MemoryDbWriter) {
   };
 }
 
+async function getBuiltInAgentMemoryRowById(
+  db: MemoryDbReader,
+  memoryId: string
+): Promise<BuiltInAgentMemoryRow | null> {
+  const componentDb = getComponentMemoryReader(db);
+  const normalizedId = componentDb.normalizeId?.("memories", memoryId) ?? null;
+  if (!normalizedId) {
+    return null;
+  }
+
+  return (await db.get(normalizedId as any)) as BuiltInAgentMemoryRow | null;
+}
+
+function dedupeWorkspaceAgentMemoryRecords(
+  records: WorkspaceAgentMemoryRecord[]
+): WorkspaceAgentMemoryRecord[] {
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    if (seen.has(record.memoryId)) {
+      return false;
+    }
+    seen.add(record.memoryId);
+    return true;
+  });
+}
+
+async function listWorkspaceAgentMemoriesFromInventory(
+  db: MemoryDbReader,
+  args: {
+    workspaceId: Id<"workspaces">;
+    category?: WorkspaceMemoryCategory;
+    source?: WorkspaceMemorySource;
+    limit?: number;
+  }
+): Promise<WorkspaceAgentMemoryRecord[]> {
+  const limit = Math.max(1, args.limit ?? 20);
+  const matchedRows = args.category
+    ? await db
+        .query("workspaceAgentMemoryInventory")
+        .withIndex("by_workspace_category_and_created_at", (q: any) =>
+          q.eq("workspaceId", args.workspaceId).eq("category", args.category!)
+        )
+        .order("desc")
+        .take(limit)
+    : args.source
+      ? await db
+          .query("workspaceAgentMemoryInventory")
+          .withIndex("by_workspace_source_and_created_at", (q: any) =>
+            q.eq("workspaceId", args.workspaceId).eq("source", args.source!)
+          )
+          .order("desc")
+          .take(limit)
+      : await db
+          .query("workspaceAgentMemoryInventory")
+          .withIndex("by_workspace_created_at", (q) =>
+            q.eq("workspaceId", args.workspaceId)
+          )
+          .order("desc")
+          .take(limit);
+
+  const records = await Promise.all(
+    matchedRows.map(async (row) => {
+      const memoryRow = await getBuiltInAgentMemoryRowById(db, row.memoryId);
+      if (!memoryRow) {
+        return null;
+      }
+
+      const parsed = parseAgentMemory(memoryRow.memory);
+      if (!parsed || parsed.workspaceId !== String(args.workspaceId)) {
+        return null;
+      }
+
+      return {
+        memoryId: memoryRow._id,
+        createdAt: memoryRow._creationTime,
+        memoryText: memoryRow.memory,
+        parsed,
+      } satisfies WorkspaceAgentMemoryRecord;
+    })
+  );
+
+  return dedupeWorkspaceAgentMemoryRecords(
+    records
+      .filter((value): value is WorkspaceAgentMemoryRecord => value !== null)
+      .sort((left, right) => right.createdAt - left.createdAt)
+  );
+}
+
 export async function listRecentAgentMemories(
   db: MemoryDbReader,
   args: {
@@ -571,6 +659,36 @@ export async function listWorkspaceAgentMemories(
     })
     .filter((value): value is WorkspaceAgentMemoryRecord => value !== null)
     .sort((left, right) => right.createdAt - left.createdAt);
+}
+
+export async function listWorkspaceAgentMemoriesByCategory(
+  db: MemoryDbReader,
+  args: {
+    workspaceId: Id<"workspaces">;
+    category: WorkspaceMemoryCategory;
+    limit?: number;
+  }
+): Promise<WorkspaceAgentMemoryRecord[]> {
+  return await listWorkspaceAgentMemoriesFromInventory(db, {
+    workspaceId: args.workspaceId,
+    category: args.category,
+    limit: args.limit,
+  });
+}
+
+export async function listWorkspaceAgentMemoriesBySource(
+  db: MemoryDbReader,
+  args: {
+    workspaceId: Id<"workspaces">;
+    source: WorkspaceMemorySource;
+    limit?: number;
+  }
+): Promise<WorkspaceAgentMemoryRecord[]> {
+  return await listWorkspaceAgentMemoriesFromInventory(db, {
+    workspaceId: args.workspaceId,
+    source: args.source,
+    limit: args.limit,
+  });
 }
 
 export async function listWorkspaceAgentMemoriesInWindow(
@@ -791,28 +909,21 @@ export async function getWorkspaceAgentMemoryById(
     memoryId: string;
   }
 ): Promise<WorkspaceAgentMemoryRecord | null> {
-  const componentDb = getComponentMemoryReader(db);
-  const normalizedId =
-    componentDb.normalizeId?.("memories", args.memoryId) ?? null;
+  const row = await getBuiltInAgentMemoryRowById(db, args.memoryId);
 
-  if (normalizedId) {
-    const row = (await db.get(
-      normalizedId as any
-    )) as BuiltInAgentMemoryRow | null;
-    if (row) {
-      const parsed = parseAgentMemory(row.memory);
-      if (
-        parsed &&
-        parsed.workspaceId === args.workspaceId &&
-        row.userId === args.userId
-      ) {
-        return {
-          memoryId: row._id,
-          createdAt: row._creationTime,
-          memoryText: row.memory,
-          parsed,
-        };
-      }
+  if (row) {
+    const parsed = parseAgentMemory(row.memory);
+    if (
+      parsed &&
+      parsed.workspaceId === args.workspaceId &&
+      row.userId === args.userId
+    ) {
+      return {
+        memoryId: row._id,
+        createdAt: row._creationTime,
+        memoryText: row.memory,
+        parsed,
+      };
     }
   }
 
@@ -847,10 +958,10 @@ export async function deleteWorkspaceAgentMemoriesByCategory(
   }
 ): Promise<{ deleted: number }> {
   const componentDb = getComponentMemoryWriter(db);
-  const rows = await listWorkspaceAgentMemories(db, {
-    userId: args.userId,
-    workspaceId: args.workspaceId,
-    limit: MAX_RELEVANCE_CANDIDATES,
+  const rows = await listWorkspaceAgentMemoriesByCategory(db, {
+    workspaceId: args.workspaceId as Id<"workspaces">,
+    category: args.category,
+    limit: 100,
   });
 
   let deleted = 0;
@@ -1028,15 +1139,34 @@ export async function findRelevantAgentMemories(
     limit?: number;
   }
 ): Promise<BuiltInAgentMemoryMatch[]> {
-  const recentRows = await listRecentAgentMemories(db, {
-    userId: args.userId,
-    limit: MAX_RELEVANCE_CANDIDATES,
-  });
   const allowedCategories = args.categories
     ? new Set<WorkspaceMemoryCategory>(args.categories)
     : null;
+  const candidateRows = allowedCategories
+    ? (
+        await Promise.all(
+          [...allowedCategories].map((category) =>
+            listWorkspaceAgentMemoriesByCategory(db, {
+              workspaceId: args.workspaceId as Id<"workspaces">,
+              category,
+              limit: Math.max(MAX_RELEVANCE_CANDIDATES, (args.limit ?? 5) * 20),
+            })
+          )
+        )
+      )
+        .flat()
+        .map((record) => ({
+          _id: record.memoryId,
+          _creationTime: record.createdAt,
+          memory: record.memoryText,
+          userId: args.userId,
+        }))
+    : await listRecentAgentMemories(db, {
+        userId: args.userId,
+        limit: MAX_RELEVANCE_CANDIDATES,
+      });
 
-  return recentRows
+  return candidateRows
     .map((row) => {
       const parsed = parseAgentMemory(row.memory);
       if (!parsed) {

@@ -6,6 +6,7 @@ import type {
   LinkedInCommentPage,
   LinkedInPostComment,
 } from "@/shared/lib/linkedin/comments";
+import type { UnifiedPost } from "@/shared/lib/platforms/types";
 import {
   Avatar,
   AvatarFallback,
@@ -20,11 +21,17 @@ import {
 } from "@/shared/ui/components/DropdownMenu";
 import { MoreHorizIcon, OpenInNewIcon } from "@/shared/ui/components/icons";
 import { formatRelativeTime } from "@/shared/lib/utils";
+import { getCurrentUTCTimestamp } from "@/shared/lib/utils/time/timeUtils";
 import { LinkedInReplyComposer } from "./LinkedInReplyComposer";
 import { LinkedInReplyList } from "./LinkedInReplyList";
+import {
+  buildLinkedInCommentAuthorMentionEntity,
+  buildLinkedInPostMentionEntities,
+} from "./linkedinComposerMentions";
 
 export interface LinkedInCommentItemProps {
   comment: LinkedInPostComment;
+  sourcePost?: UnifiedPost;
   prospectId?: string;
   showReplyComposer?: boolean;
   replyComposerKey?: string;
@@ -48,6 +55,7 @@ export interface LinkedInCommentItemProps {
 
 export function LinkedInCommentItem({
   comment,
+  sourcePost,
   prospectId,
   showReplyComposer = false,
   replyComposerKey,
@@ -65,6 +73,21 @@ export function LinkedInCommentItem({
   children,
 }: LinkedInCommentItemProps) {
   const authorInitial = comment.author.name.charAt(0).toUpperCase();
+  const replyMentionEntities = React.useMemo(
+    () =>
+      buildLinkedInPostMentionEntities({
+        post: sourcePost ?? {
+          id: comment.postId,
+          platform: "linkedin",
+          text: "",
+          createdAt: getCurrentUTCTimestamp(),
+          author: {},
+        },
+        comments: [comment, ...(repliesPage?.items ?? [])],
+        extraPeople: [buildLinkedInCommentAuthorMentionEntity(comment)],
+      }),
+    [comment, repliesPage?.items, sourcePost]
+  );
 
   return (
     <article className="flex items-start gap-3">
@@ -164,6 +187,7 @@ export function LinkedInCommentItem({
               submitLabel="Reply"
               initialValue={replyComposerInitialValue}
               disabled={disabled}
+              localMentionEntities={replyMentionEntities}
               onCancel={onToggleReplyComposer}
               onSubmit={onReplySubmit}
             />

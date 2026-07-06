@@ -33,6 +33,7 @@ import { LinkedInConversationPanel } from "@/features/prospects/ui/components/Li
 import { ThreadAwareTwitterReplyBody } from "@/features/prospects/ui/components/ThreadAwareTwitterReplyBody";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
+import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
 import type { AgentPanelMode } from "../../lib";
 import {
   useActiveUseCaseLabels,
@@ -523,6 +524,9 @@ export function AgentDynamicPanel({
           actionRequestId:
             actionPanelData?.actionRequestId as Id<"agentActionRequests">,
           content: nextValue,
+          mediaUrls: actionPanelData?.mediaUrls,
+          mediaDescriptions: actionPanelData?.mediaDescriptions,
+          mediaKinds: actionPanelData?.mediaKinds,
         });
         return;
       }
@@ -531,6 +535,9 @@ export function AgentDynamicPanel({
         taskId: taskPanelData?.resolvedTaskId as Id<"outreachTasks">,
         expectedType: "comment",
         content: nextValue,
+        mediaUrls: taskPanelData?.draft?.mediaUrls,
+        mediaDescriptions: taskPanelData?.draft?.mediaDescriptions,
+        mediaKinds: taskPanelData?.draft?.mediaKinds,
       });
     },
   });
@@ -962,6 +969,24 @@ export function AgentDynamicPanel({
                   maxLength: 8000,
                   characterCountMode: "raw",
                 }}
+                entityMentions={{
+                  prospectId,
+                  remoteAllowedKinds: isCommentAction
+                    ? ["prospect", "post", "attachment"]
+                    : ["prospect", "attachment"],
+                  localEntities: sourceLinkedInPost
+                    ? ([
+                        buildPostMentionEntity({
+                          post: sourceLinkedInPost,
+                          platformHint: "linkedin",
+                          prospectId,
+                        }),
+                      ].filter(Boolean) as NonNullable<
+                        ReturnType<typeof buildPostMentionEntity>
+                      >[])
+                    : undefined,
+                  personTextMode: "label",
+                }}
                 onContentChange={(content: SerializedEditorState) => {
                   setCurrentDraftText(
                     extractTextFromEditorState(content).trim()
@@ -1056,6 +1081,7 @@ export function AgentDynamicPanel({
           <div className="mx-4 space-y-3">
             <ReplyComposer
               key={`action-request-reply:${actionPanelData.actionRequestId}`}
+              prospectId={prospectId}
               initialContent={initialContent}
               initialMediaUploads={initialMediaUploads}
               replyTo={{
@@ -1197,6 +1223,7 @@ export function AgentDynamicPanel({
                   renderComposerSection={(tweet) => (
                     <div className="mx-4 space-y-3">
                       <ReplyComposer
+                        prospectId={prospectId}
                         replyTo={{
                           tweet,
                           users: replyUsers,
@@ -1260,6 +1287,7 @@ export function AgentDynamicPanel({
                       <div className="mx-4 space-y-3">
                         <ReplyComposer
                           key={`task-reply:${data.resolvedTaskId}`}
+                          prospectId={prospectId}
                           initialContent={initialContent}
                           initialMediaUploads={initialMediaUploads}
                           replyTo={{

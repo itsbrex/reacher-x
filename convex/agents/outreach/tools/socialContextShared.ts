@@ -25,6 +25,10 @@ import {
 import { acquireSocialApiBudget } from "../../../lib/socialApiBudget";
 import { hydrateTwitterProfileLinkMetadata } from "../../../lib/twitterProfileLinkResolver";
 import type { LinkedInProfilePost } from "../../../integrations/linkedin/getProfilePosts";
+import {
+  extractProspectThreadContext,
+  MISSING_PROSPECT_SELECTION_MESSAGE,
+} from "./helpers";
 
 export type SocialContextMode =
   | "prospect_profile"
@@ -1225,17 +1229,13 @@ export async function resolveSocialContext(
   ctx: ToolContext,
   args: ResolveSocialContextArgs
 ): Promise<ResolvedSocialContext> {
-  const threadContext = await ctx.runQuery(
-    internal.prospectThreads.getThreadProspectContext,
-    {
-      threadId: ctx.threadId!,
-    }
+  const threadContext = await extractProspectThreadContext(
+    ctx,
+    "resolveSocialContext"
   );
 
-  if (!threadContext?.prospectId) {
-    throw new Error(
-      "Could not determine prospect. Please call this from a prospect thread."
-    );
+  if (!threadContext.prospectId) {
+    throw new Error(MISSING_PROSPECT_SELECTION_MESSAGE);
   }
 
   const prospect = (await ctx.runQuery(internal.prospects.getProspectInternal, {

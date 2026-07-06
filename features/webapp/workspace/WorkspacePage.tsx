@@ -32,6 +32,7 @@ import {
   FormMessage,
 } from "@/shared/ui/components/Form";
 import { Input } from "@/shared/ui/components/Input";
+import { Switch } from "@/shared/ui/components/Switch";
 import { Textarea } from "@/shared/ui/components/TextArea";
 import {
   Tabs,
@@ -137,7 +138,9 @@ export default function WorkspacePage() {
     error: authError,
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"details" | "profiles">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "profiles" | "agent">(
+    "details"
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [refineOpen, setRefineOpen] = useState(false);
   const [refineThreadId, setRefineThreadId] = useState<string | null>(null);
@@ -153,9 +156,16 @@ export default function WorkspacePage() {
     api.workspaces.getUserWorkspaces,
     isAuthenticated ? {} : "skip"
   );
+  const workspaceAgentSettings = useQuery(
+    api.workspaces.getWorkspaceAgentSettings,
+    isAuthenticated && workspace ? { workspaceId: workspace._id } : "skip"
+  );
 
   const updateWorkspaceSettings = useMutation(
     api.workspaces.updateWorkspaceSettings
+  );
+  const updateWorkspaceAgentSettings = useMutation(
+    api.workspaces.updateWorkspaceAgentSettings
   );
   const rollbackWorkspace = useMutation(api.workspaces.rollbackWorkspace);
   const deleteWorkspace = useMutation(api.workspaces.deleteWorkspace);
@@ -225,11 +235,55 @@ export default function WorkspacePage() {
     control: form.control,
     name: "icps",
   });
+  const [agentAutonomyMode, setAgentAutonomyMode] = useState<
+    "review_required" | "autonomous"
+  >("review_required");
+  const [agentDailyBrowserSendCap, setAgentDailyBrowserSendCap] =
+    useState("25");
+  const [isSavingAgentSettings, setIsSavingAgentSettings] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceAgentSettings) {
+      return;
+    }
+    setAgentAutonomyMode(workspaceAgentSettings.autonomyMode);
+    setAgentDailyBrowserSendCap(
+      String(workspaceAgentSettings.dailyBrowserSendCap)
+    );
+  }, [workspaceAgentSettings]);
 
   const tier = currentPlan?.tier ?? "free";
   const canRollback =
     (tier === "base" || tier === "pro") &&
     Boolean(workspace?.refineRollbackSnapshot);
+  const browserSendingEnabled =
+    workspaceAgentSettings?.browserSendingEnabled ?? false;
+
+  const persistAgentSettings = useCallback(
+    async ({
+      autonomyMode,
+      dailyBrowserSendCap,
+      releasePendingApprovals = false,
+    }: {
+      autonomyMode?: "review_required" | "autonomous";
+      dailyBrowserSendCap?: number;
+      releasePendingApprovals?: boolean;
+    }) => {
+      if (!workspace) return null;
+      setIsSavingAgentSettings(true);
+      try {
+        return await updateWorkspaceAgentSettings({
+          workspaceId: workspace._id,
+          autonomyMode,
+          dailyBrowserSendCap,
+          releasePendingApprovals,
+        });
+      } finally {
+        setIsSavingAgentSettings(false);
+      }
+    },
+    [updateWorkspaceAgentSettings, workspace]
+  );
 
   const handleSave = async (data: WorkspacePageFormValues) => {
     if (!workspace) return;
@@ -287,6 +341,76 @@ export default function WorkspacePage() {
         description:
           error instanceof Error ? error.message : "Please try again.",
       });
+    }
+  };
+
+  const handleAgentAutonomyChange = async (checked: boolean) => {
+    const nextMode = checked ? "autonomous" : "review_required";
+    const previousMode = agentAutonomyMode;
+    setAgentAutonomyMode(nextMode);
+    try {
+      await persistAgentSettings({ autonomyMode: nextMode });
+      toast.success(
+        nextMode === "autonomous"
+          ? "△ Agent will send without waiting for approval."
+          : "△ Agent is back to review required mode."
+      );
+    } catch (error) {
+      setAgentAutonomyMode(previousMode);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update △ Agent mode."
+      );
+    }
+  };
+
+  const handleDailyBrowserSendCapBlur = async () => {
+    const parsedValue = Number(agentDailyBrowserSendCap);
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      setAgentDailyBrowserSendCap(
+        String(workspaceAgentSettings?.dailyBrowserSendCap ?? 25)
+      );
+      toast.error("Daily browser send cap must be zero or greater.");
+      return;
+    }
+
+    if (parsedValue === workspaceAgentSettings?.dailyBrowserSendCap) {
+      return;
+    }
+
+    try {
+      await persistAgentSettings({ dailyBrowserSendCap: parsedValue });
+      toast.success("Saved daily browser send cap.");
+    } catch (error) {
+      setAgentDailyBrowserSendCap(
+        String(workspaceAgentSettings?.dailyBrowserSendCap ?? 25)
+      );
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update daily browser send cap."
+      );
+    }
+  };
+
+  const handleReleasePendingApprovals = async () => {
+    try {
+      const result = await persistAgentSettings({
+        autonomyMode: "autonomous",
+        releasePendingApprovals: true,
+      });
+      toast.success(
+        result?.releasedTaskCount
+          ? `Released ${result.releasedTaskCount} pending approval${result.releasedTaskCount === 1 ? "" : "s"}.`
+          : "No pending approvals were waiting."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not release pending approvals."
+      );
     }
   };
 
@@ -586,7 +710,7 @@ export default function WorkspacePage() {
                   className="flex min-h-0 flex-1 flex-col"
                   value={activeTab}
                   onValueChange={(v) =>
-                    setActiveTab(v as "details" | "profiles")
+                    setActiveTab(v as "details" | "profiles" | "agent")
                   }
                 >
                   <div className="border-border shrink-0 border-b">
@@ -597,6 +721,9 @@ export default function WorkspacePage() {
                         </TabsTrigger>
                         <TabsTrigger value="profiles" variant="underline">
                           Profiles
+                        </TabsTrigger>
+                        <TabsTrigger value="agent" variant="underline">
+                          △ Agent
                         </TabsTrigger>
                       </TabsList>
                     </div>
@@ -960,6 +1087,82 @@ export default function WorkspacePage() {
                           </div>
                         </Form>
                       )}
+                    </TabsContent>
+
+                    <TabsContent value="agent" className="mt-0">
+                      <div className="space-y-4">
+                        <div className="rounded-xl border p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <h3 className="text-sm font-medium">
+                                Review required
+                              </h3>
+                              <p className="text-muted-foreground text-sm">
+                                Keep this on when you want to approve each reply
+                                before it sends.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={agentAutonomyMode === "autonomous"}
+                              disabled={isSavingAgentSettings}
+                              aria-label="Toggle △ Agent autonomy mode"
+                              onCheckedChange={handleAgentAutonomyChange}
+                            />
+                          </div>
+
+                          <div className="bg-muted/40 mt-4 rounded-lg border p-3">
+                            <p className="text-sm font-medium">Autonomous</p>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                              △ Agent sends without waiting for approval.
+                            </p>
+                          </div>
+
+                          {agentAutonomyMode === "autonomous" ? (
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isSavingAgentSettings}
+                                onClick={handleReleasePendingApprovals}
+                              >
+                                Release pending approvals
+                              </Button>
+                              <p className="text-muted-foreground text-xs">
+                                Already have approvals waiting? Release them
+                                into the autonomous queue.
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="rounded-xl border p-4">
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-medium">
+                              Daily browser send cap
+                            </h3>
+                            <p className="text-muted-foreground text-sm">
+                              Limits automatic browser fallback sends per day
+                              once browser sending is enabled.
+                            </p>
+                          </div>
+                          <div className="mt-3 max-w-40">
+                            <Input
+                              inputMode="numeric"
+                              value={agentDailyBrowserSendCap}
+                              disabled={isSavingAgentSettings}
+                              onChange={(event) =>
+                                setAgentDailyBrowserSendCap(event.target.value)
+                              }
+                              onBlur={handleDailyBrowserSendCapBlur}
+                            />
+                          </div>
+                          <p className="text-muted-foreground mt-3 text-xs">
+                            Browser sending is{" "}
+                            {browserSendingEnabled ? "enabled" : "not enabled"}{" "}
+                            for this workspace.
+                          </p>
+                        </div>
+                      </div>
                     </TabsContent>
                   </div>
                 </Tabs>

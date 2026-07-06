@@ -50,25 +50,31 @@ interface SearchState {
 const historyPanelLogger = logger.withScope("HistoryPanel");
 
 export interface HistoryPanelProps {
-  prospectId: Id<"prospects">;
+  scope:
+    | {
+        kind: "prospect";
+        prospectId: Id<"prospects">;
+        prospectArchived?: boolean;
+      }
+    | {
+        kind: "workspace";
+        workspaceId: Id<"workspaces">;
+      };
   currentThreadId?: string;
   onClose: () => void;
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
   onDeleteCurrentThread?: () => void;
-  /** When true, disables New (same as agent chat header for archived prospects). */
-  prospectArchived?: boolean;
   className?: string;
 }
 
 export function HistoryPanel({
-  prospectId,
+  scope,
   currentThreadId,
   onClose,
   onSelectThread,
   onNewThread,
   onDeleteCurrentThread,
-  prospectArchived = false,
   className,
 }: HistoryPanelProps) {
   const { entitySingular } = useActiveUseCaseLabels();
@@ -86,19 +92,37 @@ export function HistoryPanel({
   const [deletingThreadId, setDeletingThreadId] = React.useState<string | null>(
     null
   );
+  const prospectArchived =
+    scope.kind === "prospect" ? (scope.prospectArchived ?? false) : false;
+  const activeProspectId =
+    scope.kind === "prospect" ? scope.prospectId : undefined;
+  const activeWorkspaceId =
+    scope.kind === "workspace" ? scope.workspaceId : undefined;
 
-  const threadsResult = usePaginatedQuery(
+  const prospectThreadsResult = usePaginatedQuery(
     api.chat.listProspectThreadsWithMessages,
-    isConvexReady
+    isConvexReady && scope.kind === "prospect"
       ? {
-          prospectId,
+          prospectId: scope.prospectId,
         }
       : "skip",
     { initialNumItems: 20 }
   );
+  const workspaceThreadsResult = usePaginatedQuery(
+    api.chat.listWorkspaceThreadsWithMessages,
+    isConvexReady && scope.kind === "workspace"
+      ? {
+          workspaceId: scope.workspaceId,
+        }
+      : "skip",
+    { initialNumItems: 20 }
+  );
+  const threadsResult =
+    scope.kind === "prospect" ? prospectThreadsResult : workspaceThreadsResult;
 
   // Vector search action
-  const searchMessages = useAction(api.chat.searchProspectMessages);
+  const searchProspectMessages = useAction(api.chat.searchProspectMessages);
+  const searchWorkspaceMessages = useAction(api.chat.searchWorkspaceMessages);
 
   // Delete thread mutation
   const deleteThread = useMutation(api.chat.deleteThread);
@@ -147,7 +171,20 @@ export function HistoryPanel({
 
     let cancelled = false;
 
-    searchMessages({ prospectId, query: debouncedQuery, limit: 10 })
+    const runSearch =
+      scope.kind === "prospect"
+        ? searchProspectMessages({
+            prospectId: activeProspectId!,
+            query: debouncedQuery,
+            limit: 10,
+          })
+        : searchWorkspaceMessages({
+            workspaceId: activeWorkspaceId,
+            query: debouncedQuery,
+            limit: 10,
+          });
+
+    runSearch
       .then((result) => {
         if (!cancelled) {
           // Cast thread to ThreadData since it comes from the same source
@@ -173,7 +210,15 @@ export function HistoryPanel({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, isConvexReady, prospectId, searchMessages]);
+  }, [
+    debouncedQuery,
+    isConvexReady,
+    scope.kind,
+    activeProspectId,
+    activeWorkspaceId,
+    searchProspectMessages,
+    searchWorkspaceMessages,
+  ]);
 
   // Use search results when searching, otherwise show all threads
   const displayedThreads = React.useMemo((): ThreadWithMessage[] => {
@@ -221,7 +266,11 @@ export function HistoryPanel({
     >
       <PageLayout className="flex flex-col">
         <PageHeader
-          title={`${entitySingular} thread history`}
+          title={
+            scope.kind === "prospect"
+              ? `${entitySingular} thread history`
+              : "Workspace agent history"
+          }
           onBack={onClose}
           actions={
             <TooltipProvider>

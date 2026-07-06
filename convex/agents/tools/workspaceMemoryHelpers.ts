@@ -96,7 +96,27 @@ export async function resolveWorkspaceMemoryContext(
     }
   }
 
-  // 3) Setup thread titles using the "setup:{workspaceId}" convention
+  // 3) Canonical workspace-thread links for `/agent` history + scoping
+  if (!workspaceId && threadId) {
+    try {
+      const threadContext = await ctx.runQuery(
+        internal.workspaceThreads.getThreadWorkspaceContext,
+        { threadId }
+      );
+
+      if (threadContext?.workspaceId) {
+        workspaceId = String(threadContext.workspaceId);
+      }
+    } catch {
+      logEvent?.warn("Failed to resolve workspace thread context", {
+        agent_tool: {
+          module: moduleName,
+        },
+      });
+    }
+  }
+
+  // 4) Setup thread titles using the "setup:{workspaceId}" convention
   if (!workspaceId && threadId) {
     try {
       const thread = await ctx.runQuery(components.agent.threads.getThread, {
@@ -116,7 +136,7 @@ export async function resolveWorkspaceMemoryContext(
     }
   }
 
-  // 4) Fallback to default workspace for user
+  // 5) Fallback to default workspace for user
   if (!workspaceId) {
     try {
       const workspace = await ctx.runQuery(

@@ -41,38 +41,56 @@ export function getTextareaCaretCoordinates(
   textarea: HTMLTextAreaElement,
   position: number
 ): TextareaCaretCoordinates {
-  const computed = window.getComputedStyle(textarea);
-  const mirror = document.createElement("div");
+  const ownerDocument = textarea.ownerDocument;
+  const ownerWindow = ownerDocument.defaultView;
+  const computed = ownerWindow?.getComputedStyle?.(textarea) ?? null;
+  const fallbackLineHeight = computed
+    ? Number.parseFloat(computed.lineHeight) ||
+      Number.parseFloat(computed.fontSize) ||
+      20
+    : 20;
 
-  mirror.setAttribute("aria-hidden", "true");
-  mirror.style.position = "absolute";
-  mirror.style.visibility = "hidden";
-  mirror.style.whiteSpace = "pre-wrap";
-  mirror.style.wordWrap = "break-word";
-  mirror.style.overflow = "hidden";
-
-  for (const property of CARET_MIRROR_STYLE_PROPS) {
-    const value = (computed as any)[property] as string | undefined;
-    if (typeof value === "string" && value.length > 0) {
-      (mirror.style as any)[property] = value;
-    }
+  if (
+    !computed ||
+    typeof ownerDocument.createElement !== "function" ||
+    !ownerDocument.body
+  ) {
+    return { top: 0, left: 0, lineHeight: fallbackLineHeight };
   }
 
-  mirror.textContent = textarea.value.slice(0, position);
+  const mirror = ownerDocument.createElement("div");
 
-  const marker = document.createElement("span");
-  marker.textContent = textarea.value.slice(position) || ".";
-  mirror.appendChild(marker);
-  document.body.appendChild(mirror);
+  try {
+    mirror.setAttribute("aria-hidden", "true");
+    mirror.style.position = "absolute";
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordWrap = "break-word";
+    mirror.style.overflow = "hidden";
 
-  const lineHeight =
-    Number.parseFloat(computed.lineHeight) ||
-    Number.parseFloat(computed.fontSize) ||
-    20;
-  const top = marker.offsetTop - textarea.scrollTop;
-  const left = marker.offsetLeft - textarea.scrollLeft;
+    for (const property of CARET_MIRROR_STYLE_PROPS) {
+      const value = (computed as any)[property] as string | undefined;
+      if (typeof value === "string" && value.length > 0) {
+        (mirror.style as any)[property] = value;
+      }
+    }
 
-  document.body.removeChild(mirror);
+    mirror.textContent = textarea.value.slice(0, position);
 
-  return { top, left, lineHeight };
+    const marker = ownerDocument.createElement("span");
+    marker.textContent = textarea.value.slice(position) || ".";
+    mirror.appendChild(marker);
+    ownerDocument.body.appendChild(mirror);
+
+    const top = marker.offsetTop - textarea.scrollTop;
+    const left = marker.offsetLeft - textarea.scrollLeft;
+
+    return { top, left, lineHeight: fallbackLineHeight };
+  } catch {
+    return { top: 0, left: 0, lineHeight: fallbackLineHeight };
+  } finally {
+    if (mirror.parentNode === ownerDocument.body) {
+      ownerDocument.body.removeChild(mirror);
+    }
+  }
 }

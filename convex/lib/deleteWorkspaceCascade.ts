@@ -114,6 +114,14 @@ export async function deleteWorkspaceCascade(
     await ctx.db.delete(prospectId);
   }
 
+  const workspaceAgentThreads = await ctx.db
+    .query("workspaceAgentThreads")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+  for (const thread of workspaceAgentThreads) {
+    await ctx.db.delete(thread._id);
+  }
+
   const socialMonitors = await ctx.db
     .query("socialQueryMonitors")
     .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))

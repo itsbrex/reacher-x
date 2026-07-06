@@ -58,10 +58,26 @@ export const qualifyProspect = createTool({
       },
       async (logEvent) => {
         try {
+          if (!ctx.userId) {
+            return {
+              success: false,
+              prospectId: args.prospectId,
+              qualified: false,
+              score: 0,
+              status: "pending",
+              evidenceCount: 0,
+              matchedKeywords: [],
+              error: "User not authenticated",
+            };
+          }
+
           // 1. Get prospect data
-          const prospect = await ctx.runQuery(api.prospects.getProspect, {
-            prospectId: args.prospectId as Id<"prospects">,
-          });
+          const prospect = await ctx.runQuery(
+            internal.prospects.getProspectInternal,
+            {
+              prospectId: args.prospectId as Id<"prospects">,
+            }
+          );
 
           if (!prospect) {
             logEvent.warn("Prospect not found for qualification");
@@ -74,6 +90,24 @@ export const qualifyProspect = createTool({
               evidenceCount: 0,
               matchedKeywords: [],
               error: "Prospect not found",
+            };
+          }
+
+          if (String(prospect.userId) !== ctx.userId) {
+            logEvent.warn("Prospect ownership mismatch during qualification", {
+              prospect: {
+                id: args.prospectId,
+              },
+            });
+            return {
+              success: false,
+              prospectId: args.prospectId,
+              qualified: false,
+              score: 0,
+              status: "pending",
+              evidenceCount: 0,
+              matchedKeywords: [],
+              error: "Not authorized to qualify this prospect",
             };
           }
 
@@ -100,11 +134,29 @@ export const qualifyProspect = createTool({
           }
 
           // 3. Get workspace and qualificationKeywords
-          const workspace = await ctx.runQuery(api.workspaces.getWorkspace, {
+          const workspace = await ctx.runQuery(internal.workspaces.getById, {
             workspaceId: args.workspaceId as Id<"workspaces">,
           });
 
-          if (!workspace || !workspace.icps || workspace.icps.length === 0) {
+          if (!workspace || String(workspace.userId) !== ctx.userId) {
+            logEvent.warn("Workspace not found for qualification", {
+              workspace: {
+                id: args.workspaceId,
+              },
+            });
+            return {
+              success: false,
+              prospectId: args.prospectId,
+              qualified: false,
+              score: 0,
+              status: "pending",
+              evidenceCount: 0,
+              matchedKeywords: [],
+              error: "Workspace not found",
+            };
+          }
+
+          if (!workspace.icps || workspace.icps.length === 0) {
             logEvent.warn(
               "Workspace has no ICPs configured for qualification",
               {

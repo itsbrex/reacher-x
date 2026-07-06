@@ -11,13 +11,16 @@ import {
   PageContent,
 } from "@/features/webapp/ui/components";
 import {
+  BrowserSendingDialog,
   ConnectedAccountsList,
   ConnectedAccountsListWithErrorHint,
   LinkedInConnectNoticeDialog,
 } from "@/features/linked-accounts/ui/components";
 import { useXAccountConnection } from "@/features/linked-accounts/hooks/useXAccountConnection";
 import { useLinkedInAccountConnection } from "@/features/linked-accounts/hooks/useLinkedInAccountConnection";
+import { useBrowserSending } from "@/features/linked-accounts/hooks/useBrowserSending";
 import { useQueryWithStatus } from "@/shared/hooks";
+import { toast } from "sonner";
 
 export default function ConnectedAccountsPage() {
   const router = useRouter();
@@ -30,6 +33,8 @@ export default function ConnectedAccountsPage() {
       ? `${window.location.origin}/settings/connected-accounts`
       : "";
 
+  const browserSending = useBrowserSending({ enabled: isAuthenticated });
+
   const {
     xStatus,
     statusLoading: xStatusLoading,
@@ -41,6 +46,18 @@ export default function ConnectedAccountsPage() {
     callbackUrl,
     enabled: isAuthenticated,
     showStyleSyncIssueToast: true,
+    onConnected: () => {
+      if (browserSending.status === "connected") return;
+      toast("Enable browser sending?", {
+        description:
+          "One-time step that lets the △ Agent keep sending on X even when the API blocks it.",
+        action: {
+          label: "Enable",
+          onClick: () => void browserSending.handleEnable(),
+        },
+        duration: 12000,
+      });
+    },
   });
   const {
     linkedinStatus,
@@ -93,6 +110,12 @@ export default function ConnectedAccountsPage() {
             onDisconnectX={handleDisconnectX}
             onConnectLinkedIn={() => setLinkedInDialogOpen(true)}
             onDisconnectLinkedIn={handleDisconnectLinkedIn}
+            browserSending={{
+              status: browserSending.status,
+              isMutating: browserSending.isMutating,
+              onEnable: () => void browserSending.handleEnable(),
+              onDisable: () => void browserSending.handleDisable(),
+            }}
           />
         </ConnectedAccountsListWithErrorHint>
 
@@ -102,6 +125,11 @@ export default function ConnectedAccountsPage() {
           </p>
         ) : null}
       </PageContent>
+      <BrowserSendingDialog
+        session={browserSending.loginSession}
+        onSuccess={() => void browserSending.handleVerify()}
+        onClose={browserSending.dismissLogin}
+      />
       <LinkedInConnectNoticeDialog
         open={linkedInDialogOpen}
         isSubmitting={linkedInIsMutating}

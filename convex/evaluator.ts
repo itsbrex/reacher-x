@@ -812,6 +812,7 @@ export const buildMemoryEvaluationPlanInternal = internalAction({
           {
             workspaceId: String(workspace._id),
             userId: String(workspace.userId),
+            platform: prospect.platform,
             title: prospect.title,
             briefIntro: prospect.briefIntro,
             painPoints: extractPainPoints(prospect),

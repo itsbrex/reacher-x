@@ -83,6 +83,12 @@ importers:
       '@number-flow/react':
         specifier: ^0.6.0
         version: 0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@onkernel/managed-auth-react':
+        specifier: ^0.4.1
+        version: 0.4.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@onkernel/sdk':
+        specifier: ^0.73.0
+        version: 0.73.0
       '@openrouter/ai-sdk-provider':
         specifier: ^2.9.1
         version: 2.9.1(ai@6.0.207(zod@4.4.3))(zod@4.4.3)
@@ -1417,6 +1423,15 @@ packages:
     peerDependencies:
       react: ^18 || ^19
       react-dom: ^18 || ^19
+
+  '@onkernel/managed-auth-react@0.4.1':
+    resolution: {integrity: sha512-8p+pMljBRQMKLiBFWbyJQ2ohYflsomWYGgQtlF2sbb4b2w/z+CBsnxUiBs1q23h/W1OtHsbw/jKGX51ZCjNYzA==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  '@onkernel/sdk@0.73.0':
+    resolution: {integrity: sha512-DqcN52Bqlvkaz/VNxKx27jUFFXjZNYK1qAODQGTB0tlJp5wI4MqdAub4Dz5NqXGoITfhb1F/ve7H0rYtzqAUwA==}
 
   '@openrouter/ai-sdk-provider@2.9.1':
     resolution: {integrity: sha512-okgq07Vdkro4CB5INbfhwa0e6VR1HS7sidNcfHN/MeXLJvX1JmQCff/vem6tcxwT9r1avyFrXSlfv9B28D/Pag==}
@@ -7113,6 +7128,14 @@ snapshots:
       number-flow: 0.6.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
+
+  '@onkernel/managed-auth-react@0.4.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      clsx: 2.1.1
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+
+  '@onkernel/sdk@0.73.0': {}
 
   '@openrouter/ai-sdk-provider@2.9.1(ai@6.0.207(zod@4.4.3))(zod@4.4.3)':
     dependencies:

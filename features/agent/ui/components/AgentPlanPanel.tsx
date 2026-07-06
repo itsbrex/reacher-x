@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/features/webapp/ui/components";
 import {
   OutreachPlanCard,
+  PlanActionMenu,
   getOutreachPlanStatusLabel,
 } from "@/features/prospects/ui/components/outreach-plan";
 import { cn } from "@/shared/lib/utils";
@@ -27,6 +29,7 @@ import type {
   TwitterPostRef,
   TwitterPostSummary,
 } from "@/shared/lib/twitter/contracts";
+import { toast } from "sonner";
 
 export interface AgentPlanPanelProps {
   prospectId: string;
@@ -49,10 +52,12 @@ export interface AgentPlanPanelProps {
 
 export function AgentPlanPanel({
   prospectId,
+  currentThreadId,
   onClose,
   onViewTask,
   className,
 }: AgentPlanPanelProps) {
+  const router = useRouter();
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
   const {
@@ -77,6 +82,7 @@ export function AgentPlanPanel({
   const approvePlan = useMutation(api.outreach.approvePlan);
   const pausePlan = useMutation(api.outreach.pausePlan);
   const resumePlan = useMutation(api.outreach.resumePlan);
+  const deletePlan = useMutation(api.outreach.deletePlan);
   const approveTask = useMutation(api.outreach.approveTask);
 
   const isPanelLoading =
@@ -89,6 +95,7 @@ export function AgentPlanPanel({
   const isExecuting = plan?.status === "executing";
   const isResumable =
     plan?.status === "paused" || plan?.status === "blocked_auth";
+  const resolvedThreadId = currentThreadId ?? plan?.threadId ?? null;
 
   const handleApprovePlan = useCallback(async () => {
     if (!plan) return;
@@ -105,14 +112,25 @@ export function AgentPlanPanel({
     await resumePlan({ planId: plan._id });
   }, [plan, resumePlan]);
 
+  const handleEditPlan = useCallback(() => {
+    const url = resolvedThreadId
+      ? `/agent?prospectId=${prospectId}&threadId=${resolvedThreadId}`
+      : `/agent?prospectId=${prospectId}`;
+    router.push(url);
+  }, [prospectId, resolvedThreadId, router]);
+
+  const handleDeletePlan = useCallback(async () => {
+    if (!plan) return;
+    await toast.promise(deletePlan({ planId: plan._id }), {
+      loading: "Deleting plan...",
+      success: "Plan deleted",
+      error: "Failed to delete plan",
+    });
+    onClose();
+  }, [deletePlan, onClose, plan]);
+
   const handleApproveTask = useCallback(
-    async ({
-      taskId,
-      type,
-    }: {
-      taskId: string;
-      type: "comment" | "dm";
-    }) => {
+    async ({ taskId, type }: { taskId: string; type: "comment" | "dm" }) => {
       await approveTask({
         taskId: taskId as Id<"outreachTasks">,
         expectedType: type,
@@ -172,6 +190,12 @@ export function AgentPlanPanel({
                     Resume
                   </Button>
                 )}
+                <PlanActionMenu
+                  onEdit={handleEditPlan}
+                  onDelete={handleDeletePlan}
+                  disabled={headerPlanActionsDisabled}
+                  ariaLabel="Outreach plan actions"
+                />
               </div>
             ) : null
           }

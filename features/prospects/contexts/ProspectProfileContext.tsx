@@ -91,6 +91,13 @@ function ProspectProfileProviderInner({
 
   const openProspect = React.useCallback(
     (id: Id<"prospects">) => {
+      if (typeof id !== "string" || id.trim().length === 0) {
+        console.warn("[ProspectProfileContext] Ignoring invalid prospect ID", {
+          prospectId: id,
+        });
+        return;
+      }
+
       setSelection({ kind: "live", prospectId: id });
       pushPanel("prospect-profile", { prospectId: id });
       void markProspectOpenedMutation({ prospectId: id });
@@ -125,25 +132,29 @@ function ProspectProfileProviderInner({
 
   return (
     <ProspectProfileContext.Provider value={value}>
-      {children}
+      <ReplyPanelProviderWrapper prospectId={prospectId}>
+        {children}
+      </ReplyPanelProviderWrapper>
     </ProspectProfileContext.Provider>
   );
 }
 
 function ReplyPanelProviderWrapper({
+  prospectId,
   children,
 }: {
+  prospectId: Id<"prospects"> | null;
   children: React.ReactNode;
 }) {
   const { replacePanel } = usePanelStack();
   const openReplyPanel = React.useCallback(
     (params: OpenReplyPanelParams) => {
-      replacePanel(
-        "post-compose",
-        params as unknown as Record<string, unknown>
-      );
+      replacePanel("post-compose", {
+        ...params,
+        prospectId: params.prospectId ?? prospectId ?? undefined,
+      } as unknown as Record<string, unknown>);
     },
-    [replacePanel]
+    [prospectId, replacePanel]
   );
   return (
     <ReplyPanelProvider value={openReplyPanel}>{children}</ReplyPanelProvider>
@@ -160,9 +171,7 @@ export function ProspectProfileProvider({
 }) {
   return (
     <PanelStackProvider>
-      <ReplyPanelProviderWrapper>
-        <ProspectProfileProviderInner>{children}</ProspectProfileProviderInner>
-      </ReplyPanelProviderWrapper>
+      <ProspectProfileProviderInner>{children}</ProspectProfileProviderInner>
     </PanelStackProvider>
   );
 }

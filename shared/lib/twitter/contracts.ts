@@ -124,6 +124,10 @@ export type TwitterActionResultSummary = {
   targetUserId?: string;
   createdPostId?: string;
   postedTextPreview?: string;
+  /** How the action was delivered ("api" default, "browser" for Kernel fallback). */
+  sentVia?: "api" | "browser";
+  /** Proof screenshot URL captured when the action was sent via browser. */
+  proofMediaUrl?: string;
 };
 
 export type TwitterActionErrorSummary = {
@@ -452,6 +456,8 @@ export function summarizeTwitterActionResult(input: {
   targetUserId?: string;
   createdPostId?: string;
   postedText?: string;
+  sentVia?: "api" | "browser";
+  proofMediaUrl?: string;
 }): TwitterActionResultSummary {
   return {
     actionKey: input.actionKey,
@@ -464,6 +470,8 @@ export function summarizeTwitterActionResult(input: {
     postedTextPreview: input.postedText
       ? truncateText(input.postedText, 160)
       : undefined,
+    sentVia: input.sentVia,
+    proofMediaUrl: input.proofMediaUrl,
   };
 }
 

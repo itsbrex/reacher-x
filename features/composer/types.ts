@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import { SerializedEditorState } from "lexical";
 import { Tweet } from "@/features/threads/types";
 import type { InlineAutocompleteContext } from "@/shared/lib/autocomplete/inlineAutocomplete";
+import type {
+  MentionEntityKind,
+  MentionEntitySearchResult,
+} from "@/shared/lib/mentions/mentionEntities";
 
 // Base composer types
 /** `x_post`: X/Twitter weighted length (URLs count as fixed width). `raw`: JavaScript string length. */
@@ -42,6 +46,10 @@ export interface ComposerBaseProps {
   showOpenGraphPreview?: boolean;
   /** Optional inline AI autocomplete context for shared composer surfaces. */
   inlineAutocompleteContext?: InlineAutocompleteContext;
+  /** Enables internal entity tagging for AI-only composer flows. */
+  enableEntityMentions?: boolean;
+  /** Rich mention configuration for social composer flows. */
+  entityMentions?: ComposerEntityMentionsConfig;
   onContentChange?: (content: SerializedEditorState) => void;
   onSubmit?: (
     content: SerializedEditorState,
@@ -52,6 +60,14 @@ export interface ComposerBaseProps {
   onCancel?: () => void;
   onEditorBlur?: () => void;
   onEditorFocus?: () => void;
+}
+
+export interface ComposerEntityMentionsConfig {
+  remoteAllowedKinds?: MentionEntityKind[];
+  localEntities?: MentionEntitySearchResult[];
+  personTextMode?: "label" | "handle";
+  prospectId?: string | null;
+  onSelectEntity?: (entity: MentionEntitySearchResult) => void;
 }
 
 export interface ComposerInitialMediaUpload {
@@ -66,6 +82,7 @@ export interface ComposerInitialMediaUpload {
 
 // Reply composer specific types
 export interface ReplyComposerProps extends ComposerBaseProps {
+  prospectId?: string;
   replyTo: {
     tweet: Tweet;
     users: Array<{

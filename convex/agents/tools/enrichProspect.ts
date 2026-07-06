@@ -8,7 +8,7 @@
 
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
-import { api, internal } from "../../_generated/api";
+import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { runLoggedAgentTool } from "./logging";
 
@@ -62,10 +62,24 @@ export const enrichProspect = createTool({
       },
       async (logEvent) => {
         try {
+          if (!ctx.userId) {
+            return {
+              success: false,
+              prospectId: args.prospectId,
+              enrichmentStatus: "failed",
+              painPointsCount: 0,
+              hasFinance: false,
+              error: "User not authenticated",
+            };
+          }
+
           // 1. Validate prospect exists
-          const prospect = await ctx.runQuery(api.prospects.getProspect, {
-            prospectId: args.prospectId as Id<"prospects">,
-          });
+          const prospect = await ctx.runQuery(
+            internal.prospects.getProspectInternal,
+            {
+              prospectId: args.prospectId as Id<"prospects">,
+            }
+          );
 
           if (!prospect) {
             logEvent.warn("Prospect not found for enrichment");
@@ -76,6 +90,22 @@ export const enrichProspect = createTool({
               painPointsCount: 0,
               hasFinance: false,
               error: "Prospect not found",
+            };
+          }
+
+          if (String(prospect.userId) !== ctx.userId) {
+            logEvent.warn("Prospect ownership mismatch during enrichment", {
+              prospect: {
+                id: args.prospectId,
+              },
+            });
+            return {
+              success: false,
+              prospectId: args.prospectId,
+              enrichmentStatus: "failed",
+              painPointsCount: 0,
+              hasFinance: false,
+              error: "Not authorized to enrich this prospect",
             };
           }
 

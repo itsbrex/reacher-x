@@ -100,7 +100,7 @@ export function XDmConversationMenu({
         {onViewProfile ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onViewProfile}>
+            <DropdownMenuItem onClick={() => onViewProfile()}>
               <PersonIcon className="fill-current" aria-hidden />
               View profile
             </DropdownMenuItem>

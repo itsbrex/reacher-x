@@ -28,7 +28,9 @@ import {
   getHydratedProfileByUsername,
   getHydratedTimelinePage,
   getXExecutionFailure,
+  type TwitterActionExecutionResult,
 } from "./lib/xdkTwitterProvider";
+import { attemptBrowserFallback } from "./lib/browserFallbackCore";
 import { getTwitterActionCatalogEntry } from "./lib/twitterActionCatalog";
 import { getTwitterViewerStatesForUser } from "./lib/twitterViewerStateService";
 import { userTimelineModeValidator } from "./validators";
@@ -1452,6 +1454,47 @@ export const replyToPost = action({
       });
       return result;
     } catch (error) {
+      // X policy block → try the browser connection before failing the
+      // manual reply. Same fallback the △ Agent uses.
+      const failure = getXExecutionFailure(error);
+      if (failure.classification === "api_policy_forbidden") {
+        const fallback = await attemptBrowserFallback(ctx, {
+          userId,
+          actionKey: "reply_to_post",
+          tweetId: args.tweetId,
+          text: args.text.trim(),
+        });
+        if (fallback.attempted && fallback.success) {
+          await ctx.runMutation(
+            internal.twitterEngagement.upsertPostEngagementInternal,
+            {
+              userId,
+              postId: args.tweetId,
+              authorId: args.parentAuthorId,
+              patch: { commented: true },
+            }
+          );
+          await createDirectXOutreachSentNotification(ctx, {
+            userId,
+            twitterUserId: args.parentAuthorId,
+            title: "Reply sent on X (via browser)",
+            message: args.text.trim(),
+            actionId: args.tweetId,
+          });
+          const browserResult: TwitterActionExecutionResult = {
+            success: true,
+            actionKey: "reply_to_post",
+            toolSlug: entry.toolSlug,
+            toolVersion: entry.toolVersion,
+            result: {
+              sentVia: "browser",
+              proofMediaUrl: fallback.proofMediaUrl,
+            },
+            postedText: args.text.trim(),
+          };
+          return browserResult;
+        }
+      }
       throw await handleDirectXWriteActionError(ctx, userId, error);
     }
   },

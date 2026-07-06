@@ -135,6 +135,60 @@ export function extractLinkedInCanonicalPostIdFromUrl(url?: string | null) {
   return undefined;
 }
 
+function normalizeLinkedInThreadUrn(value?: string | null) {
+  const trimmed = getString(value);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^urn:li:(activity|ugcPost|share):/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^(activity|ugcPost|share):/i.test(trimmed)) {
+    return `urn:li:${trimmed}`;
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return `urn:li:activity:${trimmed}`;
+  }
+
+  return undefined;
+}
+
+function extractLinkedInThreadUrnFromCommentId(commentId?: string | null) {
+  const trimmed = getString(commentId);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const match = /^urn:li:comment:\((.+),[^,()]+\)$/i.exec(trimmed);
+  return normalizeLinkedInThreadUrn(match?.[1]);
+}
+
+export function buildLinkedInPostUrl(postId?: string | null) {
+  const trimmed = getString(postId);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const commentThreadUrn = extractLinkedInThreadUrnFromCommentId(trimmed);
+  if (commentThreadUrn) {
+    return `https://www.linkedin.com/feed/update/${commentThreadUrn}?commentUrn=${trimmed}`;
+  }
+
+  const threadUrn = normalizeLinkedInThreadUrn(trimmed);
+  if (!threadUrn) {
+    return undefined;
+  }
+
+  return `https://www.linkedin.com/feed/update/${threadUrn}/`;
+}
+
 export function resolveLinkedInPostReference(args: {
   post?: UnifiedPost | null;
   postData?: unknown;

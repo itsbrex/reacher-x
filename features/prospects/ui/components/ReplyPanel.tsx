@@ -41,6 +41,7 @@ import { TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 export interface ReplyPanelProps {
   tweetId: string;
   threadId: string;
+  prospectId?: string;
   /** Optional pre-loaded tweet to avoid fetch */
   initialTweet?: TweetType | null;
   className?: string;
@@ -50,6 +51,7 @@ export interface ReplyPanelProps {
 export function ReplyPanel({
   tweetId,
   threadId,
+  prospectId,
   initialTweet,
   className,
   onBack,
@@ -160,6 +162,7 @@ export function ReplyPanel({
                     <div className="space-y-3">
                       <ReplyComposer
                         className="mx-0 px-0"
+                        prospectId={prospectId}
                         replyTo={{
                           tweet,
                           users: [

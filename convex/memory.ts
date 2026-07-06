@@ -28,6 +28,8 @@ import {
   ensureWorkspaceAgentMemoryInventoryRecords,
   categoryToNamespace,
   findRelevantAgentMemories,
+  listWorkspaceAgentMemoriesByCategory,
+  listWorkspaceAgentMemoriesBySource,
   promoteAgentMemory,
   type ParsedAgentMemory,
   type WorkspaceMemoryCategory,
@@ -56,6 +58,7 @@ import {
 } from "./validators";
 import { requireOwnedWorkspace, requireUser } from "./lib/accessHelpers";
 import type { WorkspaceUseCaseKey } from "../shared/lib/workspaceUseCases";
+import { getStyleMemoryCategory } from "./lib/styleSourceCore";
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 200;
@@ -84,6 +87,8 @@ type OutreachLearningContext = {
   winningPatterns: string[];
   objections: string[];
   similarCases: string[];
+  operatorPreferences: string[];
+  styleProfiles: string[];
 };
 
 function toListLimit(limit?: number): number {
@@ -602,6 +607,37 @@ export const findRelevantBuiltInAgentMemoriesInternal = internalQuery({
   },
 });
 
+export const listPinnedWorkspaceMemoriesInternal = internalQuery({
+  args: {
+    workspaceId: v.string(),
+    category: v.optional(workspaceMemoryCategoryValidator),
+    source: v.optional(workspaceMemorySourceValidator),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const records = args.category
+      ? await listWorkspaceAgentMemoriesByCategory(ctx.db, {
+          workspaceId: args.workspaceId as Doc<"workspaces">["_id"],
+          category: args.category,
+          limit: args.limit ?? 10,
+        })
+      : args.source
+        ? await listWorkspaceAgentMemoriesBySource(ctx.db, {
+            workspaceId: args.workspaceId as Doc<"workspaces">["_id"],
+            source: args.source,
+            limit: args.limit ?? 10,
+          })
+        : [];
+
+    return records.map((record) => ({
+      memoryId: record.memoryId,
+      createdAt: record.createdAt,
+      parsed: record.parsed,
+      promptLine: formatParsedMemoryForPrompt(record.parsed),
+    }));
+  },
+});
+
 export const searchWorkspaceMemoryNamespaceInternal = internalAction({
   args: {
     workspaceId: v.string(),
@@ -718,6 +754,7 @@ export const getOutreachLearningContextInternal = internalAction({
   args: {
     workspaceId: v.string(),
     userId: v.string(),
+    platform: v.optional(v.union(v.literal("twitter"), v.literal("linkedin"))),
     title: v.optional(v.string()),
     briefIntro: v.optional(v.string()),
     painPoints: v.optional(v.array(v.string())),
@@ -740,6 +777,8 @@ export const getOutreachLearningContextInternal = internalAction({
         winningPatterns: [],
         objections: [],
         similarCases: [],
+        operatorPreferences: [],
+        styleProfiles: [],
       };
     }
 
@@ -789,6 +828,21 @@ export const getOutreachLearningContextInternal = internalAction({
         }),
       ]);
 
+    const [operatorMemories, styleMemories] = await Promise.all([
+      ctx.runQuery(internal.memory.listPinnedWorkspaceMemoriesInternal, {
+        workspaceId: args.workspaceId,
+        source: "operator",
+        limit: 8,
+      }),
+      args.platform
+        ? ctx.runQuery(internal.memory.listPinnedWorkspaceMemoriesInternal, {
+            workspaceId: args.workspaceId,
+            category: getStyleMemoryCategory(args.platform),
+            limit: 1,
+          })
+        : Promise.resolve([]),
+    ]);
+
     return {
       queryText,
       relevantMemories: relevantMemories.map(
@@ -802,6 +856,12 @@ export const getOutreachLearningContextInternal = internalAction({
       ),
       similarCases: similarCases.matches.map(
         (match: WorkspaceSemanticMatch) => match.promptLine
+      ),
+      operatorPreferences: operatorMemories.map(
+        (memory: { promptLine: string }) => memory.promptLine
+      ),
+      styleProfiles: styleMemories.map(
+        (memory: { promptLine: string }) => memory.promptLine
       ),
     };
   },

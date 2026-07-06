@@ -1,11 +1,12 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
 import { Button } from "@/shared/ui/components/Button";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type {
@@ -37,6 +38,9 @@ export function OutreachPlanSection({
     prospectId: prospectId as Id<"prospects">,
   });
   const planData = planDataQuery.data;
+  const activeThread = useQuery(api.chat.getActiveThreadForProspect, {
+    prospectId: prospectId as Id<"prospects">,
+  });
 
   const prospectQuery = useQueryWithStatus(api.prospects.getProspect, {
     prospectId: prospectId as Id<"prospects">,
@@ -47,6 +51,7 @@ export function OutreachPlanSection({
   const approvePlan = useMutation(api.outreach.approvePlan);
   const resumePlan = useMutation(api.outreach.resumePlan);
   const pausePlan = useMutation(api.outreach.pausePlan);
+  const deletePlan = useMutation(api.outreach.deletePlan);
   const approveTask = useMutation(api.outreach.approveTask);
 
   if (planDataQuery.isPending || prospectQuery.isPending) {
@@ -122,6 +127,7 @@ export function OutreachPlanSection({
   }
 
   const { plan, tasks } = planData;
+  const resolvedThreadId = activeThread?.threadId ?? plan.threadId;
   const isDraft = plan.status === "draft";
   const isExecuting = plan.status === "executing";
   const isResumable =
@@ -139,9 +145,17 @@ export function OutreachPlanSection({
     await resumePlan({ planId: plan._id });
   };
 
+  const handleDeletePlan = async () => {
+    await toast.promise(deletePlan({ planId: plan._id }), {
+      loading: "Deleting plan...",
+      success: "Plan deleted",
+      error: "Failed to delete plan",
+    });
+  };
+
   const handleEdit = () => {
-    const url = plan.threadId
-      ? `/agent?prospectId=${prospectId}&threadId=${plan.threadId}`
+    const url = resolvedThreadId
+      ? `/agent?prospectId=${prospectId}&threadId=${resolvedThreadId}`
       : `/agent?prospectId=${prospectId}`;
     router.push(url);
   };
@@ -160,8 +174,8 @@ export function OutreachPlanSection({
   };
 
   const handleTaskClick = () => {
-    const url = plan.threadId
-      ? `/agent?prospectId=${prospectId}&threadId=${plan.threadId}`
+    const url = resolvedThreadId
+      ? `/agent?prospectId=${prospectId}&threadId=${resolvedThreadId}`
       : `/agent?prospectId=${prospectId}`;
     router.push(url);
   };
@@ -201,8 +215,9 @@ export function OutreachPlanSection({
       rationale={plan.strategy.rationale}
       tasks={tasks}
       prospectId={prospectId}
-      threadId={plan.threadId}
+      threadId={resolvedThreadId}
       onEdit={handleEdit}
+      onDeletePlan={handleDeletePlan}
       onApprove={isDraft ? handleApprovePlan : undefined}
       onPause={isExecuting ? handlePause : undefined}
       onResume={isResumable ? handleResume : undefined}

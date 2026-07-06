@@ -11,6 +11,7 @@ import {
 } from "@/features/composer/ui/dmComposerClasses";
 import { extractTextFromEditorState } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/components/Button";
+import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
 
 const LINKEDIN_COMMENT_TEXT_MAX = 8000;
 
@@ -21,6 +22,7 @@ export interface LinkedInReplyComposerProps {
   initialValue?: string;
   disabled?: boolean;
   maxAttachments?: number;
+  localMentionEntities?: MentionEntitySearchResult[];
   onCancel?: () => void;
   onSubmit: (
     content: SerializedEditorState,
@@ -36,6 +38,7 @@ export function LinkedInReplyComposer({
   initialValue = "",
   disabled = false,
   maxAttachments = 1,
+  localMentionEntities,
   onCancel,
   onSubmit,
 }: LinkedInReplyComposerProps) {
@@ -75,6 +78,14 @@ export function LinkedInReplyComposer({
           prospectId,
           maxLength: LINKEDIN_COMMENT_TEXT_MAX,
           characterCountMode: "raw",
+        }}
+        entityMentions={{
+          prospectId,
+          remoteAllowedKinds: prospectId
+            ? ["prospect", "post", "attachment"]
+            : ["attachment"],
+          localEntities: localMentionEntities,
+          personTextMode: "label",
         }}
         className="bg-background"
         onContentChange={(content) => {

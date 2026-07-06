@@ -16,6 +16,7 @@ import {
   type AgentArtifactProgressStep,
 } from "../../../shared/lib/json-render/agentArtifacts";
 import { runLoggedAgentTool } from "./logging";
+import { resolveWorkspaceMemoryContext } from "./workspaceMemoryHelpers";
 
 // ============================================================================
 // Tool
@@ -31,6 +32,7 @@ export const searchProspects = createTool({
   inputSchema: z.object({
     workspaceId: z
       .string()
+      .optional()
       .describe("The workspace ID to search prospects for"),
   }),
   execute: async (
@@ -53,9 +55,24 @@ export const searchProspects = createTool({
       },
       async (logEvent) => {
         try {
+          const resolvedContext = await resolveWorkspaceMemoryContext(
+            ctx,
+            "searchProspects",
+            logEvent
+          );
+          const workspaceId =
+            args.workspaceId ?? resolvedContext.workspaceId ?? null;
+          if (!workspaceId) {
+            return {
+              success: false,
+              message: "Could not resolve the current workspace.",
+              error: "Workspace not found",
+            };
+          }
+
           // Validate workspace exists and is ready
           const workspace = await ctx.runQuery(internal.workspaces.getById, {
-            workspaceId: args.workspaceId as Id<"workspaces">,
+            workspaceId: workspaceId as Id<"workspaces">,
           });
 
           if (!workspace) {
@@ -67,11 +84,24 @@ export const searchProspects = createTool({
             };
           }
 
+          if (ctx.userId && String(workspace.userId) !== ctx.userId) {
+            logEvent.warn("Workspace ownership mismatch for prospect search", {
+              workspace: {
+                id: workspaceId,
+              },
+            });
+            return {
+              success: false,
+              message: "Not authorized to search this workspace.",
+              error: "Not authorized",
+            };
+          }
+
           const hasRequiredSetupData = hasRequiredWorkspaceAgentData(workspace);
           if (!hasRequiredSetupData) {
             logEvent.warn("Workspace setup incomplete for prospect search", {
               workspace: {
-                id: args.workspaceId,
+                id: workspaceId,
               },
             });
             return {
@@ -124,7 +154,7 @@ export const searchProspects = createTool({
 
           const result = await ctx.runAction(
             internal.workspaces.startProspectingWorkflowInternal,
-            { workspaceId: args.workspaceId as Id<"workspaces"> }
+            { workspaceId: workspaceId as Id<"workspaces"> }
           );
 
           if (result.success) {

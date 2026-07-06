@@ -27,6 +27,7 @@ import {
   twitterActionErrorSummaryValidator,
   twitterActionResultSummaryValidator,
   twitterActionProviderValidator,
+  twitterMediaKindValidator,
   twitterPostRefValidator,
   twitterPostSummaryValidator,
 } from "./validators";
@@ -544,6 +545,9 @@ export const updatePendingActionRequestDraft = mutation({
   args: {
     actionRequestId: v.id("agentActionRequests"),
     content: v.string(),
+    mediaUrls: v.optional(v.array(v.string())),
+    mediaDescriptions: v.optional(v.array(v.string())),
+    mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx, {
@@ -566,7 +570,14 @@ export const updatePendingActionRequestDraft = mutation({
     const snapshot = isRecord(request.argumentsSnapshot)
       ? request.argumentsSnapshot
       : {};
-    const mediaUrls = normalizeMediaUrls(snapshot.mediaUrls);
+    const hasMediaSnapshot =
+      args.mediaUrls !== undefined ||
+      args.mediaDescriptions !== undefined ||
+      args.mediaKinds !== undefined;
+    const currentMediaUrls = normalizeMediaUrls(snapshot.mediaUrls);
+    const mediaUrls = hasMediaSnapshot
+      ? normalizeMediaUrls(args.mediaUrls)
+      : currentMediaUrls;
     const limitError = await getActionDraftValidationError(ctx, {
       userId: request.userId,
       actionKey: request.actionKey,
@@ -582,6 +593,13 @@ export const updatePendingActionRequestDraft = mutation({
       argumentsSnapshot: {
         ...snapshot,
         text: trimmedContent,
+        ...(hasMediaSnapshot
+          ? {
+              mediaUrls,
+              mediaDescriptions: args.mediaDescriptions,
+              mediaKinds: args.mediaKinds,
+            }
+          : {}),
       },
     });
 

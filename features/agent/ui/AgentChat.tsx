@@ -14,7 +14,7 @@ import {
 } from "../hooks/useAgentChat";
 import { useSmoothText } from "@convex-dev/agent/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
@@ -41,6 +41,7 @@ import {
   PromptInputTextarea,
   PromptInputActions,
   PromptInputAction,
+  insertTextareaTextWithUndo,
 } from "@/shared/ui/components/PromptInput";
 import { ThinkingBar } from "@/shared/ui/components/ThinkingBar";
 import {
@@ -70,8 +71,17 @@ import { ScrollButton } from "@/shared/ui/components/ScrollButton";
 import { SystemMessage } from "@/shared/ui/components/SystemMessage";
 import { Tool, type ToolPart } from "@/shared/ui/components/Tool";
 import { AgentArtifactRenderer } from "@/shared/ui/components/json-render";
-import { getAgentArtifactFromResult } from "@/shared/lib/json-render/agentArtifacts";
+import {
+  extractPostMentionCandidatesFromArtifact,
+  getAgentArtifactFromResult,
+} from "@/shared/lib/json-render/agentArtifacts";
 import { logger } from "@/shared/lib/logger";
+import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
+import {
+  normalizeAgentMessageContextMetadata,
+  parseLegacyAgentMessageContent,
+} from "@/shared/lib/mentions/messageContext";
+import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
 import { AgentProspectEmptyState } from "./components/AgentProspectEmptyState";
 import {
   OutreachPlanCard,
@@ -93,7 +103,14 @@ import {
   XCircle,
   Loader2,
   Circle,
+  X,
+  Paperclip,
+  Workflow,
+  ListTodo,
+  MessageSquareText,
+  CircleUserRoundIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   useState,
   useCallback,
@@ -120,15 +137,26 @@ import {
   MailIcon,
   PersonIcon,
 } from "@/shared/ui/components/icons";
-
-const agentChatUiLogger = logger.withScope("AgentChat");
-import { Avatar, AvatarFallback } from "@/shared/ui/components/Avatar";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/shared/ui/components/Avatar";
+import {
+  useMentionEntitySearch,
+  useOutreachPlanPreviewState,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
   useSetupThreadDraft,
+  useWorkspace,
 } from "@/shared/hooks";
+import { getCurrentUTCTimestamp } from "@/shared/lib/utils/time/timeUtils";
 import { getSetupPanelStepTitle } from "@/features/agent/lib/setupOnboardingStepTitles";
+import { buildAgentComposerSubmission } from "@/features/agent/lib/buildAgentComposerMessage";
+import {
+  buildAgentMentionReplacementText,
+  filterSelectedMentionEntitiesByInput,
+} from "@/features/agent/lib/entityMentions";
 import { SetupOnboardingInlineCard } from "./components/SetupOnboardingInlineCard";
 import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { motion, AnimatePresence } from "motion/react";
@@ -140,6 +168,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/components/DropdownMenu";
+
+const agentChatUiLogger = logger.withScope("AgentChat");
 
 // ============================================================================
 // Types
@@ -173,6 +203,51 @@ interface ProgressStep {
 }
 
 const EMPTY_UI_MESSAGES: UIMessage[] = [];
+
+interface MentionPickerButtonProps {
+  disabled?: boolean;
+  onTriggerMention: () => void;
+}
+
+function MentionPickerButton({
+  disabled,
+  onTriggerMention,
+}: MentionPickerButtonProps) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="xsIcon"
+            type="button"
+            disabled={disabled}
+            aria-label="Tag people, plans, tasks, posts, or attachments"
+            title="Tag people, plans, tasks, posts, or attachments"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onTriggerMention}
+          >
+            <AlternateEmailIcon className="fill-current" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Tag people, plans, tasks, posts, or attachments
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+interface ChatAttachment {
+  id: string;
+  uploadId: string | null;
+  fileName: string;
+  mediaUrl: string | null;
+  status: "uploading" | "ready";
+}
+
+const MAX_CHAT_ATTACHMENTS = 4;
+const MAX_CHAT_ATTACHMENT_BYTES = 512 * 1024 * 1024;
 
 function buildStableKey(base: string, sequence: Map<string, number>) {
   const nextCount = (sequence.get(base) ?? 0) + 1;
@@ -232,7 +307,7 @@ export interface AgentChatProps {
   /** Open dynamic panel from inline card */
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   /** Open the current prospect's plan panel */
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
   /** Open the current prospect profile */
   onViewProfile?: () => void;
   /** Open the current prospect's platform conversation panel */
@@ -309,11 +384,13 @@ function ArtifactToolResult({
   onOpenPanelFromCard,
   onOpenPlanPanel,
   onApprovePlan,
+  onDeletePlan,
 }: {
   artifact: NonNullable<ReturnType<typeof getAgentArtifactFromResult>>;
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
   onApprovePlan: (planId: string) => void;
+  onDeletePlan: (planId: string) => void | Promise<void>;
 }) {
   return (
     <AgentArtifactRenderer
@@ -321,54 +398,65 @@ function ArtifactToolResult({
       onOpenPanel={onOpenPanelFromCard}
       onOpenPlanPanel={onOpenPlanPanel}
       onApprovePlan={onApprovePlan}
+      onDeletePlan={onDeletePlan}
     />
   );
 }
 
 function LivePlanPreviewCard({
   planId,
+  prospectId,
   fallbackStatus,
   fallbackRationale,
   fallbackTasks,
   onOpenPlanPanel,
   onApprovePlan,
+  onDeletePlan,
 }: {
   planId?: string;
+  prospectId?: string;
   fallbackStatus: string;
   fallbackRationale: string;
   fallbackTasks: OutreachPlanCardTask[];
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
   onApprovePlan: (planId: string) => void;
+  onDeletePlan: (planId: string) => void | Promise<void>;
 }) {
-  const livePlanData = useQuery(
-    api.outreach.getPlanById,
-    planId ? { planId: planId as Id<"outreachPlans"> } : "skip"
-  );
-  const liveStatus = livePlanData?.plan.status ?? fallbackStatus;
-  const liveRationale =
-    livePlanData?.plan.strategy.rationale ?? fallbackRationale;
-  const liveTasks =
-    (livePlanData?.tasks as OutreachPlanCardTask[] | undefined) ??
-    fallbackTasks;
+  const { resolvedPlanPreview } = useOutreachPlanPreviewState({
+    planId,
+    fallbackStatus,
+    fallbackRationale,
+    fallbackTasks,
+  });
+
+  if (!resolvedPlanPreview) {
+    return null;
+  }
 
   return (
     <OutreachPlanCard
       variant="preview"
-      status={liveStatus}
-      rationale={liveRationale}
-      tasks={liveTasks}
+      status={resolvedPlanPreview.status}
+      rationale={resolvedPlanPreview.rationale}
+      tasks={resolvedPlanPreview.tasks}
+      actionsDisabled={resolvedPlanPreview.actionsDisabled}
       onApprove={
-        liveStatus === "draft" && planId
+        resolvedPlanPreview.status === "draft" && planId
           ? () => {
               onApprovePlan(planId);
             }
           : undefined
       }
+      onDeletePlan={planId ? () => onDeletePlan(planId) : undefined}
       footerAction={
         onOpenPlanPanel
           ? {
               label: "Show plan",
-              onClick: onOpenPlanPanel,
+              onClick: () => onOpenPlanPanel(prospectId ?? null),
+              disabled: resolvedPlanPreview.showPlanDisabled,
+              title: resolvedPlanPreview.showPlanDisabled
+                ? "This plan has been deleted"
+                : undefined,
             }
           : undefined
       }
@@ -383,9 +471,10 @@ function ToolCallVisualization({
 }: {
   toolCalls: ToolCallInfo[];
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
 }) {
   const approvePlan = useMutation(api.outreach.approvePlan);
+  const deletePlan = useMutation(api.outreach.deletePlan);
 
   if (!toolCalls.length) return null;
 
@@ -410,6 +499,16 @@ function ToolCallVisualization({
           onApprovePlan={(planId: string) => {
             void approvePlan({ planId: planId as Id<"outreachPlans"> });
           }}
+          onDeletePlan={async (planId: string) => {
+            await toast.promise(
+              deletePlan({ planId: planId as Id<"outreachPlans"> }),
+              {
+                loading: "Deleting plan...",
+                success: "Plan deleted",
+                error: "Failed to delete plan",
+              }
+            );
+          }}
         />
       );
     }
@@ -423,6 +522,7 @@ function ToolCallVisualization({
     ) {
       const plan = result.plan as {
         id?: string;
+        prospectId?: string;
         status?: string;
         strategy?: { rationale?: string };
       };
@@ -461,6 +561,9 @@ function ToolCallVisualization({
           <LivePlanPreviewCard
             key={`${tc.toolName}-${idx}`}
             planId={planId}
+            prospectId={
+              typeof plan.prospectId === "string" ? plan.prospectId : undefined
+            }
             fallbackStatus={plan.status}
             fallbackRationale={plan.strategy.rationale}
             fallbackTasks={tasks}
@@ -469,6 +572,18 @@ function ToolCallVisualization({
               void approvePlan({
                 planId: resolvedPlanId as Id<"outreachPlans">,
               });
+            }}
+            onDeletePlan={async (resolvedPlanId: string) => {
+              await toast.promise(
+                deletePlan({
+                  planId: resolvedPlanId as Id<"outreachPlans">,
+                }),
+                {
+                  loading: "Deleting plan...",
+                  success: "Plan deleted",
+                  error: "Failed to delete plan",
+                }
+              );
             }}
           />
         );
@@ -738,6 +853,84 @@ function AssistantModelBadge({ model }: { model: string }) {
   );
 }
 
+function getUserMessageEntityIcon(kind: MentionEntitySearchResult["kind"]) {
+  switch (kind) {
+    case "plan":
+      return <Workflow className="size-3.5" aria-hidden="true" />;
+    case "task":
+      return <ListTodo className="size-3.5" aria-hidden="true" />;
+    case "post":
+      return <MessageSquareText className="size-3.5" aria-hidden="true" />;
+    case "attachment":
+      return <Paperclip className="size-3.5" aria-hidden="true" />;
+    case "prospect":
+    default:
+      return <CircleUserRoundIcon className="size-3.5" aria-hidden="true" />;
+  }
+}
+
+function UserMessageContextChips({
+  taggedEntities,
+  attachments,
+}: {
+  taggedEntities: MentionEntitySearchResult[];
+  attachments: Array<{
+    fileName: string;
+    mediaUrl: string | null;
+  }>;
+}) {
+  if (taggedEntities.length === 0 && attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      {taggedEntities.map((entity) => (
+        <span
+          key={entity.id}
+          className="inline-flex max-w-72 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs text-white/95"
+        >
+          {entity.avatarUrl ? (
+            <Avatar className="size-4">
+              <AvatarImage src={entity.avatarUrl} alt="" />
+              <AvatarFallback className="bg-white/15 text-[10px] text-white">
+                {entity.label.charAt(0).toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            getUserMessageEntityIcon(entity.kind)
+          )}
+          <span className="truncate">{entity.label}</span>
+        </span>
+      ))}
+      {attachments.map((attachment, index) => {
+        const chip = (
+          <span className="inline-flex max-w-72 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs text-white/95">
+            <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{attachment.fileName}</span>
+          </span>
+        );
+
+        return attachment.mediaUrl ? (
+          <a
+            key={`${attachment.fileName}-${index}`}
+            href={attachment.mediaUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="max-w-72"
+          >
+            {chip}
+          </a>
+        ) : (
+          <span key={`${attachment.fileName}-${index}`} className="max-w-72">
+            {chip}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Per docs: https://docs.convex.dev/agents/streaming#text-smoothing-with-smoothtext-and-usesmoothtext
  * Use useSmoothText hook for smooth streaming text display.
@@ -755,13 +948,28 @@ function ChatMessage({
   userName?: string;
   threadModelName?: string | null;
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
-  onOpenPlanPanel?: () => void;
+  onOpenPlanPanel?: (prospectId?: string | null) => void;
 }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
   const isPending = message.status === "pending";
   const isStreaming = message.status === "streaming";
   const messageText = getUIMessageDisplayText(message);
+  const userMessageContext = isUser
+    ? normalizeAgentMessageContextMetadata(
+        (message as UIMessage & { metadata?: unknown }).metadata
+      )
+    : null;
+  const legacyUserMessageContent =
+    isUser && !userMessageContext
+      ? parseLegacyAgentMessageContent(messageText)
+      : null;
+  const effectiveUserMessageContext =
+    userMessageContext ?? legacyUserMessageContent?.metadata ?? null;
+  const hasUserContext =
+    Boolean(effectiveUserMessageContext) &&
+    ((effectiveUserMessageContext?.taggedEntities.length ?? 0) > 0 ||
+      (effectiveUserMessageContext?.attachments.length ?? 0) > 0);
 
   // Per docs: useSmoothText smooths text as it streams
   // Pass startStreaming: true when message is actively streaming
@@ -773,7 +981,17 @@ function ChatMessage({
   // Early return AFTER hook call to satisfy Rules of Hooks
   if (!isUser && !isAssistant) return null;
 
-  const displayText = visibleText;
+  const hideSyntheticUserText =
+    isUser &&
+    hasUserContext &&
+    effectiveUserMessageContext?.promptTextSource === "synthetic";
+  const displayText = isUser
+    ? legacyUserMessageContent
+      ? legacyUserMessageContent.displayText
+      : hideSyntheticUserText
+        ? ""
+        : visibleText
+    : visibleText;
   const assistantModel = isAssistant
     ? (getAssistantMessageModel(message) ?? threadModelName ?? null)
     : null;
@@ -845,7 +1063,8 @@ function ChatMessage({
     !failedStateMessage &&
     !isStreaming &&
     !toolCalls.length &&
-    !hasAssistantMetadata
+    !hasAssistantMetadata &&
+    !hasUserContext
   )
     return null;
 
@@ -863,7 +1082,17 @@ function ChatMessage({
             className="bg-primary text-primary-foreground"
             textSize="sm"
           >
-            {displayText}
+            {displayText ? <div>{displayText}</div> : null}
+            {hasUserContext ? (
+              <div className={cn("space-y-0", displayText && "mt-2")}>
+                <UserMessageContextChips
+                  taggedEntities={
+                    effectiveUserMessageContext?.taggedEntities ?? []
+                  }
+                  attachments={effectiveUserMessageContext?.attachments ?? []}
+                />
+              </div>
+            ) : null}
           </MessageContent>
           {displayText && (
             <MessageActions>
@@ -1154,7 +1383,7 @@ function ChatHeader({
                   <DropdownMenuLabel>↳ Menu</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {onViewProfile && (
-                    <DropdownMenuItem onClick={onViewProfile}>
+                    <DropdownMenuItem onClick={() => onViewProfile()}>
                       <PersonIcon className="fill-current" aria-hidden />
                       View profile
                     </DropdownMenuItem>
@@ -1340,6 +1569,7 @@ export function AgentChat({
   const pathname = usePathname();
   // Get WorkOS auth user for profile image (same as Header)
   const { user: authUser } = useAuth();
+  const { workspace: currentWorkspace } = useWorkspace();
 
   const {
     messages,
@@ -1360,6 +1590,7 @@ export function AgentChat({
   } = useAgentChat({
     threadId: threadId ?? null,
     prospectId: prospectId ?? null,
+    workspaceId: currentWorkspace?._id ?? null,
     action: action ?? null,
     newThreadSignal,
   });
@@ -1458,6 +1689,289 @@ export function AgentChat({
   );
   const workspaceStatus = workspaceStatusQuery.data;
 
+  // Attachments: upload files to the shared media library, then reference them
+  // in the message so the △ Agent can reuse them in posts/DMs.
+  const generateUploadUrl = useMutation(
+    api.mediaUploadMutations.generateUploadUrl
+  );
+  const processUploadedMedia = useAction(api.mediaUpload.processUploadedMedia);
+  const attachFileInputRef = useRef<HTMLInputElement>(null);
+  const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
+  const hasUploadingAttachment = chatAttachments.some(
+    (attachment) => attachment.status === "uploading"
+  );
+  const readyAttachments = useMemo(
+    () =>
+      chatAttachments.filter(
+        (attachment) => attachment.status === "ready" && attachment.mediaUrl
+      ),
+    [chatAttachments]
+  );
+  const mentionScopeKey = `${effectiveThreadId ?? "new"}:${prospectId ?? "workspace"}`;
+  const [mentionComposerState, setMentionComposerState] = useState<{
+    scopeKey: string;
+    selectedEntities: MentionEntitySearchResult[];
+    inlineQuery: string | null;
+  }>({
+    scopeKey: mentionScopeKey,
+    selectedEntities: [],
+    inlineQuery: null,
+  });
+  const selectedMentionEntities = mentionComposerState.selectedEntities;
+  const inlineMentionQuery = mentionComposerState.inlineQuery;
+  const threadPostMentionEntities = useMemo(() => {
+    const collected: MentionEntitySearchResult[] = [];
+    const seenIds = new Set<string>();
+
+    for (const message of displayMessages) {
+      if (message.role !== "assistant" || !Array.isArray(message.parts)) {
+        continue;
+      }
+
+      for (const part of message.parts) {
+        if (!isToolPart(part)) {
+          continue;
+        }
+
+        const artifact = getAgentArtifactFromResult(
+          part.output as Record<string, unknown> | undefined
+        );
+        if (!artifact) {
+          continue;
+        }
+
+        for (const candidate of extractPostMentionCandidatesFromArtifact(
+          artifact
+        )) {
+          const entity = buildPostMentionEntity({
+            post:
+              candidate.postSummary ?? candidate.postData ?? candidate.postRef,
+            platformHint: candidate.platform,
+            workspaceId: currentWorkspace?._id ?? undefined,
+            prospectId: candidate.prospectId ?? prospectId ?? undefined,
+          });
+          if (!entity || seenIds.has(entity.id)) {
+            continue;
+          }
+          seenIds.add(entity.id);
+          collected.push(entity);
+        }
+      }
+    }
+
+    return collected.slice(0, 8);
+  }, [currentWorkspace?._id, displayMessages, prospectId]);
+  const inlineMentionSearch = useMentionEntitySearch({
+    enabled: inlineMentionQuery !== null,
+    query: inlineMentionQuery,
+    workspaceId: currentWorkspace?._id ?? null,
+    prospectId: prospectId ?? null,
+    limit: 8,
+    localEntities: threadPostMentionEntities,
+  });
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    setMentionComposerState((current) =>
+      current.scopeKey === mentionScopeKey
+        ? current
+        : {
+            scopeKey: mentionScopeKey,
+            selectedEntities: [],
+            inlineQuery: null,
+          }
+    );
+  }, [mentionScopeKey]);
+
+  useEffect(() => {
+    const textarea = composerTextareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? input.length;
+    const selectionEnd = textarea?.selectionEnd ?? input.length;
+    const nextInlineQuery =
+      selectionStart === selectionEnd
+        ? (/(^|\s|\()@([^\s@()]*)$/.exec(input.slice(0, selectionStart))?.[2] ??
+          null)
+        : null;
+
+    setMentionComposerState((current) =>
+      current.inlineQuery === nextInlineQuery
+        ? current
+        : {
+            ...current,
+            inlineQuery: nextInlineQuery,
+          }
+    );
+  }, [input]);
+
+  useEffect(() => {
+    setMentionComposerState((current) => {
+      const nextSelectedEntities = filterSelectedMentionEntitiesByInput({
+        input,
+        entities: current.selectedEntities,
+      });
+
+      if (nextSelectedEntities.length === current.selectedEntities.length) {
+        return current;
+      }
+
+      return {
+        ...current,
+        selectedEntities: nextSelectedEntities,
+      };
+    });
+  }, [input]);
+
+  const handleAttachFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const fileArray = Array.from(files).slice(0, MAX_CHAT_ATTACHMENTS);
+
+      for (const file of fileArray) {
+        if (file.size > MAX_CHAT_ATTACHMENT_BYTES) {
+          toast.error("File too large", {
+            description: `${file.name} exceeds 512 MB.`,
+          });
+          continue;
+        }
+
+        const attachmentId = `chat-attachment-${getCurrentUTCTimestamp()}-${file.name}`;
+        setChatAttachments((prev) => [
+          ...prev,
+          {
+            id: attachmentId,
+            uploadId: null,
+            fileName: file.name,
+            mediaUrl: null,
+            status: "uploading",
+          },
+        ]);
+
+        try {
+          const uploadUrl = await generateUploadUrl();
+          const uploadResponse = await fetch(uploadUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": file.type || "application/octet-stream",
+            },
+            body: file,
+          });
+          if (!uploadResponse.ok) {
+            throw new Error(`Upload failed (${uploadResponse.status})`);
+          }
+          const { storageId } = (await uploadResponse.json()) as {
+            storageId: Id<"_storage">;
+          };
+          const result = await processUploadedMedia({
+            storageId,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+            workspaceId: currentWorkspace?._id,
+            displayName: file.name,
+          });
+
+          if (!result.mediaUrl) {
+            throw new Error("Upload processed without a media URL");
+          }
+
+          setChatAttachments((prev) =>
+            prev.map((attachment) =>
+              attachment.id === attachmentId
+                ? {
+                    ...attachment,
+                    uploadId: result.uploadId,
+                    mediaUrl: result.mediaUrl,
+                    status: "ready",
+                  }
+                : attachment
+            )
+          );
+        } catch (uploadError) {
+          agentChatUiLogger.error("Attachment upload failed", uploadError);
+          setChatAttachments((prev) =>
+            prev.filter((attachment) => attachment.id !== attachmentId)
+          );
+          toast.error("Attachment upload failed", {
+            description: file.name,
+          });
+        }
+      }
+    },
+    [currentWorkspace?._id, generateUploadUrl, processUploadedMedia]
+  );
+
+  const handleRemoveAttachment = useCallback((attachmentId: string) => {
+    setChatAttachments((prev) =>
+      prev.filter((attachment) => attachment.id !== attachmentId)
+    );
+  }, []);
+
+  const handleSelectMentionEntity = useCallback(
+    (entity: MentionEntitySearchResult) => {
+      setMentionComposerState((current) => {
+        if (current.selectedEntities.some((item) => item.id === entity.id)) {
+          return current;
+        }
+        return {
+          ...current,
+          selectedEntities: [...current.selectedEntities, entity],
+        };
+      });
+    },
+    []
+  );
+
+  const handleInlineMentionQueryChange = useCallback((query: string | null) => {
+    setMentionComposerState((current) =>
+      current.inlineQuery === query
+        ? current
+        : {
+            ...current,
+            inlineQuery: query,
+          }
+    );
+  }, []);
+
+  const handleSendWithAttachments = useCallback(() => {
+    const trimmedInput = input.trim();
+    if (
+      !trimmedInput &&
+      readyAttachments.length === 0 &&
+      selectedMentionEntities.length === 0
+    ) {
+      return;
+    }
+    if (hasUploadingAttachment) {
+      toast.info("Hold on", {
+        description: "Attachments are still uploading.",
+      });
+      return;
+    }
+
+    const submission = buildAgentComposerSubmission({
+      input: trimmedInput,
+      taggedEntities: selectedMentionEntities,
+      attachments: readyAttachments,
+    });
+    if (!submission) {
+      return;
+    }
+
+    setChatAttachments([]);
+    setMentionComposerState((current) => ({
+      ...current,
+      selectedEntities: [],
+      inlineQuery: null,
+    }));
+    void sendMessage(submission);
+  }, [
+    hasUploadingAttachment,
+    input,
+    readyAttachments,
+    selectedMentionEntities,
+    sendMessage,
+  ]);
+
   const onboardingLock = useStore($onboardingLock);
   const isSetupRoute = pathname === "/agent/setup";
   const {
@@ -1543,6 +2057,40 @@ export function AgentChat({
     (onboardingLock && !isSetupRoute) ||
     setupSessionLocksComposer ||
     (Boolean(prospectId) && prospectArchived);
+  const handleTriggerMentionInsertion = useCallback(() => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea || isComposerLocked) {
+      return;
+    }
+
+    const selectionStart = textarea.selectionStart ?? textarea.value.length;
+    const selectionEnd = textarea.selectionEnd ?? selectionStart;
+    const beforeCursor = textarea.value.slice(0, selectionStart);
+    const hasActiveMentionTrigger =
+      selectionStart === selectionEnd &&
+      /(^|\s|\()@([^\s@()]*)$/.test(beforeCursor);
+    const prefix = beforeCursor.length > 0 && !/[\s(]$/.test(beforeCursor);
+    const insertionText = hasActiveMentionTrigger ? "" : prefix ? " @" : "@";
+
+    textarea.focus();
+
+    if (!insertionText) {
+      textarea.setSelectionRange(selectionStart, selectionEnd);
+      return;
+    }
+
+    const result = insertTextareaTextWithUndo({
+      textarea,
+      text: insertionText,
+      selectionStart,
+      selectionEnd,
+    });
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  }, [isComposerLocked]);
   const agentInlineAutocompleteContext = useMemo(
     () => ({
       surfaceLabel: "agent_chat",
@@ -1565,26 +2113,26 @@ export function AgentChat({
     }
   }, [threadId]);
 
-  // Sync generatedThreadId to URL when auto-generation completes
-  // This ensures messages load correctly and page can be reloaded
+  // The setup route owns a couple of transient query params, so it still needs
+  // a local URL canon step before the parent shell takes over thread syncing.
   useEffect(() => {
-    if (generatedThreadId && !threadId && !hasUrlUpdated.current) {
+    if (pathname !== "/agent/setup") {
+      return;
+    }
+
+    const nextThreadId = generatedThreadId ?? effectiveThreadId;
+    if (nextThreadId && !threadId && !hasUrlUpdated.current) {
       hasUrlUpdated.current = true;
-      // Keep setup-route action params until the route guard can transition
-      // to a persisted onboarding thread, otherwise we can bounce out early.
       const url = new URL(window.location.href);
-      url.searchParams.set("threadId", generatedThreadId);
+      url.searchParams.set("threadId", nextThreadId);
       url.searchParams.delete("sessionId");
-      if (pathname !== "/agent/setup") {
-        url.searchParams.delete("action");
-      }
       window.history.replaceState(
         window.history.state,
         "",
         url.pathname + url.search
       );
     }
-  }, [generatedThreadId, pathname, threadId]);
+  }, [effectiveThreadId, generatedThreadId, pathname, threadId]);
 
   // Notify parent of effective thread ID changes (for HistoryPanel "Current" badge)
   useEffect(() => {
@@ -1803,58 +2351,100 @@ export function AgentChat({
 
       {/* Input Area - with backdrop blur */}
       <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
+        {/* Attachment chips */}
+        {chatAttachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {chatAttachments.map((attachment) => (
+              <span
+                key={attachment.id}
+                className="border-border bg-muted/50 text-muted-foreground inline-flex max-w-56 items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+              >
+                {attachment.status === "uploading" ? (
+                  <Loader2 className="size-3 shrink-0 animate-spin" />
+                ) : (
+                  <Paperclip className="size-3 shrink-0" />
+                )}
+                <span className="truncate">{attachment.fileName}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${attachment.fileName}`}
+                  className="hover:text-foreground shrink-0 transition-colors"
+                  onClick={() => handleRemoveAttachment(attachment.id)}
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {/* Input */}
         <PromptInput
           value={input}
           onValueChange={setInput}
-          onSubmit={() => sendMessage()}
+          onSubmit={handleSendWithAttachments}
           isLoading={isLoading}
           disabled={isComposerLocked}
         >
           <PromptInputTextarea
             autoFocus
             className="px-1 pt-0.5 text-sm"
+            textareaElementRef={composerTextareaRef}
             placeholder={
               displayMessages.length > 0
                 ? "Type here..."
                 : emptyPromptPlaceholder
             }
             inlineAutocompleteContext={agentInlineAutocompleteContext}
+            mentionAutocomplete={{
+              items: inlineMentionSearch.results,
+              loading: inlineMentionSearch.loading,
+              onQueryChange: handleInlineMentionQueryChange,
+              onSelectItem: handleSelectMentionEntity,
+              getReplacementText: (entity) =>
+                selectedMentionEntities.some((item) => item.id === entity.id)
+                  ? ""
+                  : buildAgentMentionReplacementText(entity),
+            }}
             disabled={isComposerLocked}
           />
           <PromptInputActions className="justify-between pt-1">
-            {/* Left actions - Coming soon features */}
+            {/* Left actions */}
             <div className="flex items-center gap-1">
+              <input
+                ref={attachFileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(event) => {
+                  void handleAttachFiles(event.target.files);
+                  event.target.value = "";
+                }}
+              />
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "xsIcon" }),
-                      "opacity-50"
-                    )}
+                    className={buttonVariants({
+                      variant: "outline",
+                      size: "xsIcon",
+                    })}
                     type="button"
+                    onClick={() => attachFileInputRef.current?.click()}
+                    disabled={isComposerLocked}
+                    aria-label="Attach media"
+                    title="Attach media"
                   >
                     <AttachFileIcon className="fill-current" />
                   </TooltipTrigger>
-                  <TooltipContent>Coming soon!</TooltipContent>
+                  <TooltipContent>
+                    Attach media for the △ Agent to use
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger
-                    aria-disabled
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "xsIcon" }),
-                      "opacity-50"
-                    )}
-                    type="button"
-                  >
-                    <AlternateEmailIcon className="fill-current" />
-                  </TooltipTrigger>
-                  <TooltipContent>Coming soon!</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <MentionPickerButton
+                disabled={isComposerLocked}
+                onTriggerMention={handleTriggerMentionInsertion}
+              />
             </div>
 
             {/* Right action - Send/Stop */}
@@ -1865,6 +2455,8 @@ export function AgentChat({
                   variant="ghost"
                   size="xsIcon"
                   onClick={stop}
+                  aria-label="Stop generating"
+                  title="Stop generating"
                 >
                   <StopIcon className="fill-current" />
                 </Button>
@@ -1875,8 +2467,16 @@ export function AgentChat({
                   type="button"
                   variant="default"
                   size="xsIcon"
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim() || isComposerLocked}
+                  onClick={handleSendWithAttachments}
+                  aria-label="Send message"
+                  title="Send message"
+                  disabled={
+                    (!input.trim() &&
+                      readyAttachments.length === 0 &&
+                      selectedMentionEntities.length === 0) ||
+                    hasUploadingAttachment ||
+                    isComposerLocked
+                  }
                 >
                   <ArrowUpwardIcon className="fill-current" />
                 </Button>

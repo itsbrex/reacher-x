@@ -8,7 +8,10 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../../_generated/api";
 import type { Doc } from "../../../_generated/dataModel";
-import { extractProspectIdWithFallback } from "./helpers";
+import {
+  extractProspectIdWithFallback,
+  MISSING_PROSPECT_SELECTION_MESSAGE,
+} from "./helpers";
 import {
   createPlanPreviewArtifact,
   type AgentArtifactEnvelope,
@@ -79,8 +82,7 @@ export const getProspectPlan = createTool({
           hasPlan: false,
           plan: null,
           tasks: [],
-          error:
-            "Could not determine prospect. Please call this from a prospect thread.",
+          error: MISSING_PROSPECT_SELECTION_MESSAGE,
         };
       }
 
@@ -120,6 +122,7 @@ export const getProspectPlan = createTool({
         })),
         artifact: createPlanPreviewArtifact({
           planId: result.plan._id,
+          prospectId: result.plan.prospectId,
           status: result.plan.status,
           rationale: result.plan.strategy.rationale,
           tasks: result.tasks.map((t: Doc<"outreachTasks">) => ({

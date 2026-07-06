@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "./useAuth";
@@ -33,6 +34,7 @@ type OutreachNotificationSummary = {
  * Tracks shown notifications to prevent duplicates across re-renders.
  */
 export function useOutreachNotificationToast() {
+  const convex = useConvex();
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaceId, shellStateQuery } = useNotificationWorkspace();
 
@@ -112,8 +114,16 @@ export function useOutreachNotificationToast() {
       const toastAction = targetHref
         ? {
             label: "View",
-            onClick: () => {
-              window.location.href = targetHref;
+            onClick: async () => {
+              const resolvedTargetHref = await convex.query(
+                api.outreach.resolveNotificationTarget,
+                {
+                  notificationId:
+                    notification._id as Id<"outreachNotifications">,
+                  workspaceId: workspaceId as Id<"workspaces">,
+                }
+              );
+              window.location.href = resolvedTargetHref ?? targetHref;
             },
           }
         : undefined;
@@ -172,5 +182,6 @@ export function useOutreachNotificationToast() {
     notificationsQuery.isSuccess,
     shellStateQuery.isPending,
     workspaceId,
+    convex,
   ]);
 }

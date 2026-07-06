@@ -8,7 +8,7 @@ import { InlinePostFeatureStrip } from "./InlinePostFeatureStrip";
 
 export interface InlinePanelTriggerCardProps extends PostCardProps {
   panelMode?: AgentPanelMode;
-  onOpenPanel: () => void;
+  onOpenPanel?: () => void;
 }
 
 function getAriaLabel(mode?: AgentPanelMode): string {
@@ -23,42 +23,57 @@ export function InlinePanelTriggerCard({
   context: _context,
   ...postCardProps
 }: InlinePanelTriggerCardProps) {
+  const isInteractive = typeof onOpenPanel === "function";
+  const postCard = (
+    <PostCard
+      {...postCardProps}
+      showFullContent={true}
+      readOnly
+      bodyLineClamp={3}
+      showOpenGraphPreview={false}
+      showMenu={true}
+      showSource={false}
+      showFooter={false}
+      interactiveCursor={isInteractive}
+    />
+  );
+
   const handleActivate = (event: React.MouseEvent<HTMLDivElement>) => {
     if (shouldIgnoreInlineCardClick(event)) {
       return;
     }
-    onOpenPanel();
+    onOpenPanel?.();
   };
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div
-        role="button"
-        tabIndex={0}
-        className="group border-border hover:bg-muted/30 focus-visible:ring-ring cursor-pointer overflow-hidden rounded-xl border p-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
-        aria-label={getAriaLabel(panelMode)}
-        onClick={handleActivate}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onOpenPanel();
-          }
-        }}
-      >
-        <PostCard
-          {...postCardProps}
-          showFullContent={true}
-          readOnly
-          bodyLineClamp={3}
-          showOpenGraphPreview={false}
-          showMenu={true}
-          showSource={false}
-          showFooter={false}
-          interactiveCursor={true}
-        />
-      </div>
+      {isInteractive ? (
+        <div
+          role="button"
+          tabIndex={0}
+          className="group border-border hover:bg-muted/30 focus-visible:ring-ring cursor-pointer overflow-hidden rounded-xl border p-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+          aria-label={getAriaLabel(panelMode)}
+          onClick={handleActivate}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpenPanel?.();
+            }
+          }}
+        >
+          {postCard}
+        </div>
+      ) : (
+        <div className="border-border overflow-hidden rounded-xl border p-2">
+          {postCard}
+        </div>
+      )}
 
-      <InlinePostFeatureStrip title="Post" onOpenPanel={onOpenPanel} />
+      <InlinePostFeatureStrip
+        title="Post"
+        interactive={isInteractive}
+        onOpenPanel={onOpenPanel}
+      />
     </div>
   );
 }

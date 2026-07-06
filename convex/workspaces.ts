@@ -8,6 +8,7 @@ import {
   workspaceUseCaseKeyValidator,
   workspaceOnboardingIssueSourceValidator,
   workspaceOnboardingIssueStatusCodeValidator,
+  workspaceAgentAutonomyModeValidator,
   icpValidator,
 } from "./validators";
 import {
@@ -83,6 +84,8 @@ type WorkspaceWithResolvedUseCase = Omit<WorkspaceDoc, "useCaseKey"> & {
   styleProfileVersion: number;
 };
 const workspaceLogger = logger.withScope("Workspaces");
+const DEFAULT_WORKSPACE_AGENT_AUTONOMY_MODE = "review_required" as const;
+const DEFAULT_DAILY_BROWSER_SEND_CAP = 25;
 
 async function scheduleBootstrapStyleBackfillsIfNeeded(
   ctx: Pick<MutationCtx, "scheduler">,
@@ -149,6 +152,28 @@ function getResolvedFitScoreRange(workspace: WorkspaceDoc) {
   return {
     fitScoreMin: workspace.fitScoreMin ?? QUALIFICATION_THRESHOLD,
     fitScoreMax: workspace.fitScoreMax ?? 100,
+  };
+}
+
+async function getWorkspaceAgentSettingsRow(
+  ctx: WorkspaceAccessCtx,
+  workspaceId: WorkspaceDoc["_id"]
+) {
+  return await ctx.db
+    .query("workspaceAgentSettings")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .first();
+}
+
+function getDefaultWorkspaceAgentSettings(workspace: WorkspaceDoc) {
+  return {
+    workspaceId: workspace._id,
+    userId: workspace.userId,
+    autonomyMode: DEFAULT_WORKSPACE_AGENT_AUTONOMY_MODE,
+    browserSendingEnabled: false,
+    dailyBrowserSendCap: DEFAULT_DAILY_BROWSER_SEND_CAP,
+    browserSendCountToday: 0,
+    browserSendCountDayKey: undefined,
   };
 }
 
@@ -320,6 +345,106 @@ export const getUserWorkspacesInternal = internalQuery({
         withResolvedWorkspaceUseCase(ctx, workspace)
       )
     );
+  },
+});
+
+export const getWorkspaceAgentSettings = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const user = await getUserByIdentity(ctx, identity);
+    if (!user) {
+      return null;
+    }
+
+    const workspace = await requireOwnedWorkspace(ctx, workspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage: "Not authorized to view this workspace",
+    });
+    const settings = await getWorkspaceAgentSettingsRow(ctx, workspaceId);
+    return settings ?? getDefaultWorkspaceAgentSettings(workspace);
+  },
+});
+
+export const getWorkspaceAgentSettingsInternal = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) {
+      return null;
+    }
+
+    const settings = await getWorkspaceAgentSettingsRow(ctx, workspaceId);
+    return settings ?? getDefaultWorkspaceAgentSettings(workspace);
+  },
+});
+
+/**
+ * Full workspace inspection for the △ Agent (internal).
+ * One call returns description, ICPs, connected accounts, and autonomy
+ * settings so the agent can ground its strategy in real workspace state.
+ */
+export const getWorkspaceInspectionInternal = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) {
+      return null;
+    }
+
+    const [settingsRow, xAccount, linkedinAccount] = await Promise.all([
+      getWorkspaceAgentSettingsRow(ctx, workspaceId),
+      ctx.db
+        .query("xAccounts")
+        .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
+        .first(),
+      ctx.db
+        .query("linkedinAccounts")
+        .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
+        .first(),
+    ]);
+    const settings = settingsRow ?? getDefaultWorkspaceAgentSettings(workspace);
+
+    return {
+      name: workspace.name,
+      description: workspace.improvedDescription || workspace.description,
+      useCaseKey: workspace.useCaseKey ?? null,
+      icps: (workspace.icps ?? []).map((icp) => ({
+        title: icp.title,
+        description: icp.description,
+        painPoints: icp.painPoints,
+        channels: icp.channels,
+      })),
+      connectedAccounts: {
+        x: xAccount
+          ? {
+              username: xAccount.username,
+              status: xAccount.status,
+              subscriptionType: xAccount.xSubscriptionType ?? null,
+            }
+          : null,
+        linkedin: linkedinAccount
+          ? {
+              username:
+                linkedinAccount.username ??
+                linkedinAccount.publicIdentifier ??
+                null,
+              status: linkedinAccount.status,
+              premium: linkedinAccount.premium ?? false,
+            }
+          : null,
+      },
+      agentSettings: {
+        autonomyMode: settings.autonomyMode,
+        browserSendingEnabled: settings.browserSendingEnabled,
+        dailyBrowserSendCap: settings.dailyBrowserSendCap,
+      },
+    };
   },
 });
 
@@ -498,6 +623,107 @@ export const updateWorkspaceSettings = mutation({
     return {
       workspaceId: workspace._id,
       regenerationScheduledCount,
+    };
+  },
+});
+
+export const updateWorkspaceAgentSettings = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    autonomyMode: v.optional(workspaceAgentAutonomyModeValidator),
+    browserSendingEnabled: v.optional(v.boolean()),
+    dailyBrowserSendCap: v.optional(v.number()),
+    releasePendingApprovals: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx, { notFoundMessage: "User not found" });
+    const workspace = await requireOwnedWorkspace(ctx, args.workspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage: "Not authorized to update this workspace",
+    });
+
+    if (
+      args.dailyBrowserSendCap !== undefined &&
+      (!Number.isFinite(args.dailyBrowserSendCap) ||
+        args.dailyBrowserSendCap < 0)
+    ) {
+      throw new Error("Daily browser send cap must be zero or greater.");
+    }
+
+    const current =
+      (await getWorkspaceAgentSettingsRow(ctx, args.workspaceId)) ??
+      getDefaultWorkspaceAgentSettings(workspace);
+    const now = getCurrentUTCTimestamp();
+    const nextSettings = {
+      ...current,
+      autonomyMode: args.autonomyMode ?? current.autonomyMode,
+      browserSendingEnabled:
+        args.browserSendingEnabled ?? current.browserSendingEnabled,
+      dailyBrowserSendCap:
+        args.dailyBrowserSendCap ?? current.dailyBrowserSendCap,
+      updatedAt: now,
+    };
+
+    const existing = await getWorkspaceAgentSettingsRow(ctx, args.workspaceId);
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        autonomyMode: nextSettings.autonomyMode,
+        browserSendingEnabled: nextSettings.browserSendingEnabled,
+        dailyBrowserSendCap: nextSettings.dailyBrowserSendCap,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("workspaceAgentSettings", nextSettings);
+    }
+
+    const shouldReleasePendingApprovals =
+      args.releasePendingApprovals === true &&
+      nextSettings.autonomyMode === "autonomous";
+    let releasedTaskCount = 0;
+    if (shouldReleasePendingApprovals) {
+      const executingPlans = await ctx.db
+        .query("outreachPlans")
+        .withIndex("by_workspace_status", (q) =>
+          q.eq("workspaceId", args.workspaceId).eq("status", "executing")
+        )
+        .collect();
+
+      for (const plan of executingPlans) {
+        const tasks = await ctx.db
+          .query("outreachTasks")
+          .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+          .collect();
+
+        for (const task of tasks) {
+          if (
+            (task.type !== "comment" && task.type !== "dm") ||
+            (task.status !== "pending" && task.status !== "executing") ||
+            !task.approvalEventId ||
+            task.approvedAt
+          ) {
+            continue;
+          }
+
+          await ctx.db.patch(task._id, {
+            approvedAt: now,
+          });
+          await ctx.scheduler.runAfter(
+            0,
+            internal.workflows.outreach.sendTaskApproval,
+            {
+              approvalEventId: task.approvalEventId,
+              taskId: task._id,
+            }
+          );
+          releasedTaskCount += 1;
+        }
+      }
+    }
+
+    return {
+      autonomyMode: nextSettings.autonomyMode,
+      releasedTaskCount,
     };
   },
 });

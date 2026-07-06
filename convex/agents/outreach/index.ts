@@ -26,6 +26,12 @@ import {
   getProspectPlan,
   generatePlan,
   refinePlan,
+  inspectWorkspace,
+  researchProspect,
+  pausePlan,
+  resumePlan,
+  cancelPlan,
+  deletePlan,
   displayEntity,
   askHuman,
   approveTask,
@@ -39,6 +45,7 @@ import {
   getStoredXSubscriptionTypeForAgentUser,
 } from "./tools/xPostLimitHelpers";
 import { logger } from "../../../shared/lib/logger";
+import { getStyleMemoryCategory } from "../../lib/styleSourceCore";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -48,9 +55,15 @@ export const outreachAgentBaseTools = {
   // Context tools
   getSocialContext,
   getProspectPlan,
+  inspectWorkspace,
+  researchProspect,
   // Plan management
   generatePlan,
   refinePlan,
+  pausePlan,
+  resumePlan,
+  cancelPlan,
+  deletePlan,
   // Generative UI
   displayEntity,
   // Curated social actions via app-owned policy + executor
@@ -131,6 +144,7 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
       {
         workspaceId: String(prospect.workspaceId),
         userId: String(prospect.userId),
+        platform: prospect.platform === "linkedin" ? "linkedin" : "twitter",
         title: prospect.title,
         briefIntro: prospect.briefIntro,
         painPoints:
@@ -194,6 +208,9 @@ You are chatting about this specific prospect. You already have their context.
 Relevant reusable memories:
 ${outreachLearningContext.relevantMemories.map((item: string) => `- ${item}`).join("\n") || "- None"}
 
+Operator preferences:
+${outreachLearningContext.operatorPreferences.map((item: string) => `- ${item}`).join("\n") || "- None"}
+
 Winning patterns:
 ${outreachLearningContext.winningPatterns.map((item: string) => `- ${item}`).join("\n") || "- None"}
 
@@ -241,12 +258,12 @@ Still prefer concise writing unless the user clearly wants a longer post.`,
     let writingStyleMessage: { role: "system"; content: string } | null = null;
     try {
       const styleMemories = await ctx.runQuery(
-        internal.memory.findRelevantBuiltInAgentMemoriesInternal,
+        internal.memory.listPinnedWorkspaceMemoriesInternal,
         {
-          userId: String(prospect.userId),
           workspaceId: String(prospect.workspaceId),
-          query: "writing style profile voice",
-          categories: ["writing_style_profile"],
+          category: getStyleMemoryCategory(
+            prospect.platform === "linkedin" ? "linkedin" : "twitter"
+          ),
           limit: 1,
         }
       );

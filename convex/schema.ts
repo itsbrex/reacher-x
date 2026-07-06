@@ -26,6 +26,8 @@ import {
   enrichmentStatusValidator,
   prospectingWorkflowPauseReasonValidator,
   workspaceWorkflowStatusValidator,
+  workspaceAgentAutonomyModeValidator,
+  browserConnectionStatusValidator,
   workspaceOnboardingIssueSourceValidator,
   workspaceOnboardingIssueStatusCodeValidator,
   monitorStatusValidator,
@@ -106,6 +108,9 @@ import {
   twitterReplyDiscoveryScoreBreakdownValidator,
   socialQueryStyleValidator,
   agentUsageSnapshotValidator,
+  agentMessageAttachmentReferenceValidator,
+  agentMessagePromptTextSourceValidator,
+  agentMessageTaggedEntityValidator,
 } from "./validators";
 
 // ============================================================================
@@ -579,6 +584,7 @@ export default defineSchema({
     websiteDisplayText: v.optional(v.string()),
     bioUrlEntities: v.optional(v.array(twitterUrlEntityValidator)),
     email: v.optional(v.string()),
+    phone: v.optional(v.string()),
     location: v.optional(v.string()),
 
     // Pipeline stage tracking
@@ -778,11 +784,18 @@ export default defineSchema({
   // Media uploads for temporary storage
   mediaUploads: defineTable({
     storageId: v.id("_storage"),
+    userId: v.optional(v.id("users")),
+    workspaceId: v.optional(v.id("workspaces")),
     fileName: v.string(),
+    displayName: v.optional(v.string()),
     mimeType: v.string(),
     size: v.number(),
+    tags: v.optional(v.array(v.string())),
     uploadedAt: v.number(),
-  }).index("by_uploaded_at", ["uploadedAt"]),
+  })
+    .index("by_uploaded_at", ["uploadedAt"])
+    .index("by_user_uploaded_at", ["userId", "uploadedAt"])
+    .index("by_workspace_uploaded_at", ["workspaceId", "uploadedAt"]),
 
   platformConversations: defineTable({
     userId: v.id("users"),
@@ -1140,6 +1153,43 @@ export default defineSchema({
     threadSummary: v.optional(v.string()),
   })
     .index("by_prospect", ["prospectId"])
+    .index("by_thread", ["threadId"])
+    .index("by_user", ["userId"]),
+
+  /**
+   * Canonical relationship table between workspace-scoped agent chats and
+   * agent component threads. This powers `/agent` history and prevents
+   * workspace chat from leaking whichever unrelated thread happened to be most
+   * recently active for the user.
+   */
+  workspaceAgentThreads: defineTable({
+    workspaceId: v.id("workspaces"),
+    threadId: v.string(),
+    userId: v.id("users"),
+    threadStatus: v.optional(agentComponentThreadStatusValidator),
+    threadSummary: v.optional(v.string()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_thread", ["threadId"])
+    .index("by_user", ["userId"]),
+
+  /**
+   * Structured user-selected context for agent chat turns.
+   * Kept outside the agent component so we can persist app-specific metadata
+   * without polluting visible prompt text.
+   */
+  agentMessageContexts: defineTable({
+    threadId: v.string(),
+    messageId: v.string(),
+    userId: v.id("users"),
+    workspaceId: v.optional(v.id("workspaces")),
+    prospectId: v.optional(v.id("prospects")),
+    promptTextSource: agentMessagePromptTextSourceValidator,
+    taggedEntities: v.array(agentMessageTaggedEntityValidator),
+    attachments: v.array(agentMessageAttachmentReferenceValidator),
+    createdAt: v.number(),
+  })
+    .index("by_message", ["messageId"])
     .index("by_thread", ["threadId"])
     .index("by_user", ["userId"]),
 
@@ -1531,6 +1581,42 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_workspace_day", ["workspaceId", "dayStartUtcMs"]),
 
+  workspaceAgentSettings: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    autonomyMode: workspaceAgentAutonomyModeValidator,
+    browserSendingEnabled: v.boolean(),
+    dailyBrowserSendCap: v.number(),
+    browserSendCountToday: v.number(),
+    browserSendCountDayKey: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_workspace", ["userId", "workspaceId"]),
+
+  /**
+   * Kernel-backed browser sending connections. One per connected X account.
+   * The Kernel profile stores the logged-in x.com session; the auth connection
+   * keeps it healthy via managed auth (health checks + re-auth).
+   */
+  browserConnections: defineTable({
+    userId: v.id("users"),
+    xAccountId: v.id("xAccounts"),
+    kernelProfileName: v.string(),
+    authConnectionId: v.string(),
+    status: browserConnectionStatusValidator,
+    lastVerifiedAt: v.optional(v.number()),
+    /** Consecutive browser-send failures; used for the stop-loss guardrail. */
+    consecutiveFailures: v.optional(v.number()),
+    /** UTC day key (YYYY-MM-DD) for the daily send counter. */
+    sendCountDayKey: v.optional(v.string()),
+    /** Number of browser sends performed on sendCountDayKey. */
+    sendCountToday: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_x_account", ["xAccountId"]),
+
   /**
    * Workspace-scoped built-in memory inventory used by Agent Ops.
    * This keeps dashboard reads off the large raw Agent component memory blobs.
@@ -1550,6 +1636,16 @@ export default defineSchema({
     evidenceCount: v.number(),
   })
     .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_workspace_category_and_created_at", [
+      "workspaceId",
+      "category",
+      "createdAt",
+    ])
+    .index("by_workspace_source_and_created_at", [
+      "workspaceId",
+      "source",
+      "createdAt",
+    ])
     .index("by_workspace_day_and_impact_score_and_created_at", [
       "workspaceId",
       "createdDayStartUtcMs",

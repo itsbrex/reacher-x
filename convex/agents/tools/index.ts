@@ -11,6 +11,7 @@ export { createWorkspace } from "./createWorkspace";
 export { updateWorkspace } from "./updateWorkspace";
 export { rememberWorkspaceMemory } from "./rememberWorkspaceMemory";
 export { searchWorkspaceMemories } from "./searchWorkspaceMemories";
+export { continueProspectThread } from "./continueProspectThread";
 
 // Prospecting tools
 export { convertToSocialQueries } from "./convertToSocialQueries";
@@ -21,3 +22,6 @@ export { qualifyProspect } from "./qualifyProspect";
 
 // Enrichment tools
 export { enrichProspect } from "./enrichProspect";
+
+// Main △ Agent fan-out tools
+export { listProspectPlans, updatePlansBatch } from "./prospectPlansFanout";

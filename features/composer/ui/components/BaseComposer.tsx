@@ -28,6 +28,7 @@ import { MediaRenderPlugin } from "./MediaRenderPlugin";
 import { MediaPastePlugin } from "./MediaPastePlugin";
 import {
   ComposerBaseProps,
+  ComposerEntityMentionsConfig,
   ComposerInitialMediaUpload,
   ComposerIdentityUser,
   ComposerMediaKind,
@@ -35,8 +36,10 @@ import {
   ToolbarConfig,
 } from "../../types";
 import { NewReleasesIcon } from "@/shared/ui/components/icons";
+import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
 import { getXPostWeightedLength } from "@/shared/lib/twitter/xPostTextLimit";
 import { useAction, useMutation } from "convex/react";
+import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { logger } from "@/shared/lib/logger";
@@ -44,6 +47,7 @@ import {
   COMPOSER_PREVIEW_CONTENT_EDITABLE_CLASS,
   COMPOSER_PREVIEW_PLACEHOLDER_CLASS,
 } from "@/features/composer/ui/dmComposerClasses";
+import { buildInitialMediaUploadFromMentionEntity } from "../../lib/entityMentions";
 
 function areMediaUploadsEqual(a: MediaUpload[], b: MediaUpload[]) {
   if (a === b) return true;
@@ -200,6 +204,8 @@ export function BaseComposer({
   composerPlaceholderClassName,
   showOpenGraphPreview = true,
   inlineAutocompleteContext,
+  enableEntityMentions = false,
+  entityMentions,
   headerPrimary,
   headerSecondary,
   headerActionsRight,
@@ -306,6 +312,83 @@ export function BaseComposer({
     api.mediaUploadMutations.generateUploadUrl
   );
   const processUploadedMedia = useAction(api.mediaUpload.processUploadedMedia);
+
+  const handleMentionEntitySelection = useCallback(
+    (entity: MentionEntitySearchResult) => {
+      if (entity.kind !== "attachment") {
+        return;
+      }
+
+      const initialUpload = buildInitialMediaUploadFromMentionEntity(entity);
+      if (!initialUpload?.serverUrl) {
+        toast.error("Attachment unavailable", {
+          description: entity.label,
+        });
+        return;
+      }
+
+      const alreadyAttached = mediaUploads.some(
+        (upload) =>
+          upload.uploadId === initialUpload.uploadId ||
+          upload.serverUrl === initialUpload.serverUrl
+      );
+      if (alreadyAttached) {
+        return;
+      }
+
+      const nextMediaKind = initialUpload.mediaKind;
+      if (!nextMediaKind) {
+        toast.error("Attachment unavailable", {
+          description: entity.label,
+        });
+        return;
+      }
+
+      if (!allowedMediaKindsSet.has(nextMediaKind)) {
+        toast.error(`This composer only supports ${allowedMediaKindsLabel}.`);
+        return;
+      }
+
+      const currentActiveUploads = mediaUploads.filter(
+        (upload) => upload.status !== "error"
+      );
+      if (currentActiveUploads.length >= maxAttachments) {
+        toast.error(`Maximum ${maxAttachments} attachments are allowed.`);
+        return;
+      }
+
+      const selectionError = getComposerSelectionError(
+        currentActiveUploads.map((upload) => upload.mediaKind),
+        nextMediaKind
+      );
+      if (selectionError) {
+        toast.error(selectionError);
+        return;
+      }
+
+      setMediaUploads((prev) => [
+        ...prev,
+        buildInitialMediaUpload(initialUpload),
+      ]);
+    },
+    [allowedMediaKindsLabel, allowedMediaKindsSet, maxAttachments, mediaUploads]
+  );
+
+  const resolvedEntityMentions = useMemo<
+    ComposerEntityMentionsConfig | undefined
+  >(
+    () =>
+      entityMentions
+        ? {
+            ...entityMentions,
+            onSelectEntity: (entity: MentionEntitySearchResult) => {
+              handleMentionEntitySelection(entity);
+              entityMentions.onSelectEntity?.(entity);
+            },
+          }
+        : undefined,
+    [entityMentions, handleMentionEntitySelection]
+  );
 
   const handleContentChange = useCallback(
     (newContent: SerializedEditorState) => {
@@ -847,6 +930,10 @@ export function BaseComposer({
         contentEditableClassName={resolvedContentEditableClassName}
         composerPlaceholderClassName={resolvedPlaceholderClassName}
         inlineAutocompleteContext={inlineAutocompleteContext}
+        enableEntityMentions={
+          enableEntityMentions || Boolean(resolvedEntityMentions)
+        }
+        entityMentions={resolvedEntityMentions}
         onContentChange={handleContentChange}
         onBridgeReady={handleBridgeReady}
         onFormattingChange={handleFormattingChange}

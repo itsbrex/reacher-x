@@ -18,6 +18,51 @@ import type { ConvexWideEventLogger } from "../../../lib/wideEventLogger";
  * Used by all tools that need to extract IDs from thread context.
  */
 export type ToolContext = ToolCtx;
+export type SelectedThreadContext = {
+  routeKind: "prospect" | "workspace" | "setup" | "unknown";
+  workspaceId: Id<"workspaces"> | null;
+  prospectId: Id<"prospects"> | null;
+  planId: Id<"outreachPlans"> | null;
+  taskId: Id<"outreachTasks"> | null;
+  postId: string | null;
+  postPlatform: "twitter" | "linkedin" | null;
+  postUrl: string | null;
+  source: "thread" | "tagged" | "none";
+  ambiguousProspectIds: string[];
+};
+
+export const MISSING_PROSPECT_SELECTION_MESSAGE =
+  "Could not determine which prospect you mean. Tag a prospect, plan, task, or post, or open that prospect's thread.";
+
+export const AMBIGUOUS_PROSPECT_SELECTION_MESSAGE =
+  "Multiple prospects are selected right now. Narrow it to one prospect, or use the batch plan tools for multi-prospect changes.";
+
+export async function resolveSelectedThreadContext(
+  ctx: ToolContext,
+  moduleName: string,
+  logEvent?: ConvexWideEventLogger | null
+): Promise<SelectedThreadContext | null> {
+  const threadId = ctx.threadId;
+  if (!threadId) {
+    return null;
+  }
+
+  try {
+    return await ctx.runQuery(
+      internal.agentThreadContext.resolveSelectedContextForThread,
+      {
+        threadId,
+      }
+    );
+  } catch {
+    logEvent?.warn("Failed to resolve selected thread context", {
+      agent_tool: {
+        module: moduleName,
+      },
+    });
+    return null;
+  }
+}
 
 // ============================================================================
 // Helper Functions
@@ -48,30 +93,35 @@ export async function extractProspectThreadContext(
     return { prospectId: null, workspaceId: null };
   }
 
-  try {
-    const threadContext = await ctx.runQuery(
-      internal.prospectThreads.getThreadProspectContext,
-      {
-        threadId,
-      }
-    );
+  const threadContext = await resolveSelectedThreadContext(
+    ctx,
+    moduleName,
+    logEvent
+  );
 
-    if (!threadContext) {
-      return { prospectId: null, workspaceId: null };
-    }
+  if (!threadContext) {
+    return { prospectId: null, workspaceId: null };
+  }
 
-    return {
-      prospectId: threadContext.prospectId,
-      workspaceId: threadContext.workspaceId,
-    };
-  } catch {
-    logEvent?.warn("Failed to resolve prospect thread context", {
+  if (threadContext.ambiguousProspectIds.length > 1) {
+    logEvent?.warn("Selected thread context is ambiguous", {
       agent_tool: {
         module: moduleName,
       },
+      thread: {
+        id: threadId,
+      },
     });
-    return { prospectId: null, workspaceId: null };
+    return {
+      prospectId: null,
+      workspaceId: threadContext.workspaceId,
+    };
   }
+
+  return {
+    prospectId: threadContext.prospectId,
+    workspaceId: threadContext.workspaceId,
+  };
 }
 
 export async function ensureWorkspaceStyleReady(
@@ -223,6 +273,74 @@ export async function extractPlanIdFromThread(
       },
       prospect: {
         id: prospectId,
+      },
+    });
+    return null;
+  }
+}
+
+export async function resolveExecutionThreadId(
+  ctx: ToolContext,
+  moduleName: string,
+  logEvent?: ConvexWideEventLogger | null
+): Promise<string | null> {
+  if (!ctx.threadId) {
+    return null;
+  }
+
+  const selectedContext = await resolveSelectedThreadContext(
+    ctx,
+    moduleName,
+    logEvent
+  );
+  if (!selectedContext) {
+    return ctx.threadId;
+  }
+
+  if (selectedContext.ambiguousProspectIds.length > 1) {
+    logEvent?.warn("Cannot resolve execution thread with multiple prospects", {
+      agent_tool: {
+        module: moduleName,
+      },
+      thread: {
+        id: ctx.threadId,
+      },
+    });
+    return null;
+  }
+
+  const canonicalThreadContext = await ctx.runQuery(
+    internal.prospectThreads.getThreadProspectContext,
+    {
+      threadId: ctx.threadId,
+    }
+  );
+  if (
+    canonicalThreadContext?.prospectId &&
+    canonicalThreadContext.prospectId === selectedContext.prospectId
+  ) {
+    return ctx.threadId;
+  }
+
+  if (!selectedContext.prospectId) {
+    return ctx.threadId;
+  }
+
+  try {
+    const ensured = await ctx.runMutation(
+      internal.prospectThreads.ensureActiveThreadForProspectInternal,
+      {
+        prospectId: selectedContext.prospectId,
+      }
+    );
+    return ensured.threadId;
+  } catch {
+    logEvent?.warn("Failed to ensure canonical prospect execution thread", {
+      agent_tool: {
+        module: moduleName,
+      },
+      prospect: {
+        id: selectedContext.prospectId,
       },
     });
     return null;

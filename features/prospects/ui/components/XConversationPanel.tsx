@@ -227,6 +227,9 @@ export function XConversationPanel({
           taskId: taskId as Id<"outreachTasks">,
           expectedType: "dm",
           content: nextValue,
+          mediaUrls: taskDraft?.mediaUrls,
+          mediaDescriptions: taskDraft?.mediaDescriptions,
+          mediaKinds: taskDraft?.mediaKinds,
         });
         return;
       }
@@ -236,6 +239,14 @@ export function XConversationPanel({
       await updatePendingActionRequestDraft({
         actionRequestId: actionRequestId as Id<"agentActionRequests">,
         content: nextValue,
+        mediaUrls:
+          data?.draftAttachments
+            ?.map((attachment: XDmAttachmentSummary) => attachment.url)
+            .filter((url: string | undefined): url is string => Boolean(url)) ??
+          undefined,
+        mediaDescriptions: data?.draftAttachments?.map(
+          (attachment: XDmAttachmentSummary) => attachment.altText ?? ""
+        ),
       });
     },
   });
@@ -634,6 +645,11 @@ export function XConversationPanel({
                 prospectId,
                 maxLength: X_DM_TEXT_MAX,
                 characterCountMode: "raw",
+              }}
+              entityMentions={{
+                prospectId,
+                remoteAllowedKinds: ["prospect", "post", "attachment"],
+                personTextMode: "handle",
               }}
               className="rounded-xl border p-2"
               onContentChange={(content) => {

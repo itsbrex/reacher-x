@@ -3,15 +3,6 @@
 import * as React from "react";
 import { Badge } from "@/shared/ui/components/Badge";
 import { Button } from "@/shared/ui/components/Button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/shared/ui/components/DropdownMenu";
-import { MoreHorizIcon, EditIcon } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils";
 import type {
   TwitterPostRef,
@@ -21,9 +12,11 @@ import {
   PlanStrategyContent,
   shouldEnableStrategyExpansion,
 } from "./PlanStrategyContent";
+import { PlanActionMenu } from "./PlanActionMenu";
 import { TaskItem, type TaskItemMode } from "./TaskItem";
 
 const PLAN_STATUS_LABELS: Record<string, string> = {
+  loading: "Syncing...",
   draft: "Waiting approval",
   approved: "Ready",
   executing: "Executing",
@@ -31,6 +24,7 @@ const PLAN_STATUS_LABELS: Record<string, string> = {
   blocked_auth: "Reconnect required",
   completed: "Completed",
   abandoned: "Abandoned",
+  deleted: "Deleted",
 };
 
 export type OutreachPlanCardVariant =
@@ -59,6 +53,8 @@ export interface OutreachPlanCardTask {
 export interface OutreachPlanCardFooterAction {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
+  title?: string;
 }
 
 export interface OutreachPlanCardProps {
@@ -82,13 +78,11 @@ export interface OutreachPlanCardProps {
   taskMode?: TaskItemMode;
   footerAction?: OutreachPlanCardFooterAction;
   onEdit?: () => void;
+  onDeletePlan?: () => void;
   onApprove?: () => void;
   onPause?: () => void;
   onResume?: () => void;
-  onApproveTask?: (payload: {
-    taskId: string;
-    type: "comment" | "dm";
-  }) => void;
+  onApproveTask?: (payload: { taskId: string; type: "comment" | "dm" }) => void;
   onViewTask?: (payload: {
     taskId: string;
     targetTweetId?: string;
@@ -195,6 +189,7 @@ export function OutreachPlanCard({
   taskMode,
   footerAction,
   onEdit,
+  onDeletePlan,
   onApprove,
   onPause,
   onResume,
@@ -223,18 +218,16 @@ export function OutreachPlanCard({
   );
 
   const isDraft = status === "draft";
-  const isApproved = status === "approved";
   const isExecuting = status === "executing";
   const isPaused = status === "paused";
   const isBlockedAuth = status === "blocked_auth";
   const isResumable = isPaused || isBlockedAuth;
-  const hasEditAction = (isDraft || isApproved || isExecuting) && !!onEdit;
+  const hasMenuActions = !!onEdit || !!onDeletePlan;
   const hasPrimaryAction =
     (isDraft && !!onApprove) ||
     (isExecuting && !!onPause) ||
     (isResumable && !!onResume);
-  const hasHeaderActions = hasEditAction || hasPrimaryAction;
-  const showMobileOverflow = hasEditAction && hasPrimaryAction;
+  const hasHeaderActions = hasPrimaryAction || hasMenuActions;
 
   const canToggleStrategy =
     !!rationale &&
@@ -258,17 +251,6 @@ export function OutreachPlanCard({
 
           {hasHeaderActions && (
             <div className="flex shrink-0 items-center gap-1">
-              {hasEditAction && (
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={onEdit}
-                  disabled={actionsDisabled}
-                  className={cn(showMobileOverflow && "hidden md:inline-flex")}
-                >
-                  Edit
-                </Button>
-              )}
               {isDraft && onApprove && (
                 <Button
                   size="xs"
@@ -299,32 +281,12 @@ export function OutreachPlanCard({
                   Resume
                 </Button>
               )}
-              {showMobileOverflow && (
-                <div className="md:hidden">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="xsIcon"
-                        aria-label="More actions"
-                      >
-                        <MoreHorizIcon className="fill-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>↳ Menu</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        disabled={actionsDisabled}
-                        onClick={onEdit}
-                      >
-                        <EditIcon className="fill-current" />
-                        Edit
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
+              <PlanActionMenu
+                onEdit={onEdit}
+                onDelete={onDeletePlan}
+                disabled={actionsDisabled}
+                ariaLabel="Outreach plan menu"
+              />
             </div>
           )}
         </header>
@@ -417,6 +379,8 @@ export function OutreachPlanCard({
                 variant="outline"
                 size="xs"
                 className="w-full"
+                disabled={footerAction.disabled}
+                title={footerAction.title}
                 onClick={footerAction.onClick}
               >
                 {footerAction.label}

@@ -437,7 +437,18 @@ export const twitterActionResultSummaryValidator = v.object({
   targetUserId: v.optional(v.string()),
   createdPostId: v.optional(v.string()),
   postedTextPreview: v.optional(v.string()),
+  /** How the action was delivered ("api" default, "browser" for Kernel fallback). */
+  sentVia: v.optional(v.union(v.literal("api"), v.literal("browser"))),
+  /** Proof screenshot URL captured when the action was sent via browser. */
+  proofMediaUrl: v.optional(v.string()),
 });
+
+/** Status of a Kernel browser sending connection for an X account. */
+export const browserConnectionStatusValidator = v.union(
+  v.literal("connected"),
+  v.literal("needs_reconnect"),
+  v.literal("disconnected")
+);
 
 export const twitterActionErrorSummaryValidator = v.object({
   classification: v.string(),
@@ -855,6 +866,68 @@ export const setupThreadBootstrapModeValidator = v.union(
   v.literal("default"),
   v.literal("newWorkspace")
 );
+
+export const mentionEntityKindValidator = v.union(
+  v.literal("prospect"),
+  v.literal("plan"),
+  v.literal("task"),
+  v.literal("attachment"),
+  v.literal("post")
+);
+
+export const mentionAttachmentMediaKindValidator = v.union(
+  v.literal("image"),
+  v.literal("gif"),
+  v.literal("video")
+);
+
+export const mentionPostPlatformValidator = v.union(
+  v.literal("twitter"),
+  v.literal("linkedin")
+);
+
+export const agentMessagePromptTextSourceValidator = v.union(
+  v.literal("user"),
+  v.literal("synthetic")
+);
+
+export const agentMessageAttachmentReferenceValidator = v.object({
+  uploadId: v.optional(v.union(v.string(), v.null())),
+  fileName: v.string(),
+  mediaUrl: v.optional(v.union(v.string(), v.null())),
+});
+
+export const agentMessageTaggedEntityValidator = v.object({
+  id: v.string(),
+  entityId: v.string(),
+  kind: mentionEntityKindValidator,
+  label: v.string(),
+  mentionText: v.string(),
+  secondaryLabel: v.string(),
+  avatarUrl: v.optional(v.union(v.string(), v.null())),
+  verified: v.boolean(),
+  referenceText: v.optional(v.string()),
+  workspaceId: v.optional(v.string()),
+  prospectId: v.optional(v.string()),
+  handle: v.optional(v.string()),
+  planId: v.optional(v.string()),
+  taskId: v.optional(v.string()),
+  attachmentUrl: v.optional(v.union(v.string(), v.null())),
+  attachmentMimeType: v.optional(v.union(v.string(), v.null())),
+  attachmentMediaKind: v.optional(
+    v.union(mentionAttachmentMediaKindValidator, v.null())
+  ),
+  postId: v.optional(v.string()),
+  postUrl: v.optional(v.union(v.string(), v.null())),
+  postPlatform: v.optional(v.union(mentionPostPlatformValidator, v.null())),
+});
+
+export const agentMessageContextMetadataValidator = v.object({
+  version: v.literal(1),
+  promptTextSource: agentMessagePromptTextSourceValidator,
+  taggedEntities: v.array(agentMessageTaggedEntityValidator),
+  attachments: v.array(agentMessageAttachmentReferenceValidator),
+});
 
 export const updateWorkspaceV4ArgsValidator = v.object({
   workspaceId: v.id("workspaces"),
@@ -1358,6 +1431,11 @@ export const workspaceWorkflowStatusValidator = v.union(
   v.literal("paused"),
   v.literal("stopped"),
   v.literal("limit_reached")
+);
+
+export const workspaceAgentAutonomyModeValidator = v.union(
+  v.literal("review_required"),
+  v.literal("autonomous")
 );
 
 export const prospectingWorkflowPauseReasonValidator = v.union(

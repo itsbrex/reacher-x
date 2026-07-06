@@ -17,6 +17,10 @@ import {
 import { getXProviderContextForUser } from "./lib/xdkAuth";
 import { getLinkedInFailure } from "./lib/unipileClient";
 import {
+  attemptBrowserFallback,
+  isBrowserFallbackEligibleAction,
+} from "./lib/browserFallbackCore";
+import {
   getTwitterPostId,
   getTwitterPostRef,
   summarizeTwitterActionError,
@@ -307,9 +311,14 @@ async function resolveThreadContext(
     internal.prospectThreads.getThreadProspectContext,
     { threadId }
   );
+  const threadWorkspaceContext = await ctx.runQuery(
+    internal.workspaceThreads.getThreadWorkspaceContext,
+    { threadId }
+  );
 
   const prospectId = threadProspectContext?.prospectId;
-  const workspaceId = threadProspectContext?.workspaceId;
+  const workspaceId =
+    threadProspectContext?.workspaceId ?? threadWorkspaceContext?.workspaceId;
   const prospect = prospectId
     ? await ctx.runQuery(internal.prospects.getProspectInternal, { prospectId })
     : null;
@@ -862,6 +871,100 @@ export const executeActionRequestInternal = internalAction({
     } catch (error) {
       const failure = getXExecutionFailure(error);
       const formattedMessage = formatXWriteActionError(error).message;
+
+      // X policy block → attempt the same action via the user's browser
+      // connection (Kernel). Applies to △ Agent tasks and manual sends alike.
+      if (
+        failure.classification === "api_policy_forbidden" &&
+        isBrowserFallbackEligibleAction(request.actionKey)
+      ) {
+        const argsSnapshot = isRecord(request.argumentsSnapshot)
+          ? request.argumentsSnapshot
+          : {};
+        const fallbackText =
+          typeof argsSnapshot.text === "string"
+            ? argsSnapshot.text
+            : request.draftContent;
+        const fallbackTweetId =
+          typeof argsSnapshot.tweetId === "string"
+            ? argsSnapshot.tweetId
+            : undefined;
+
+        const fallback = await attemptBrowserFallback(ctx, {
+          userId: request.userId,
+          workspaceId: request.workspaceId,
+          actionKey: request.actionKey,
+          tweetId: fallbackTweetId,
+          text: fallbackText ?? undefined,
+        });
+
+        if (fallback.attempted && fallback.success) {
+          const metadataForFallback = getTwitterActionCatalogEntry(
+            request.actionKey as CuratedTwitterActionKey
+          );
+
+          await ctx.runMutation(
+            internal.socialActions.completeActionRequestInternal,
+            {
+              actionRequestId,
+              resultSummary: summarizeTwitterActionResult({
+                actionKey: request.actionKey,
+                toolSlug: metadataForFallback.toolSlug,
+                toolVersion: metadataForFallback.toolVersion,
+                completedAt: Date.now(),
+                targetPostId: fallbackTweetId,
+                postedText: fallbackText ?? undefined,
+                sentVia: "browser",
+                proofMediaUrl: fallback.proofMediaUrl,
+              }),
+            }
+          );
+
+          await ctx.runMutation(
+            internal.socialActions.createActionRequestNotificationInternal,
+            {
+              actionRequestId,
+              type: "social_action_completed",
+              message: fallbackText
+                ? `Sent via browser (X API blocked it): ${fallbackText}`
+                : "△ Agent completed this via browser after X's API blocked it.",
+            }
+          );
+
+          if (
+            request.prospectId &&
+            request.workspaceId &&
+            shouldMarkProspectContacted(
+              request.actionKey as CuratedTwitterActionKey
+            )
+          ) {
+            await ctx.runMutation(
+              internal.outreach.markProspectContactedFromSuccessfulOutreach,
+              {
+                prospectId: request.prospectId,
+                workspaceId: request.workspaceId,
+                description: `${getContactedDescription(
+                  request.actionKey as CuratedTwitterActionKey
+                )} (sent via browser)`,
+              }
+            );
+          }
+
+          return {
+            success: true,
+            result: { actionKey: request.actionKey },
+          };
+        }
+
+        socialActionExecutorsLogger.warn(
+          "Browser fallback did not complete the action",
+          {
+            actionRequestId,
+            actionKey: request.actionKey,
+            outcome: fallback.attempted ? fallback.error : fallback.reason,
+          }
+        );
+      }
 
       await ctx.runMutation(internal.socialActions.failActionRequestInternal, {
         actionRequestId,

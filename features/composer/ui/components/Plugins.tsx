@@ -8,6 +8,7 @@ import { MentionsPlugin } from "@/features/composer/ui/components/mentions/Menti
 import { MediaPastePlugin } from "@/features/composer/ui/components/MediaPastePlugin";
 import { InlineAutocompletePlugin } from "@/features/composer/ui/components/InlineAutocompletePlugin";
 import type { InlineAutocompleteContext } from "@/shared/lib/autocomplete/inlineAutocomplete";
+import type { ComposerEntityMentionsConfig } from "../../types";
 
 const URL_REGEX =
   /((https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-._~:?#[\]@!$&'()*+,;=%]*)?)/i;
@@ -27,12 +28,16 @@ export function Plugins({
   contentEditableClassName,
   composerPlaceholderClassName,
   inlineAutocompleteContext,
+  enableEntityMentions = false,
+  entityMentions,
   editable = true,
 }: {
   placeholder?: string;
   contentEditableClassName?: string;
   composerPlaceholderClassName?: string;
   inlineAutocompleteContext?: InlineAutocompleteContext;
+  enableEntityMentions?: boolean;
+  entityMentions?: ComposerEntityMentionsConfig;
   editable?: boolean;
 }) {
   const floatingAnchorElemRef = useRef<HTMLDivElement | null>(null);
@@ -101,7 +106,9 @@ export function Plugins({
             []
           )}
         />
-        <MentionsPlugin />
+        {enableEntityMentions ? (
+          <MentionsPlugin entityMentions={entityMentions} />
+        ) : null}
         <InlineAutocompletePlugin
           inlineAutocompleteContext={inlineAutocompleteContext}
           editable={editable}

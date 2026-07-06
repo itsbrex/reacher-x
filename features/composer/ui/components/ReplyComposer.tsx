@@ -15,8 +15,11 @@ import { toast } from "sonner";
 import { BaseComposer } from "./BaseComposer";
 import { ReplyComposerProps } from "../../types";
 import { logger } from "@/shared/lib/logger";
+import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
+import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
 
 export function ReplyComposer({
+  prospectId,
   replyTo,
   currentUser,
   initialContent,
@@ -102,6 +105,27 @@ export function ReplyComposer({
       ) : undefined,
     [replyUsers]
   );
+  const localMentionEntities = React.useMemo<
+    MentionEntitySearchResult[]
+  >(() => {
+    const people = replyUsers.map((user) => ({
+      id: `prospect:reply-user:${user.screenName.toLowerCase()}`,
+      entityId: `reply-user:${user.screenName.toLowerCase()}`,
+      kind: "prospect" as const,
+      label: user.name?.trim() || user.screenName.trim(),
+      mentionText: user.name?.trim() || user.screenName.trim(),
+      secondaryLabel: `@${user.screenName.replace(/^@/, "")}`,
+      avatarUrl: null,
+      verified: false,
+      handle: user.screenName.replace(/^@/, ""),
+    }));
+    const currentPost = buildPostMentionEntity({
+      post: replyTo.tweet,
+      platformHint: "twitter",
+    });
+
+    return currentPost ? [...people, currentPost] : people;
+  }, [replyTo.tweet, replyUsers]);
 
   const handleSubmit = async (
     content: SerializedEditorState,
@@ -162,6 +186,14 @@ export function ReplyComposer({
           replyTo.tweet.full_text ??
           replyTo.tweet.text ??
           undefined,
+      }}
+      entityMentions={{
+        prospectId,
+        remoteAllowedKinds: prospectId
+          ? ["post", "attachment"]
+          : ["attachment"],
+        localEntities: localMentionEntities,
+        personTextMode: "handle",
       }}
       onContentChange={onContentChange}
       onEditorBlur={onEditorBlur}

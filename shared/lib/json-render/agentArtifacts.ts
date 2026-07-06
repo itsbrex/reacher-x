@@ -155,6 +155,7 @@ export const agentArtifactCatalog = defineCatalog(schema, {
     PlanPreviewCard: {
       props: z.object({
         planId: z.string().nullable().optional(),
+        prospectId: z.string().nullable().optional(),
         status: z.string(),
         rationale: z.string(),
         tasks: z.array(agentArtifactTaskSchema),
@@ -226,6 +227,14 @@ export interface AgentArtifactEnvelope {
   kind: typeof AGENT_ARTIFACT_KIND;
   version: typeof AGENT_ARTIFACT_VERSION;
   spec: AgentArtifactSpec;
+}
+
+export interface AgentArtifactPostMentionCandidate {
+  platform: "twitter" | "linkedin";
+  prospectId?: string;
+  postData?: unknown;
+  postRef?: unknown;
+  postSummary?: unknown;
 }
 
 type AgentArtifactComponent = keyof typeof agentArtifactCatalog.data.components;
@@ -339,6 +348,92 @@ export function getAgentArtifactSemanticKey(
   }
 
   return null;
+}
+
+export function extractPostMentionCandidatesFromArtifact(
+  envelope: AgentArtifactEnvelope
+): AgentArtifactPostMentionCandidate[] {
+  const root = getArtifactRoot(envelope);
+  if (!root) {
+    return [];
+  }
+
+  const { type, props } = root;
+  const prospectId = getStringProperty(props, "prospectId") ?? undefined;
+
+  if (type === "PostArtifact") {
+    const platform = getStringProperty(props, "platform");
+    if (platform !== "twitter" && platform !== "linkedin") {
+      return [];
+    }
+
+    return [
+      {
+        platform,
+        prospectId,
+        postData: props.postData,
+        postRef: props.postRef,
+        postSummary: props.postSummary,
+      },
+    ];
+  }
+
+  if (type === "PostListArtifact") {
+    const defaultPlatform = getStringProperty(props, "platform");
+    const posts = props.posts;
+    if (!Array.isArray(posts)) {
+      return [];
+    }
+
+    const candidates: AgentArtifactPostMentionCandidate[] = [];
+
+    for (const post of posts) {
+      if (!isRecord(post)) {
+        continue;
+      }
+
+      const platform =
+        getStringProperty(post, "platform") ?? defaultPlatform ?? null;
+      if (platform !== "twitter" && platform !== "linkedin") {
+        continue;
+      }
+
+      candidates.push({
+        platform,
+        prospectId,
+        postData: post.postData,
+        postRef: post.postRef,
+        postSummary: post.postSummary,
+      });
+    }
+
+    return candidates;
+  }
+
+  if (type === "TwitterActionCard") {
+    const platform = getStringProperty(props, "platform");
+    if (platform !== "twitter" && platform !== "linkedin") {
+      return [];
+    }
+
+    const hasSourcePost =
+      props.sourcePostData || props.sourcePostSummary || props.sourcePostRef;
+    if (!hasSourcePost) {
+      return [];
+    }
+
+    return [
+      {
+        platform,
+        prospectId,
+        postData: props.sourcePostData,
+        postRef: props.sourcePostRef,
+        postSummary: props.sourcePostSummary,
+      },
+    ];
+  }
+
+  return [];
 }
 
 function normalizeTwitterPostRef(value: unknown) {
@@ -527,12 +622,14 @@ export function createPostListArtifact(input: {
 
 export function createPlanPreviewArtifact(input: {
   planId?: string;
+  prospectId?: string;
   status: string;
   rationale: string;
   tasks: AgentArtifactTask[];
 }) {
   return createAgentArtifact("PlanPreviewCard", {
     planId: input.planId ?? null,
+    prospectId: input.prospectId ?? null,
     status: input.status,
     rationale: input.rationale,
     tasks: input.tasks,

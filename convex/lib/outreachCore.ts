@@ -4,8 +4,10 @@
 
 import { Infer } from "convex/values";
 import { Id, Doc } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import {
+  memorySuggestionStatusValidator,
   outreachPlanSnapshotTaskValidator,
   outreachPlanSnapshotValidator,
   outreachTaskTypeValidator,
@@ -13,9 +15,12 @@ import {
   outreachTaskStatusValidator,
   outreachStrategyValidator,
   prospectActivityMetadataValidator,
+  twitterActionRequestStatusValidator,
 } from "../validators";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { createNotification as createNotificationRecord } from "./notificationHelpers";
+import { isRecord } from "./typeGuards";
+import { workflow as workflowManager } from "./workflow";
 import type {
   TwitterPostRef,
   TwitterPostSummary,
@@ -35,6 +40,24 @@ const LINKEDIN_DM_TEXT_MAX = 8_000;
 
 /** Threshold for automatic plan generation (>= 90 score) */
 export const AUTO_PLAN_GENERATION_THRESHOLD = 90;
+
+const PLAN_DELETE_ACTION_REQUEST_STATUSES: Array<
+  Infer<typeof twitterActionRequestStatusValidator>
+> = [
+  "draft",
+  "pending_approval",
+  "approved",
+  "executing",
+  "completed",
+  "failed",
+  "cancelled",
+];
+
+const PLAN_DELETE_MEMORY_SUGGESTION_STATUSES: Array<
+  Infer<typeof memorySuggestionStatusValidator>
+> = ["pending_review", "promoted", "rejected"];
+
+type WorkflowId = Awaited<ReturnType<typeof workflowManager.start>>;
 
 // ============================================================================
 // Types
@@ -391,6 +414,7 @@ export async function refinePlan(
   updates: {
     strategy?: OutreachPlanInput["strategy"];
     tasks?: OutreachTaskInput[];
+    threadId?: string;
   }
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
@@ -398,18 +422,27 @@ export async function refinePlan(
   if (
     plan.status !== "draft" &&
     plan.status !== "paused" &&
-    plan.status !== "blocked_auth"
+    plan.status !== "blocked_auth" &&
+    plan.status !== "executing"
   ) {
-    throw new Error("Can only refine draft, paused, or blocked plans");
+    throw new Error(
+      "Can only refine draft, paused, blocked, or executing plans"
+    );
   }
 
   const now = getCurrentUTCTimestamp();
   const nextVersion = plan.version + 1;
   const nextStrategy = updates.strategy ?? plan.strategy;
+  const nextThreadId = updates.threadId ?? plan.threadId;
 
-  if (updates.strategy || updates.tasks) {
+  if (
+    updates.strategy ||
+    updates.tasks ||
+    (updates.threadId !== undefined && updates.threadId !== plan.threadId)
+  ) {
     await ctx.db.patch(planId, {
       strategy: nextStrategy,
+      threadId: nextThreadId,
       version: nextVersion,
       updatedAt: now,
     });
@@ -420,22 +453,35 @@ export async function refinePlan(
     // Validate all tasks (especially comment tasks need content + targetTweetId)
     await validateTaskInputs(ctx, plan.userId, updates.tasks);
 
-    // Delete existing tasks
     const existingTasks = await ctx.db
       .query("outreachTasks")
       .withIndex("by_plan", (q) => q.eq("planId", planId))
       .collect();
 
-    for (const task of existingTasks) {
+    const replaceableStatuses = new Set<
+      Infer<typeof outreachTaskStatusValidator>
+    >(["pending", "scheduled"]);
+    const tasksToReplace =
+      plan.status === "executing"
+        ? existingTasks.filter((task) => replaceableStatuses.has(task.status))
+        : existingTasks;
+
+    const nextOrderStart =
+      plan.status === "executing"
+        ? existingTasks
+            .filter((task) => !replaceableStatuses.has(task.status))
+            .reduce((maxOrder, task) => Math.max(maxOrder, task.order), 0) + 1
+        : 1;
+
+    for (const task of tasksToReplace) {
       await ctx.db.delete(task._id);
     }
 
-    // Create new tasks
     for (let i = 0; i < updates.tasks.length; i++) {
       const task = updates.tasks[i];
       await ctx.db.insert("outreachTasks", {
         planId,
-        order: i + 1,
+        order: nextOrderStart + i,
         type: task.type,
         description: task.description,
         status: "pending",
@@ -483,6 +529,7 @@ export async function getProspectActivePlan(
   const plan = await ctx.db
     .query("outreachPlans")
     .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+    .order("desc")
     .filter((q) =>
       q.and(
         q.neq(q.field("status"), "completed"),
@@ -499,6 +546,145 @@ export async function getProspectActivePlan(
     .collect();
 
   return { plan, tasks };
+}
+
+/**
+ * Permanently deletes an outreach plan and cleanup rows that would otherwise
+ * leave stale UI state behind.
+ */
+export async function deleteOutreachPlanCascade(
+  ctx: MutationCtx,
+  plan: Doc<"outreachPlans">
+): Promise<void> {
+  const tasks = await ctx.db
+    .query("outreachTasks")
+    .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+    .collect();
+  const taskIdSet = new Set(tasks.map((task) => task._id));
+
+  if (plan.workflowId) {
+    try {
+      const workflowId = plan.workflowId as unknown as WorkflowId;
+      const workflowStatus = await workflowManager.status(ctx, workflowId);
+      if (workflowStatus.type === "inProgress") {
+        await workflowManager.cancel(ctx, workflowId);
+      }
+    } catch (error) {
+      console.warn("[OutreachCore] Failed to cancel workflow before delete", {
+        planId: String(plan._id),
+        workflowId: plan.workflowId,
+        error,
+      });
+    }
+  }
+
+  const planMonitors = await ctx.db
+    .query("prospectMonitors")
+    .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+    .collect();
+
+  for (const monitor of planMonitors) {
+    if (monitor.status !== "deleted") {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.prospectMonitors.deleteProspectMonitor,
+        { monitorId: monitor.monitorId }
+      );
+    }
+    await ctx.db.delete(monitor._id);
+  }
+
+  const actionRequestsByStatus = await Promise.all(
+    PLAN_DELETE_ACTION_REQUEST_STATUSES.map((status) =>
+      ctx.db
+        .query("agentActionRequests")
+        .withIndex("by_prospect_status", (q) =>
+          q.eq("prospectId", plan.prospectId).eq("status", status)
+        )
+        .collect()
+    )
+  );
+  const actionRequests = actionRequestsByStatus
+    .flat()
+    .filter(
+      (request) =>
+        request.planId === plan._id ||
+        (request.taskId ? taskIdSet.has(request.taskId) : false)
+    );
+  const actionRequestIdSet = new Set(
+    actionRequests.map((request) => request._id)
+  );
+
+  const workspaceNotifications = await ctx.db
+    .query("outreachNotifications")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", plan.workspaceId))
+    .collect();
+  const notificationsToDelete = workspaceNotifications.filter(
+    (notification) =>
+      notification.planId === plan._id ||
+      (notification.taskId ? taskIdSet.has(notification.taskId) : false) ||
+      (notification.actionRequestId
+        ? actionRequestIdSet.has(notification.actionRequestId)
+        : false)
+  );
+
+  const memoryWorkflowEvents = await ctx.db
+    .query("memoryWorkflowEvents")
+    .withIndex("by_plan_occurred_at", (q) => q.eq("planId", plan._id))
+    .collect();
+
+  const memorySuggestionsByStatus = await Promise.all(
+    PLAN_DELETE_MEMORY_SUGGESTION_STATUSES.map((status) =>
+      ctx.db
+        .query("memorySuggestions")
+        .withIndex("by_workspace_status_updated_at", (q) =>
+          q.eq("workspaceId", plan.workspaceId).eq("status", status)
+        )
+        .collect()
+    )
+  );
+  const memorySuggestions = memorySuggestionsByStatus
+    .flat()
+    .filter(
+      (suggestion) =>
+        suggestion.planId === plan._id ||
+        (suggestion.taskId ? taskIdSet.has(suggestion.taskId) : false)
+    );
+
+  const prospectActivities = await ctx.db
+    .query("prospectActivityLog")
+    .withIndex("by_prospect", (q) => q.eq("prospectId", plan.prospectId))
+    .collect();
+  const planActivities = prospectActivities.filter((activity) => {
+    const metadata = isRecord(activity.metadata) ? activity.metadata : null;
+    return metadata?.planId === plan._id;
+  });
+
+  for (const notification of notificationsToDelete) {
+    await ctx.db.delete(notification._id);
+  }
+
+  for (const actionRequest of actionRequests) {
+    await ctx.db.delete(actionRequest._id);
+  }
+
+  for (const memorySuggestion of memorySuggestions) {
+    await ctx.db.delete(memorySuggestion._id);
+  }
+
+  for (const memoryWorkflowEvent of memoryWorkflowEvents) {
+    await ctx.db.delete(memoryWorkflowEvent._id);
+  }
+
+  for (const activity of planActivities) {
+    await ctx.db.delete(activity._id);
+  }
+
+  for (const task of tasks) {
+    await ctx.db.delete(task._id);
+  }
+
+  await ctx.db.delete(plan._id);
 }
 
 // ============================================================================

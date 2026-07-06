@@ -241,6 +241,7 @@ export function ProspectPanelRenderer({
           <ReplyPanel
             tweetId={currentPanel.props.tweetId as string}
             threadId={currentPanel.props.threadId as string}
+            prospectId={currentPanel.props.prospectId as string | undefined}
             initialTweet={
               currentPanel.props.initialTweet as
                 | import("@/features/threads/types").Tweet

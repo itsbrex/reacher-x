@@ -11,8 +11,10 @@ import {
 } from "../../../../shared/lib/json-render/agentArtifacts";
 import { X_LONG_FORM_POST_MAX_CHARS } from "../../../../shared/lib/twitter/xPostTextLimit";
 import {
+  AMBIGUOUS_PROSPECT_SELECTION_MESSAGE,
   ensureWorkspaceStyleReady,
   extractProspectThreadContext,
+  resolveExecutionThreadId,
 } from "./helpers";
 import { getEffectivePostLimitForAgentUser } from "./xPostLimitHelpers";
 import { getPostTextLimitError } from "../../../../shared/lib/twitter/xPostTextLimit";
@@ -240,9 +242,25 @@ export const socialAction = createTool({
     }
 
     const isLinkedInAction = args.action.startsWith("linkedin_");
+    const executionThreadId = await resolveExecutionThreadId(
+      ctx,
+      "socialAction"
+    );
+    if (!executionThreadId) {
+      return {
+        success: false,
+        executed: false,
+        pendingApproval: false,
+        actionKey: args.action,
+        title: "Social action unavailable",
+        message: AMBIGUOUS_PROSPECT_SELECTION_MESSAGE,
+        error: "Ambiguous prospect context",
+      };
+    }
+
     const result = isLinkedInAction
       ? await ctx.runAction(internalLinkedInApi.submitLinkedInActionForThread, {
-          threadId: ctx.threadId,
+          threadId: executionThreadId,
           actionKey: args.action,
           postId: args.postId ?? args.tweetId,
           text: normalizedText,
@@ -257,7 +275,7 @@ export const socialAction = createTool({
       : await ctx.runAction(
           internal.socialActionExecutors.submitTwitterActionForThread,
           {
-            threadId: ctx.threadId,
+            threadId: executionThreadId,
             actionKey: args.action as any,
             tweetId: args.tweetId ?? args.postId,
             targetUserId: args.targetUserId,
