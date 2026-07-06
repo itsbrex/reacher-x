@@ -2924,6 +2924,8 @@ export function AgentChat({
             }}
             onContentChange={handleAgentComposerContentChange}
             onBridgeReady={setAgentComposerApi}
+            submitOnEnter
+            onSubmitShortcut={handleSendWithAttachments}
           />
           <div className="flex items-center justify-between pt-0.5">
             <div className="flex items-center gap-1">

@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { SerializedEditorState } from "lexical";
 import { cn } from "@/shared/lib/utils";
 import { Editor } from "@/features/composer/ui/components/Editor";
+import { SubmitOnEnterPlugin } from "@/features/composer/ui/components/SubmitOnEnterPlugin";
 import {
   ToolbarBridgePlugin,
   ComposerEditorAPI,
@@ -23,6 +24,8 @@ interface ComposerEditorProps extends ComposerBaseProps {
   extraPlugins?: React.ReactNode;
   enableEntityMentions?: boolean;
   entityMentions?: ComposerEntityMentionsConfig;
+  submitOnEnter?: boolean;
+  onSubmitShortcut?: () => void;
 }
 
 export function ComposerEditor({
@@ -42,6 +45,8 @@ export function ComposerEditor({
   onBridgeReady,
   onFormattingChange,
   extraPlugins,
+  submitOnEnter = false,
+  onSubmitShortcut,
 }: ComposerEditorProps) {
   const [editorState, setEditorState] = useState<
     SerializedEditorState | undefined
@@ -67,6 +72,31 @@ export function ComposerEditor({
   }, [editorState, characterCountMode]);
 
   const isOverLimit = characterCount > maxLength;
+  const editorExtraPlugins = useMemo(
+    () => (
+      <>
+        <ToolbarBridgePlugin
+          onReady={onBridgeReady}
+          onFormattingChange={onFormattingChange}
+        />
+        {submitOnEnter ? (
+          <SubmitOnEnterPlugin
+            disabled={disabled}
+            onSubmit={onSubmitShortcut}
+          />
+        ) : null}
+        {extraPlugins}
+      </>
+    ),
+    [
+      disabled,
+      extraPlugins,
+      onBridgeReady,
+      onFormattingChange,
+      onSubmitShortcut,
+      submitOnEnter,
+    ]
+  );
 
   return (
     <div
@@ -107,28 +137,20 @@ export function ComposerEditor({
           inlineAutocompleteContext={inlineAutocompleteContext}
           enableEntityMentions={enableEntityMentions}
           entityMentions={entityMentions}
-          extraPlugins={
-            <>
-              <ToolbarBridgePlugin
-                onReady={onBridgeReady}
-                onFormattingChange={onFormattingChange}
-              />
-              {extraPlugins}
-            </>
-          }
+          extraPlugins={editorExtraPlugins}
         />
         {/* Bridge plugin is mounted via Editor.extraPlugins */}
       </div>
 
       {/* Character Count */}
-      {showCharacterCount && (
+      {showCharacterCount ? (
         <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
           <span className={cn(isOverLimit && "text-destructive")}>
             {characterCount.toLocaleString("en-US", { useGrouping: false })}/
             {maxLength}
           </span>
         </div>
-      )}
+      ) : null}
 
       {/* Error State */}
       {isOverLimit && (
