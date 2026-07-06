@@ -13,6 +13,7 @@ import {
   type UIMessage,
 } from "../hooks/useAgentChat";
 import { useSmoothText } from "@convex-dev/agent/react";
+import type { SerializedEditorState } from "lexical";
 import { usePathname, useRouter } from "next/navigation";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -30,19 +31,8 @@ import {
   type InlinePanelOpenPayload,
   type ToolPartLike,
 } from "../lib";
+import { isAssistantPlaceholderMessage } from "../lib/assistantMessageState";
 import { getUIMessageDisplayText } from "../lib/uiMessageText";
-import {
-  ChatContainerRoot,
-  ChatContainerContent,
-  ChatContainerScrollAnchor,
-} from "@/shared/ui/components/ChatContainer";
-import {
-  PromptInput,
-  PromptInputTextarea,
-  PromptInputActions,
-  PromptInputAction,
-  insertTextareaTextWithUndo,
-} from "@/shared/ui/components/PromptInput";
 import { ThinkingBar } from "@/shared/ui/components/ThinkingBar";
 import {
   Message,
@@ -51,6 +41,30 @@ import {
   MessageActions,
   MessageAction,
 } from "@/shared/ui/components/Message";
+import { Bubble, BubbleContent } from "@/shared/ui/components/Bubble";
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentDescription,
+  AttachmentActions,
+  AttachmentAction,
+  AttachmentTrigger,
+} from "@/shared/ui/components/Attachment";
+import {
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerButton,
+} from "@/shared/ui/components/MessageScroller";
+import {
+  ChatContainerRoot,
+  ChatContainerContent,
+} from "@/shared/ui/components/ChatContainer";
 import {
   Reasoning,
   ReasoningTrigger,
@@ -67,9 +81,12 @@ import {
   SourceTrigger,
   SourceContent,
 } from "@/shared/ui/components/Source";
-import { ScrollButton } from "@/shared/ui/components/ScrollButton";
 import { SystemMessage } from "@/shared/ui/components/SystemMessage";
-import { Tool, type ToolPart } from "@/shared/ui/components/Tool";
+import {
+  Marker,
+  MarkerContent,
+  MarkerIcon,
+} from "@/shared/ui/components/Marker";
 import { AgentArtifactRenderer } from "@/shared/ui/components/json-render";
 import {
   extractPostMentionCandidatesFromArtifact,
@@ -95,7 +112,8 @@ import {
   TooltipTrigger,
 } from "@/shared/ui/components/Tooltip";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
-import { cn } from "@/shared/lib/utils";
+import { Markdown } from "@/shared/ui/components/Markdown";
+import { cn, extractTextFromEditorState } from "@/shared/lib/utils";
 import {
   Copy,
   Check,
@@ -104,11 +122,11 @@ import {
   Loader2,
   Circle,
   X,
-  Paperclip,
-  Workflow,
-  ListTodo,
-  MessageSquareText,
-  CircleUserRoundIcon,
+  FileCode2,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -123,6 +141,13 @@ import {
 import { useStore } from "@nanostores/react";
 import { getProspectDisplayData } from "@/features/prospects/lib/getProspectDisplayData";
 import { useProspectDmState } from "@/features/prospects/hooks/useProspectDmState";
+import { ComposerEditor } from "@/features/composer/lib/ComposerEditor";
+import type { ComposerEditorAPI } from "@/features/composer/lib/ToolbarBridgePlugin";
+import { buildSerializedTextState } from "@/features/composer/lib/buildSerializedTextState";
+import {
+  DM_COMPOSER_CONTENT_EDITABLE_CLASS,
+  DM_COMPOSER_PLACEHOLDER_CLASS,
+} from "@/features/composer/ui/dmComposerClasses";
 import { $onboardingLock } from "@/shared/stores/onboarding";
 import {
   ArrowUpwardIcon,
@@ -136,14 +161,10 @@ import {
   MoreHorizIcon,
   MailIcon,
   PersonIcon,
+  ChangeHistoryIcon,
 } from "@/shared/ui/components/icons";
+import { Avatar, AvatarFallback } from "@/shared/ui/components/Avatar";
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/shared/ui/components/Avatar";
-import {
-  useMentionEntitySearch,
   useOutreachPlanPreviewState,
   usePreferredShellQueryArgs,
   useQueryWithStatus,
@@ -170,6 +191,8 @@ import {
 } from "@/shared/ui/components/DropdownMenu";
 
 const agentChatUiLogger = logger.withScope("AgentChat");
+const AGENT_MESSAGE_AVATAR_SLOT_CLASSNAME =
+  "self-start group-has-data-[slot=message-footer]/message:translate-y-0";
 
 // ============================================================================
 // Types
@@ -464,6 +487,54 @@ function LivePlanPreviewCard({
   );
 }
 
+function ToolCallMarker({
+  toolCall,
+}: {
+  toolCall: Pick<ToolCallInfo, "toolName" | "state">;
+}) {
+  const isComplete =
+    toolCall.state === "result" || toolCall.state === "output-available";
+  const isError = toolCall.state === "output-error";
+  const label = TOOL_LABELS[toolCall.toolName] || toolCall.toolName;
+  const showsPendingState = !isComplete && !isError;
+  const showsTrailingState = showsPendingState || isError;
+
+  return (
+    <Marker role="status" className="w-full gap-2 py-0.5 text-xs">
+      <MarkerIcon className="border-border bg-background text-muted-foreground flex size-5 items-center justify-center rounded-md border">
+        <ChangeHistoryIcon className="size-3.5 fill-current" />
+      </MarkerIcon>
+      <MarkerContent
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2",
+          showsTrailingState && "justify-between"
+        )}
+      >
+        <span
+          className={cn(
+            "truncate text-xs leading-none font-medium",
+            isComplete && !isError ? "text-muted-foreground" : "text-foreground"
+          )}
+        >
+          {label}
+        </span>
+        {showsTrailingState ? (
+          <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-xs">
+            {showsPendingState ? (
+              <span className="shimmer font-mono">Running</span>
+            ) : null}
+            {isError ? (
+              <XCircle className="text-destructive size-4" />
+            ) : showsPendingState ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : null}
+          </span>
+        ) : null}
+      </MarkerContent>
+    </Marker>
+  );
+}
+
 function ToolCallVisualization({
   toolCalls,
   onOpenPanelFromCard,
@@ -594,12 +665,7 @@ function ToolCallVisualization({
     if (hasProgress && tc.state === "result") {
       return (
         <div key={`${tc.toolName}-${idx}`} className="space-y-2">
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <span className="font-medium">
-              {TOOL_LABELS[tc.toolName] || tc.toolName}
-            </span>
-          </div>
+          <ToolCallMarker toolCall={tc} />
           <ProgressStepsDisplay progress={result.progress as ProgressStep[]} />
           {/* Show results summary if available */}
           {result.results != null &&
@@ -616,24 +682,7 @@ function ToolCallVisualization({
       );
     }
 
-    // Default: show the Tool component
-    const toolPart: ToolPart = {
-      type: TOOL_LABELS[tc.toolName] || tc.toolName,
-      state:
-        tc.state === "call" || tc.state === "partial-call"
-          ? "input-streaming"
-          : tc.state === "output-error"
-            ? "output-error"
-            : tc.result
-              ? "output-available"
-              : "input-available",
-      input: tc.args,
-      output: tc.result as Record<string, unknown> | undefined,
-      toolCallId: tc.toolCallId,
-      errorText: tc.errorText,
-    };
-
-    return <Tool key={`${tc.toolName}-${idx}`} toolPart={toolPart} />;
+    return <ToolCallMarker key={`${tc.toolName}-${idx}`} toolCall={tc} />;
   });
 
   if (renderedToolCallNodes.every((node) => node === null)) {
@@ -645,8 +694,6 @@ function ToolCallVisualization({
 
 function getPendingTurnLabel(pendingTurn: PendingTurnState): string {
   switch (pendingTurn.phase) {
-    case "submitting":
-      return "Sending message";
     case "stopping":
       return "Stopping";
     default:
@@ -662,12 +709,13 @@ function PendingAssistantMessage({
   onStop: () => void;
 }) {
   return (
-    <Message className="items-start">
+    <Message align="start" className="items-start">
       <MessageAvatar
         alt="Agent"
         fallback={AGENT_AVATAR_FALLBACK}
         className="bg-background text-foreground"
-        avatarClassName="rounded-md"
+        avatarClassName="size-6 rounded-md"
+        slotClassName={AGENT_MESSAGE_AVATAR_SLOT_CLASSNAME}
       />
       <div className="flex max-w-[85%] flex-col gap-2 pt-1">
         <ThinkingBar
@@ -690,20 +738,18 @@ function LocalUserMessage({
   userName?: string;
 }) {
   return (
-    <Message className="flex-row-reverse items-start">
+    <Message align="end" className="items-start">
       <MessageAvatar
         src={userImage}
         alt="You"
         fallback={getUserInitials(userName)}
         className="bg-primary text-primary-foreground"
+        avatarClassName="size-6"
       />
       <div className="flex max-w-[80%] flex-col items-end gap-1">
-        <MessageContent
-          className="bg-primary text-primary-foreground"
-          textSize="sm"
-        >
-          {text}
-        </MessageContent>
+        <UserBubble>
+          <div className="whitespace-pre-wrap">{text}</div>
+        </UserBubble>
       </div>
     </Message>
   );
@@ -726,7 +772,7 @@ function ReasoningSection({
   }
 
   return (
-    <Reasoning isStreaming={isStreaming} className="mt-1">
+    <Reasoning className="mt-1">
       <ReasoningTrigger className="text-xs font-medium">
         {isStreaming ? "Thinking" : "Analysis"}
       </ReasoningTrigger>
@@ -759,9 +805,7 @@ function ReasoningSection({
             </div>
           )}
           {!steps.length && reasoning && summary !== reasoning && (
-            <MessageContent markdown variant="plain" textSize="sm">
-              {reasoning}
-            </MessageContent>
+            <AssistantMessageBody text={reasoning} />
           )}
           {redacted && !reasoning && (
             <p className="text-muted-foreground">
@@ -853,82 +897,404 @@ function AssistantModelBadge({ model }: { model: string }) {
   );
 }
 
-function getUserMessageEntityIcon(kind: MentionEntitySearchResult["kind"]) {
-  switch (kind) {
-    case "plan":
-      return <Workflow className="size-3.5" aria-hidden="true" />;
-    case "task":
-      return <ListTodo className="size-3.5" aria-hidden="true" />;
-    case "post":
-      return <MessageSquareText className="size-3.5" aria-hidden="true" />;
-    case "attachment":
-      return <Paperclip className="size-3.5" aria-hidden="true" />;
-    case "prospect":
-    default:
-      return <CircleUserRoundIcon className="size-3.5" aria-hidden="true" />;
+type DisplayAttachment = {
+  id: string;
+  fileName: string;
+  mediaUrl: string | null;
+  status: "uploading" | "ready";
+  sourceLabel?: string;
+  onRemove?: () => void;
+};
+
+function buildAttachmentReferenceFromEntity(
+  entity: MentionEntitySearchResult
+): {
+  id: string;
+  uploadId: string | null;
+  fileName: string;
+  mediaUrl: string | null;
+} | null {
+  if (entity.kind !== "attachment") {
+    return null;
   }
+
+  return {
+    id: entity.id,
+    uploadId: entity.entityId || null,
+    fileName: entity.label,
+    mediaUrl: entity.attachmentUrl ?? null,
+  };
 }
 
-function UserMessageContextChips({
-  taggedEntities,
+function buildDisplayAttachmentFromEntity(
+  entity: MentionEntitySearchResult,
+  onRemove?: () => void
+): DisplayAttachment | null {
+  const attachment = buildAttachmentReferenceFromEntity(entity);
+  if (!attachment) {
+    return null;
+  }
+
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    mediaUrl: attachment.mediaUrl,
+    status: "ready",
+    sourceLabel: "Tagged attachment",
+    onRemove,
+  };
+}
+
+function inferDisplayAttachmentMediaKind(
+  attachment: Pick<DisplayAttachment, "fileName" | "mediaUrl">
+): "image" | "gif" | "video" | null {
+  const candidates = [attachment.mediaUrl, attachment.fileName].map(
+    (value) => value?.toLowerCase() ?? ""
+  );
+
+  if (candidates.some((value) => /\.(gif)(?:$|[?#])/.test(value))) {
+    return "gif";
+  }
+  if (
+    candidates.some((value) => /\.(mp4|mov|webm|m4v)(?:$|[?#])/.test(value))
+  ) {
+    return "video";
+  }
+  if (
+    candidates.some((value) =>
+      /\.(png|jpe?g|webp|avif|bmp|svg)(?:$|[?#])/.test(value)
+    )
+  ) {
+    return "image";
+  }
+
+  return null;
+}
+
+function getDisplayAttachmentIcon(
+  attachment: Pick<DisplayAttachment, "fileName" | "mediaUrl">
+) {
+  const fileName = attachment.fileName.toLowerCase();
+  const mediaKind = inferDisplayAttachmentMediaKind(attachment);
+
+  if (mediaKind === "video") {
+    return <FileVideo className="size-4" />;
+  }
+  if (mediaKind === "image" || mediaKind === "gif") {
+    return <FileImage className="size-4" />;
+  }
+  if (/\.(csv|tsv|xls|xlsx)(?:$|[?#])/.test(fileName)) {
+    return <FileSpreadsheet className="size-4" />;
+  }
+  if (
+    /\.(ts|tsx|js|jsx|json|md|py|go|rs|java|rb|php|css|scss|html)(?:$|[?#])/.test(
+      fileName
+    )
+  ) {
+    return <FileCode2 className="size-4" />;
+  }
+
+  return <FileText className="size-4" />;
+}
+
+function AgentAttachmentList({
   attachments,
+  variant = "composer",
 }: {
+  attachments: DisplayAttachment[];
+  variant?: "message" | "composer";
+}) {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  const isMessage = variant === "message";
+  const isComposer = variant === "composer";
+  const hasMultipleAttachments = attachments.length > 1;
+  const attachmentCards = attachments.map((attachment) => {
+    const state = attachment.status === "uploading" ? "uploading" : "done";
+    const mediaKind = inferDisplayAttachmentMediaKind(attachment);
+    const showsImagePreview =
+      attachment.status === "ready" &&
+      Boolean(attachment.mediaUrl) &&
+      (mediaKind === "image" || mediaKind === "gif");
+    return (
+      <Attachment
+        key={attachment.id}
+        state={state}
+        size="sm"
+        orientation="horizontal"
+        className={cn(
+          "border-border bg-card text-card-foreground shadow-none",
+          "min-w-0 overflow-hidden rounded-xl",
+          hasMultipleAttachments
+            ? "w-64 max-w-[16rem]"
+            : isComposer
+              ? "w-fit max-w-sm"
+              : "w-full max-w-sm",
+          isMessage && "dark:bg-card"
+        )}
+      >
+        <AttachmentMedia
+          variant={showsImagePreview ? "image" : "icon"}
+          className={cn(
+            "text-foreground",
+            showsImagePreview ? "bg-muted/40 rounded-lg" : "bg-muted rounded-lg"
+          )}
+        >
+          {showsImagePreview && attachment.mediaUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachment.mediaUrl}
+                alt={attachment.fileName}
+                loading="lazy"
+                decoding="async"
+              />
+            </>
+          ) : attachment.status === "uploading" ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            getDisplayAttachmentIcon(attachment)
+          )}
+        </AttachmentMedia>
+        <AttachmentContent>
+          <AttachmentTitle title={attachment.fileName}>
+            {attachment.fileName}
+          </AttachmentTitle>
+          <AttachmentDescription className="text-muted-foreground">
+            {attachment.status === "uploading"
+              ? "Uploading"
+              : (attachment.sourceLabel ?? "Attachment")}
+          </AttachmentDescription>
+        </AttachmentContent>
+        {attachment.onRemove ? (
+          <AttachmentActions>
+            <AttachmentAction
+              aria-label={`Remove ${attachment.fileName}`}
+              title={`Remove ${attachment.fileName}`}
+              onClick={attachment.onRemove}
+            >
+              <X className="size-3.5" />
+            </AttachmentAction>
+          </AttachmentActions>
+        ) : null}
+        {attachment.mediaUrl ? (
+          <AttachmentTrigger asChild>
+            <a
+              href={attachment.mediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${attachment.fileName}`}
+            />
+          </AttachmentTrigger>
+        ) : null}
+      </Attachment>
+    );
+  });
+
+  if (hasMultipleAttachments) {
+    return (
+      <div
+        className={cn(
+          "max-w-full min-w-0",
+          isMessage ? "max-w-sm self-end" : "w-full"
+        )}
+      >
+        <AttachmentGroup
+          className={cn(
+            "max-w-full gap-2.5 pr-1",
+            isMessage ? "ml-auto w-fit" : "w-full"
+          )}
+        >
+          {attachmentCards}
+        </AttachmentGroup>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "max-w-full min-w-0",
+        isMessage
+          ? "flex max-w-sm justify-end self-end"
+          : isComposer
+            ? "flex w-fit"
+            : "flex"
+      )}
+    >
+      {attachmentCards}
+    </div>
+  );
+}
+
+function HighlightTaggedText({
+  text,
+  taggedEntities,
+  className,
+}: {
+  text: string;
+  taggedEntities: MentionEntitySearchResult[];
+  className?: string;
+}) {
+  if (!text) {
+    return null;
+  }
+
+  const mentionLabels = taggedEntities
+    .filter((entity) => entity.kind !== "attachment")
+    .map((entity) => entity.mentionText.trim())
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+
+  if (mentionLabels.length === 0) {
+    return <div className={cn("whitespace-pre-wrap", className)}>{text}</div>;
+  }
+
+  const escapedLabels = mentionLabels.map((label) =>
+    label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  );
+  const pattern = new RegExp(
+    `(^|[\\s(])(@(?:${escapedLabels.join("|")})(?=$|[\\s),.!?:;\\]]))`,
+    "g"
+  );
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const prefix = match[1] ?? "";
+    const token = match[2] ?? "";
+    const matchStart = match.index;
+    const tokenStart = matchStart + prefix.length;
+
+    if (matchStart > lastIndex) {
+      parts.push(text.slice(lastIndex, matchStart));
+    }
+
+    if (prefix) {
+      parts.push(prefix);
+    }
+
+    parts.push(
+      <span
+        key={`${tokenStart}-${token}`}
+        className="text-primary-foreground/70 font-mono"
+      >
+        {token}
+      </span>
+    );
+
+    lastIndex = tokenStart + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <div className={cn("whitespace-pre-wrap", className)}>{parts}</div>;
+}
+
+function UserMessageContextContent({
+  text,
+  taggedEntities,
+}: {
+  text: string;
+  taggedEntities: MentionEntitySearchResult[];
+}) {
+  const nonAttachmentTags = taggedEntities.filter(
+    (entity) => entity.kind !== "attachment"
+  );
+  const tagOnlyState = !text && nonAttachmentTags.length > 0;
+
+  if (!text && !tagOnlyState) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      {text ? (
+        <HighlightTaggedText text={text} taggedEntities={nonAttachmentTags} />
+      ) : null}
+      {tagOnlyState ? (
+        <div className="flex flex-wrap justify-end gap-2 text-sm">
+          {nonAttachmentTags.map((entity) => (
+            <span
+              key={entity.id}
+              className="text-primary-foreground/70 font-mono"
+            >
+              @{entity.mentionText.trim()}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function getAssistantMarkdownClassName() {
+  return cn(
+    "markdown-content text-foreground break-words whitespace-normal text-sm",
+    "prose dark:prose-invert max-w-none prose-sm",
+    "prose-p:my-2 prose-p:leading-relaxed prose-p:first:mt-0",
+    "prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5",
+    "prose-h1:text-xl prose-h1:font-bold prose-h1:my-3",
+    "prose-h2:text-lg prose-h2:font-semibold prose-h2:my-2",
+    "prose-h3:text-base prose-h3:font-semibold prose-h3:my-2",
+    "prose-h4:text-sm prose-h4:font-medium",
+    "prose-hr:border-border/80",
+    "prose-code:border prose-code:bg-transparent prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:text-sm prose-code:text-inherit prose-code:before:content-none prose-code:after:content-none",
+    "prose-strong:font-semibold"
+  );
+}
+
+function AssistantMessageBody({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <Markdown className={getAssistantMarkdownClassName()}>{text}</Markdown>
+    </div>
+  );
+}
+
+function UserBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <Bubble align="end" variant="default" className="max-w-full">
+      <BubbleContent className="bg-primary text-primary-foreground w-auto max-w-full rounded-lg border-transparent p-2 break-words whitespace-pre-wrap">
+        {children}
+      </BubbleContent>
+    </Bubble>
+  );
+}
+
+function getUserMessageDisplayAttachments(args: {
   taggedEntities: MentionEntitySearchResult[];
   attachments: Array<{
     fileName: string;
     mediaUrl: string | null;
   }>;
 }) {
-  if (taggedEntities.length === 0 && attachments.length === 0) {
-    return null;
-  }
+  const taggedAttachmentDisplays = args.taggedEntities
+    .map((entity) => buildDisplayAttachmentFromEntity(entity))
+    .filter(
+      (attachment): attachment is DisplayAttachment => attachment !== null
+    );
 
-  return (
-    <div className="flex flex-wrap justify-end gap-1.5">
-      {taggedEntities.map((entity) => (
-        <span
-          key={entity.id}
-          className="inline-flex max-w-72 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs text-white/95"
-        >
-          {entity.avatarUrl ? (
-            <Avatar className="size-4">
-              <AvatarImage src={entity.avatarUrl} alt="" />
-              <AvatarFallback className="bg-white/15 text-[10px] text-white">
-                {entity.label.charAt(0).toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            getUserMessageEntityIcon(entity.kind)
-          )}
-          <span className="truncate">{entity.label}</span>
-        </span>
-      ))}
-      {attachments.map((attachment, index) => {
-        const chip = (
-          <span className="inline-flex max-w-72 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs text-white/95">
-            <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{attachment.fileName}</span>
-          </span>
-        );
-
-        return attachment.mediaUrl ? (
-          <a
-            key={`${attachment.fileName}-${index}`}
-            href={attachment.mediaUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="max-w-72"
-          >
-            {chip}
-          </a>
-        ) : (
-          <span key={`${attachment.fileName}-${index}`} className="max-w-72">
-            {chip}
-          </span>
-        );
-      })}
-    </div>
-  );
+  return [
+    ...taggedAttachmentDisplays,
+    ...args.attachments.map((attachment, index) => ({
+      id: `${attachment.fileName}-${index}`,
+      fileName: attachment.fileName,
+      mediaUrl: attachment.mediaUrl,
+      status: "ready" as const,
+    })),
+  ];
 }
 
 /**
@@ -955,6 +1321,13 @@ function ChatMessage({
   const isPending = message.status === "pending";
   const isStreaming = message.status === "streaming";
   const messageText = getUIMessageDisplayText(message);
+  const previousMessageTextRef = useRef(messageText);
+  const shouldStartVisibleTextStreaming =
+    isAssistant &&
+    !isUser &&
+    // eslint-disable-next-line react-hooks/refs
+    previousMessageTextRef.current.length === 0 &&
+    messageText.length > 0;
   const userMessageContext = isUser
     ? normalizeAgentMessageContextMetadata(
         (message as UIMessage & { metadata?: unknown }).metadata
@@ -975,8 +1348,12 @@ function ChatMessage({
   // Pass startStreaming: true when message is actively streaming
   // IMPORTANT: Hook must be called unconditionally (Rules of Hooks)
   const [visibleText] = useSmoothText(messageText, {
-    startStreaming: isStreaming,
+    startStreaming: isStreaming || shouldStartVisibleTextStreaming,
   });
+
+  useEffect(() => {
+    previousMessageTextRef.current = messageText;
+  }, [messageText]);
 
   // Early return AFTER hook call to satisfy Rules of Hooks
   if (!isUser && !isAssistant) return null;
@@ -1037,18 +1414,18 @@ function ChatMessage({
 
   if (
     isAssistant &&
-    isPending &&
+    (isPending || isStreaming) &&
     !displayText &&
-    !toolCalls.length &&
-    !hasAssistantMetadata
+    !toolCalls.length
   ) {
     return (
-      <Message className="items-start">
+      <Message align="start" className="items-start">
         <MessageAvatar
           alt="Agent"
           fallback={AGENT_AVATAR_FALLBACK}
           className="bg-background text-foreground"
-          avatarClassName="rounded-md"
+          avatarClassName="size-6 rounded-md"
+          slotClassName={AGENT_MESSAGE_AVATAR_SLOT_CLASSNAME}
         />
         <div className="flex max-w-[85%] flex-col gap-2 pt-1">
           <ThinkingBar text="Thinking" />
@@ -1069,37 +1446,44 @@ function ChatMessage({
     return null;
 
   if (isUser) {
+    const userDisplayAttachments = getUserMessageDisplayAttachments({
+      taggedEntities: effectiveUserMessageContext?.taggedEntities ?? [],
+      attachments: effectiveUserMessageContext?.attachments ?? [],
+    });
+
     return (
-      <Message className="flex-row-reverse items-start">
+      <Message align="end" className="items-start">
         <MessageAvatar
           src={userImage}
           alt="You"
           fallback={getUserInitials(userName)}
           className="bg-primary text-primary-foreground"
+          avatarClassName="size-6"
         />
-        <div className="flex max-w-[80%] flex-col items-end gap-1">
-          <MessageContent
-            className="bg-primary text-primary-foreground"
-            textSize="sm"
-          >
-            {displayText ? <div>{displayText}</div> : null}
-            {hasUserContext ? (
-              <div className={cn("space-y-0", displayText && "mt-2")}>
-                <UserMessageContextChips
-                  taggedEntities={
-                    effectiveUserMessageContext?.taggedEntities ?? []
-                  }
-                  attachments={effectiveUserMessageContext?.attachments ?? []}
-                />
-              </div>
-            ) : null}
-          </MessageContent>
+        <MessageContent className="max-w-[80%] items-end gap-1">
+          {displayText ||
+          (effectiveUserMessageContext?.taggedEntities.length ?? 0) > 0 ? (
+            <UserBubble>
+              <UserMessageContextContent
+                text={displayText}
+                taggedEntities={
+                  effectiveUserMessageContext?.taggedEntities ?? []
+                }
+              />
+            </UserBubble>
+          ) : null}
+          {userDisplayAttachments.length > 0 ? (
+            <AgentAttachmentList
+              attachments={userDisplayAttachments}
+              variant="message"
+            />
+          ) : null}
           {displayText && (
             <MessageActions>
               <CopyButton text={displayText} />
             </MessageActions>
           )}
-        </div>
+        </MessageContent>
       </Message>
     );
   }
@@ -1113,17 +1497,19 @@ function ChatMessage({
 
   // Assistant message
   return (
-    <Message className="items-start">
+    <Message align="start" className="items-start">
       <MessageAvatar
         alt="Agent"
         fallback={AGENT_AVATAR_FALLBACK}
         className="bg-background text-foreground"
-        avatarClassName="rounded-md"
+        avatarClassName="size-6 rounded-md"
+        slotClassName={AGENT_MESSAGE_AVATAR_SLOT_CLASSNAME}
       />
-      <div className="flex max-w-[85%] flex-col gap-2">
-        {(assistantReasoning || hasRedactedReasoning(message)) && (
+      <MessageContent className="max-w-[85%] gap-2">
+        {!isStreaming &&
+        (assistantReasoning || hasRedactedReasoning(message)) ? (
           <ReasoningSection message={message} isStreaming={isStreaming} />
-        )}
+        ) : null}
 
         {usePartsOrder ? (
           (() => {
@@ -1134,14 +1520,10 @@ function ChatMessage({
                 const text = (part as { text?: string }).text;
                 if (!text?.trim()) return null;
                 return (
-                  <MessageContent
+                  <AssistantMessageBody
                     key={buildStableKey(`text-${text}`, partKeySequence)}
-                    markdown
-                    variant="plain"
-                    textSize="sm"
-                  >
-                    {text}
-                  </MessageContent>
+                    text={text}
+                  />
                 );
               }
 
@@ -1205,10 +1587,8 @@ function ChatMessage({
             )}
 
             {(displayText || failedStateMessage || isStreaming) && (
-              <MessageContent
-                markdown
-                variant="plain"
-                textSize="sm"
+              <AssistantMessageBody
+                text={displayText || failedStateMessage || " "}
                 className={cn(
                   isStreaming &&
                     !displayText &&
@@ -1216,9 +1596,7 @@ function ChatMessage({
                     !hasAssistantMetadata &&
                     "animate-pulse"
                 )}
-              >
-                {displayText || failedStateMessage || " "}
-              </MessageContent>
+              />
             )}
 
             {isStreaming && displayText && (
@@ -1252,7 +1630,7 @@ function ChatMessage({
               That response couldn&apos;t be completed. Please try again.
             </SystemMessage>
           )}
-      </div>
+      </MessageContent>
     </Message>
   );
 }
@@ -1451,7 +1829,7 @@ function ChatSkeleton({
       {/* Skeleton messages area - uses same container structure for consistent scroll */}
       <ChatContainerRoot className="min-h-0 flex-1">
         <ChatContainerContent className="px-4 py-4">
-          <div className="space-y-6">
+          <div className="card-fade-bottom space-y-6">
             {/* Skeleton assistant message 1 - welcome/intro */}
             <div className="flex items-start gap-3">
               {/* Agent avatar - rounded-md like real UI */}
@@ -1466,7 +1844,7 @@ function ChatSkeleton({
             {/* Skeleton user message 1 */}
             <div className="flex flex-row-reverse items-start gap-3">
               {/* User avatar - rounded-full like real UI */}
-              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <Skeleton className="size-6 shrink-0 rounded-full" />
               <div className="flex flex-col items-end gap-1">
                 <Skeleton className="h-10 w-48 rounded-lg" />
               </div>
@@ -1485,7 +1863,7 @@ function ChatSkeleton({
 
             {/* Skeleton user message 2 */}
             <div className="flex flex-row-reverse items-start gap-3">
-              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <Skeleton className="size-6 shrink-0 rounded-full" />
               <div className="flex flex-col items-end gap-1">
                 <Skeleton className="h-10 w-36 rounded-lg" />
               </div>
@@ -1509,7 +1887,7 @@ function ChatSkeleton({
 
             {/* Skeleton user message 3 */}
             <div className="flex flex-row-reverse items-start gap-3">
-              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <Skeleton className="size-6 shrink-0 rounded-full" />
               <div className="flex flex-col items-end gap-1">
                 <Skeleton className="h-10 w-52 rounded-lg" />
               </div>
@@ -1525,20 +1903,30 @@ function ChatSkeleton({
               </div>
             </div>
           </div>
-
-          <ChatContainerScrollAnchor />
         </ChatContainerContent>
       </ChatContainerRoot>
 
       {/* Skeleton input area - matches actual input structure */}
       <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
-        {/* Skeleton suggestions */}
-        <div className="flex gap-2 pb-2">
-          <Skeleton className="h-7 w-32 rounded-md" />
-          <Skeleton className="h-7 w-40 rounded-md" />
+        <div className="border-input bg-background rounded-xl border p-2 opacity-60">
+          <div className="text-muted-foreground min-h-10 px-3 py-2 text-sm">
+            Type here...
+          </div>
+          <div className="flex items-center justify-between pt-0.5">
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="xsIcon" type="button" disabled>
+                <AttachFileIcon className="fill-current" />
+              </Button>
+              <Button variant="outline" size="xsIcon" type="button" disabled>
+                <AlternateEmailIcon className="fill-current" />
+              </Button>
+            </div>
+
+            <Button variant="default" size="xsIcon" type="button" disabled>
+              <ArrowUpwardIcon className="fill-current" />
+            </Button>
+          </div>
         </div>
-        {/* Skeleton prompt input - rounded-xl to match PromptInput */}
-        <Skeleton className="h-20 w-full rounded-xl" />
       </div>
     </div>
   );
@@ -1600,7 +1988,10 @@ export function AgentChat({
     [messages]
   );
   const shouldHidePersistedTranscript =
-    !effectiveThreadId || messageStatus === "LoadingFirstPage";
+    !effectiveThreadId ||
+    (messageStatus === "LoadingFirstPage" &&
+      rawDisplayMessages.length === 0 &&
+      pendingTurn === null);
   const displayMessages = shouldHidePersistedTranscript
     ? EMPTY_UI_MESSAGES
     : rawDisplayMessages;
@@ -1633,11 +2024,50 @@ export function AgentChat({
     );
   const shouldShowPendingUserMessage =
     pendingUserPrompt !== null && !hasPersistedPendingUserMessage;
+  const currentPendingTurnOrder = pendingTurn?.order ?? null;
+  const currentTurnAssistantMessage =
+    currentPendingTurnOrder !== null
+      ? displayMessages.find(
+          (message) =>
+            message.role === "assistant" &&
+            message.order === currentPendingTurnOrder
+        )
+      : [...displayMessages]
+          .reverse()
+          .find(
+            (message) =>
+              message.role === "assistant" &&
+              (message.status === "pending" || message.status === "streaming")
+          );
+  const shouldKeepPendingAssistantRowVisible =
+    !currentTurnAssistantMessage ||
+    isAssistantPlaceholderMessage(currentTurnAssistantMessage);
   const shouldShowPendingAssistantRow =
     pendingTurn !== null &&
-    (pendingTurn.phase === "submitting" ||
-      pendingTurn.phase === "queued" ||
-      pendingTurn.phase === "stopping");
+    pendingTurn.phase !== "failed" &&
+    pendingTurn.phase !== "finished" &&
+    shouldKeepPendingAssistantRowVisible;
+  const renderedDisplayMessages = useMemo(
+    () =>
+      displayMessages.filter((message) => {
+        if (currentPendingTurnOrder === null) {
+          return !shouldShowPendingAssistantRow || message.role !== "assistant"
+            ? true
+            : !isAssistantPlaceholderMessage(message);
+        }
+
+        if (
+          !shouldShowPendingAssistantRow ||
+          message.role !== "assistant" ||
+          message.order !== currentPendingTurnOrder
+        ) {
+          return true;
+        }
+
+        return !isAssistantPlaceholderMessage(message);
+      }),
+    [currentPendingTurnOrder, displayMessages, shouldShowPendingAssistantRow]
+  );
   const shouldShowPendingError = pendingTurn?.phase === "failed";
   const shouldShowHydrationSkeleton =
     Boolean(effectiveThreadId) &&
@@ -1711,14 +2141,26 @@ export function AgentChat({
   const [mentionComposerState, setMentionComposerState] = useState<{
     scopeKey: string;
     selectedEntities: MentionEntitySearchResult[];
-    inlineQuery: string | null;
   }>({
     scopeKey: mentionScopeKey,
     selectedEntities: [],
-    inlineQuery: null,
   });
+  const [agentComposerContent, setAgentComposerContent] = useState<
+    SerializedEditorState | undefined
+  >(buildSerializedTextState(input));
+  const [agentComposerApi, setAgentComposerApi] =
+    useState<ComposerEditorAPI | null>(null);
   const selectedMentionEntities = mentionComposerState.selectedEntities;
-  const inlineMentionQuery = mentionComposerState.inlineQuery;
+  const selectedAttachmentEntities = useMemo(
+    () =>
+      selectedMentionEntities.filter((entity) => entity.kind === "attachment"),
+    [selectedMentionEntities]
+  );
+  const selectedTaggedEntities = useMemo(
+    () =>
+      selectedMentionEntities.filter((entity) => entity.kind !== "attachment"),
+    [selectedMentionEntities]
+  );
   const threadPostMentionEntities = useMemo(() => {
     const collected: MentionEntitySearchResult[] = [];
     const seenIds = new Set<string>();
@@ -1761,15 +2203,6 @@ export function AgentChat({
 
     return collected.slice(0, 8);
   }, [currentWorkspace?._id, displayMessages, prospectId]);
-  const inlineMentionSearch = useMentionEntitySearch({
-    enabled: inlineMentionQuery !== null,
-    query: inlineMentionQuery,
-    workspaceId: currentWorkspace?._id ?? null,
-    prospectId: prospectId ?? null,
-    limit: 8,
-    localEntities: threadPostMentionEntities,
-  });
-  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setMentionComposerState((current) =>
@@ -1778,39 +2211,34 @@ export function AgentChat({
         : {
             scopeKey: mentionScopeKey,
             selectedEntities: [],
-            inlineQuery: null,
           }
     );
+    setAgentComposerContent(buildSerializedTextState(""));
   }, [mentionScopeKey]);
 
   useEffect(() => {
-    const textarea = composerTextareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? input.length;
-    const selectionEnd = textarea?.selectionEnd ?? input.length;
-    const nextInlineQuery =
-      selectionStart === selectionEnd
-        ? (/(^|\s|\()@([^\s@()]*)$/.exec(input.slice(0, selectionStart))?.[2] ??
-          null)
-        : null;
-
-    setMentionComposerState((current) =>
-      current.inlineQuery === nextInlineQuery
-        ? current
-        : {
-            ...current,
-            inlineQuery: nextInlineQuery,
-          }
-    );
-  }, [input]);
-
-  useEffect(() => {
     setMentionComposerState((current) => {
-      const nextSelectedEntities = filterSelectedMentionEntitiesByInput({
+      const inlineEntities = current.selectedEntities.filter(
+        (entity) => entity.kind !== "attachment"
+      );
+      const attachmentEntities = current.selectedEntities.filter(
+        (entity) => entity.kind === "attachment"
+      );
+      const filteredInlineEntities = filterSelectedMentionEntitiesByInput({
         input,
-        entities: current.selectedEntities,
+        entities: inlineEntities,
       });
+      const nextSelectedEntities = [
+        ...filteredInlineEntities,
+        ...attachmentEntities,
+      ];
 
-      if (nextSelectedEntities.length === current.selectedEntities.length) {
+      if (
+        nextSelectedEntities.length === current.selectedEntities.length &&
+        nextSelectedEntities.every(
+          (entity, index) => entity.id === current.selectedEntities[index]?.id
+        )
+      ) {
         return current;
       }
 
@@ -1820,6 +2248,38 @@ export function AgentChat({
       };
     });
   }, [input]);
+
+  useEffect(() => {
+    const editorText = agentComposerContent
+      ? extractTextFromEditorState(agentComposerContent)
+      : "";
+
+    if (!agentComposerApi || input === editorText) {
+      return;
+    }
+
+    if (!input) {
+      agentComposerApi.clearContent();
+      setAgentComposerContent(undefined);
+      return;
+    }
+
+    agentComposerApi.replaceContent(input);
+    setAgentComposerContent(buildSerializedTextState(input));
+  }, [agentComposerApi, agentComposerContent, input]);
+
+  const handleAgentComposerContentChange = useCallback(
+    (nextContent?: SerializedEditorState) => {
+      setAgentComposerContent(nextContent);
+      const nextInput = nextContent
+        ? extractTextFromEditorState(nextContent)
+        : "";
+      if (nextInput !== input) {
+        setInput(nextInput);
+      }
+    },
+    [input, setInput]
+  );
 
   const handleAttachFiles = useCallback(
     async (files: FileList | null) => {
@@ -1921,19 +2381,23 @@ export function AgentChat({
     []
   );
 
-  const handleInlineMentionQueryChange = useCallback((query: string | null) => {
-    setMentionComposerState((current) =>
-      current.inlineQuery === query
-        ? current
-        : {
-            ...current,
-            inlineQuery: query,
-          }
-    );
-  }, []);
-
   const handleSendWithAttachments = useCallback(() => {
     const trimmedInput = input.trim();
+    const selectedAttachmentReferences = selectedAttachmentEntities
+      .map((entity) => buildAttachmentReferenceFromEntity(entity))
+      .filter(
+        (
+          attachment
+        ): attachment is NonNullable<
+          ReturnType<typeof buildAttachmentReferenceFromEntity>
+        > => attachment !== null
+      )
+      .map((attachment) => ({
+        uploadId: attachment.uploadId,
+        fileName: attachment.fileName,
+        mediaUrl: attachment.mediaUrl,
+      }));
+
     if (
       !trimmedInput &&
       readyAttachments.length === 0 &&
@@ -1950,8 +2414,8 @@ export function AgentChat({
 
     const submission = buildAgentComposerSubmission({
       input: trimmedInput,
-      taggedEntities: selectedMentionEntities,
-      attachments: readyAttachments,
+      taggedEntities: selectedTaggedEntities,
+      attachments: [...readyAttachments, ...selectedAttachmentReferences],
     });
     if (!submission) {
       return;
@@ -1961,15 +2425,21 @@ export function AgentChat({
     setMentionComposerState((current) => ({
       ...current,
       selectedEntities: [],
-      inlineQuery: null,
     }));
+    agentComposerApi?.clearContent();
+    setAgentComposerContent(undefined);
+    setInput("");
     void sendMessage(submission);
   }, [
+    agentComposerApi,
     hasUploadingAttachment,
     input,
     readyAttachments,
+    selectedAttachmentEntities,
     selectedMentionEntities,
+    selectedTaggedEntities,
     sendMessage,
+    setInput,
   ]);
 
   const onboardingLock = useStore($onboardingLock);
@@ -2058,39 +2528,12 @@ export function AgentChat({
     setupSessionLocksComposer ||
     (Boolean(prospectId) && prospectArchived);
   const handleTriggerMentionInsertion = useCallback(() => {
-    const textarea = composerTextareaRef.current;
-    if (!textarea || isComposerLocked) {
+    if (!agentComposerApi || isComposerLocked) {
       return;
     }
 
-    const selectionStart = textarea.selectionStart ?? textarea.value.length;
-    const selectionEnd = textarea.selectionEnd ?? selectionStart;
-    const beforeCursor = textarea.value.slice(0, selectionStart);
-    const hasActiveMentionTrigger =
-      selectionStart === selectionEnd &&
-      /(^|\s|\()@([^\s@()]*)$/.test(beforeCursor);
-    const prefix = beforeCursor.length > 0 && !/[\s(]$/.test(beforeCursor);
-    const insertionText = hasActiveMentionTrigger ? "" : prefix ? " @" : "@";
-
-    textarea.focus();
-
-    if (!insertionText) {
-      textarea.setSelectionRange(selectionStart, selectionEnd);
-      return;
-    }
-
-    const result = insertTextareaTextWithUndo({
-      textarea,
-      text: insertionText,
-      selectionStart,
-      selectionEnd,
-    });
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
-    });
-  }, [isComposerLocked]);
+    agentComposerApi.insertEmoji("@");
+  }, [agentComposerApi, isComposerLocked]);
   const agentInlineAutocompleteContext = useMemo(
     () => ({
       surfaceLabel: "agent_chat",
@@ -2150,6 +2593,32 @@ export function AgentChat({
   // Get user display info from WorkOS auth
   const userDisplayImage = authUser?.profilePictureUrl;
   const userDisplayName = authUser?.firstName || authUser?.email || "User";
+  const composerDisplayAttachments = useMemo(
+    () => [
+      ...chatAttachments.map((attachment) => ({
+        id: attachment.id,
+        fileName: attachment.fileName,
+        mediaUrl: attachment.mediaUrl,
+        status: attachment.status,
+        onRemove: () => handleRemoveAttachment(attachment.id),
+      })),
+      ...selectedAttachmentEntities
+        .map((entity) =>
+          buildDisplayAttachmentFromEntity(entity, () => {
+            setMentionComposerState((current) => ({
+              ...current,
+              selectedEntities: current.selectedEntities.filter(
+                (item) => item.id !== entity.id
+              ),
+            }));
+          })
+        )
+        .filter(
+          (attachment): attachment is DisplayAttachment => attachment !== null
+        ),
+    ],
+    [chatAttachments, handleRemoveAttachment, selectedAttachmentEntities]
+  );
 
   // Loading state while initializing - use skeleton UI to prevent CLS
   if (!isInitialized) {
@@ -2211,204 +2680,252 @@ export function AgentChat({
 
       {/* Chat Messages Area - scrollable container */}
       <div className="relative min-h-0 flex-1">
-        <ChatContainerRoot className="relative h-full min-h-0">
-          <ChatContainerContent className="px-4 pt-4 pb-16">
-            {!isSetupRoute ? (
-              <WorkspacePlanLimitAlert className="mb-4" />
-            ) : null}
-            {/* Load more button */}
-            {hasMore && (
-              <div className="mb-4 text-center">
-                <Button size="xsIcon" onClick={loadMore}>
-                  <RefreshIcon className="fill-current" />
-                </Button>
-              </div>
-            )}
-
-            {/* Messages */}
-            <div className="space-y-6">
-              {displayMessages.map((message) => (
-                <motion.div
-                  key={message.key}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                >
-                  <ChatMessage
-                    message={message}
-                    userImage={userDisplayImage ?? undefined}
-                    userName={userDisplayName}
-                    threadModelName={threadModelName}
-                    onOpenPanelFromCard={onOpenPanelFromCard}
-                    onOpenPlanPanel={onOpenPlanPanel}
-                  />
-                </motion.div>
-              ))}
-
-              {shouldShowPendingUserMessage && pendingUserPrompt && (
-                <motion.div
-                  key="pending-user"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                >
-                  <LocalUserMessage
-                    text={pendingUserPrompt}
-                    userImage={userDisplayImage ?? undefined}
-                    userName={userDisplayName}
-                  />
-                </motion.div>
-              )}
-
-              <AnimatePresence mode="wait">
-                {shouldShowPendingAssistantRow && pendingTurn ? (
-                  <motion.div
-                    key="pending-turn"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                  >
-                    <PendingAssistantMessage
-                      pendingTurn={pendingTurn}
-                      onStop={stop}
-                    />
-                  </motion.div>
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+          <MessageScroller className="relative h-full min-h-0">
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="gap-0 px-4 pt-4 pb-16">
+                {!isSetupRoute ? (
+                  <MessageScrollerItem messageId="plan-limit" className="mb-4">
+                    <WorkspacePlanLimitAlert />
+                  </MessageScrollerItem>
                 ) : null}
-              </AnimatePresence>
 
-              {shouldShowPendingError && pendingTurn?.errorMessage && (
-                <SystemMessage variant="error">
-                  {pendingTurn.errorMessage}
-                </SystemMessage>
-              )}
+                {hasMore && (
+                  <MessageScrollerItem messageId="load-more" className="mb-4">
+                    <div className="text-center">
+                      <Button size="xsIcon" onClick={loadMore}>
+                        <RefreshIcon className="fill-current" />
+                      </Button>
+                    </div>
+                  </MessageScrollerItem>
+                )}
 
-              {showSetupInlineCard && setupSessionForInlineCard ? (
-                <div className="min-w-0">
-                  <SetupOnboardingInlineCard
-                    sessionId={setupSessionForInlineCard.sessionId}
-                    mode={setupSessionForInlineCard.mode}
-                    useCaseKey={setupSessionForInlineCard.useCaseKey}
-                    title={getSetupPanelStepTitle(
-                      setupSessionForInlineCard.currentStepId
-                    )}
-                    stepNumber={setupSessionForInlineCard.currentStepNumber}
-                    stepTotal={setupSessionForInlineCard.totalSteps}
-                    onContinue={onOpenSetupOnboardingPanel}
-                  />
-                </div>
-              ) : null}
-
-              {/* Empty state - show when no messages and not loading */}
-              {showProspectEmptyState ? (
-                <div className="flex min-h-96 items-start justify-center">
-                  <AgentProspectEmptyState
-                    prospect={prospectDisplayData}
-                    isLoading={prospectQuery.isPending}
-                    onViewProfile={onViewProfile}
-                  />
-                </div>
-              ) : (
-                showEmptyState && (
-                  <div className="pt-6 text-center">
-                    <Avatar
-                      className={cn(
-                        "ring-border mx-auto size-12 rounded-xl ring-1"
-                      )}
+                {renderedDisplayMessages.map((message) => (
+                  <MessageScrollerItem
+                    key={message.key}
+                    messageId={message.key}
+                    className="mb-6"
+                    scrollAnchor={message.role === "user"}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.25, 0.1, 0.25, 1],
+                      }}
                     >
-                      <AvatarFallback className="bg-background text-foreground text-3xl">
-                        {AGENT_AVATAR_FALLBACK}
-                      </AvatarFallback>
-                    </Avatar>
-                    <h3 className="text-foreground mt-2 text-lg font-medium">
-                      {AGENT_DISPLAY_NAME}
-                    </h3>
-                  </div>
-                )
-              )}
+                      <ChatMessage
+                        message={message}
+                        userImage={userDisplayImage ?? undefined}
+                        userName={userDisplayName}
+                        threadModelName={threadModelName}
+                        onOpenPanelFromCard={onOpenPanelFromCard}
+                        onOpenPlanPanel={onOpenPlanPanel}
+                      />
+                    </motion.div>
+                  </MessageScrollerItem>
+                ))}
 
-              {/* Error display */}
-              {error && pendingTurn?.phase !== "failed" && (
-                <SystemMessage variant="error">
-                  {error.message || "Please try again."}
-                </SystemMessage>
-              )}
-              {workspaceStatusQuery.isError && (
-                <SystemMessage variant="warning">
-                  {workspaceStatusQuery.error.message ||
-                    "Workspace status is unavailable. Agent actions may be limited until this resolves."}
-                </SystemMessage>
-              )}
-            </div>
+                {shouldShowPendingUserMessage && pendingUserPrompt && (
+                  <MessageScrollerItem
+                    key="pending-user"
+                    messageId="pending-user"
+                    className="mb-6"
+                    scrollAnchor
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.25, 0.1, 0.25, 1],
+                      }}
+                    >
+                      <LocalUserMessage
+                        text={pendingUserPrompt}
+                        userImage={userDisplayImage ?? undefined}
+                        userName={userDisplayName}
+                      />
+                    </motion.div>
+                  </MessageScrollerItem>
+                )}
 
-            <ChatContainerScrollAnchor />
-          </ChatContainerContent>
-          <div className="pointer-events-none absolute right-4 bottom-16 z-10">
-            <ScrollButton className="pointer-events-auto" />
-          </div>
-        </ChatContainerRoot>
+                <AnimatePresence mode="wait">
+                  {shouldShowPendingAssistantRow && pendingTurn ? (
+                    <MessageScrollerItem
+                      key="pending-turn"
+                      messageId="pending-turn"
+                      className="mb-6"
+                    >
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{
+                          duration: 0.2,
+                          ease: [0.25, 0.1, 0.25, 1],
+                        }}
+                      >
+                        <PendingAssistantMessage
+                          pendingTurn={pendingTurn}
+                          onStop={stop}
+                        />
+                      </motion.div>
+                    </MessageScrollerItem>
+                  ) : null}
+                </AnimatePresence>
+
+                {shouldShowPendingError && pendingTurn?.errorMessage && (
+                  <MessageScrollerItem
+                    messageId="pending-error"
+                    className="mb-6"
+                  >
+                    <SystemMessage variant="error">
+                      {pendingTurn.errorMessage}
+                    </SystemMessage>
+                  </MessageScrollerItem>
+                )}
+
+                {showSetupInlineCard && setupSessionForInlineCard ? (
+                  <MessageScrollerItem
+                    messageId="setup-inline-card"
+                    className="mb-6"
+                  >
+                    <div className="min-w-0">
+                      <SetupOnboardingInlineCard
+                        sessionId={setupSessionForInlineCard.sessionId}
+                        mode={setupSessionForInlineCard.mode}
+                        useCaseKey={setupSessionForInlineCard.useCaseKey}
+                        title={getSetupPanelStepTitle(
+                          setupSessionForInlineCard.currentStepId
+                        )}
+                        stepNumber={setupSessionForInlineCard.currentStepNumber}
+                        stepTotal={setupSessionForInlineCard.totalSteps}
+                        onContinue={onOpenSetupOnboardingPanel}
+                      />
+                    </div>
+                  </MessageScrollerItem>
+                ) : null}
+
+                {showProspectEmptyState ? (
+                  <MessageScrollerItem
+                    messageId="prospect-empty"
+                    className="mb-6"
+                  >
+                    <div className="flex min-h-96 items-start justify-center">
+                      <AgentProspectEmptyState
+                        prospect={prospectDisplayData}
+                        isLoading={prospectQuery.isPending}
+                        onViewProfile={onViewProfile}
+                      />
+                    </div>
+                  </MessageScrollerItem>
+                ) : (
+                  showEmptyState && (
+                    <MessageScrollerItem
+                      messageId="chat-empty"
+                      className="mb-6"
+                    >
+                      <div className="pt-6 text-center">
+                        <Avatar
+                          className={cn(
+                            "ring-border mx-auto size-12 rounded-xl ring-1"
+                          )}
+                        >
+                          <AvatarFallback className="bg-background text-foreground text-3xl">
+                            {AGENT_AVATAR_FALLBACK}
+                          </AvatarFallback>
+                        </Avatar>
+                        <h3 className="text-foreground mt-2 text-lg font-medium">
+                          {AGENT_DISPLAY_NAME}
+                        </h3>
+                      </div>
+                    </MessageScrollerItem>
+                  )
+                )}
+
+                {error && pendingTurn?.phase !== "failed" && (
+                  <MessageScrollerItem messageId="chat-error" className="mb-6">
+                    <SystemMessage variant="error">
+                      {error.message || "Please try again."}
+                    </SystemMessage>
+                  </MessageScrollerItem>
+                )}
+                {workspaceStatusQuery.isError && (
+                  <MessageScrollerItem
+                    messageId="workspace-status-error"
+                    className="mb-6"
+                  >
+                    <SystemMessage variant="warning">
+                      {workspaceStatusQuery.error.message ||
+                        "Workspace status is unavailable. Agent actions may be limited until this resolves."}
+                    </SystemMessage>
+                  </MessageScrollerItem>
+                )}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton variant="outline" className="shadow-sm" />
+          </MessageScroller>
+        </MessageScrollerProvider>
       </div>
 
       {/* Input Area - with backdrop blur */}
       <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
-        {/* Attachment chips */}
-        {chatAttachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            {chatAttachments.map((attachment) => (
-              <span
-                key={attachment.id}
-                className="border-border bg-muted/50 text-muted-foreground inline-flex max-w-56 items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
-              >
-                {attachment.status === "uploading" ? (
-                  <Loader2 className="size-3 shrink-0 animate-spin" />
-                ) : (
-                  <Paperclip className="size-3 shrink-0" />
-                )}
-                <span className="truncate">{attachment.fileName}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${attachment.fileName}`}
-                  className="hover:text-foreground shrink-0 transition-colors"
-                  onClick={() => handleRemoveAttachment(attachment.id)}
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
+        {composerDisplayAttachments.length > 0 ? (
+          <div className="mb-2">
+            <AgentAttachmentList attachments={composerDisplayAttachments} />
           </div>
-        )}
-        {/* Input */}
-        <PromptInput
-          value={input}
-          onValueChange={setInput}
-          onSubmit={handleSendWithAttachments}
-          isLoading={isLoading}
-          disabled={isComposerLocked}
+        ) : null}
+        <div
+          className={cn(
+            "border-input bg-background ring-offset-background focus-within:ring-ring cursor-text rounded-xl border p-2 transition-shadow focus-within:ring-2 focus-within:ring-offset-2 focus-within:outline-hidden",
+            isComposerLocked && "cursor-not-allowed opacity-60"
+          )}
+          onClick={(event) => {
+            const target = event.currentTarget.querySelector<HTMLElement>(
+              "[contenteditable='true']"
+            );
+            target?.focus();
+          }}
         >
-          <PromptInputTextarea
-            autoFocus
-            className="px-1 pt-0.5 text-sm"
-            textareaElementRef={composerTextareaRef}
+          <ComposerEditor
+            key={mentionScopeKey}
+            className="min-h-10 text-sm"
+            initialContent={buildSerializedTextState(input)}
             placeholder={
               displayMessages.length > 0
                 ? "Type here..."
                 : emptyPromptPlaceholder
             }
-            inlineAutocompleteContext={agentInlineAutocompleteContext}
-            mentionAutocomplete={{
-              items: inlineMentionSearch.results,
-              loading: inlineMentionSearch.loading,
-              onQueryChange: handleInlineMentionQueryChange,
-              onSelectItem: handleSelectMentionEntity,
-              getReplacementText: (entity) =>
-                selectedMentionEntities.some((item) => item.id === entity.id)
-                  ? ""
-                  : buildAgentMentionReplacementText(entity),
-            }}
+            maxLength={10000}
+            characterCountMode="raw"
+            showCharacterCount={false}
             disabled={isComposerLocked}
+            contentEditableClassName={cn(
+              DM_COMPOSER_CONTENT_EDITABLE_CLASS,
+              "max-h-60"
+            )}
+            composerPlaceholderClassName={DM_COMPOSER_PLACEHOLDER_CLASS}
+            inlineAutocompleteContext={agentInlineAutocompleteContext}
+            enableEntityMentions
+            entityMentions={{
+              prospectId: prospectId ?? null,
+              localEntities: threadPostMentionEntities,
+              remoteAllowedKinds: [
+                "prospect",
+                "plan",
+                "task",
+                "post",
+                "attachment",
+              ],
+              onSelectEntity: handleSelectMentionEntity,
+              buildInsertionText: buildAgentMentionReplacementText,
+            }}
+            onContentChange={handleAgentComposerContentChange}
+            onBridgeReady={setAgentComposerApi}
           />
-          <PromptInputActions className="justify-between pt-1">
-            {/* Left actions */}
+          <div className="flex items-center justify-between pt-0.5">
             <div className="flex items-center gap-1">
               <input
                 ref={attachFileInputRef}
@@ -2447,9 +2964,8 @@ export function AgentChat({
               />
             </div>
 
-            {/* Right action - Send/Stop */}
             {isLoading || isStreaming ? (
-              <PromptInputAction tooltip="Stop generating">
+              <MessageAction tooltip="Stop generating">
                 <Button
                   type="button"
                   variant="ghost"
@@ -2460,9 +2976,9 @@ export function AgentChat({
                 >
                   <StopIcon className="fill-current" />
                 </Button>
-              </PromptInputAction>
+              </MessageAction>
             ) : (
-              <PromptInputAction tooltip="Send message">
+              <MessageAction tooltip="Send message">
                 <Button
                   type="button"
                   variant="default"
@@ -2480,10 +2996,10 @@ export function AgentChat({
                 >
                   <ArrowUpwardIcon className="fill-current" />
                 </Button>
-              </PromptInputAction>
+              </MessageAction>
             )}
-          </PromptInputActions>
-        </PromptInput>
+          </div>
+        </div>
       </div>
     </div>
   );

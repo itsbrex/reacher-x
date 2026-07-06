@@ -92,10 +92,7 @@ function ToolStatusText({ state }: Pick<ToolPart, "state">) {
   }
 
   return (
-    <AsciiSpinnerText
-      text="Processing tool call..."
-      className="font-mono text-sm"
-    />
+    <span className="shimmer font-mono text-sm">Processing tool call...</span>
   );
 }
 
@@ -121,7 +118,7 @@ const Tool = ({ toolPart, defaultOpen = false, className }: ToolProps) => {
         </>
       }
       trailing={
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {canExpand ? (
             <ChevronDown
               className={cn(
@@ -186,7 +183,7 @@ const Tool = ({ toolPart, defaultOpen = false, className }: ToolProps) => {
                 <h4 className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
                   Output
                 </h4>
-                <div className="bg-muted/30 scroll-fade-effect-y max-h-60 overflow-auto rounded-lg border p-3 font-mono text-xs">
+                <div className="bg-muted/30 scroll-fade-b max-h-60 overflow-auto rounded-lg border p-3 font-mono text-xs">
                   <pre className="whitespace-pre-wrap">
                     {formatValue(output)}
                   </pre>

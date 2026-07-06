@@ -360,7 +360,7 @@ export function ProspectProfilePanel({
                 >
                   {/* Scrollable tabs container */}
                   <div className="border-border relative border-b">
-                    <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+                    <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
                       <TabsList variant="underline">
                         <TabsTrigger value="overview" variant="underline">
                           Overview
@@ -523,7 +523,7 @@ export function ProspectProfilePanel({
       <Drawer open onOpenChange={(o) => !o && handleClose()}>
         <DrawerContent className="mt-0 flex h-dvh max-h-dvh">
           <div className="flex h-full w-full flex-col">
-            <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto">
+            <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
               {panel}
             </div>
           </div>
@@ -625,7 +625,7 @@ function ProfileSkeleton() {
 
       {/* Tabs skeleton */}
       <div className="border-border relative border-b">
-        <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+        <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
           <div className="inline-flex items-center gap-1">
             <Skeleton className="h-6 w-20" />
             <Skeleton className="h-6 w-28" />

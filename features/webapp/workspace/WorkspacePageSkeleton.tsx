@@ -27,7 +27,7 @@ export function WorkspacePageSkeleton() {
   return (
     <Tabs value="details" className="flex min-h-0 flex-1 flex-col">
       <div className="border-border shrink-0 border-b">
-        <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+        <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
           <TabsList variant="underline">
             <TabsTrigger value="details" variant="underline" disabled>
               Details
@@ -39,7 +39,7 @@ export function WorkspacePageSkeleton() {
         </div>
       </div>
 
-      <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
+      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
         <div
           className="space-y-4"
           aria-busy="true"

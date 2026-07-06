@@ -21,6 +21,7 @@ import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEnt
 import { MentionEntityMenu } from "@/shared/ui/components/mentions/MentionEntityMenu";
 import { buildComposerMentionInsertionText } from "@/features/composer/lib/entityMentions";
 import type { ComposerEntityMentionsConfig } from "@/features/composer/types";
+import { $createMentionNode } from "./MentionNode";
 
 const LexicalTypeaheadMenuPlugin = dynamic(
   () =>
@@ -182,29 +183,50 @@ export function MentionsPlugin({
       nodeToReplace: TextNode | null,
       closeMenu: () => void
     ) => {
-      const replacementText = buildComposerMentionInsertionText({
-        entity: selectedOption.entity,
-        config: entityMentions,
-      });
+      const replacementText =
+        entityMentions?.buildInsertionText?.(selectedOption.entity) ??
+        buildComposerMentionInsertionText({
+          entity: selectedOption.entity,
+          config: entityMentions,
+        });
 
       armMentionCloseSuppression();
       closeMenu();
 
       editor.update(() => {
-        const replacementNode = $createTextNode(replacementText ?? "");
+        const replacementValue = replacementText ?? "";
+        const shouldUseMentionNode =
+          replacementValue.startsWith("@") &&
+          replacementValue.trim().length > 1;
+        const replacementNodes = shouldUseMentionNode
+          ? [
+              $createMentionNode(
+                replacementValue.trim().replace(/^@/, ""),
+                selectedOption.entity.id
+              ),
+              ...(replacementValue.endsWith(" ") ? [$createTextNode(" ")] : []),
+            ]
+          : [$createTextNode(replacementValue)];
+
+        const lastNode = replacementNodes.at(-1) ?? null;
 
         if (nodeToReplace) {
-          nodeToReplace.replace(replacementNode);
+          nodeToReplace.replace(replacementNodes[0]);
+          let previousNode = replacementNodes[0];
+          for (const nextNode of replacementNodes.slice(1)) {
+            previousNode.insertAfter(nextNode);
+            previousNode = nextNode;
+          }
         } else {
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
-            selection.insertNodes([replacementNode]);
+            selection.insertNodes(replacementNodes);
           }
         }
-        if (replacementText) {
-          replacementNode.selectEnd();
-        } else {
-          replacementNode.selectNext();
+        if (lastNode instanceof TextNode) {
+          lastNode.selectEnd();
+        } else if (lastNode) {
+          lastNode.selectNext();
         }
       });
 
@@ -235,23 +257,45 @@ export function MentionsPlugin({
         anchorElementRef,
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
       ) => {
+        const anchorRect =
+          anchorElementRef.current?.getBoundingClientRect() ?? null;
+        const viewportPadding = 16;
+        const spaceBelow = anchorRect
+          ? window.innerHeight - anchorRect.bottom - viewportPadding
+          : 288;
+        const spaceAbove = anchorRect ? anchorRect.top - viewportPadding : 288;
+        const renderAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+        const maxHeight = Math.max(
+          120,
+          Math.min(renderAbove ? spaceAbove : spaceBelow, 288)
+        );
+
         return anchorElementRef.current && queryString !== null
           ? createPortal(
-              <MentionEntityMenu
-                results={results}
-                loading={loading}
-                selectedIndex={selectedIndex}
-                onHover={setHighlightedIndex}
-                onSelect={(item) => {
-                  const option = options.find(
-                    (candidate) => candidate.entity.id === item.id
-                  );
-                  if (option) {
-                    selectOptionAndCleanUp(option);
-                  }
-                }}
-                className="w-80"
-              />,
+              <div
+                className={
+                  renderAbove
+                    ? "max-w-[calc(100vw-2rem)] -translate-y-[calc(100%+0.5rem)]"
+                    : "max-w-[calc(100vw-2rem)]"
+                }
+              >
+                <MentionEntityMenu
+                  results={results}
+                  loading={loading}
+                  selectedIndex={selectedIndex}
+                  onHover={setHighlightedIndex}
+                  onSelect={(item) => {
+                    const option = options.find(
+                      (candidate) => candidate.entity.id === item.id
+                    );
+                    if (option) {
+                      selectOptionAndCleanUp(option);
+                    }
+                  }}
+                  className="w-[min(20rem,calc(100vw-2rem))]"
+                  bodyStyle={{ maxHeight }}
+                />
+              </div>,
               anchorElementRef.current
             )
           : null;

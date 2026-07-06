@@ -113,7 +113,7 @@ export function MentionEntityMenu({
     <div
       id={listboxId}
       role="listbox"
-      className="scroll-fade-effect-y max-h-72 overflow-auto p-1"
+      className="scroll-fade-b max-h-72 overflow-auto p-1"
       style={bodyStyle}
     >
       {loading ? (
@@ -185,7 +185,7 @@ export function MentionEntityMenu({
   return (
     <div
       className={cn(
-        "bg-background overflow-hidden rounded-xl border shadow-xl",
+        "bg-background max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border shadow-xl",
         className
       )}
     >

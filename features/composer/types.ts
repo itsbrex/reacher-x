@@ -68,6 +68,7 @@ export interface ComposerEntityMentionsConfig {
   personTextMode?: "label" | "handle";
   prospectId?: string | null;
   onSelectEntity?: (entity: MentionEntitySearchResult) => void;
+  buildInsertionText?: (entity: MentionEntitySearchResult) => string | null;
 }
 
 export interface ComposerInitialMediaUpload {

@@ -1,6 +1,5 @@
 "use client";
 
-import { TextShimmer } from "@/shared/ui/components/TextShimmer";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 
@@ -20,18 +19,25 @@ export function ThinkingBar({
   onClick,
 }: ThinkingBarProps) {
   return (
-    <div className={cn("flex w-full items-center justify-between", className)}>
+    <div
+      className={cn(
+        "flex w-full flex-wrap items-center gap-x-3 gap-y-1",
+        className
+      )}
+    >
       {onClick ? (
         <button
           type="button"
           onClick={onClick}
           className="flex items-center gap-1 text-sm transition-opacity hover:opacity-80"
         >
-          <TextShimmer className="font-medium">{text}</TextShimmer>
+          <span className="text-muted-foreground font-medium">{text}</span>
           <ChevronRight className="text-muted-foreground size-4" />
         </button>
       ) : (
-        <TextShimmer className="cursor-default font-medium">{text}</TextShimmer>
+        <span className="text-muted-foreground cursor-default font-medium">
+          {text}
+        </span>
       )}
       {onStop ? (
         <button

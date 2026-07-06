@@ -240,7 +240,7 @@ export function UsagePage() {
           </Select>
         }
       />
-      <PageContent className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto p-4">
+      <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto p-4">
         {usageQuery.isError ? (
           <div className="border-destructive bg-destructive/10 mb-4 rounded-lg border p-4">
             <p className="text-destructive text-sm font-medium">

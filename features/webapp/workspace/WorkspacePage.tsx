@@ -714,7 +714,7 @@ export default function WorkspacePage() {
                   }
                 >
                   <div className="border-border shrink-0 border-b">
-                    <div className="scroll-fade-effect-x scrollbar-none overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden">
+                    <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
                       <TabsList variant="underline">
                         <TabsTrigger value="details" variant="underline">
                           Details
@@ -729,7 +729,7 @@ export default function WorkspacePage() {
                     </div>
                   </div>
 
-                  <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
+                  <div className="scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
                     <WorkspacePlanLimitAlert className="mb-4" />
                     <TabsContent value="details" className="mt-0">
                       {isEditing ? (

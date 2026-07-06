@@ -7,8 +7,12 @@ function escapeRegExp(value: string) {
 export function buildAgentMentionReplacementText(
   entity: MentionEntitySearchResult
 ) {
+  if (entity.kind === "attachment") {
+    return null;
+  }
+
   const visibleText = entity.mentionText.trim();
-  return visibleText ? `@${visibleText} ` : "";
+  return visibleText ? `@${visibleText} ` : null;
 }
 
 export function filterSelectedMentionEntitiesByInput(args: {

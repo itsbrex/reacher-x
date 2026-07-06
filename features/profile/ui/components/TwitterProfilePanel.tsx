@@ -641,7 +641,7 @@ export function TwitterProfilePanel({
       <Drawer open onOpenChange={(open) => !open && handleBack()}>
         <DrawerContent className="mt-0 flex h-dvh max-h-dvh">
           <div className="flex h-full w-full flex-col">
-            <div className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto">
+            <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
               {panel}
             </div>
           </div>

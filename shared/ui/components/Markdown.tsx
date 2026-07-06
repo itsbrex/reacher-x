@@ -32,7 +32,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       return (
         <code
           className={cn(
-            "text-foreground rounded border px-1.5 py-0.5 font-mono text-sm before:content-none after:content-none",
+            "border-border rounded border bg-transparent px-1.5 py-0.5 font-mono text-sm text-inherit before:content-none after:content-none",
             className
           )}
           {...props}
@@ -114,7 +114,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   table: function TableComponent({ children, ...props }) {
     return (
-      <div className="scroll-fade-effect-x my-3 max-w-full scrollbar-none overflow-x-auto [&::-webkit-scrollbar]:hidden">
+      <div className="scroll-fade-x my-3 max-w-full scrollbar-none overflow-x-auto [overflow-y:clip] [&::-webkit-scrollbar]:hidden">
         <table
           className="border-border/80 w-max min-w-full border-collapse text-sm"
           {...props}

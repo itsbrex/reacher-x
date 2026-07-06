@@ -155,7 +155,7 @@ export function ProspectCardFooter({
 
   return (
     <footer className="overflow-hidden">
-      <div className="scroll-fade-effect-x flex scrollbar-none items-center gap-2 overflow-x-auto">
+      <div className="scroll-fade-x flex scrollbar-none items-center gap-2 overflow-x-auto [overflow-y:clip]">
         {qualificationPresentation.showCardBadge && (
           <Badge variant="outline" className={compactBadgeClassName}>
             <Flag2Icon

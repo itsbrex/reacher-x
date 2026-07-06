@@ -37,23 +37,17 @@ export type ReasoningProps = {
   className?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  isStreaming?: boolean;
 };
 function Reasoning({
   children,
   className,
   open,
   onOpenChange,
-  isStreaming,
 }: ReasoningProps) {
   const [internalOpen, setInternalOpen] = useState(false);
 
   const isControlled = open !== undefined;
-  const isOpen = isControlled
-    ? Boolean(open)
-    : isStreaming
-      ? true
-      : internalOpen;
+  const isOpen = isControlled ? Boolean(open) : internalOpen;
 
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {

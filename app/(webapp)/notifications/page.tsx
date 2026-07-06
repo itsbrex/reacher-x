@@ -114,7 +114,7 @@ export default function NotificationsPage() {
     <div className="flex h-full min-h-0 w-full">
       <PageLayout className="flex h-full min-h-0 flex-col overflow-hidden">
         <PageHeader title="Notifications" onBack={() => router.back()} />
-        <PageContent className="scroll-fade-effect-y min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
+        <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
           <WorkspacePlanLimitAlert className="mx-4 mb-4" />
           {(notificationWorkspaceError ||
             shellStateQuery.isError ||

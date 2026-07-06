@@ -78,7 +78,7 @@ function CodeBlockCode({
   }, [code, language, theme]);
 
   const classNames = cn(
-    "scroll-fade-effect-x w-full overflow-x-auto text-[13px]",
+    "scroll-fade-x [overflow-y:clip] w-full overflow-x-auto text-[13px]",
     "[&>pre]:min-w-full [&>pre]:w-fit [&>pre]:bg-transparent! [&>pre]:px-4 [&>pre]:py-4",
     "[&>pre]:text-inherit [&>pre]:font-mono [&>pre>code]:font-mono",
     className
