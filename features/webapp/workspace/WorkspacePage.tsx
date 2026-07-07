@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -128,6 +135,61 @@ function icpDraftHasMeaningfulContent(
   return Boolean(icp.title || icp.description || icp.painPoints.length > 0);
 }
 
+function parseAgentDailyBrowserSendCap(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const parsedValue = Number(trimmedValue);
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
+function areAgentDailyBrowserSendCapsEqual(
+  leftValue: string,
+  rightValue: string
+): boolean {
+  const leftParsedValue = parseAgentDailyBrowserSendCap(leftValue);
+  const rightParsedValue = parseAgentDailyBrowserSendCap(rightValue);
+
+  if (leftParsedValue !== null && rightParsedValue !== null) {
+    return leftParsedValue === rightParsedValue;
+  }
+
+  return leftValue.trim() === rightValue.trim();
+}
+
+function WorkspaceAgentSettingsRow({
+  title,
+  description,
+  control,
+  footer,
+}: {
+  title: string;
+  description: ReactNode;
+  control: ReactNode;
+  footer?: ReactNode;
+}) {
+  return (
+    <article className="px-4 py-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-x-4 md:grid-cols-[minmax(0,1fr)_7.5rem] md:gap-x-8">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium">{title}</h3>
+          <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+        </div>
+        <div className="flex min-w-0 justify-end pt-0.5">{control}</div>
+        {footer ? (
+          <div className="col-start-1 mt-3 min-w-0">{footer}</div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 export default function WorkspacePage() {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -199,6 +261,8 @@ export default function WorkspacePage() {
   const formLabelClassName = "mb-2.5 block";
   const formDescriptionClassName = "mt-1.5 text-xs";
   const formMessageClassName = "mt-1.5";
+  const workspaceBodyColumnClassName =
+    "flex min-h-0 flex-1 flex-col self-stretch overflow-hidden md:w-[min(32rem,100%)] md:max-w-lg md:flex-none md:self-start";
   const workspaceFormId = "workspace-settings-form";
 
   const form = useForm<WorkspacePageFormValues>({
@@ -241,16 +305,42 @@ export default function WorkspacePage() {
   const [agentDailyBrowserSendCap, setAgentDailyBrowserSendCap] =
     useState("25");
   const [isSavingAgentSettings, setIsSavingAgentSettings] = useState(false);
+  const persistedAgentAutonomyMode =
+    workspaceAgentSettings?.autonomyMode ?? "review_required";
+  const persistedAgentDailyBrowserSendCap = String(
+    workspaceAgentSettings?.dailyBrowserSendCap ?? 25
+  );
+  const parsedAgentDailyBrowserSendCap = parseAgentDailyBrowserSendCap(
+    agentDailyBrowserSendCap
+  );
+  const isAgentSettingsDirty =
+    agentAutonomyMode !== persistedAgentAutonomyMode ||
+    !areAgentDailyBrowserSendCapsEqual(
+      agentDailyBrowserSendCap,
+      persistedAgentDailyBrowserSendCap
+    );
+  const hasInvalidAgentSettings =
+    isAgentSettingsDirty && parsedAgentDailyBrowserSendCap === null;
+  const hasWorkspacePageChanges =
+    form.formState.isDirty || isAgentSettingsDirty;
+  const isAgentReviewRequired = agentAutonomyMode === "review_required";
+  const agentControlsDisabled =
+    !isEditing || form.formState.isSubmitting || isSavingAgentSettings;
 
   useEffect(() => {
+    if (isEditing) {
+      return;
+    }
+
     if (!workspaceAgentSettings) {
       return;
     }
+
     setAgentAutonomyMode(workspaceAgentSettings.autonomyMode);
     setAgentDailyBrowserSendCap(
       String(workspaceAgentSettings.dailyBrowserSendCap)
     );
-  }, [workspaceAgentSettings]);
+  }, [isEditing, workspaceAgentSettings]);
 
   const tier = currentPlan?.tier ?? "free";
   const canRollback =
@@ -287,12 +377,20 @@ export default function WorkspacePage() {
 
   const handleSave = async (data: WorkspacePageFormValues) => {
     if (!workspace) return;
+    const workspaceFormHasChanges = form.formState.isDirty;
     const profilesWereEdited =
       Array.isArray(form.formState.dirtyFields.icps) ||
       Boolean(form.formState.dirtyFields.icps);
     const normalizedIcps = data.icps
       .map(trimIcpDraft)
       .filter(icpDraftHasMeaningfulContent);
+    const nextDailyBrowserSendCap = parseAgentDailyBrowserSendCap(
+      agentDailyBrowserSendCap
+    );
+    const agentSettingsChanged =
+      agentAutonomyMode !== persistedAgentAutonomyMode ||
+      nextDailyBrowserSendCap !==
+        parseAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
 
     if (profilesWereEdited && normalizedIcps.length < 3) {
       form.setError("icps", {
@@ -303,37 +401,71 @@ export default function WorkspacePage() {
       return;
     }
 
-    try {
-      const mutationArgs: Parameters<typeof updateWorkspaceSettings>[0] = {
-        workspaceId: workspace._id,
-        name: data.name.trim(),
-        description: data.improvedDescription.trim(),
-        seedDescription: data.seedDescription.trim(),
-        improvedDescription: data.improvedDescription.trim(),
-        useCaseKey: data.useCaseKey,
-        sourceUrl: data.sourceUrl?.trim() || undefined,
-        descriptionSource: data.sourceUrl?.trim() ? "url" : "manual",
-      };
+    if (nextDailyBrowserSendCap === null) {
+      setActiveTab("agent");
+      toast.error("Daily browser send cap must be zero or greater.");
+      return;
+    }
 
-      if (profilesWereEdited) {
-        mutationArgs.icps = normalizedIcps.map((icp) => ({
-          ...icp,
-          channels:
-            icp.channels.length > 0 ? icp.channels : ["X/Twitter", "LinkedIn"],
-        }));
+    try {
+      const saveOperations: Promise<unknown>[] = [];
+
+      if (workspaceFormHasChanges) {
+        const mutationArgs: Parameters<typeof updateWorkspaceSettings>[0] = {
+          workspaceId: workspace._id,
+          name: data.name.trim(),
+          description: data.improvedDescription.trim(),
+          seedDescription: data.seedDescription.trim(),
+          improvedDescription: data.improvedDescription.trim(),
+          useCaseKey: data.useCaseKey,
+          sourceUrl: data.sourceUrl?.trim() || undefined,
+          descriptionSource: data.sourceUrl?.trim() ? "url" : "manual",
+        };
+
+        if (profilesWereEdited) {
+          mutationArgs.icps = normalizedIcps.map((icp) => ({
+            ...icp,
+            channels:
+              icp.channels.length > 0
+                ? icp.channels
+                : ["X/Twitter", "LinkedIn"],
+          }));
+        }
+
+        saveOperations.push(updateWorkspaceSettings(mutationArgs));
       }
 
-      await updateWorkspaceSettings(mutationArgs);
+      if (agentSettingsChanged) {
+        saveOperations.push(
+          persistAgentSettings({
+            autonomyMode: agentAutonomyMode,
+            dailyBrowserSendCap: nextDailyBrowserSendCap,
+          })
+        );
+      }
+
+      await Promise.all(saveOperations);
       reset({
         ...data,
         name: data.name.trim(),
         seedDescription: data.seedDescription.trim(),
         improvedDescription: data.improvedDescription.trim(),
         sourceUrl: data.sourceUrl?.trim() || "",
-        icps: mutationArgs.icps ?? data.icps,
+        icps: profilesWereEdited
+          ? normalizedIcps.map((icp) => ({
+              ...icp,
+              channels:
+                icp.channels.length > 0
+                  ? icp.channels
+                  : ["X/Twitter", "LinkedIn"],
+            }))
+          : data.icps,
       });
+      setAgentDailyBrowserSendCap(String(nextDailyBrowserSendCap));
       lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
-      toast.success("Workspace updated");
+      toast.success(
+        workspaceFormHasChanges ? "Workspace updated" : "Agent settings updated"
+      );
       setIsEditing(false);
     } catch (error) {
       logger.error("Workspace save failed", error);
@@ -344,74 +476,8 @@ export default function WorkspacePage() {
     }
   };
 
-  const handleAgentAutonomyChange = async (checked: boolean) => {
-    const nextMode = checked ? "autonomous" : "review_required";
-    const previousMode = agentAutonomyMode;
-    setAgentAutonomyMode(nextMode);
-    try {
-      await persistAgentSettings({ autonomyMode: nextMode });
-      toast.success(
-        nextMode === "autonomous"
-          ? "△ Agent will send without waiting for approval."
-          : "△ Agent is back to review required mode."
-      );
-    } catch (error) {
-      setAgentAutonomyMode(previousMode);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not update △ Agent mode."
-      );
-    }
-  };
-
-  const handleDailyBrowserSendCapBlur = async () => {
-    const parsedValue = Number(agentDailyBrowserSendCap);
-    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
-      setAgentDailyBrowserSendCap(
-        String(workspaceAgentSettings?.dailyBrowserSendCap ?? 25)
-      );
-      toast.error("Daily browser send cap must be zero or greater.");
-      return;
-    }
-
-    if (parsedValue === workspaceAgentSettings?.dailyBrowserSendCap) {
-      return;
-    }
-
-    try {
-      await persistAgentSettings({ dailyBrowserSendCap: parsedValue });
-      toast.success("Saved daily browser send cap.");
-    } catch (error) {
-      setAgentDailyBrowserSendCap(
-        String(workspaceAgentSettings?.dailyBrowserSendCap ?? 25)
-      );
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not update daily browser send cap."
-      );
-    }
-  };
-
-  const handleReleasePendingApprovals = async () => {
-    try {
-      const result = await persistAgentSettings({
-        autonomyMode: "autonomous",
-        releasePendingApprovals: true,
-      });
-      toast.success(
-        result?.releasedTaskCount
-          ? `Released ${result.releasedTaskCount} pending approval${result.releasedTaskCount === 1 ? "" : "s"}.`
-          : "No pending approvals were waiting."
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not release pending approvals."
-      );
-    }
+  const handleAgentAutonomyChange = (checked: boolean) => {
+    setAgentAutonomyMode(checked ? "review_required" : "autonomous");
   };
 
   function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -422,6 +488,8 @@ export default function WorkspacePage() {
   const handleStartEditing = () => {
     if (!workspace) return;
     reset(workspaceDocToFormValues(workspace));
+    setAgentAutonomyMode(persistedAgentAutonomyMode);
+    setAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
     lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(true);
   };
@@ -432,6 +500,8 @@ export default function WorkspacePage() {
     } else {
       reset(createEmptyWorkspaceFormValues());
     }
+    setAgentAutonomyMode(persistedAgentAutonomyMode);
+    setAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
     lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(false);
   };
@@ -527,15 +597,17 @@ export default function WorkspacePage() {
   const isHydrating = isAuthenticated && workspace === undefined;
   if (authLoading || isHydrating) {
     return (
-      <PageLayout className="border-r-0">
+      <PageLayout className="max-w-none border-r-0 md:border-r-0">
         <PageHeader
           className="border-b-0"
           title="Workspace"
           onBack={() => router.back()}
         />
-        <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <WorkspacePageSkeleton />
-        </PageContent>
+        <div className={workspaceBodyColumnClassName}>
+          <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <WorkspacePageSkeleton />
+          </PageContent>
+        </div>
       </PageLayout>
     );
   }
@@ -553,9 +625,9 @@ export default function WorkspacePage() {
         {showMainColumn ? (
           <PageLayout
             className={cn(
-              "border-r-0 md:max-w-lg md:min-w-0 md:flex-1 md:basis-0 md:border-r",
+              "max-w-none border-r-0 md:min-w-0 md:flex-1 md:basis-0 md:border-r-0",
               "flex min-h-0 flex-col overflow-hidden",
-              refineOpen && !isMobile && "border-border h-full overflow-hidden"
+              refineOpen && !isMobile && "h-full overflow-hidden"
             )}
           >
             <PageHeader
@@ -581,7 +653,10 @@ export default function WorkspacePage() {
                         form={workspaceFormId}
                         type="submit"
                         disabled={
-                          !form.formState.isDirty || form.formState.isSubmitting
+                          !hasWorkspacePageChanges ||
+                          hasInvalidAgentSettings ||
+                          form.formState.isSubmitting ||
+                          isSavingAgentSettings
                         }
                       >
                         Done
@@ -658,165 +733,114 @@ export default function WorkspacePage() {
               }
             />
 
-            <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {authError && (
-                <div className="px-4 pt-4">
-                  <Alert variant="destructive" className="mb-6">
-                    <AlertTitle>Could not load workspace</AlertTitle>
-                    <AlertDescription>
-                      {authError.message ?? "Please refresh."}
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {isAuthenticated && workspace === null && !authLoading && (
-                <div className="px-4 pt-4">
-                  <Alert className="mb-6">
-                    <AlertTitle>No workspace yet</AlertTitle>
-                    <AlertDescription>
-                      Finish setup to create your workspace.
-                      <div className="mt-3">
-                        <Button
-                          size="xs"
-                          onClick={() => {
-                            setPreferredShellContext("setup_session");
-                            router.push("/agent/setup");
-                          }}
-                        >
-                          Continue setup
-                        </Button>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {!isAuthenticated && !authLoading && (
-                <div className="px-4 pt-4">
-                  <Alert className="mb-6">
-                    <AlertTitle>Account required</AlertTitle>
-                    <AlertDescription>
-                      <Button size="xs" onClick={() => router.push("/login")}>
-                        Sign in
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {isAuthenticated && workspace && (
-                <Tabs
-                  className="flex min-h-0 flex-1 flex-col"
-                  value={activeTab}
-                  onValueChange={(v) =>
-                    setActiveTab(v as "details" | "profiles" | "agent")
-                  }
-                >
-                  <div className="border-border shrink-0 border-b">
-                    <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
-                      <TabsList variant="underline">
-                        <TabsTrigger value="details" variant="underline">
-                          Details
-                        </TabsTrigger>
-                        <TabsTrigger value="profiles" variant="underline">
-                          Profiles
-                        </TabsTrigger>
-                        <TabsTrigger value="agent" variant="underline">
-                          △ Agent
-                        </TabsTrigger>
-                      </TabsList>
-                    </div>
+            {isAuthenticated && workspace ? (
+              <Tabs
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                value={activeTab}
+                onValueChange={(v) =>
+                  setActiveTab(v as "details" | "profiles" | "agent")
+                }
+              >
+                <div className="border-border shrink-0 border-b">
+                  <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
+                    <TabsList variant="underline">
+                      <TabsTrigger value="details" variant="underline">
+                        Details
+                      </TabsTrigger>
+                      <TabsTrigger value="profiles" variant="underline">
+                        Profiles
+                      </TabsTrigger>
+                      <TabsTrigger value="agent" variant="underline">
+                        Agent
+                      </TabsTrigger>
+                    </TabsList>
                   </div>
+                </div>
 
-                  <div className="scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
-                    <WorkspacePlanLimitAlert className="mb-4" />
-                    <TabsContent value="details" className="mt-0">
-                      {isEditing ? (
-                        <Alert className="mb-4">
-                          <AlertTitle>Note</AlertTitle>
+                <div className={workspaceBodyColumnClassName}>
+                  <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    {authError && (
+                      <div className="px-4 pt-4">
+                        <Alert variant="destructive" className="mb-6">
+                          <AlertTitle>Could not load workspace</AlertTitle>
                           <AlertDescription>
-                            {tier === "free" ? (
-                              <>
-                                Changing the workspace affects how the agent
-                                finds people. For a different product or use
-                                case, create a new workspace.
-                              </>
-                            ) : (
-                              <>
-                                Changing the workspace affects how the agent
-                                works. You can roll back to the previous version
-                                from the menu if results worsen. For a different
-                                product, create a new workspace.
-                              </>
-                            )}
+                            {authError.message ?? "Please refresh."}
                           </AlertDescription>
                         </Alert>
-                      ) : null}
+                      </div>
+                    )}
 
-                      <Form {...form}>
-                        <form
-                          id={workspaceFormId}
-                          className="space-y-4"
-                          onSubmit={handleFormSubmit}
-                        >
-                          {!isEditing ? (
-                            <FormField
-                              control={form.control}
-                              name="useCaseKey"
-                              render={({ field }) => (
-                                <FormItem className={formFieldClassName}>
-                                  <WorkspaceUseCaseCombobox
-                                    value={
-                                      (field.value ??
-                                        DEFAULT_WORKSPACE_USE_CASE_KEY) as WorkspaceUseCaseKey
-                                    }
-                                    onValueChange={field.onChange}
-                                    disabled
-                                  />
-                                  <FormMessage
-                                    className={formMessageClassName}
-                                  />
-                                </FormItem>
+                    <div
+                      className={cn(
+                        "scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-24",
+                        activeTab === "agent" ? "pt-0" : "pt-4"
+                      )}
+                    >
+                      <WorkspacePlanLimitAlert className="mb-4" />
+                      <TabsContent value="details" className="mt-0">
+                        {isEditing ? (
+                          <Alert className="mb-4">
+                            <AlertTitle>Note</AlertTitle>
+                            <AlertDescription>
+                              {tier === "free" ? (
+                                <>
+                                  Changing the workspace affects how the agent
+                                  finds people. For a different product or use
+                                  case, create a new workspace.
+                                </>
+                              ) : (
+                                <>
+                                  Changing the workspace affects how the agent
+                                  works. You can roll back to the previous
+                                  version from the menu if results worsen. For a
+                                  different product, create a new workspace.
+                                </>
                               )}
-                            />
-                          ) : null}
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
 
-                          <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                              <FormItem className={formFieldClassName}>
-                                <FormLabel className={formLabelClassName}>
-                                  Name
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    disabled={!isEditing}
-                                  />
-                                </FormControl>
-                                <FormMessage className={formMessageClassName} />
-                              </FormItem>
-                            )}
-                          />
+                        <Form {...form}>
+                          <form
+                            id={workspaceFormId}
+                            className="space-y-4"
+                            onSubmit={handleFormSubmit}
+                          >
+                            {!isEditing ? (
+                              <FormField
+                                control={form.control}
+                                name="useCaseKey"
+                                render={({ field }) => (
+                                  <FormItem className={formFieldClassName}>
+                                    <WorkspaceUseCaseCombobox
+                                      value={
+                                        (field.value ??
+                                          DEFAULT_WORKSPACE_USE_CASE_KEY) as WorkspaceUseCaseKey
+                                      }
+                                      onValueChange={field.onChange}
+                                      disabled
+                                    />
+                                    <FormMessage
+                                      className={formMessageClassName}
+                                    />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : null}
 
-                          {hasPersistedSourceUrl ? (
                             <FormField
                               control={form.control}
-                              name="sourceUrl"
+                              name="name"
                               render={({ field }) => (
                                 <FormItem className={formFieldClassName}>
                                   <FormLabel className={formLabelClassName}>
-                                    Source URL
+                                    Name
                                   </FormLabel>
                                   <FormControl>
                                     <Input
                                       {...field}
                                       value={field.value ?? ""}
                                       disabled={!isEditing}
-                                      placeholder="https://"
                                     />
                                   </FormControl>
                                   <FormMessage
@@ -825,35 +849,98 @@ export default function WorkspacePage() {
                                 </FormItem>
                               )}
                             />
-                          ) : null}
 
-                          {!isEditing ? (
+                            {hasPersistedSourceUrl ? (
+                              <FormField
+                                control={form.control}
+                                name="sourceUrl"
+                                render={({ field }) => (
+                                  <FormItem className={formFieldClassName}>
+                                    <FormLabel className={formLabelClassName}>
+                                      Source URL
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        disabled={!isEditing}
+                                        placeholder="https://"
+                                      />
+                                    </FormControl>
+                                    <FormMessage
+                                      className={formMessageClassName}
+                                    />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : null}
+
+                            {!isEditing ? (
+                              <FormField
+                                control={form.control}
+                                name="seedDescription"
+                                render={({ field }) => (
+                                  <FormItem className={formFieldClassName}>
+                                    <FormLabel className={formLabelClassName}>
+                                      Description
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        readOnly
+                                        rows={4}
+                                        autoResize={!isEditing}
+                                        className={cn(
+                                          "resize-y",
+                                          !isEditing && "overflow-hidden"
+                                        )}
+                                        disabled={!isEditing}
+                                      />
+                                    </FormControl>
+                                    <FormDescription
+                                      className={formDescriptionClassName}
+                                    >
+                                      Seed description (manual or from URL).
+                                    </FormDescription>
+                                    <FormMessage
+                                      className={formMessageClassName}
+                                    />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : null}
+
                             <FormField
                               control={form.control}
-                              name="seedDescription"
+                              name="improvedDescription"
                               render={({ field }) => (
                                 <FormItem className={formFieldClassName}>
                                   <FormLabel className={formLabelClassName}>
-                                    Description
+                                    Agent-generated description
                                   </FormLabel>
                                   <FormControl>
                                     <Textarea
                                       {...field}
                                       value={field.value ?? ""}
-                                      readOnly
+                                      disabled={!isEditing}
                                       rows={4}
                                       autoResize={!isEditing}
                                       className={cn(
                                         "resize-y",
                                         !isEditing && "overflow-hidden"
                                       )}
-                                      disabled={!isEditing}
                                     />
                                   </FormControl>
                                   <FormDescription
                                     className={formDescriptionClassName}
                                   >
-                                    Seed description (manual or from URL).
+                                    Used by the △ Agent to find{" "}
+                                    {
+                                      selectedUseCase.promptContext.terminology
+                                        .entityPlural
+                                    }
+                                    .
                                   </FormDescription>
                                   <FormMessage
                                     className={formMessageClassName}
@@ -861,313 +948,332 @@ export default function WorkspacePage() {
                                 </FormItem>
                               )}
                             />
-                          ) : null}
 
-                          <FormField
-                            control={form.control}
-                            name="improvedDescription"
-                            render={({ field }) => (
-                              <FormItem className={formFieldClassName}>
-                                <FormLabel className={formLabelClassName}>
-                                  Agent-generated description
-                                </FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    disabled={!isEditing}
-                                    rows={4}
-                                    autoResize={!isEditing}
-                                    className={cn(
-                                      "resize-y",
-                                      !isEditing && "overflow-hidden"
-                                    )}
-                                  />
-                                </FormControl>
-                                <FormDescription
-                                  className={formDescriptionClassName}
+                            {isEditing ? (
+                              <div className="border-border -mx-4 space-y-2 border-t px-4 pt-4">
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    Refine audience
+                                  </p>
+                                  <p className="text-muted-foreground text-sm">
+                                    Tweak your description to improve who the
+                                    agent finds. This regenerates your profiles.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => void openRefine()}
                                 >
-                                  Used by the △ Agent to find{" "}
-                                  {
-                                    selectedUseCase.promptContext.terminology
-                                      .entityPlural
-                                  }
-                                  .
-                                </FormDescription>
-                                <FormMessage className={formMessageClassName} />
-                              </FormItem>
-                            )}
-                          />
-
-                          {isEditing ? (
-                            <div className="border-border -mx-4 space-y-2 border-t px-4 pt-4">
-                              <div>
-                                <p className="text-sm font-medium">
-                                  Refine audience
-                                </p>
-                                <p className="text-muted-foreground text-sm">
-                                  Tweak your description to improve who the
-                                  agent finds. This regenerates your profiles.
-                                </p>
+                                  Refine
+                                </Button>
                               </div>
+                            ) : null}
+                          </form>
+                        </Form>
+                      </TabsContent>
+
+                      <TabsContent value="profiles" className="mt-0">
+                        {isEditing ? (
+                          <Alert>
+                            <AlertTitle>Note</AlertTitle>
+                            <AlertDescription>
+                              {tier === "free"
+                                ? "Editing profiles updates how the agent qualifies prospects."
+                                : "You can roll back from the menu if needed after refining."}
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
+
+                        {!isEditing ? (
+                          <div className="flex flex-col gap-3">
+                            {(workspace.icps ?? []).map(
+                              (
+                                icp: WorkspacePageFormValues["icps"][number],
+                                i: number
+                              ) => (
+                                <IdealCustomerProfileCard
+                                  key={`${icp.title}-${i}`}
+                                  profile={icp}
+                                  disabled
+                                />
+                              )
+                            )}
+                          </div>
+                        ) : (
+                          <Form {...form}>
+                            <div className="space-y-0">
+                              {fields.map((field, index) => (
+                                <div
+                                  key={field.id}
+                                  className="border-border -mx-4 border-b px-4 py-4 last:border-b-0"
+                                >
+                                  <div className="mb-4 flex items-center justify-between">
+                                    <span className="text-muted-foreground text-sm">
+                                      Profile · #
+                                      <AnimatedNumber
+                                        value={index + 1}
+                                        animateOnMount
+                                      />
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      size="xsIcon"
+                                      variant="ghost"
+                                      disabled={index < 3}
+                                      title={
+                                        index < 3
+                                          ? "The first three profiles cannot be deleted."
+                                          : "Delete profile"
+                                      }
+                                      onClick={() => {
+                                        if (index >= 3) remove(index);
+                                      }}
+                                    >
+                                      <DeleteIcon className="fill-current" />
+                                    </Button>
+                                  </div>
+                                  <div className="space-y-4">
+                                    <FormField
+                                      control={form.control}
+                                      name={`icps.${index}.title`}
+                                      render={({ field: f }) => (
+                                        <FormItem
+                                          className={formFieldClassName}
+                                        >
+                                          <FormLabel
+                                            className={formLabelClassName}
+                                          >
+                                            Name
+                                          </FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              {...f}
+                                              value={f.value ?? ""}
+                                            />
+                                          </FormControl>
+                                          <FormMessage
+                                            className={formMessageClassName}
+                                          />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name={`icps.${index}.description`}
+                                      render={({ field: f }) => (
+                                        <FormItem
+                                          className={formFieldClassName}
+                                        >
+                                          <FormLabel
+                                            className={formLabelClassName}
+                                          >
+                                            Short description
+                                          </FormLabel>
+                                          <FormControl>
+                                            <Textarea
+                                              {...f}
+                                              value={f.value ?? ""}
+                                              rows={3}
+                                              maxLength={
+                                                ICP_SHORT_DESCRIPTION_MAX
+                                              }
+                                              className="resize-y"
+                                            />
+                                          </FormControl>
+                                          <FormDescription
+                                            className={formDescriptionClassName}
+                                          >
+                                            <CharacterCounter
+                                              current={f.value?.length ?? 0}
+                                              max={ICP_SHORT_DESCRIPTION_MAX}
+                                            />
+                                          </FormDescription>
+                                          <FormMessage
+                                            className={formMessageClassName}
+                                          />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name={`icps.${index}.painPoints`}
+                                      render={({ field: f }) => (
+                                        <FormItem
+                                          className={formFieldClassName}
+                                        >
+                                          <FormLabel
+                                            className={formLabelClassName}
+                                          >
+                                            Pain points ·{" "}
+                                            <AnimatedNumber
+                                              value={f.value?.length ?? 0}
+                                            />
+                                          </FormLabel>
+                                          <FormControl>
+                                            <WorkspaceIcpPainPointsField
+                                              value={f.value ?? []}
+                                              onChange={f.onChange}
+                                            />
+                                          </FormControl>
+                                          <FormMessage
+                                            className={formMessageClassName}
+                                          />
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
                               <Button
                                 type="button"
-                                size="xs"
                                 variant="outline"
-                                onClick={() => void openRefine()}
+                                size="xs"
+                                className="mt-4"
+                                onClick={() =>
+                                  append({
+                                    title: "",
+                                    description: "",
+                                    painPoints: [],
+                                    channels: ["X/Twitter", "LinkedIn"],
+                                  })
+                                }
                               >
-                                Refine
+                                <AddIcon className="fill-current" />
+                                Add profile
                               </Button>
                             </div>
-                          ) : null}
-                        </form>
-                      </Form>
-                    </TabsContent>
+                          </Form>
+                        )}
+                      </TabsContent>
 
-                    <TabsContent value="profiles" className="mt-0">
-                      {isEditing ? (
-                        <Alert>
-                          <AlertTitle>Note</AlertTitle>
-                          <AlertDescription>
-                            {tier === "free"
-                              ? "Editing profiles updates how the agent qualifies prospects."
-                              : "You can roll back from the menu if needed after refining."}
-                          </AlertDescription>
-                        </Alert>
-                      ) : null}
-
-                      {!isEditing ? (
-                        <div className="flex flex-col gap-3">
-                          {(workspace.icps ?? []).map(
-                            (
-                              icp: WorkspacePageFormValues["icps"][number],
-                              i: number
-                            ) => (
-                              <IdealCustomerProfileCard
-                                key={`${icp.title}-${i}`}
-                                profile={icp}
-                                disabled
+                      <TabsContent value="agent" className="mt-0">
+                        <section className="-mx-4">
+                          <WorkspaceAgentSettingsRow
+                            title="Review required"
+                            description="Approve each reply before it sends. Turn this off to let Agent send without waiting."
+                            control={
+                              <Switch
+                                checked={isAgentReviewRequired}
+                                disabled={agentControlsDisabled}
+                                aria-label="Toggle review required mode"
+                                onCheckedChange={handleAgentAutonomyChange}
                               />
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <Form {...form}>
-                          <div className="space-y-0">
-                            {fields.map((field, index) => (
-                              <div
-                                key={field.id}
-                                className="border-border -mx-4 border-b px-4 py-4 last:border-b-0"
-                              >
-                                <div className="mb-4 flex items-center justify-between">
-                                  <span className="text-muted-foreground text-sm">
-                                    Profile · #
-                                    <AnimatedNumber
-                                      value={index + 1}
-                                      animateOnMount
-                                    />
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    size="xsIcon"
-                                    variant="ghost"
-                                    disabled={index < 3}
-                                    title={
-                                      index < 3
-                                        ? "The first three profiles cannot be deleted."
-                                        : "Delete profile"
-                                    }
-                                    onClick={() => {
-                                      if (index >= 3) remove(index);
-                                    }}
-                                  >
-                                    <DeleteIcon className="fill-current" />
-                                  </Button>
+                            }
+                            footer={
+                              !isAgentReviewRequired ? (
+                                <div className="space-y-1">
+                                  <p className="text-muted-foreground text-xs">
+                                    Agent sends without waiting for approval.
+                                  </p>
+                                  <p className="text-muted-foreground text-xs">
+                                    Replies that were already waiting for
+                                    approval stay queued.
+                                  </p>
                                 </div>
-                                <div className="space-y-4">
-                                  <FormField
-                                    control={form.control}
-                                    name={`icps.${index}.title`}
-                                    render={({ field: f }) => (
-                                      <FormItem className={formFieldClassName}>
-                                        <FormLabel
-                                          className={formLabelClassName}
-                                        >
-                                          Name
-                                        </FormLabel>
-                                        <FormControl>
-                                          <Input {...f} value={f.value ?? ""} />
-                                        </FormControl>
-                                        <FormMessage
-                                          className={formMessageClassName}
-                                        />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name={`icps.${index}.description`}
-                                    render={({ field: f }) => (
-                                      <FormItem className={formFieldClassName}>
-                                        <FormLabel
-                                          className={formLabelClassName}
-                                        >
-                                          Short description
-                                        </FormLabel>
-                                        <FormControl>
-                                          <Textarea
-                                            {...f}
-                                            value={f.value ?? ""}
-                                            rows={3}
-                                            maxLength={
-                                              ICP_SHORT_DESCRIPTION_MAX
-                                            }
-                                            className="resize-y"
-                                          />
-                                        </FormControl>
-                                        <FormDescription
-                                          className={formDescriptionClassName}
-                                        >
-                                          <CharacterCounter
-                                            current={f.value?.length ?? 0}
-                                            max={ICP_SHORT_DESCRIPTION_MAX}
-                                          />
-                                        </FormDescription>
-                                        <FormMessage
-                                          className={formMessageClassName}
-                                        />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name={`icps.${index}.painPoints`}
-                                    render={({ field: f }) => (
-                                      <FormItem className={formFieldClassName}>
-                                        <FormLabel
-                                          className={formLabelClassName}
-                                        >
-                                          Pain points ·{" "}
-                                          <AnimatedNumber
-                                            value={f.value?.length ?? 0}
-                                          />
-                                        </FormLabel>
-                                        <FormControl>
-                                          <WorkspaceIcpPainPointsField
-                                            value={f.value ?? []}
-                                            onChange={f.onChange}
-                                          />
-                                        </FormControl>
-                                        <FormMessage
-                                          className={formMessageClassName}
-                                        />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
+                              ) : null
+                            }
+                          />
+
+                          <WorkspaceAgentSettingsRow
+                            title="Daily browser send cap"
+                            description="Maximum automatic browser fallback sends per day once browser sending is enabled."
+                            control={
+                              <div className="w-20 md:w-24">
+                                <Input
+                                  inputMode="numeric"
+                                  size="sm"
+                                  value={agentDailyBrowserSendCap}
+                                  disabled={agentControlsDisabled}
+                                  aria-label="Daily browser send cap"
+                                  onChange={(event) =>
+                                    setAgentDailyBrowserSendCap(
+                                      event.target.value
+                                    )
+                                  }
+                                />
                               </div>
-                            ))}
+                            }
+                            footer={
+                              <div className="space-y-1">
+                                <p className="text-muted-foreground text-xs">
+                                  Browser sending is{" "}
+                                  {browserSendingEnabled
+                                    ? "enabled"
+                                    : "not enabled"}{" "}
+                                  for this workspace.
+                                </p>
+                                {isEditing &&
+                                parsedAgentDailyBrowserSendCap === null ? (
+                                  <p className="text-destructive text-xs">
+                                    Daily browser send cap must be zero or
+                                    greater.
+                                  </p>
+                                ) : null}
+                              </div>
+                            }
+                          />
+                        </section>
+                      </TabsContent>
+                    </div>
+                  </PageContent>
+                </div>
+              </Tabs>
+            ) : (
+              <div className={workspaceBodyColumnClassName}>
+                <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {authError && (
+                    <div className="px-4 pt-4">
+                      <Alert variant="destructive" className="mb-6">
+                        <AlertTitle>Could not load workspace</AlertTitle>
+                        <AlertDescription>
+                          {authError.message ?? "Please refresh."}
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+
+                  {isAuthenticated && workspace === null && !authLoading && (
+                    <div className="px-4 pt-4">
+                      <Alert className="mb-6">
+                        <AlertTitle>No workspace yet</AlertTitle>
+                        <AlertDescription>
+                          Finish setup to create your workspace.
+                          <div className="mt-3">
                             <Button
-                              type="button"
-                              variant="outline"
                               size="xs"
-                              className="mt-4"
-                              onClick={() =>
-                                append({
-                                  title: "",
-                                  description: "",
-                                  painPoints: [],
-                                  channels: ["X/Twitter", "LinkedIn"],
-                                })
-                              }
+                              onClick={() => {
+                                setPreferredShellContext("setup_session");
+                                router.push("/agent/setup");
+                              }}
                             >
-                              <AddIcon className="fill-current" />
-                              Add profile
+                              Continue setup
                             </Button>
                           </div>
-                        </Form>
-                      )}
-                    </TabsContent>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
 
-                    <TabsContent value="agent" className="mt-0">
-                      <div className="space-y-4">
-                        <div className="rounded-xl border p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="space-y-1">
-                              <h3 className="text-sm font-medium">
-                                Review required
-                              </h3>
-                              <p className="text-muted-foreground text-sm">
-                                Keep this on when you want to approve each reply
-                                before it sends.
-                              </p>
-                            </div>
-                            <Switch
-                              checked={agentAutonomyMode === "autonomous"}
-                              disabled={isSavingAgentSettings}
-                              aria-label="Toggle △ Agent autonomy mode"
-                              onCheckedChange={handleAgentAutonomyChange}
-                            />
-                          </div>
-
-                          <div className="bg-muted/40 mt-4 rounded-lg border p-3">
-                            <p className="text-sm font-medium">Autonomous</p>
-                            <p className="text-muted-foreground mt-1 text-sm">
-                              △ Agent sends without waiting for approval.
-                            </p>
-                          </div>
-
-                          {agentAutonomyMode === "autonomous" ? (
-                            <div className="mt-4 flex flex-wrap items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={isSavingAgentSettings}
-                                onClick={handleReleasePendingApprovals}
-                              >
-                                Release pending approvals
-                              </Button>
-                              <p className="text-muted-foreground text-xs">
-                                Already have approvals waiting? Release them
-                                into the autonomous queue.
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="rounded-xl border p-4">
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-medium">
-                              Daily browser send cap
-                            </h3>
-                            <p className="text-muted-foreground text-sm">
-                              Limits automatic browser fallback sends per day
-                              once browser sending is enabled.
-                            </p>
-                          </div>
-                          <div className="mt-3 max-w-40">
-                            <Input
-                              inputMode="numeric"
-                              value={agentDailyBrowserSendCap}
-                              disabled={isSavingAgentSettings}
-                              onChange={(event) =>
-                                setAgentDailyBrowserSendCap(event.target.value)
-                              }
-                              onBlur={handleDailyBrowserSendCapBlur}
-                            />
-                          </div>
-                          <p className="text-muted-foreground mt-3 text-xs">
-                            Browser sending is{" "}
-                            {browserSendingEnabled ? "enabled" : "not enabled"}{" "}
-                            for this workspace.
-                          </p>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              )}
-            </PageContent>
+                  {!isAuthenticated && !authLoading && (
+                    <div className="px-4 pt-4">
+                      <Alert className="mb-6">
+                        <AlertTitle>Account required</AlertTitle>
+                        <AlertDescription>
+                          <Button
+                            size="xs"
+                            onClick={() => router.push("/login")}
+                          >
+                            Sign in
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+                </PageContent>
+              </div>
+            )}
           </PageLayout>
         ) : null}
 

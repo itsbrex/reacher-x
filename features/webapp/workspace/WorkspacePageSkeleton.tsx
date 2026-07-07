@@ -35,6 +35,9 @@ export function WorkspacePageSkeleton() {
             <TabsTrigger value="profiles" variant="underline" disabled>
               Profiles
             </TabsTrigger>
+            <TabsTrigger value="agent" variant="underline" disabled>
+              Agent
+            </TabsTrigger>
           </TabsList>
         </div>
       </div>

@@ -62,7 +62,7 @@ export function WorkspaceRefinePanel({
       <AgentOnboardingPanel
         threadId={threadId}
         embedRefine
-        className="max-w-none"
+        className="md:border-border max-w-none md:border-r-0 md:border-l"
         onRefineCancel={handleCancel}
         onRefineComplete={onRefineComplete}
       />
