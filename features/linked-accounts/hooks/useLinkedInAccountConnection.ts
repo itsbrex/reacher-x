@@ -63,9 +63,12 @@ export function useLinkedInAccountConnection({
 
   const [linkedinStatus, setLinkedInStatus] =
     useState<LinkedInConnectionStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(true);
+  const [hasResolvedInitialStatus, setHasResolvedInitialStatus] =
+    useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
+  // Keep the populated list visible during post-connect background rechecks.
+  const statusLoading = enabled && !hasResolvedInitialStatus;
 
   useEffect(() => {
     getLinkedInStatusRef.current = getLinkedInStatus;
@@ -93,12 +96,10 @@ export function useLinkedInAccountConnection({
 
   const refreshStatus = useCallback(async () => {
     if (!enabled) {
-      setStatusLoading(false);
       return null;
     }
 
     try {
-      setStatusLoading(true);
       const nextStatus = await getLinkedInStatusRef.current({});
       setLinkedInStatus(nextStatus);
       setStatusError(null);
@@ -110,7 +111,13 @@ export function useLinkedInAccountConnection({
       );
       return null;
     } finally {
-      setStatusLoading(false);
+      setHasResolvedInitialStatus(true);
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setHasResolvedInitialStatus(false);
     }
   }, [enabled]);
 

@@ -95,36 +95,38 @@ export default function ConnectedAccountsPage() {
   const isGoogleConnected = Boolean(user?.email);
 
   return (
-    <PageLayout>
+    <PageLayout className="flex max-w-none flex-col overflow-hidden border-none">
       <PageHeader title="Connected accounts" onBack={() => router.back()} />
-      <PageContent className="mx-4 mt-4 pb-4">
-        <ConnectedAccountsListWithErrorHint statusError={statusError}>
-          <ConnectedAccountsList
-            loading={pageLoading}
-            googleEmail={googleEmail}
-            googleConnectedAt={googleConnectedAt}
-            isGoogleConnected={isGoogleConnected}
-            xStatus={xStatus}
-            linkedinStatus={linkedinStatus}
-            onConnectX={handleConnectX}
-            onDisconnectX={handleDisconnectX}
-            onConnectLinkedIn={() => setLinkedInDialogOpen(true)}
-            onDisconnectLinkedIn={handleDisconnectLinkedIn}
-            browserSending={{
-              status: browserSending.status,
-              isMutating: browserSending.isMutating,
-              onEnable: () => void browserSending.handleEnable(),
-              onDisable: () => void browserSending.handleDisable(),
-            }}
-          />
-        </ConnectedAccountsListWithErrorHint>
+      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
+        <PageContent className="mx-4 mt-4 w-full max-w-lg pb-4">
+          <ConnectedAccountsListWithErrorHint statusError={statusError}>
+            <ConnectedAccountsList
+              loading={pageLoading}
+              googleEmail={googleEmail}
+              googleConnectedAt={googleConnectedAt}
+              isGoogleConnected={isGoogleConnected}
+              xStatus={xStatus}
+              linkedinStatus={linkedinStatus}
+              onConnectX={handleConnectX}
+              onDisconnectX={handleDisconnectX}
+              onConnectLinkedIn={() => setLinkedInDialogOpen(true)}
+              onDisconnectLinkedIn={handleDisconnectLinkedIn}
+              browserSending={{
+                status: browserSending.status,
+                isMutating: browserSending.isMutating,
+                onEnable: () => void browserSending.handleEnable(),
+                onDisable: () => void browserSending.handleDisable(),
+              }}
+            />
+          </ConnectedAccountsListWithErrorHint>
 
-        {isMutating ? (
-          <p className="text-muted-foreground text-xs">
-            Updating account status…
-          </p>
-        ) : null}
-      </PageContent>
+          {isMutating ? (
+            <p className="text-muted-foreground text-xs">
+              Updating account status…
+            </p>
+          ) : null}
+        </PageContent>
+      </div>
       <BrowserSendingDialog
         session={browserSending.loginSession}
         onSuccess={() => void browserSending.handleVerify()}

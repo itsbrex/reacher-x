@@ -165,10 +165,8 @@ export function PlansPage() {
   const mainColumn = (
     <PageLayout
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden",
-        upgradeOpen &&
-          !isMobile &&
-          "md:min-w-0 md:flex-1 md:basis-0 md:border-r"
+        "flex min-h-0 max-w-none flex-1 flex-col overflow-hidden border-none",
+        upgradeOpen && !isMobile && "md:min-w-0 md:flex-1 md:basis-0"
       )}
     >
       <PageHeader title="Plans" onBack={() => router.back()} />

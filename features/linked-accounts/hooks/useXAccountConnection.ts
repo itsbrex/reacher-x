@@ -65,9 +65,12 @@ export function useXAccountConnection({
   const styleSyncRefreshTimeoutsRef = useRef<number[]>([]);
 
   const [xStatus, setXStatus] = useState<TwitterConnectionStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(true);
+  const [hasResolvedInitialStatus, setHasResolvedInitialStatus] =
+    useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
+  // Keep the populated list visible during post-connect background rechecks.
+  const statusLoading = enabled && !hasResolvedInitialStatus;
 
   useEffect(() => {
     getXStatusRef.current = getXStatus;
@@ -98,11 +101,9 @@ export function useXAccountConnection({
 
   const refreshStatus = useCallback(async () => {
     if (!enabled) {
-      setStatusLoading(false);
       return;
     }
     try {
-      setStatusLoading(true);
       const nextStatus = await getXStatusRef.current({});
       setXStatus(nextStatus);
       setStatusError(null);
@@ -112,7 +113,13 @@ export function useXAccountConnection({
         err instanceof Error ? err.message : "Unable to load X/Twitter status."
       );
     } finally {
-      setStatusLoading(false);
+      setHasResolvedInitialStatus(true);
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setHasResolvedInitialStatus(false);
     }
   }, [enabled]);
 
