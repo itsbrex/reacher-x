@@ -97,6 +97,18 @@
       "sourceType": "github",
       "computedHash": "7232cfa7d012008bf12fa33815af49db10e7ddd5549c75c501168875a5334e11"
     },
+    "debug-browser-session": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/debug-browser-session/SKILL.md",
+      "computedHash": "f3c0e86f2de9af65c20b67de2d8cda550d496d181462b7e31bda362ec449c590"
+    },
+    "diff-profile-archives": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/diff-profile-archives/SKILL.md",
+      "computedHash": "82a23fb8a98739a0d92c770753edefb5b16706cd81f6bc04bf8046d02b1f119a"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
@@ -106,6 +118,48 @@
       "source": "anthropics/skills",
       "sourceType": "github",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "generate-video": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/generate-video/skills/generate-video/SKILL.md",
+      "computedHash": "a48a77356c63cba5783745c27600ef16aaff26c39a93aa50c777a3dd9d4dfc30"
+    },
+    "kernel-agent-browser": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/kernel-agent-browser/SKILL.md",
+      "computedHash": "e7fa13b3331541b1e778fe85f551c92d108d48f5ce70688e0a40111fe7191598"
+    },
+    "kernel-auth": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/kernel-auth/SKILL.md",
+      "computedHash": "985abde612c4904f8745ca2a70e4ad478f6db402c5880ce8ba4ddf918059aa9c"
+    },
+    "kernel-browser-harness": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/kernel-browser-harness/SKILL.md",
+      "computedHash": "59de963759b6e38b5f2e4d9f1bb26b447c902ddcb580c70d527b28bb81fc178c"
+    },
+    "kernel-cli": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/kernel-cli/SKILL.md",
+      "computedHash": "4ad2991491dfc8c6cb8039be19b30cda802c3f4025b18fb5e7b2e4b8b5537dfd"
+    },
+    "kernel-python-sdk": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-sdks/skills/kernel-python-sdk/SKILL.md",
+      "computedHash": "c72895de830efd1d6732c6a069f9b4da7073985736c224a17ee7caf6f5e41980"
+    },
+    "kernel-typescript-sdk": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-sdks/skills/kernel-typescript-sdk/SKILL.md",
+      "computedHash": "7e3d3ca82e68b93059a61f87846ee08278f96689e3b99b600d4f92faf3d91ec8"
     },
     "logging-best-practices": {
       "source": "boristane/agent-skills",
@@ -123,6 +177,12 @@
       "source": "openrouterteam/agent-skills",
       "sourceType": "github",
       "computedHash": "0cb0e2f07f6b42fb8974c2ee89ca3ba3a103dfe565f12bc7ca9f41945fc7227a"
+    },
+    "profile-website-bot-detection": {
+      "source": "kernel/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/kernel-cli/skills/profile-website-bot-detection/SKILL.md",
+      "computedHash": "8938c71df134feabb7746ed4e5c04811e6669994e85c51e725baeefd0a5070bf"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
