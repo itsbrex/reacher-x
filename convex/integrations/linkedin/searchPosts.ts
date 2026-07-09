@@ -6,10 +6,16 @@
 import { action, internalAction } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
+import type { ActionCtx } from "../../_generated/server";
 import { getRetriedActionStatus, runRetriedAction } from "../../lib/retrier";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import type { RunId } from "@convex-dev/action-retrier";
+import {
+  getNextLinkedInPostsSearchStart,
+  LINKEDIN_POSTS_DEFAULT_PAGE_SIZE,
+  LINKEDIN_POSTS_MAX_PAGES_PER_QUERY,
+} from "../../lib/linkedinSearchHelpers";
 import {
   linkedinSortOrderValidator,
   linkedinTimeFilterValidator,
@@ -136,6 +142,7 @@ interface InternalSearchResult {
   posts: LinkedInPost[];
   total: number;
   start: number;
+  count: number;
   hasMore: boolean;
   searchMode?: "plain_relevance" | "plain_date" | "exact_phrase";
   error?: string;
@@ -200,6 +207,104 @@ function deduplicatePosts(posts: LinkedInPost[]): LinkedInPost[] {
   return Array.from(seen.values());
 }
 
+const RETRIED_ACTION_POLL_INTERVAL_MS = 500;
+const RETRIED_ACTION_MAX_POLL_ATTEMPTS = 120;
+
+async function waitForPostSearchResult(
+  ctx: ActionCtx,
+  runId: RunId
+): Promise<InternalSearchResult> {
+  let pollAttempts = 0;
+
+  while (pollAttempts < RETRIED_ACTION_MAX_POLL_ATTEMPTS) {
+    const status = await getRetriedActionStatus(ctx, runId);
+    if (status.type === "inProgress") {
+      await new Promise((resolve) =>
+        setTimeout(resolve, RETRIED_ACTION_POLL_INTERVAL_MS)
+      );
+      pollAttempts += 1;
+      continue;
+    }
+
+    if (status.type === "completed") {
+      if (status.result.type === "success") {
+        return status.result.returnValue as InternalSearchResult;
+      }
+
+      if (status.result.type === "failed") {
+        throw new Error(status.result.error);
+      }
+
+      throw new Error("Request was canceled");
+    }
+  }
+
+  throw new Error("Timeout waiting for result");
+}
+
+async function collectPaginatedPostResults(
+  ctx: ActionCtx,
+  args: {
+    query: string;
+    searchMode: "plain_relevance" | "plain_date" | "exact_phrase";
+    sortBy: "relevance" | "date_posted";
+    datePosted?: "past-24h" | "past-week" | "past-month" | "past-year";
+    authorJobTitle?: string;
+    initialResult: InternalSearchResult;
+  }
+): Promise<InternalSearchResult> {
+  const posts = [...args.initialResult.posts];
+  let lastResult = args.initialResult;
+  let nextStart = getNextLinkedInPostsSearchStart(
+    args.initialResult.start,
+    args.initialResult.count || LINKEDIN_POSTS_DEFAULT_PAGE_SIZE
+  );
+  const seenStarts = new Set<number>([args.initialResult.start]);
+
+  for (
+    let pageIndex = 1;
+    pageIndex < LINKEDIN_POSTS_MAX_PAGES_PER_QUERY;
+    pageIndex += 1
+  ) {
+    if (!lastResult.hasMore || seenStarts.has(nextStart)) {
+      break;
+    }
+
+    seenStarts.add(nextStart);
+
+    try {
+      const runId = await runRetriedAction(
+        ctx,
+        internal.integrations.linkedin.searchPosts.searchInternal,
+        {
+          query: args.query,
+          searchMode: args.searchMode,
+          start: nextStart,
+          sortBy: args.sortBy,
+          datePosted: args.datePosted,
+          authorJobTitle: args.authorJobTitle,
+        }
+      );
+      const pageResult = await waitForPostSearchResult(ctx, runId);
+
+      posts.push(...pageResult.posts);
+      lastResult = pageResult;
+      nextStart = getNextLinkedInPostsSearchStart(
+        pageResult.start,
+        pageResult.count || LINKEDIN_POSTS_DEFAULT_PAGE_SIZE
+      );
+    } catch {
+      break;
+    }
+  }
+
+  return {
+    ...lastResult,
+    posts,
+    searchMode: args.searchMode,
+  };
+}
+
 // ============================================================================
 // Internal Actions (for retrier)
 // ============================================================================
@@ -241,6 +346,7 @@ export const searchInternal = internalAction({
       posts: data.posts ?? [],
       total: data.total,
       start: data.start,
+      count: data.count,
       hasMore: data.hasMore,
       searchMode: args.searchMode,
     };
@@ -339,23 +445,21 @@ export const search = action({
         );
 
         let result: InternalSearchResult | null = null;
-        while (true) {
-          const status = await getRetriedActionStatus(ctx, runId);
-          if (status.type === "inProgress") {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-            continue;
-          }
-
-          if (status.type === "completed") {
-            if (status.result.type === "success") {
-              result = status.result.returnValue as InternalSearchResult;
-            } else if (status.result.type === "failed") {
-              finalError = `Failed after retries: ${status.result.error}`;
-            } else {
-              finalError = "Request was canceled";
-            }
-          }
-          break;
+        try {
+          const initialResult = await waitForPostSearchResult(ctx, runId);
+          result = await collectPaginatedPostResults(ctx, {
+            query: attempt.query,
+            searchMode: attempt.searchMode,
+            sortBy: attempt.sortBy,
+            datePosted: attempt.datePosted,
+            authorJobTitle: args.authorJobTitle,
+            initialResult,
+          });
+        } catch (error) {
+          finalError =
+            error instanceof Error
+              ? `Failed after retries: ${error.message}`
+              : "Failed after retries";
         }
 
         if (!result) {
@@ -617,32 +721,22 @@ export const searchBatch = action({
         ) {
           const attempt = attempts[attemptIndex];
           let result: InternalSearchResult | null = null;
-          let pollAttempts = 0;
-          const maxAttempts = 120;
-
-          while (pollAttempts < maxAttempts) {
-            const status = await getRetriedActionStatus(ctx, activeRunId!);
-            if (status.type === "inProgress") {
-              await new Promise((resolve) => setTimeout(resolve, 500));
-              pollAttempts += 1;
-              continue;
-            }
-
-            if (status.type === "completed") {
-              if (status.result.type === "success") {
-                result = status.result.returnValue as InternalSearchResult;
-              } else if (status.result.type === "failed") {
-                finalError = status.result.error;
-              } else {
-                finalError = "Request was canceled";
-              }
-            }
-            break;
-          }
-
-          if (pollAttempts >= maxAttempts) {
-            finalError = "Timeout waiting for result";
-            break;
+          try {
+            const initialResult = await waitForPostSearchResult(
+              ctx,
+              activeRunId!
+            );
+            result = await collectPaginatedPostResults(ctx, {
+              query: attempt.query,
+              searchMode: attempt.searchMode,
+              sortBy: attempt.sortBy,
+              datePosted: attempt.datePosted,
+              authorJobTitle: args.authorJobTitle,
+              initialResult,
+            });
+          } catch (error) {
+            finalError =
+              error instanceof Error ? error.message : "Unknown error";
           }
 
           if (result && result.success && result.posts.length > 0) {

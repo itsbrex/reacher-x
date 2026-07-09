@@ -53,9 +53,9 @@ export const BATCH_LIMITS = {
   /** Number of queries to search on Twitter per cycle */
   twitterSearchBatch: 5,
   /** Number of LinkedIn post queries to search per cycle */
-  linkedinPostSearchBatch: 4,
+  linkedinPostSearchBatch: 5,
   /** Number of LinkedIn people queries to search per cycle */
-  linkedinPeopleSearchBatch: 2,
+  linkedinPeopleSearchBatch: 4,
 } as const;
 
 const MINUTE_MS = 60 * 1000;

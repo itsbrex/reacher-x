@@ -30,6 +30,7 @@ import {
   formatQualifiedProspectLimitReachedMessage,
   getProspectingRecoveryDelayMs,
 } from "../lib/prospectingHelpers";
+import { LINKEDIN_PEOPLE_DEFAULT_COUNT } from "../lib/linkedinSearchHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
 import type {
@@ -1118,6 +1119,7 @@ export const searchLinkedInInternal = internalAction({
       args.peopleQueries.length > 0
         ? ctx.runAction(api.integrations.linkedin.searchPeople.searchBatch, {
             queries: args.peopleQueries,
+            count: LINKEDIN_PEOPLE_DEFAULT_COUNT,
             maxQueriesPerBatch: 10,
           })
         : Promise.resolve({

@@ -2,10 +2,16 @@
 
 import { v } from "convex/values";
 import type { RunId } from "@convex-dev/action-retrier";
+import type { ActionCtx } from "../../_generated/server";
 import { action, internalAction } from "../../lib/functionBuilders";
 import { internal } from "../../_generated/api";
 import { getRetriedActionStatus, runRetriedAction } from "../../lib/retrier";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
+import {
+  getNextLinkedInPeopleSearchStart,
+  LINKEDIN_PEOPLE_DEFAULT_COUNT,
+  LINKEDIN_PEOPLE_MAX_PAGES_PER_QUERY,
+} from "../../lib/linkedinSearchHelpers";
 import { requestLinkdApiData } from "./linkdapiClient";
 
 export interface LinkedInPerson {
@@ -134,6 +140,100 @@ function looksLikeRoleTitleQuery(query: string) {
   return false;
 }
 
+const RETRIED_ACTION_POLL_INTERVAL_MS = 500;
+const RETRIED_ACTION_MAX_POLL_ATTEMPTS = 120;
+
+async function waitForPeopleSearchResult(
+  ctx: ActionCtx,
+  runId: RunId
+): Promise<InternalSearchPeopleResult> {
+  let pollAttempts = 0;
+
+  while (pollAttempts < RETRIED_ACTION_MAX_POLL_ATTEMPTS) {
+    const status = await getRetriedActionStatus(ctx, runId);
+    if (status.type === "inProgress") {
+      await new Promise((resolve) =>
+        setTimeout(resolve, RETRIED_ACTION_POLL_INTERVAL_MS)
+      );
+      pollAttempts += 1;
+      continue;
+    }
+
+    if (status.type === "completed") {
+      if (status.result.type === "success") {
+        return status.result.returnValue as InternalSearchPeopleResult;
+      }
+
+      if (status.result.type === "failed") {
+        throw new Error(status.result.error);
+      }
+
+      throw new Error("Request was canceled");
+    }
+  }
+
+  throw new Error("Timeout waiting for result");
+}
+
+async function collectPaginatedPeopleResults(
+  ctx: ActionCtx,
+  args: {
+    query: string;
+    searchMode: "title" | "keyword";
+    count: number;
+    initialResult: InternalSearchPeopleResult;
+  }
+): Promise<InternalSearchPeopleResult> {
+  const people = [...args.initialResult.people];
+  let lastResult = args.initialResult;
+  let nextStart = getNextLinkedInPeopleSearchStart(
+    args.initialResult.start,
+    args.count
+  );
+  const seenStarts = new Set<number>([args.initialResult.start]);
+
+  for (
+    let pageIndex = 1;
+    pageIndex < LINKEDIN_PEOPLE_MAX_PAGES_PER_QUERY;
+    pageIndex += 1
+  ) {
+    if (!lastResult.hasMore || seenStarts.has(nextStart)) {
+      break;
+    }
+
+    seenStarts.add(nextStart);
+
+    try {
+      const runId = await runRetriedAction(
+        ctx,
+        internal.integrations.linkedin.searchPeople.searchInternal,
+        {
+          query: args.query,
+          searchMode: args.searchMode,
+          start: nextStart,
+          count: args.count,
+        }
+      );
+      const pageResult = await waitForPeopleSearchResult(ctx, runId);
+
+      people.push(...pageResult.people);
+      lastResult = pageResult;
+      nextStart = getNextLinkedInPeopleSearchStart(
+        pageResult.start,
+        args.count
+      );
+    } catch {
+      break;
+    }
+  }
+
+  return {
+    ...lastResult,
+    people,
+    searchMode: args.searchMode,
+  };
+}
+
 export const searchInternal = internalAction({
   args: {
     query: v.string(),
@@ -146,7 +246,7 @@ export const searchInternal = internalAction({
       path: "/api/v1/search/people",
       query: {
         [args.searchMode === "title" ? "title" : "keyword"]: args.query,
-        count: args.count ?? 10,
+        count: args.count ?? LINKEDIN_PEOPLE_DEFAULT_COUNT,
         start: args.start,
       },
       consumer: `linkedin.searchPeople:${args.searchMode}:${args.query}`,
@@ -171,6 +271,7 @@ export const searchBatch = action({
   },
   handler: async (ctx, args): Promise<LinkedInPeopleBatchSearchResult> => {
     const startTime = getCurrentUTCTimestamp();
+    const requestedCount = args.count ?? LINKEDIN_PEOPLE_DEFAULT_COUNT;
     const queriesToExecute = normalizeQueryList(args.queries).slice(
       0,
       args.maxQueriesPerBatch ?? 20
@@ -215,7 +316,7 @@ export const searchBatch = action({
               {
                 query,
                 searchMode: attempts[0],
-                count: args.count,
+                count: requestedCount,
               }
             );
             resolve(runId);
@@ -287,33 +388,20 @@ export const searchBatch = action({
         ) {
           const searchMode = attempts[attemptIndex];
           let result: InternalSearchPeopleResult | null = null;
-          let pollAttempts = 0;
-          const maxAttempts = 120;
-
-          while (pollAttempts < maxAttempts) {
-            const status = await getRetriedActionStatus(ctx, activeRunId!);
-            if (status.type === "inProgress") {
-              await new Promise((resolve) => setTimeout(resolve, 500));
-              pollAttempts += 1;
-              continue;
-            }
-
-            if (status.type === "completed") {
-              if (status.result.type === "success") {
-                result = status.result
-                  .returnValue as InternalSearchPeopleResult;
-              } else if (status.result.type === "failed") {
-                finalError = status.result.error;
-              } else {
-                finalError = "Request was canceled";
-              }
-            }
-            break;
-          }
-
-          if (pollAttempts >= maxAttempts) {
-            finalError = "Timeout waiting for result";
-            break;
+          try {
+            const initialResult = await waitForPeopleSearchResult(
+              ctx,
+              activeRunId!
+            );
+            result = await collectPaginatedPeopleResults(ctx, {
+              query,
+              searchMode,
+              count: requestedCount,
+              initialResult,
+            });
+          } catch (error) {
+            finalError =
+              error instanceof Error ? error.message : "Unknown error";
           }
 
           if (result && result.success && result.people.length > 0) {
@@ -359,7 +447,7 @@ export const searchBatch = action({
             {
               query,
               searchMode: nextMode,
-              count: args.count,
+              count: requestedCount,
             }
           );
         }
