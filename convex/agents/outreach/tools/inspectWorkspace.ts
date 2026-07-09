@@ -35,8 +35,6 @@ export interface InspectWorkspaceResult {
     };
     agentSettings: {
       autonomyMode: string;
-      browserSendingEnabled: boolean;
-      dailyBrowserSendCap: number;
     };
   } | null;
   error?: string;

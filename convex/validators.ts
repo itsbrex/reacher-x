@@ -443,13 +443,6 @@ export const twitterActionResultSummaryValidator = v.object({
   proofMediaUrl: v.optional(v.string()),
 });
 
-/** Status of a Kernel browser sending connection for an X account. */
-export const browserConnectionStatusValidator = v.union(
-  v.literal("connected"),
-  v.literal("needs_reconnect"),
-  v.literal("disconnected")
-);
-
 export const twitterActionErrorSummaryValidator = v.object({
   classification: v.string(),
   message: v.string(),

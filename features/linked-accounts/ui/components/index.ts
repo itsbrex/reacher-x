@@ -8,4 +8,3 @@ export {
   ConnectedAccountsListWithErrorHint,
 } from "./ConnectedAccountsList";
 export { LinkedInConnectNoticeDialog } from "./LinkedInConnectNoticeDialog";
-export { BrowserSendingDialog } from "./BrowserSendingDialog";

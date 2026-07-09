@@ -85,7 +85,6 @@ type WorkspaceWithResolvedUseCase = Omit<WorkspaceDoc, "useCaseKey"> & {
 };
 const workspaceLogger = logger.withScope("Workspaces");
 const DEFAULT_WORKSPACE_AGENT_AUTONOMY_MODE = "review_required" as const;
-const DEFAULT_DAILY_BROWSER_SEND_CAP = 25;
 
 async function scheduleBootstrapStyleBackfillsIfNeeded(
   ctx: Pick<MutationCtx, "scheduler">,
@@ -170,10 +169,6 @@ function getDefaultWorkspaceAgentSettings(workspace: WorkspaceDoc) {
     workspaceId: workspace._id,
     userId: workspace.userId,
     autonomyMode: DEFAULT_WORKSPACE_AGENT_AUTONOMY_MODE,
-    browserSendingEnabled: false,
-    dailyBrowserSendCap: DEFAULT_DAILY_BROWSER_SEND_CAP,
-    browserSendCountToday: 0,
-    browserSendCountDayKey: undefined,
   };
 }
 
@@ -441,8 +436,6 @@ export const getWorkspaceInspectionInternal = internalQuery({
       },
       agentSettings: {
         autonomyMode: settings.autonomyMode,
-        browserSendingEnabled: settings.browserSendingEnabled,
-        dailyBrowserSendCap: settings.dailyBrowserSendCap,
       },
     };
   },
@@ -631,8 +624,6 @@ export const updateWorkspaceAgentSettings = mutation({
   args: {
     workspaceId: v.id("workspaces"),
     autonomyMode: v.optional(workspaceAgentAutonomyModeValidator),
-    browserSendingEnabled: v.optional(v.boolean()),
-    dailyBrowserSendCap: v.optional(v.number()),
     releasePendingApprovals: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -643,14 +634,6 @@ export const updateWorkspaceAgentSettings = mutation({
       notAuthorizedMessage: "Not authorized to update this workspace",
     });
 
-    if (
-      args.dailyBrowserSendCap !== undefined &&
-      (!Number.isFinite(args.dailyBrowserSendCap) ||
-        args.dailyBrowserSendCap < 0)
-    ) {
-      throw new Error("Daily browser send cap must be zero or greater.");
-    }
-
     const current =
       (await getWorkspaceAgentSettingsRow(ctx, args.workspaceId)) ??
       getDefaultWorkspaceAgentSettings(workspace);
@@ -658,10 +641,6 @@ export const updateWorkspaceAgentSettings = mutation({
     const nextSettings = {
       ...current,
       autonomyMode: args.autonomyMode ?? current.autonomyMode,
-      browserSendingEnabled:
-        args.browserSendingEnabled ?? current.browserSendingEnabled,
-      dailyBrowserSendCap:
-        args.dailyBrowserSendCap ?? current.dailyBrowserSendCap,
       updatedAt: now,
     };
 
@@ -669,8 +648,6 @@ export const updateWorkspaceAgentSettings = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         autonomyMode: nextSettings.autonomyMode,
-        browserSendingEnabled: nextSettings.browserSendingEnabled,
-        dailyBrowserSendCap: nextSettings.dailyBrowserSendCap,
         updatedAt: now,
       });
     } else {

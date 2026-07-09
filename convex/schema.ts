@@ -27,7 +27,6 @@ import {
   prospectingWorkflowPauseReasonValidator,
   workspaceWorkflowStatusValidator,
   workspaceAgentAutonomyModeValidator,
-  browserConnectionStatusValidator,
   workspaceOnboardingIssueSourceValidator,
   workspaceOnboardingIssueStatusCodeValidator,
   monitorStatusValidator,
@@ -1585,37 +1584,10 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
     autonomyMode: workspaceAgentAutonomyModeValidator,
-    browserSendingEnabled: v.boolean(),
-    dailyBrowserSendCap: v.number(),
-    browserSendCountToday: v.number(),
-    browserSendCountDayKey: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user_workspace", ["userId", "workspaceId"]),
-
-  /**
-   * Kernel-backed browser sending connections. One per connected X account.
-   * The Kernel profile stores the logged-in x.com session; the auth connection
-   * keeps it healthy via managed auth (health checks + re-auth).
-   */
-  browserConnections: defineTable({
-    userId: v.id("users"),
-    xAccountId: v.id("xAccounts"),
-    kernelProfileName: v.string(),
-    authConnectionId: v.string(),
-    status: browserConnectionStatusValidator,
-    lastVerifiedAt: v.optional(v.number()),
-    /** Consecutive browser-send failures; used for the stop-loss guardrail. */
-    consecutiveFailures: v.optional(v.number()),
-    /** UTC day key (YYYY-MM-DD) for the daily send counter. */
-    sendCountDayKey: v.optional(v.string()),
-    /** Number of browser sends performed on sendCountDayKey. */
-    sendCountToday: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index("by_user", ["userId"])
-    .index("by_x_account", ["xAccountId"]),
 
   /**
    * Workspace-scoped built-in memory inventory used by Agent Ops.

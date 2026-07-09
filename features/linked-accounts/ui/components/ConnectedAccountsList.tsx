@@ -10,14 +10,6 @@ import {
 } from "./LinkedAccountRow";
 import type { TwitterConnectionStatus } from "@/features/linked-accounts/hooks/useXAccountConnection";
 import type { LinkedInConnectionStatus } from "@/features/linked-accounts/hooks/useLinkedInAccountConnection";
-import type { BrowserSendingStatus } from "@/features/linked-accounts/hooks/useBrowserSending";
-
-export interface BrowserSendingRowProps {
-  status: BrowserSendingStatus;
-  isMutating: boolean;
-  onEnable: () => void;
-  onDisable: () => void;
-}
 
 export interface ConnectedAccountsListProps {
   loading: boolean;
@@ -33,8 +25,6 @@ export interface ConnectedAccountsListProps {
   /** When true, omit Disconnect (e.g. onboarding). */
   hideXDisconnect?: boolean;
   hideLinkedInDisconnect?: boolean;
-  /** Browser sending controls, shown under the connected X account. */
-  browserSending?: BrowserSendingRowProps;
 }
 
 export function ConnectedAccountsList({
@@ -50,7 +40,6 @@ export function ConnectedAccountsList({
   onDisconnectLinkedIn,
   hideXDisconnect,
   hideLinkedInDisconnect,
-  browserSending,
 }: ConnectedAccountsListProps) {
   if (loading) {
     return <LinkedAccountsListSkeleton rows={3} />;
@@ -114,17 +103,10 @@ export function ConnectedAccountsList({
           provider="twitter"
           accountHandle={xHandle}
           accountMeta={
-            xStyleIssueMessage || (xIsFullyConnected && browserSending) ? (
-              <>
-                {xStyleIssueMessage ? (
-                  <p className="text-xs leading-4 text-amber-600">
-                    {xStyleIssueMessage}
-                  </p>
-                ) : null}
-                {xIsFullyConnected && browserSending ? (
-                  <BrowserSendingMeta {...browserSending} />
-                ) : null}
-              </>
+            xStyleIssueMessage ? (
+              <p className="text-xs leading-4 text-amber-600">
+                {xStyleIssueMessage}
+              </p>
             ) : null
           }
           renderRight={() => {
@@ -271,53 +253,6 @@ export function ConnectedAccountsList({
         />
       </li>
     </ul>
-  );
-}
-
-function BrowserSendingMeta({
-  status,
-  isMutating,
-  onEnable,
-  onDisable,
-}: BrowserSendingRowProps) {
-  const label =
-    status === "connected"
-      ? "Browser sending is on"
-      : status === "needs_reconnect"
-        ? "Browser sending needs reconnecting"
-        : "Browser sending is off";
-
-  return (
-    <div className="mt-0.5 flex items-center gap-2">
-      <span
-        className={
-          status === "needs_reconnect"
-            ? "text-xs leading-4 text-amber-600"
-            : "text-muted-foreground text-xs leading-4"
-        }
-      >
-        {label}
-      </span>
-      {status === "connected" ? (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2 disabled:opacity-50"
-          disabled={isMutating}
-          onClick={onDisable}
-        >
-          Turn off
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="text-foreground text-xs underline underline-offset-2 disabled:opacity-50"
-          disabled={isMutating}
-          onClick={onEnable}
-        >
-          {status === "needs_reconnect" ? "Reconnect" : "Enable"}
-        </button>
-      )}
-    </div>
   );
 }
 
