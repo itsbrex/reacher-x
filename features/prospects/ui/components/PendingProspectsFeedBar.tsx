@@ -6,6 +6,7 @@
 
 import { AvatarStack } from "@/shared/ui/components/AvatarStack";
 import { cn } from "@/shared/lib/utils";
+import { buttonVariants } from "@/shared/ui/components/Button";
 import { RefreshIcon } from "@/shared/ui/components/icons";
 
 export interface PendingProspectsFeedBarProps {
@@ -69,9 +70,15 @@ export function PendingProspectsFeedBar({
           <span>{` new ${entityPluralLower}`}</span>
         </span>
       </div>
-      <div className="border-border shrink-0 rounded-md border p-1">
+      <span
+        aria-hidden="true"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "xsIcon" }),
+          "shrink-0"
+        )}
+      >
         <RefreshIcon className="fill-current" aria-hidden />
-      </div>
+      </span>
     </button>
   );
 }

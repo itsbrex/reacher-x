@@ -10,6 +10,7 @@ import * as React from "react";
 import { usePanelStack } from "../../contexts/PanelStackContext";
 import { useProspectProfile } from "../../contexts/ProspectProfileContext";
 import { ProspectProfilePanel } from "./ProspectProfilePanel";
+import { ProspectAgentPanel } from "./ProspectAgentPanel";
 import { LinkedInProfilePanel } from "./LinkedInProfilePanel";
 import { EvidencePostsPanel } from "./EvidencePostsPanel";
 import { ConversationPanel } from "./ConversationPanel";
@@ -18,7 +19,6 @@ import { XConversationPanel } from "./XConversationPanel";
 import { LinkedInConversationPanel } from "./LinkedInConversationPanel";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
-import { useRouter } from "next/navigation";
 import { cn } from "@/shared/lib/utils";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
@@ -42,7 +42,6 @@ export interface ProspectPanelRendererProps {
 export function ProspectPanelRenderer({
   className,
 }: ProspectPanelRendererProps) {
-  const router = useRouter();
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
   const isMobile = useIsMobile();
@@ -82,9 +81,9 @@ export function ProspectPanelRenderer({
   // Handle Chat with Agent navigation
   const handleChatWithAgent = React.useCallback(() => {
     if (prospect) {
-      router.push(`/agent?prospectId=${prospect.id}`);
+      pushPanel("prospect-agent", { prospectId: prospect.id });
     }
-  }, [router, prospect]);
+  }, [prospect, pushPanel]);
 
   if (!currentPanel) {
     return null;
@@ -123,6 +122,23 @@ export function ProspectPanelRenderer({
             mode="default"
           />
         );
+
+      case "prospect-agent": {
+        const panelProspectId =
+          (currentPanel.props.prospectId as string | undefined) ?? prospect?.id;
+
+        if (!panelProspectId) {
+          return null;
+        }
+
+        return (
+          <ProspectAgentPanel
+            prospectId={panelProspectId}
+            className={className}
+            onBack={closeCurrentSubPanel}
+          />
+        );
+      }
 
       case "twitter-profile": {
         const twitterProfileProspectId =

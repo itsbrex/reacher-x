@@ -2,9 +2,10 @@
 /**
  * SidebarNavigation Component
  *
- * Renders the main navigation section of the sidebar with three groups:
+ * Renders the main navigation section of the sidebar with four groups:
  * - People: Prospects, Contacts, Archive
- * - Insights: Analytics, Agent Ops
+ * - Agent: Agent, Agent Ops
+ * - Insights: Analytics
  * - Accounts: Plans, Usage, Settings (collapsible) → Connected accounts
  *
  * References:
@@ -27,6 +28,7 @@ import {
   CollapsibleTrigger,
 } from "@/shared/ui/components/Collapsible";
 import {
+  ActivityZoneIcon,
   ChangeHistoryIcon,
   ChevronRightIcon,
   SettingsIcon,
@@ -48,6 +50,7 @@ export function SidebarNavigation() {
   const pathname = usePathname();
   const locked = useStore($onboardingLock);
   const { pageLabels, routes } = useActiveUseCaseLabels();
+  const isAgentRoute = pathname === "/agent" || pathname.startsWith("/agent/");
 
   return (
     <>
@@ -125,6 +128,55 @@ export function SidebarNavigation() {
         </SidebarGroupContent>
       </SidebarGroup>
 
+      {/* Agent Group */}
+      <SidebarGroup>
+        <SidebarGroupLabel>Agent</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Agent"
+                isActive={isAgentRoute}
+                disabled={locked}
+                asChild={!locked}
+              >
+                {locked ? (
+                  <>
+                    <ChangeHistoryIcon className="fill-sidebar-foreground" />
+                    <span className="truncate">Agent</span>
+                  </>
+                ) : (
+                  <Link href="/agent">
+                    <ChangeHistoryIcon className="fill-sidebar-foreground" />
+                    <span className="truncate">Agent</span>
+                  </Link>
+                )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Agent Ops"
+                isActive={pathname === "/agent-ops"}
+                disabled={locked}
+                asChild={!locked}
+              >
+                {locked ? (
+                  <>
+                    <ActivityZoneIcon className="fill-sidebar-foreground" />
+                    <span className="truncate">Agent Ops</span>
+                  </>
+                ) : (
+                  <Link href="/agent-ops">
+                    <ActivityZoneIcon className="fill-sidebar-foreground" />
+                    <span className="truncate">Agent Ops</span>
+                  </Link>
+                )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
       {/* Insights Group */}
       <SidebarGroup>
         <SidebarGroupLabel>Insights</SidebarGroupLabel>
@@ -146,26 +198,6 @@ export function SidebarNavigation() {
                   <Link href="/analytics">
                     <BidLandscapeIcon className="fill-sidebar-foreground" />
                     <span className="truncate">{pageLabels.analytics}</span>
-                  </Link>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Agent Ops"
-                isActive={pathname === "/agent-ops"}
-                disabled={locked}
-                asChild={!locked}
-              >
-                {locked ? (
-                  <>
-                    <ChangeHistoryIcon className="fill-sidebar-foreground" />
-                    <span className="truncate">Agent Ops</span>
-                  </>
-                ) : (
-                  <Link href="/agent-ops">
-                    <ChangeHistoryIcon className="fill-sidebar-foreground" />
-                    <span className="truncate">Agent Ops</span>
                   </Link>
                 )}
               </SidebarMenuButton>

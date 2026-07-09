@@ -59,6 +59,9 @@ type PaginationStatus =
   | "LoadingMore"
   | "Exhausted";
 
+const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
+  "md:[&>div]:border-l md:[&>div]:border-r-0";
+
 export default function ArchivesPage() {
   const router = useRouter();
   const { entityPlural, pageLabels, routes } = useActiveUseCaseLabels();
@@ -230,11 +233,12 @@ export default function ArchivesPage() {
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 md:flex-row md:items-stretch">
       <PageLayout
         className={cn(
-          "flex h-full min-h-0 w-full flex-col overflow-hidden",
-          (showProspectPanel ||
-            showFilterAsPrimaryPanel ||
-            showSortAsPrimaryPanel) &&
-            "hidden border-r md:flex md:min-w-0 md:flex-1 md:basis-0"
+          "flex h-full min-h-0 w-full max-w-none flex-1 basis-0 flex-col overflow-hidden border-none",
+          isMobile &&
+            (showProspectPanel ||
+              showFilterAsPrimaryPanel ||
+              showSortAsPrimaryPanel) &&
+            "hidden md:flex"
         )}
       >
         <PageHeader title={pageLabels.archives} onBack={() => router.back()} />
@@ -261,13 +265,45 @@ export default function ArchivesPage() {
             ) : (
               <>
                 <div className="mb-0 px-4 pt-4">
-                  <SearchInput
-                    defaultValue={searchQuery}
-                    onQueryChange={setSearchQuery}
-                    placeholder={`Search archived ${entitiesLower}...`}
-                    showExactMatch={false}
-                  />
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="md:hidden">
+                    <SearchInput
+                      defaultValue={searchQuery}
+                      onQueryChange={setSearchQuery}
+                      placeholder={`Search archived ${entitiesLower}...`}
+                      showExactMatch={false}
+                    />
+                  </div>
+                  <div className="mt-3 hidden items-center justify-between gap-3 md:flex">
+                    <div className="w-72 lg:w-80">
+                      <SearchInput
+                        defaultValue={searchQuery}
+                        onQueryChange={setSearchQuery}
+                        placeholder={`Search archived ${entitiesLower}...`}
+                        showExactMatch={false}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <IconButtonWithIndicator
+                        aria-label="Open filters"
+                        showIndicator={activeFilterCount > 0}
+                        onClick={openFilterPanelWithState}
+                        type="button"
+                        className="h-9 w-9"
+                      >
+                        <FilterAltIcon className="fill-current" />
+                      </IconButtonWithIndicator>
+                      <IconButtonWithIndicator
+                        aria-label="Open sort"
+                        showIndicator={isSortActive}
+                        onClick={openSortPanel}
+                        type="button"
+                        className="h-9 w-9"
+                      >
+                        <SwapVertIcon className="h-4 w-4 fill-current" />
+                      </IconButtonWithIndicator>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 md:hidden">
                     <IconButtonWithIndicator
                       aria-label="Open filters"
                       showIndicator={activeFilterCount > 0}
@@ -295,7 +331,13 @@ export default function ArchivesPage() {
 
                 <div className="px-4 pt-4 pb-4">
                   {isLoading ? (
-                    <div className="space-y-3 pb-8">
+                    <div
+                      className={cn(
+                        "grid gap-3 pb-8",
+                        "grid-cols-1",
+                        "md:[grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]"
+                      )}
+                    >
                       <ProspectCardSkeleton />
                       <ProspectCardSkeleton />
                       <ProspectCardSkeleton />
@@ -313,7 +355,13 @@ export default function ArchivesPage() {
                     </p>
                   ) : (
                     <div className="pb-8">
-                      <ul className="space-y-3">
+                      <ul
+                        className={cn(
+                          "grid gap-3",
+                          "grid-cols-1",
+                          "md:[grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]"
+                        )}
+                      >
                         {displayProspects.map((prospect) => (
                           <li key={prospect._id}>
                             <ProspectCard
@@ -352,7 +400,9 @@ export default function ArchivesPage() {
         </PageContent>
       </PageLayout>
 
-      {showProspectPanel && <ProspectPanelRenderer />}
+      {showProspectPanel && (
+        <ProspectPanelRenderer className={DESKTOP_PANEL_LAYOUT_CLASS_NAME} />
+      )}
 
       <ProspectListFilterPanel
         open={isFilterPanelOpen}
@@ -366,6 +416,7 @@ export default function ArchivesPage() {
         defaultFilters={defaultFilters}
         draftFilters={draftFilters}
         onDraftFiltersChange={setDraftFilters}
+        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
       />
       <ProspectListSortPanel
         open={isSortPanelOpen}
@@ -376,6 +427,7 @@ export default function ArchivesPage() {
         canReset={canResetSort}
         draftSort={draftSort}
         onDraftSortChange={setDraftSort}
+        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
       />
     </div>
   );

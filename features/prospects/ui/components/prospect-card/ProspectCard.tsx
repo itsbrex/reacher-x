@@ -74,7 +74,7 @@ export function ProspectCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        "w-full min-w-0 space-y-2 rounded-xl border px-4 py-3",
+        "h-full w-full min-w-0 space-y-2 rounded-xl border px-4 py-3",
         interactive && "cursor-pointer",
         unread && "bg-muted/40 dark:bg-muted/25",
         className

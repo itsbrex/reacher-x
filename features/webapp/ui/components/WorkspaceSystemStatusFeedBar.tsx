@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { AnimatedElapsedTimer } from "@/shared/ui/components/AnimatedElapsedTimer";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
+import { buttonVariants } from "@/shared/ui/components/Button";
 import { ChangeHistoryIcon } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -141,9 +142,15 @@ export function WorkspaceSystemStatusFeedBar({
           {!isPaused ? (
             <AsciiSpinnerText className="text-muted-foreground font-mono text-sm" />
           ) : null}
-          <div className="border-border text-foreground rounded-md border p-1">
+          <span
+            aria-hidden="true"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "xsIcon" }),
+              "text-foreground shrink-0"
+            )}
+          >
             <ChevronRight className="size-4" aria-hidden />
-          </div>
+          </span>
         </div>
       </button>
 

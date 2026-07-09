@@ -1,5 +1,5 @@
 import { cn } from "@/shared/lib/utils";
-import { memo } from "react";
+import React, { memo } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock, CodeBlockCode } from "./CodeBlock";
@@ -15,6 +15,73 @@ function extractLanguage(className?: string): string {
   if (!className) return "plaintext";
   const match = className.match(/language-(\w+)/);
   return match ? match[1] : "plaintext";
+}
+
+const INLINE_AT_MENTION_PATTERN =
+  /(^|[\s(])(@[A-Za-z0-9][A-Za-z0-9:_-]*(?: [A-Za-z0-9][A-Za-z0-9:_-]*)*)(?=$|[\s),.!?:;\]])/g;
+
+function highlightInlineAtMentions(text: string) {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = INLINE_AT_MENTION_PATTERN.exec(text)) !== null) {
+    const prefix = match[1] ?? "";
+    const token = match[2] ?? "";
+    const matchStart = match.index;
+    const tokenStart = matchStart + prefix.length;
+
+    if (matchStart > lastIndex) {
+      parts.push(text.slice(lastIndex, matchStart));
+    }
+
+    if (prefix) {
+      parts.push(prefix);
+    }
+
+    parts.push(
+      <span
+        key={`${tokenStart}-${token}`}
+        className="text-muted-foreground font-mono"
+      >
+        {token}
+      </span>
+    );
+
+    lastIndex = tokenStart + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+function renderMentionStyledChildren(
+  children: React.ReactNode
+): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child === "string") {
+      return highlightInlineAtMentions(child);
+    }
+
+    if (typeof child === "number" || child == null) {
+      return child;
+    }
+
+    if (Array.isArray(child)) {
+      return renderMentionStyledChildren(child);
+    }
+
+    if (React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return React.cloneElement(child, {
+        children: renderMentionStyledChildren(child.props.children),
+      });
+    }
+
+    return child;
+  });
 }
 
 /**
@@ -63,7 +130,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
         className="text-muted-foreground font-mono hover:underline"
         {...props}
       >
-        {children}
+        {renderMentionStyledChildren(children)}
       </a>
     );
   },
@@ -87,7 +154,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   li: function LiComponent({ children, ...props }) {
     return (
       <li className="pl-1" {...props}>
-        {children}
+        {renderMentionStyledChildren(children)}
       </li>
     );
   },
@@ -95,7 +162,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   p: function PComponent({ children, ...props }) {
     return (
       <p className="my-2 leading-relaxed" {...props}>
-        {children}
+        {renderMentionStyledChildren(children)}
       </p>
     );
   },
@@ -103,7 +170,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   strong: function StrongComponent({ children, ...props }) {
     return (
       <strong className="font-semibold" {...props}>
-        {children}
+        {renderMentionStyledChildren(children)}
       </strong>
     );
   },
@@ -114,9 +181,9 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   table: function TableComponent({ children, ...props }) {
     return (
-      <div className="scroll-fade-x my-3 max-w-full scrollbar-none overflow-x-auto [overflow-y:clip] [&::-webkit-scrollbar]:hidden">
+      <div className="border-border/80 max-w-full scrollbar-none overflow-x-auto [overflow-y:clip] rounded-xl border [&::-webkit-scrollbar]:hidden">
         <table
-          className="border-border/80 w-max min-w-full border-collapse text-sm"
+          className="m-0 w-max min-w-full border-separate border-spacing-0 text-sm"
           {...props}
         >
           {children}
@@ -144,20 +211,20 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   th: function ThComponent({ children, ...props }) {
     return (
       <th
-        className="border-border/80 text-foreground min-w-36 px-3 py-2 text-left align-top font-semibold whitespace-nowrap"
+        className="border-border/80 text-foreground min-w-36 border-r border-b px-3 py-2 text-left align-top font-semibold whitespace-nowrap last:border-r-0"
         {...props}
       >
-        {children}
+        {renderMentionStyledChildren(children)}
       </th>
     );
   },
   td: function TdComponent({ children, ...props }) {
     return (
       <td
-        className="border-border/80 min-w-36 px-3 py-2 align-top break-words whitespace-normal"
+        className="border-border/80 min-w-36 border-r border-b px-3 py-2 align-top break-words whitespace-normal last:border-r-0 [tr:last-child_&]:border-b-0"
         {...props}
       >
-        {children}
+        {renderMentionStyledChildren(children)}
       </td>
     );
   },

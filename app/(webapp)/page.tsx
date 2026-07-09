@@ -140,6 +140,11 @@ const TAB_DEFINITIONS: {
   { id: "contacted", status: "contacted" },
   { id: "in_progress", status: "in_progress" },
 ];
+const DESKTOP_SKELETON_COUNT = 3;
+const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
+  "md:[&>div]:border-l md:[&>div]:border-r-0";
+const DESKTOP_FEED_BAR_CLASS_NAME =
+  "md:inline-flex md:w-auto md:max-w-full md:self-start md:border-0 md:bg-transparent md:p-0 md:[&>div:first-child]:flex-none md:[&>div:first-child]:min-w-0";
 
 function createEmptyTabAttention(): TabAttentionState {
   return {
@@ -876,6 +881,9 @@ export default function ProspectsPage() {
   const showSortAsPrimaryPanel = isSortPanelOpen;
   const showProspectPanel =
     hasOpenPanel && !showFilterAsPrimaryPanel && !showSortAsPrimaryPanel;
+  const hideMainContentOnMobile =
+    isMobile &&
+    (showProspectPanel || showFilterAsPrimaryPanel || showSortAsPrimaryPanel);
   const showEmptyState =
     isWorkspaceReady &&
     browseMode &&
@@ -910,11 +918,8 @@ export default function ProspectsPage() {
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 md:flex-row md:items-stretch">
       <PageLayout
         className={cn(
-          "flex h-full min-h-0 w-full flex-col overflow-hidden",
-          (showProspectPanel ||
-            showFilterAsPrimaryPanel ||
-            showSortAsPrimaryPanel) &&
-            "hidden border-r md:flex md:min-w-0 md:flex-1 md:basis-0"
+          "flex h-full min-h-0 w-full max-w-none flex-1 basis-0 flex-col overflow-hidden border-none",
+          hideMainContentOnMobile && "hidden md:flex"
         )}
       >
         <PageHeader
@@ -963,30 +968,47 @@ export default function ProspectsPage() {
                 />
 
                 <div className="flex flex-col gap-4 px-4 pt-4 pb-4">
-                  {showPendingBar && feedState ? (
-                    <PendingProspectsFeedBar
-                      pendingCount={feedState.pendingCount}
-                      pendingCountCapped={feedState.pendingCountCapped}
-                      preview={feedState.pendingPreview}
-                      entityPluralLower={entitiesLower}
-                      onMerge={handleMergePending}
-                      disabled={isMergePending}
-                    />
-                  ) : null}
-                  {showAgentStatusBar &&
-                  onboardingProgress &&
-                  workspaceSystemStatus ? (
-                    <WorkspaceSystemStatusFeedBar
-                      status={workspaceSystemStatus}
-                      progress={onboardingProgress}
-                    />
+                  {(showPendingBar && feedState) ||
+                  (showAgentStatusBar &&
+                    onboardingProgress &&
+                    workspaceSystemStatus) ? (
+                    <div className="flex w-full flex-col gap-4 md:max-w-lg">
+                      {showPendingBar && feedState ? (
+                        <PendingProspectsFeedBar
+                          pendingCount={feedState.pendingCount}
+                          pendingCountCapped={feedState.pendingCountCapped}
+                          preview={feedState.pendingPreview}
+                          entityPluralLower={entitiesLower}
+                          onMerge={handleMergePending}
+                          disabled={isMergePending}
+                          className={DESKTOP_FEED_BAR_CLASS_NAME}
+                        />
+                      ) : null}
+                      {showAgentStatusBar &&
+                      onboardingProgress &&
+                      workspaceSystemStatus ? (
+                        <WorkspaceSystemStatusFeedBar
+                          status={workspaceSystemStatus}
+                          progress={onboardingProgress}
+                          className={DESKTOP_FEED_BAR_CLASS_NAME}
+                        />
+                      ) : null}
+                    </div>
                   ) : null}
 
                   {isLoading ? (
-                    <div className="space-y-3 pb-8">
-                      <ProspectCardSkeleton />
-                      <ProspectCardSkeleton />
-                      <ProspectCardSkeleton />
+                    <div
+                      className={cn(
+                        "grid gap-3 pb-8",
+                        "grid-cols-1",
+                        "md:[grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]"
+                      )}
+                    >
+                      {Array.from({ length: DESKTOP_SKELETON_COUNT }).map(
+                        (_, index) => (
+                          <ProspectCardSkeleton key={index} />
+                        )
+                      )}
                     </div>
                   ) : showWaitingState && onboardingProgress ? (
                     <ProspectListEmptyState
@@ -1049,7 +1071,13 @@ export default function ProspectsPage() {
                     </p>
                   ) : (
                     <div className="min-w-0 pb-8">
-                      <ul className="min-w-0 space-y-3">
+                      <ul
+                        className={cn(
+                          "grid min-w-0 gap-3",
+                          "grid-cols-1",
+                          "md:[grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]"
+                        )}
+                      >
                         {displayProspects.map((prospect) => (
                           <li key={prospect._id} className="min-w-0">
                             <ProspectCard
@@ -1076,6 +1104,7 @@ export default function ProspectsPage() {
                         <div className="pt-2">
                           <Button
                             size="xs"
+                            variant="outline"
                             className="w-full"
                             onClick={loadMore}
                             disabled={isLoadingMore}
@@ -1097,7 +1126,9 @@ export default function ProspectsPage() {
         </PageContent>
       </PageLayout>
 
-      {showProspectPanel && <ProspectPanelRenderer />}
+      {showProspectPanel && (
+        <ProspectPanelRenderer className={DESKTOP_PANEL_LAYOUT_CLASS_NAME} />
+      )}
 
       <ProspectListFilterPanel
         open={isFilterPanelOpen}
@@ -1111,6 +1142,7 @@ export default function ProspectsPage() {
         defaultFilters={defaultFilters}
         draftFilters={draftFilters}
         onDraftFiltersChange={setDraftFilters}
+        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
       />
       <ProspectListSortPanel
         open={isSortPanelOpen}
@@ -1121,6 +1153,7 @@ export default function ProspectsPage() {
         canReset={canResetSort}
         draftSort={draftSort}
         onDraftSortChange={setDraftSort}
+        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
       />
     </div>
   );
@@ -1163,12 +1196,14 @@ function ProspectsToolbar({
 }: ProspectsToolbarProps) {
   return (
     <div className={className}>
-      <SearchInput
-        defaultValue={searchQuery}
-        onQueryChange={onSearchChange}
-        placeholder={searchPlaceholder}
-        showExactMatch={false}
-      />
+      <div className="w-full md:hidden">
+        <SearchInput
+          defaultValue={searchQuery}
+          onQueryChange={onSearchChange}
+          placeholder={searchPlaceholder}
+          showExactMatch={false}
+        />
+      </div>
 
       {/* Tabs + Filter/Sort */}
       <nav className="mt-3 flex min-w-0 items-center justify-between gap-2">
@@ -1224,12 +1259,21 @@ function ProspectsToolbar({
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="hidden md:block md:w-72 lg:w-80">
+            <SearchInput
+              defaultValue={searchQuery}
+              onQueryChange={onSearchChange}
+              placeholder={searchPlaceholder}
+              showExactMatch={false}
+            />
+          </div>
           <IconButtonWithIndicator
             aria-label="Open filters"
             showIndicator={filterActiveCount > 0}
             onClick={onOpenFilters}
             type="button"
+            className="h-9 w-9"
           >
             <FilterAltIcon className="fill-current" />
           </IconButtonWithIndicator>
@@ -1238,6 +1282,7 @@ function ProspectsToolbar({
             showIndicator={sortActive}
             onClick={onOpenSort}
             type="button"
+            className="h-9 w-9"
           >
             <SwapVertIcon className="h-4 w-4 fill-current" />
           </IconButtonWithIndicator>

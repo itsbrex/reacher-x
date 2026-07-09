@@ -16,6 +16,9 @@ import { NotificationsInbox } from "@/features/webapp/ui/components/notification
 import type { NotificationItem } from "@/features/webapp/ui/components/notifications/NotificationsInbox";
 import { Button } from "@/shared/ui/components/Button";
 
+const NOTIFICATIONS_BODY_COLUMN_CLASS_NAME =
+  "flex min-h-0 flex-1 flex-col self-stretch overflow-hidden md:w-[min(32rem,100%)] md:max-w-lg md:flex-none md:self-start";
+
 export default function NotificationsPage() {
   const router = useRouter();
   const convex = useConvex();
@@ -112,38 +115,40 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full">
-      <PageLayout className="flex h-full min-h-0 flex-col overflow-hidden">
+      <PageLayout className="flex h-full min-h-0 max-w-none flex-col overflow-hidden border-r-0 md:border-r-0">
         <PageHeader title="Notifications" onBack={() => router.back()} />
-        <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
-          <WorkspacePlanLimitAlert className="mx-4 mb-4" />
-          {(notificationWorkspaceError ||
-            shellStateQuery.isError ||
-            notificationsQuery.isError) && (
-            <div className="mx-4 mb-4 rounded-lg border border-dashed p-4 text-sm">
-              <p className="font-medium">Could not load notifications</p>
-              <p className="text-muted-foreground mt-1">
-                {notificationWorkspaceError?.message ||
-                  shellStateQuery.error?.message ||
-                  notificationsQuery.error?.message ||
-                  "Please try again."}
-              </p>
-              <Button
-                size="xs"
-                variant="outline"
-                className="mt-3"
-                onClick={() => router.refresh()}
-              >
-                Retry
-              </Button>
-            </div>
-          )}
-          <NotificationsInbox
-            notifications={notifications}
-            isLoading={isLoading}
-            onSelect={handleSelect}
-            onDismiss={handleDismiss}
-          />
-        </PageContent>
+        <div className={NOTIFICATIONS_BODY_COLUMN_CLASS_NAME}>
+          <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
+            <WorkspacePlanLimitAlert className="mx-4 mb-4" />
+            {(notificationWorkspaceError ||
+              shellStateQuery.isError ||
+              notificationsQuery.isError) && (
+              <div className="mx-4 mb-4 rounded-lg border border-dashed p-4 text-sm">
+                <p className="font-medium">Could not load notifications</p>
+                <p className="text-muted-foreground mt-1">
+                  {notificationWorkspaceError?.message ||
+                    shellStateQuery.error?.message ||
+                    notificationsQuery.error?.message ||
+                    "Please try again."}
+                </p>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => router.refresh()}
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+            <NotificationsInbox
+              notifications={notifications}
+              isLoading={isLoading}
+              onSelect={handleSelect}
+              onDismiss={handleDismiss}
+            />
+          </PageContent>
+        </div>
       </PageLayout>
     </div>
   );

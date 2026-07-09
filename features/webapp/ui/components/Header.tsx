@@ -31,6 +31,7 @@ import { Button } from "@/shared/ui/components/Button";
 import { Badge } from "@/shared/ui/components/Badge";
 import {
   AccountBoxIcon,
+  ActivityZoneIcon,
   AddIcon,
   ArchiveIcon,
   BidLandscapeIcon,
@@ -645,6 +646,52 @@ export function Header({
 
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                    Agent
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem disabled={locked} asChild={!locked}>
+                    {locked ? (
+                      <>
+                        <ChangeHistoryIcon
+                          className="fill-current"
+                          aria-hidden="true"
+                        />
+                        Agent
+                      </>
+                    ) : (
+                      <Link href="/agent">
+                        <ChangeHistoryIcon
+                          className="fill-current"
+                          aria-hidden="true"
+                        />
+                        Agent
+                      </Link>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={locked} asChild={!locked}>
+                    {locked ? (
+                      <>
+                        <ActivityZoneIcon
+                          className="fill-current"
+                          aria-hidden="true"
+                        />
+                        Agent Ops
+                      </>
+                    ) : (
+                      <Link href="/agent-ops">
+                        <ActivityZoneIcon
+                          className="fill-current"
+                          aria-hidden="true"
+                        />
+                        Agent Ops
+                      </Link>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
                     Insights
                   </DropdownMenuLabel>
                   <DropdownMenuItem disabled={locked} asChild={!locked}>
@@ -663,25 +710,6 @@ export function Header({
                           aria-hidden="true"
                         />
                         {pageLabels.analytics}
-                      </Link>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={locked} asChild={!locked}>
-                    {locked ? (
-                      <>
-                        <ChangeHistoryIcon
-                          className="fill-current"
-                          aria-hidden="true"
-                        />
-                        Agent Ops
-                      </>
-                    ) : (
-                      <Link href="/agent-ops">
-                        <ChangeHistoryIcon
-                          className="fill-current"
-                          aria-hidden="true"
-                        />
-                        Agent Ops
                       </Link>
                     )}
                   </DropdownMenuItem>

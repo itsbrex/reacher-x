@@ -135,34 +135,6 @@ function icpDraftHasMeaningfulContent(
   return Boolean(icp.title || icp.description || icp.painPoints.length > 0);
 }
 
-function parseAgentDailyBrowserSendCap(value: string): number | null {
-  const trimmedValue = value.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-
-  const parsedValue = Number(trimmedValue);
-  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
-    return null;
-  }
-
-  return parsedValue;
-}
-
-function areAgentDailyBrowserSendCapsEqual(
-  leftValue: string,
-  rightValue: string
-): boolean {
-  const leftParsedValue = parseAgentDailyBrowserSendCap(leftValue);
-  const rightParsedValue = parseAgentDailyBrowserSendCap(rightValue);
-
-  if (leftParsedValue !== null && rightParsedValue !== null) {
-    return leftParsedValue === rightParsedValue;
-  }
-
-  return leftValue.trim() === rightValue.trim();
-}
-
 function WorkspaceAgentSettingsRow({
   title,
   description,
@@ -302,25 +274,10 @@ export default function WorkspacePage() {
   const [agentAutonomyMode, setAgentAutonomyMode] = useState<
     "review_required" | "autonomous"
   >("review_required");
-  const [agentDailyBrowserSendCap, setAgentDailyBrowserSendCap] =
-    useState("25");
   const [isSavingAgentSettings, setIsSavingAgentSettings] = useState(false);
   const persistedAgentAutonomyMode =
     workspaceAgentSettings?.autonomyMode ?? "review_required";
-  const persistedAgentDailyBrowserSendCap = String(
-    workspaceAgentSettings?.dailyBrowserSendCap ?? 25
-  );
-  const parsedAgentDailyBrowserSendCap = parseAgentDailyBrowserSendCap(
-    agentDailyBrowserSendCap
-  );
-  const isAgentSettingsDirty =
-    agentAutonomyMode !== persistedAgentAutonomyMode ||
-    !areAgentDailyBrowserSendCapsEqual(
-      agentDailyBrowserSendCap,
-      persistedAgentDailyBrowserSendCap
-    );
-  const hasInvalidAgentSettings =
-    isAgentSettingsDirty && parsedAgentDailyBrowserSendCap === null;
+  const isAgentSettingsDirty = agentAutonomyMode !== persistedAgentAutonomyMode;
   const hasWorkspacePageChanges =
     form.formState.isDirty || isAgentSettingsDirty;
   const isAgentReviewRequired = agentAutonomyMode === "review_required";
@@ -337,26 +294,19 @@ export default function WorkspacePage() {
     }
 
     setAgentAutonomyMode(workspaceAgentSettings.autonomyMode);
-    setAgentDailyBrowserSendCap(
-      String(workspaceAgentSettings.dailyBrowserSendCap)
-    );
   }, [isEditing, workspaceAgentSettings]);
 
   const tier = currentPlan?.tier ?? "free";
   const canRollback =
     (tier === "base" || tier === "pro") &&
     Boolean(workspace?.refineRollbackSnapshot);
-  const browserSendingEnabled =
-    workspaceAgentSettings?.browserSendingEnabled ?? false;
 
   const persistAgentSettings = useCallback(
     async ({
       autonomyMode,
-      dailyBrowserSendCap,
       releasePendingApprovals = false,
     }: {
       autonomyMode?: "review_required" | "autonomous";
-      dailyBrowserSendCap?: number;
       releasePendingApprovals?: boolean;
     }) => {
       if (!workspace) return null;
@@ -365,7 +315,6 @@ export default function WorkspacePage() {
         return await updateWorkspaceAgentSettings({
           workspaceId: workspace._id,
           autonomyMode,
-          dailyBrowserSendCap,
           releasePendingApprovals,
         });
       } finally {
@@ -384,13 +333,8 @@ export default function WorkspacePage() {
     const normalizedIcps = data.icps
       .map(trimIcpDraft)
       .filter(icpDraftHasMeaningfulContent);
-    const nextDailyBrowserSendCap = parseAgentDailyBrowserSendCap(
-      agentDailyBrowserSendCap
-    );
     const agentSettingsChanged =
-      agentAutonomyMode !== persistedAgentAutonomyMode ||
-      nextDailyBrowserSendCap !==
-        parseAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
+      agentAutonomyMode !== persistedAgentAutonomyMode;
 
     if (profilesWereEdited && normalizedIcps.length < 3) {
       form.setError("icps", {
@@ -398,12 +342,6 @@ export default function WorkspacePage() {
         message: "At least three ideal customer profiles are required.",
       });
       setActiveTab("profiles");
-      return;
-    }
-
-    if (nextDailyBrowserSendCap === null) {
-      setActiveTab("agent");
-      toast.error("Daily browser send cap must be zero or greater.");
       return;
     }
 
@@ -439,7 +377,6 @@ export default function WorkspacePage() {
         saveOperations.push(
           persistAgentSettings({
             autonomyMode: agentAutonomyMode,
-            dailyBrowserSendCap: nextDailyBrowserSendCap,
           })
         );
       }
@@ -461,7 +398,6 @@ export default function WorkspacePage() {
             }))
           : data.icps,
       });
-      setAgentDailyBrowserSendCap(String(nextDailyBrowserSendCap));
       lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
       toast.success(
         workspaceFormHasChanges ? "Workspace updated" : "Agent settings updated"
@@ -489,7 +425,6 @@ export default function WorkspacePage() {
     if (!workspace) return;
     reset(workspaceDocToFormValues(workspace));
     setAgentAutonomyMode(persistedAgentAutonomyMode);
-    setAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
     lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(true);
   };
@@ -501,7 +436,6 @@ export default function WorkspacePage() {
       reset(createEmptyWorkspaceFormValues());
     }
     setAgentAutonomyMode(persistedAgentAutonomyMode);
-    setAgentDailyBrowserSendCap(persistedAgentDailyBrowserSendCap);
     lastSyncedWorkspaceVersionRef.current = workspaceFormVersion;
     setIsEditing(false);
   };
@@ -654,7 +588,6 @@ export default function WorkspacePage() {
                         type="submit"
                         disabled={
                           !hasWorkspacePageChanges ||
-                          hasInvalidAgentSettings ||
                           form.formState.isSubmitting ||
                           isSavingAgentSettings
                         }
@@ -1173,45 +1106,6 @@ export default function WorkspacePage() {
                                   </p>
                                 </div>
                               ) : null
-                            }
-                          />
-
-                          <WorkspaceAgentSettingsRow
-                            title="Daily browser send cap"
-                            description="Maximum automatic browser fallback sends per day once browser sending is enabled."
-                            control={
-                              <div className="w-20 md:w-24">
-                                <Input
-                                  inputMode="numeric"
-                                  size="sm"
-                                  value={agentDailyBrowserSendCap}
-                                  disabled={agentControlsDisabled}
-                                  aria-label="Daily browser send cap"
-                                  onChange={(event) =>
-                                    setAgentDailyBrowserSendCap(
-                                      event.target.value
-                                    )
-                                  }
-                                />
-                              </div>
-                            }
-                            footer={
-                              <div className="space-y-1">
-                                <p className="text-muted-foreground text-xs">
-                                  Browser sending is{" "}
-                                  {browserSendingEnabled
-                                    ? "enabled"
-                                    : "not enabled"}{" "}
-                                  for this workspace.
-                                </p>
-                                {isEditing &&
-                                parsedAgentDailyBrowserSendCap === null ? (
-                                  <p className="text-destructive text-xs">
-                                    Daily browser send cap must be zero or
-                                    greater.
-                                  </p>
-                                ) : null}
-                              </div>
                             }
                           />
                         </section>

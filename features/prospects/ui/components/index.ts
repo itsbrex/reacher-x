@@ -41,6 +41,8 @@ export type { EvidencePostsPanelProps } from "./EvidencePostsPanel";
 
 export { ProspectPanelRenderer } from "./ProspectPanelRenderer";
 export type { ProspectPanelRendererProps } from "./ProspectPanelRenderer";
+export { ProspectAgentPanel } from "./ProspectAgentPanel";
+export type { ProspectAgentPanelProps } from "./ProspectAgentPanel";
 
 export {
   ProspectCard,

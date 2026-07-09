@@ -307,6 +307,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 const AGENT_DISPLAY_NAME = "△ Agent";
 const AGENT_AVATAR_FALLBACK = "△";
+const AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME = "mx-auto w-full max-w-[48rem]";
 
 export interface AgentChatProps {
   /** Prospect ID for context (from URL) */
@@ -501,8 +502,8 @@ function ToolCallMarker({
 
   return (
     <Marker role="status" className="w-full gap-2 py-0.5 text-xs">
-      <MarkerIcon className="border-border bg-background text-muted-foreground flex size-5 items-center justify-center rounded-md border">
-        <ChangeHistoryIcon className="size-3.5 fill-current" />
+      <MarkerIcon className="border-border bg-background text-primary flex size-5 items-center justify-center rounded-md border">
+        <ChangeHistoryIcon className="text-primary size-3.5 fill-current" />
       </MarkerIcon>
       <MarkerContent
         className={cn(
@@ -535,6 +536,51 @@ function ToolCallMarker({
   );
 }
 
+function ToolCallGroup({
+  toolCalls,
+}: {
+  toolCalls: Pick<ToolCallInfo, "toolName" | "state">[];
+}) {
+  const totalCalls = toolCalls.length;
+  const hasError = toolCalls.some(
+    (toolCall) => toolCall.state === "output-error"
+  );
+  const hasPending = toolCalls.some(
+    (toolCall) =>
+      toolCall.state !== "result" &&
+      toolCall.state !== "output-available" &&
+      toolCall.state !== "output-error"
+  );
+  const triggerLabel =
+    totalCalls === 1 ? "1 tool used" : `${totalCalls} tools used`;
+
+  return (
+    <Steps defaultOpen={hasPending} className="w-full">
+      <StepsTrigger
+        className="text-xs font-medium"
+        leftIcon={
+          hasError ? (
+            <XCircle className="text-destructive size-3.5" />
+          ) : hasPending ? (
+            <Loader2 className="text-primary size-3.5 animate-spin" />
+          ) : (
+            <ChangeHistoryIcon className="text-primary size-3.5 fill-current" />
+          )
+        }
+      >
+        {triggerLabel}
+      </StepsTrigger>
+      <StepsContent className="mt-0">
+        {toolCalls.map((toolCall, index) => (
+          <StepsItem key={`${toolCall.toolName}-${toolCall.state}-${index}`}>
+            <ToolCallMarker toolCall={toolCall} />
+          </StepsItem>
+        ))}
+      </StepsContent>
+    </Steps>
+  );
+}
+
 function ToolCallVisualization({
   toolCalls,
   onOpenPanelFromCard,
@@ -549,7 +595,10 @@ function ToolCallVisualization({
 
   if (!toolCalls.length) return null;
 
-  const renderedToolCallNodes = toolCalls.map((tc, idx) => {
+  const renderedToolCallNodes: React.ReactNode[] = [];
+  const pendingMarkerToolCalls: Pick<ToolCallInfo, "toolName" | "state">[] = [];
+
+  for (const [idx, tc] of toolCalls.entries()) {
     // Check if this tool result has a progress array (e.g., searchProspects)
     const result = tc.result as Record<string, unknown> | undefined;
     const hasProgress =
@@ -561,7 +610,17 @@ function ToolCallVisualization({
     const artifact =
       isToolComplete && result ? getAgentArtifactFromResult(result) : null;
     if (artifact) {
-      return (
+      if (pendingMarkerToolCalls.length > 0) {
+        renderedToolCallNodes.push(
+          <ToolCallGroup
+            key={`tool-group-${idx}`}
+            toolCalls={[...pendingMarkerToolCalls]}
+          />
+        );
+        pendingMarkerToolCalls.length = 0;
+      }
+
+      renderedToolCallNodes.push(
         <ArtifactToolResult
           key={`${tc.toolName}-${idx}`}
           artifact={artifact}
@@ -582,6 +641,7 @@ function ToolCallVisualization({
           }}
         />
       );
+      continue;
     }
 
     if (
@@ -628,7 +688,17 @@ function ToolCallVisualization({
         typeof plan.strategy?.rationale === "string"
       ) {
         const planId = typeof plan.id === "string" ? plan.id : undefined;
-        return (
+        if (pendingMarkerToolCalls.length > 0) {
+          renderedToolCallNodes.push(
+            <ToolCallGroup
+              key={`tool-group-${idx}`}
+              toolCalls={[...pendingMarkerToolCalls]}
+            />
+          );
+          pendingMarkerToolCalls.length = 0;
+        }
+
+        renderedToolCallNodes.push(
           <LivePlanPreviewCard
             key={`${tc.toolName}-${idx}`}
             planId={planId}
@@ -658,12 +728,23 @@ function ToolCallVisualization({
             }}
           />
         );
+        continue;
       }
     }
 
     // If tool has progress steps, show the progress display instead of raw Tool
     if (hasProgress && tc.state === "result") {
-      return (
+      if (pendingMarkerToolCalls.length > 0) {
+        renderedToolCallNodes.push(
+          <ToolCallGroup
+            key={`tool-group-${idx}`}
+            toolCalls={[...pendingMarkerToolCalls]}
+          />
+        );
+        pendingMarkerToolCalls.length = 0;
+      }
+
+      renderedToolCallNodes.push(
         <div key={`${tc.toolName}-${idx}`} className="space-y-2">
           <ToolCallMarker toolCall={tc} />
           <ProgressStepsDisplay progress={result.progress as ProgressStep[]} />
@@ -680,10 +761,20 @@ function ToolCallVisualization({
             )}
         </div>
       );
+      continue;
     }
 
-    return <ToolCallMarker key={`${tc.toolName}-${idx}`} toolCall={tc} />;
-  });
+    pendingMarkerToolCalls.push(tc);
+  }
+
+  if (pendingMarkerToolCalls.length > 0) {
+    renderedToolCallNodes.push(
+      <ToolCallGroup
+        key={`tool-group-${renderedToolCallNodes.length}`}
+        toolCalls={pendingMarkerToolCalls}
+      />
+    );
+  }
 
   if (renderedToolCallNodes.every((node) => node === null)) {
     return null;
@@ -1148,17 +1239,16 @@ function HighlightTaggedText({
     .filter(Boolean)
     .sort((left, right) => right.length - left.length);
 
-  if (mentionLabels.length === 0) {
-    return <div className={cn("whitespace-pre-wrap", className)}>{text}</div>;
-  }
+  const pattern =
+    mentionLabels.length > 0
+      ? new RegExp(
+          `(^|[\\s(])(@(?:${mentionLabels
+            .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join("|")})(?=$|[\\s),.!?:;\\]]))`,
+          "g"
+        )
+      : /(^|[\s(])(@[A-Za-z0-9][A-Za-z0-9:_-]*(?: [A-Za-z0-9][A-Za-z0-9:_-]*)*)(?=$|[\s),.!?:;\]])/g;
 
-  const escapedLabels = mentionLabels.map((label) =>
-    label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  );
-  const pattern = new RegExp(
-    `(^|[\\s(])(@(?:${escapedLabels.join("|")})(?=$|[\\s),.!?:;\\]]))`,
-    "g"
-  );
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -1193,7 +1283,11 @@ function HighlightTaggedText({
     parts.push(text.slice(lastIndex));
   }
 
-  return <div className={cn("whitespace-pre-wrap", className)}>{parts}</div>;
+  return (
+    <div className={cn("whitespace-pre-wrap", className)}>
+      {parts.length > 0 ? parts : text}
+    </div>
+  );
 }
 
 function UserMessageContextContent({
@@ -1244,6 +1338,7 @@ function getAssistantMarkdownClassName() {
     "prose-h3:text-base prose-h3:font-semibold prose-h3:my-2",
     "prose-h4:text-sm prose-h4:font-medium",
     "prose-hr:border-border/80",
+    "prose-table:my-0",
     "prose-code:border prose-code:bg-transparent prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:text-sm prose-code:text-inherit prose-code:before:content-none prose-code:after:content-none",
     "prose-strong:font-semibold"
   );
@@ -1826,105 +1921,114 @@ function ChatSkeleton({
         isSetupComplete={false}
       />
 
-      {/* Skeleton messages area - uses same container structure for consistent scroll */}
-      <ChatContainerRoot className="min-h-0 flex-1">
-        <ChatContainerContent className="px-4 py-4">
-          <div className="card-fade-bottom space-y-6">
-            {/* Skeleton assistant message 1 - welcome/intro */}
-            <div className="flex items-start gap-3">
-              {/* Agent avatar - rounded-md like real UI */}
-              <Skeleton className="size-6 shrink-0 rounded-md" />
-              <div className="flex max-w-[85%] flex-col gap-2">
-                <Skeleton className="h-4 w-72 rounded-sm" />
-                <Skeleton className="h-4 w-56 rounded-sm" />
-                <Skeleton className="h-4 w-64 rounded-sm" />
-              </div>
-            </div>
-
-            {/* Skeleton user message 1 */}
-            <div className="flex flex-row-reverse items-start gap-3">
-              {/* User avatar - rounded-full like real UI */}
-              <Skeleton className="size-6 shrink-0 rounded-full" />
-              <div className="flex flex-col items-end gap-1">
-                <Skeleton className="h-10 w-48 rounded-lg" />
-              </div>
-            </div>
-
-            {/* Skeleton assistant message 2 - analyzing */}
-            <div className="flex items-start gap-3">
-              <Skeleton className="size-6 shrink-0 rounded-md" />
-              <div className="flex max-w-[85%] flex-col gap-2">
-                <Skeleton className="h-4 w-64 rounded-sm" />
-                <Skeleton className="h-4 w-80 rounded-sm" />
-                <Skeleton className="h-4 w-72 rounded-sm" />
-                <Skeleton className="h-4 w-56 rounded-sm" />
-              </div>
-            </div>
-
-            {/* Skeleton user message 2 */}
-            <div className="flex flex-row-reverse items-start gap-3">
-              <Skeleton className="size-6 shrink-0 rounded-full" />
-              <div className="flex flex-col items-end gap-1">
-                <Skeleton className="h-10 w-36 rounded-lg" />
-              </div>
-            </div>
-
-            {/* Skeleton assistant message 3 - longer response with list-like content */}
-            <div className="flex items-start gap-3">
-              <Skeleton className="size-6 shrink-0 rounded-md" />
-              <div className="flex max-w-[85%] flex-col gap-2">
-                <Skeleton className="h-4 w-80 rounded-sm" />
-                <Skeleton className="h-4 w-64 rounded-sm" />
-                <div className="mt-2 space-y-2 pl-4">
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Skeleton messages area - uses same container structure for consistent scroll */}
+        <ChatContainerRoot className="min-h-0 flex-1">
+          <ChatContainerContent
+            className={cn(AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME, "px-4 py-4")}
+          >
+            <div className="card-fade-bottom space-y-6">
+              {/* Skeleton assistant message 1 - welcome/intro */}
+              <div className="card-fade-bottom-mid flex items-start gap-3">
+                {/* Agent avatar - rounded-md like real UI */}
+                <Skeleton className="size-6 shrink-0 rounded-md" />
+                <div className="flex max-w-[85%] flex-col gap-2">
+                  <Skeleton className="h-4 w-72 rounded-sm" />
                   <Skeleton className="h-4 w-56 rounded-sm" />
-                  <Skeleton className="h-4 w-48 rounded-sm" />
-                  <Skeleton className="h-4 w-52 rounded-sm" />
+                  <Skeleton className="h-4 w-64 rounded-sm" />
                 </div>
-                <Skeleton className="mt-2 h-4 w-72 rounded-sm" />
-                <Skeleton className="h-4 w-60 rounded-sm" />
+              </div>
+
+              {/* Skeleton user message 1 */}
+              <div className="card-fade-bottom-mid flex flex-row-reverse items-start gap-3">
+                {/* User avatar - rounded-full like real UI */}
+                <Skeleton className="size-6 shrink-0 rounded-full" />
+                <div className="flex flex-col items-end gap-1">
+                  <Skeleton className="h-10 w-48 rounded-lg" />
+                </div>
+              </div>
+
+              {/* Skeleton assistant message 2 - analyzing */}
+              <div className="card-fade-bottom-mid flex items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-md" />
+                <div className="flex max-w-[85%] flex-col gap-2">
+                  <Skeleton className="h-4 w-64 rounded-sm" />
+                  <Skeleton className="h-4 w-80 rounded-sm" />
+                  <Skeleton className="h-4 w-72 rounded-sm" />
+                  <Skeleton className="h-4 w-56 rounded-sm" />
+                </div>
+              </div>
+
+              {/* Skeleton user message 2 */}
+              <div className="card-fade-bottom-mid flex flex-row-reverse items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-full" />
+                <div className="flex flex-col items-end gap-1">
+                  <Skeleton className="h-10 w-36 rounded-lg" />
+                </div>
+              </div>
+
+              {/* Skeleton assistant message 3 - longer response with list-like content */}
+              <div className="card-fade-bottom-mid flex items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-md" />
+                <div className="flex max-w-[85%] flex-col gap-2">
+                  <Skeleton className="h-4 w-80 rounded-sm" />
+                  <Skeleton className="h-4 w-64 rounded-sm" />
+                  <div className="mt-2 space-y-2 pl-4">
+                    <Skeleton className="h-4 w-56 rounded-sm" />
+                    <Skeleton className="h-4 w-48 rounded-sm" />
+                    <Skeleton className="h-4 w-52 rounded-sm" />
+                  </div>
+                  <Skeleton className="mt-2 h-4 w-72 rounded-sm" />
+                  <Skeleton className="h-4 w-60 rounded-sm" />
+                </div>
+              </div>
+
+              {/* Skeleton user message 3 */}
+              <div className="card-fade-bottom-mid flex flex-row-reverse items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-full" />
+                <div className="flex flex-col items-end gap-1">
+                  <Skeleton className="h-10 w-52 rounded-lg" />
+                </div>
+              </div>
+
+              {/* Skeleton assistant message 4 - final response */}
+              <div className="card-fade-bottom-mid flex items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-md" />
+                <div className="flex max-w-[85%] flex-col gap-2">
+                  <Skeleton className="h-4 w-72 rounded-sm" />
+                  <Skeleton className="h-4 w-80 rounded-sm" />
+                  <Skeleton className="h-4 w-64 rounded-sm" />
+                </div>
               </div>
             </div>
+          </ChatContainerContent>
+        </ChatContainerRoot>
 
-            {/* Skeleton user message 3 */}
-            <div className="flex flex-row-reverse items-start gap-3">
-              <Skeleton className="size-6 shrink-0 rounded-full" />
-              <div className="flex flex-col items-end gap-1">
-                <Skeleton className="h-10 w-52 rounded-lg" />
-              </div>
+        {/* Skeleton input area - matches actual input structure */}
+        <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
+          <div
+            className={cn(
+              AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME,
+              "border-input bg-background rounded-xl border p-2 opacity-60"
+            )}
+          >
+            <div className="text-muted-foreground min-h-10 px-3 py-2 text-sm">
+              Type here...
             </div>
-
-            {/* Skeleton assistant message 4 - final response */}
-            <div className="flex items-start gap-3">
-              <Skeleton className="size-6 shrink-0 rounded-md" />
-              <div className="flex max-w-[85%] flex-col gap-2">
-                <Skeleton className="h-4 w-72 rounded-sm" />
-                <Skeleton className="h-4 w-80 rounded-sm" />
-                <Skeleton className="h-4 w-64 rounded-sm" />
+            <div className="flex items-center justify-between pt-0.5">
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="xsIcon" type="button" disabled>
+                  <AttachFileIcon className="fill-current" />
+                </Button>
+                <Button variant="outline" size="xsIcon" type="button" disabled>
+                  <AlternateEmailIcon className="fill-current" />
+                </Button>
               </div>
-            </div>
-          </div>
-        </ChatContainerContent>
-      </ChatContainerRoot>
 
-      {/* Skeleton input area - matches actual input structure */}
-      <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
-        <div className="border-input bg-background rounded-xl border p-2 opacity-60">
-          <div className="text-muted-foreground min-h-10 px-3 py-2 text-sm">
-            Type here...
-          </div>
-          <div className="flex items-center justify-between pt-0.5">
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="xsIcon" type="button" disabled>
-                <AttachFileIcon className="fill-current" />
+              <Button variant="default" size="xsIcon" type="button" disabled>
+                <ArrowUpwardIcon className="fill-current" />
               </Button>
-              <Button variant="outline" size="xsIcon" type="button" disabled>
-                <AlternateEmailIcon className="fill-current" />
-              </Button>
             </div>
-
-            <Button variant="default" size="xsIcon" type="button" disabled>
-              <ArrowUpwardIcon className="fill-current" />
-            </Button>
           </div>
         </div>
       </div>
@@ -2652,6 +2756,142 @@ export function AgentChat({
     !hasTranscriptActivity && !showSetupInlineCard && !isLoading;
   const showProspectEmptyState =
     showEmptyState && !!prospectId && prospect !== null;
+  const showCenteredWorkspaceEmptyState =
+    showEmptyState && !showProspectEmptyState;
+
+  const composerContent = (
+    <>
+      {composerDisplayAttachments.length > 0 ? (
+        <div className={cn(AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME, "mb-2")}>
+          <AgentAttachmentList attachments={composerDisplayAttachments} />
+        </div>
+      ) : null}
+      <div
+        className={cn(
+          AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME,
+          "border-input bg-background ring-offset-background focus-within:ring-ring cursor-text rounded-xl border p-2 transition-shadow focus-within:ring-2 focus-within:ring-offset-2 focus-within:outline-hidden",
+          isComposerLocked && "cursor-not-allowed opacity-60"
+        )}
+        onClick={(event) => {
+          const target = event.currentTarget.querySelector<HTMLElement>(
+            "[contenteditable='true']"
+          );
+          target?.focus();
+        }}
+      >
+        <ComposerEditor
+          key={mentionScopeKey}
+          className="min-h-10 text-sm"
+          initialContent={buildSerializedTextState(input)}
+          placeholder={
+            displayMessages.length > 0 ? "Type here..." : emptyPromptPlaceholder
+          }
+          maxLength={10000}
+          characterCountMode="raw"
+          showCharacterCount={false}
+          disabled={isComposerLocked}
+          contentEditableClassName={cn(
+            DM_COMPOSER_CONTENT_EDITABLE_CLASS,
+            "max-h-60"
+          )}
+          composerPlaceholderClassName={DM_COMPOSER_PLACEHOLDER_CLASS}
+          inlineAutocompleteContext={agentInlineAutocompleteContext}
+          enableEntityMentions
+          entityMentions={{
+            prospectId: prospectId ?? null,
+            localEntities: threadPostMentionEntities,
+            remoteAllowedKinds: [
+              "prospect",
+              "plan",
+              "task",
+              "post",
+              "attachment",
+            ],
+            onSelectEntity: handleSelectMentionEntity,
+            buildInsertionText: buildAgentMentionReplacementText,
+          }}
+          onContentChange={handleAgentComposerContentChange}
+          onBridgeReady={setAgentComposerApi}
+          submitOnEnter
+          onSubmitShortcut={handleSendWithAttachments}
+        />
+        <div className="flex items-center justify-between pt-0.5">
+          <div className="flex items-center gap-1">
+            <input
+              ref={attachFileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={(event) => {
+                void handleAttachFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "xsIcon",
+                  })}
+                  type="button"
+                  onClick={() => attachFileInputRef.current?.click()}
+                  disabled={isComposerLocked}
+                  aria-label="Attach media"
+                  title="Attach media"
+                >
+                  <AttachFileIcon className="fill-current" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Attach media for the △ Agent to use
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <MentionPickerButton
+              disabled={isComposerLocked}
+              onTriggerMention={handleTriggerMentionInsertion}
+            />
+          </div>
+
+          {isLoading || isStreaming ? (
+            <MessageAction tooltip="Stop generating">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xsIcon"
+                onClick={stop}
+                aria-label="Stop generating"
+                title="Stop generating"
+              >
+                <StopIcon className="fill-current" />
+              </Button>
+            </MessageAction>
+          ) : (
+            <MessageAction tooltip="Send message">
+              <Button
+                type="button"
+                variant="default"
+                size="xsIcon"
+                onClick={handleSendWithAttachments}
+                aria-label="Send message"
+                title="Send message"
+                disabled={
+                  (!input.trim() &&
+                    readyAttachments.length === 0 &&
+                    selectedMentionEntities.length === 0) ||
+                  hasUploadingAttachment ||
+                  isComposerLocked
+                }
+              >
+                <ArrowUpwardIcon className="fill-current" />
+              </Button>
+            </MessageAction>
+          )}
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -2678,330 +2918,222 @@ export function AgentChat({
         isBusy={isLoading}
       />
 
-      {/* Chat Messages Area - scrollable container */}
-      <div className="relative min-h-0 flex-1">
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-          <MessageScroller className="relative h-full min-h-0">
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="gap-0 px-4 pt-4 pb-16">
-                {!isSetupRoute ? (
-                  <MessageScrollerItem messageId="plan-limit" className="mb-4">
-                    <WorkspacePlanLimitAlert />
-                  </MessageScrollerItem>
-                ) : null}
-
-                {hasMore && (
-                  <MessageScrollerItem messageId="load-more" className="mb-4">
-                    <div className="text-center">
-                      <Button size="xsIcon" onClick={loadMore}>
-                        <RefreshIcon className="fill-current" />
-                      </Button>
-                    </div>
-                  </MessageScrollerItem>
-                )}
-
-                {renderedDisplayMessages.map((message) => (
-                  <MessageScrollerItem
-                    key={message.key}
-                    messageId={message.key}
-                    className="mb-6"
-                    scrollAnchor={message.role === "user"}
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.25,
-                        ease: [0.25, 0.1, 0.25, 1],
-                      }}
-                    >
-                      <ChatMessage
-                        message={message}
-                        userImage={userDisplayImage ?? undefined}
-                        userName={userDisplayName}
-                        threadModelName={threadModelName}
-                        onOpenPanelFromCard={onOpenPanelFromCard}
-                        onOpenPlanPanel={onOpenPlanPanel}
-                      />
-                    </motion.div>
-                  </MessageScrollerItem>
-                ))}
-
-                {shouldShowPendingUserMessage && pendingUserPrompt && (
-                  <MessageScrollerItem
-                    key="pending-user"
-                    messageId="pending-user"
-                    className="mb-6"
-                    scrollAnchor
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.25,
-                        ease: [0.25, 0.1, 0.25, 1],
-                      }}
-                    >
-                      <LocalUserMessage
-                        text={pendingUserPrompt}
-                        userImage={userDisplayImage ?? undefined}
-                        userName={userDisplayName}
-                      />
-                    </motion.div>
-                  </MessageScrollerItem>
-                )}
-
-                <AnimatePresence mode="wait">
-                  {shouldShowPendingAssistantRow && pendingTurn ? (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Chat Messages Area - scrollable container */}
+        <div className="relative min-h-0 flex-1">
+          <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+            <MessageScroller className="relative h-full min-h-0">
+              <MessageScrollerViewport>
+                <MessageScrollerContent
+                  className={cn(
+                    AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME,
+                    "gap-0 px-4 pt-4 pb-16",
+                    showCenteredWorkspaceEmptyState &&
+                      "flex min-h-full flex-col justify-center"
+                  )}
+                >
+                  {!isSetupRoute ? (
                     <MessageScrollerItem
-                      key="pending-turn"
-                      messageId="pending-turn"
+                      messageId="plan-limit"
+                      className="mb-4"
+                    >
+                      <WorkspacePlanLimitAlert />
+                    </MessageScrollerItem>
+                  ) : null}
+
+                  {hasMore && (
+                    <MessageScrollerItem messageId="load-more" className="mb-4">
+                      <div className="text-center">
+                        <Button size="xsIcon" onClick={loadMore}>
+                          <RefreshIcon className="fill-current" />
+                        </Button>
+                      </div>
+                    </MessageScrollerItem>
+                  )}
+
+                  {renderedDisplayMessages.map((message) => (
+                    <MessageScrollerItem
+                      key={message.key}
+                      messageId={message.key}
                       className="mb-6"
+                      scrollAnchor={message.role === "user"}
                     >
                       <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{
-                          duration: 0.2,
+                          duration: 0.25,
                           ease: [0.25, 0.1, 0.25, 1],
                         }}
                       >
-                        <PendingAssistantMessage
-                          pendingTurn={pendingTurn}
-                          onStop={stop}
+                        <ChatMessage
+                          message={message}
+                          userImage={userDisplayImage ?? undefined}
+                          userName={userDisplayName}
+                          threadModelName={threadModelName}
+                          onOpenPanelFromCard={onOpenPanelFromCard}
+                          onOpenPlanPanel={onOpenPlanPanel}
                         />
                       </motion.div>
                     </MessageScrollerItem>
-                  ) : null}
-                </AnimatePresence>
+                  ))}
 
-                {shouldShowPendingError && pendingTurn?.errorMessage && (
-                  <MessageScrollerItem
-                    messageId="pending-error"
-                    className="mb-6"
-                  >
-                    <SystemMessage variant="error">
-                      {pendingTurn.errorMessage}
-                    </SystemMessage>
-                  </MessageScrollerItem>
-                )}
-
-                {showSetupInlineCard && setupSessionForInlineCard ? (
-                  <MessageScrollerItem
-                    messageId="setup-inline-card"
-                    className="mb-6"
-                  >
-                    <div className="min-w-0">
-                      <SetupOnboardingInlineCard
-                        sessionId={setupSessionForInlineCard.sessionId}
-                        mode={setupSessionForInlineCard.mode}
-                        useCaseKey={setupSessionForInlineCard.useCaseKey}
-                        title={getSetupPanelStepTitle(
-                          setupSessionForInlineCard.currentStepId
-                        )}
-                        stepNumber={setupSessionForInlineCard.currentStepNumber}
-                        stepTotal={setupSessionForInlineCard.totalSteps}
-                        onContinue={onOpenSetupOnboardingPanel}
-                      />
-                    </div>
-                  </MessageScrollerItem>
-                ) : null}
-
-                {showProspectEmptyState ? (
-                  <MessageScrollerItem
-                    messageId="prospect-empty"
-                    className="mb-6"
-                  >
-                    <div className="flex min-h-96 items-start justify-center">
-                      <AgentProspectEmptyState
-                        prospect={prospectDisplayData}
-                        isLoading={prospectQuery.isPending}
-                        onViewProfile={onViewProfile}
-                      />
-                    </div>
-                  </MessageScrollerItem>
-                ) : (
-                  showEmptyState && (
+                  {shouldShowPendingUserMessage && pendingUserPrompt && (
                     <MessageScrollerItem
-                      messageId="chat-empty"
+                      key="pending-user"
+                      messageId="pending-user"
+                      className="mb-6"
+                      scrollAnchor
+                    >
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          duration: 0.25,
+                          ease: [0.25, 0.1, 0.25, 1],
+                        }}
+                      >
+                        <LocalUserMessage
+                          text={pendingUserPrompt}
+                          userImage={userDisplayImage ?? undefined}
+                          userName={userDisplayName}
+                        />
+                      </motion.div>
+                    </MessageScrollerItem>
+                  )}
+
+                  <AnimatePresence mode="wait">
+                    {shouldShowPendingAssistantRow && pendingTurn ? (
+                      <MessageScrollerItem
+                        key="pending-turn"
+                        messageId="pending-turn"
+                        className="mb-6"
+                      >
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{
+                            duration: 0.2,
+                            ease: [0.25, 0.1, 0.25, 1],
+                          }}
+                        >
+                          <PendingAssistantMessage
+                            pendingTurn={pendingTurn}
+                            onStop={stop}
+                          />
+                        </motion.div>
+                      </MessageScrollerItem>
+                    ) : null}
+                  </AnimatePresence>
+
+                  {shouldShowPendingError && pendingTurn?.errorMessage && (
+                    <MessageScrollerItem
+                      messageId="pending-error"
                       className="mb-6"
                     >
-                      <div className="pt-6 text-center">
-                        <Avatar
-                          className={cn(
-                            "ring-border mx-auto size-12 rounded-xl ring-1"
+                      <SystemMessage variant="error">
+                        {pendingTurn.errorMessage}
+                      </SystemMessage>
+                    </MessageScrollerItem>
+                  )}
+
+                  {showSetupInlineCard && setupSessionForInlineCard ? (
+                    <MessageScrollerItem
+                      messageId="setup-inline-card"
+                      className="mb-6"
+                    >
+                      <div className="min-w-0">
+                        <SetupOnboardingInlineCard
+                          sessionId={setupSessionForInlineCard.sessionId}
+                          mode={setupSessionForInlineCard.mode}
+                          useCaseKey={setupSessionForInlineCard.useCaseKey}
+                          title={getSetupPanelStepTitle(
+                            setupSessionForInlineCard.currentStepId
                           )}
-                        >
-                          <AvatarFallback className="bg-background text-foreground text-3xl">
-                            {AGENT_AVATAR_FALLBACK}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h3 className="text-foreground mt-2 text-lg font-medium">
-                          {AGENT_DISPLAY_NAME}
-                        </h3>
+                          stepNumber={
+                            setupSessionForInlineCard.currentStepNumber
+                          }
+                          stepTotal={setupSessionForInlineCard.totalSteps}
+                          onContinue={onOpenSetupOnboardingPanel}
+                        />
                       </div>
                     </MessageScrollerItem>
-                  )
-                )}
+                  ) : null}
 
-                {error && pendingTurn?.phase !== "failed" && (
-                  <MessageScrollerItem messageId="chat-error" className="mb-6">
-                    <SystemMessage variant="error">
-                      {error.message || "Please try again."}
-                    </SystemMessage>
-                  </MessageScrollerItem>
-                )}
-                {workspaceStatusQuery.isError && (
-                  <MessageScrollerItem
-                    messageId="workspace-status-error"
-                    className="mb-6"
-                  >
-                    <SystemMessage variant="warning">
-                      {workspaceStatusQuery.error.message ||
-                        "Workspace status is unavailable. Agent actions may be limited until this resolves."}
-                    </SystemMessage>
-                  </MessageScrollerItem>
-                )}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton variant="outline" className="shadow-sm" />
-          </MessageScroller>
-        </MessageScrollerProvider>
-      </div>
+                  {showProspectEmptyState ? (
+                    <MessageScrollerItem
+                      messageId="prospect-empty"
+                      className="mb-6"
+                    >
+                      <div className="flex min-h-96 items-start justify-center">
+                        <AgentProspectEmptyState
+                          prospect={prospectDisplayData}
+                          isLoading={prospectQuery.isPending}
+                          onViewProfile={onViewProfile}
+                        />
+                      </div>
+                    </MessageScrollerItem>
+                  ) : (
+                    showEmptyState && (
+                      <MessageScrollerItem
+                        messageId="chat-empty"
+                        className="mb-6"
+                      >
+                        <div className="space-y-6 py-6 text-center">
+                          <Avatar
+                            className={cn(
+                              "ring-border mx-auto size-12 rounded-xl ring-1"
+                            )}
+                          >
+                            <AvatarFallback className="bg-background text-foreground text-3xl">
+                              {AGENT_AVATAR_FALLBACK}
+                            </AvatarFallback>
+                          </Avatar>
+                          <h3 className="text-foreground mt-2 text-lg font-medium">
+                            {AGENT_DISPLAY_NAME}
+                          </h3>
+                          <div className="pt-2 text-left">
+                            {composerContent}
+                          </div>
+                        </div>
+                      </MessageScrollerItem>
+                    )
+                  )}
 
-      {/* Input Area - with backdrop blur */}
-      <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
-        {composerDisplayAttachments.length > 0 ? (
-          <div className="mb-2">
-            <AgentAttachmentList attachments={composerDisplayAttachments} />
+                  {error && pendingTurn?.phase !== "failed" && (
+                    <MessageScrollerItem
+                      messageId="chat-error"
+                      className="mb-6"
+                    >
+                      <SystemMessage variant="error">
+                        {error.message || "Please try again."}
+                      </SystemMessage>
+                    </MessageScrollerItem>
+                  )}
+                  {workspaceStatusQuery.isError && (
+                    <MessageScrollerItem
+                      messageId="workspace-status-error"
+                      className="mb-6"
+                    >
+                      <SystemMessage variant="warning">
+                        {workspaceStatusQuery.error.message ||
+                          "Workspace status is unavailable. Agent actions may be limited until this resolves."}
+                      </SystemMessage>
+                    </MessageScrollerItem>
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton variant="outline" className="shadow-sm" />
+            </MessageScroller>
+          </MessageScrollerProvider>
+        </div>
+
+        {!showCenteredWorkspaceEmptyState ? (
+          <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
+            {composerContent}
           </div>
         ) : null}
-        <div
-          className={cn(
-            "border-input bg-background ring-offset-background focus-within:ring-ring cursor-text rounded-xl border p-2 transition-shadow focus-within:ring-2 focus-within:ring-offset-2 focus-within:outline-hidden",
-            isComposerLocked && "cursor-not-allowed opacity-60"
-          )}
-          onClick={(event) => {
-            const target = event.currentTarget.querySelector<HTMLElement>(
-              "[contenteditable='true']"
-            );
-            target?.focus();
-          }}
-        >
-          <ComposerEditor
-            key={mentionScopeKey}
-            className="min-h-10 text-sm"
-            initialContent={buildSerializedTextState(input)}
-            placeholder={
-              displayMessages.length > 0
-                ? "Type here..."
-                : emptyPromptPlaceholder
-            }
-            maxLength={10000}
-            characterCountMode="raw"
-            showCharacterCount={false}
-            disabled={isComposerLocked}
-            contentEditableClassName={cn(
-              DM_COMPOSER_CONTENT_EDITABLE_CLASS,
-              "max-h-60"
-            )}
-            composerPlaceholderClassName={DM_COMPOSER_PLACEHOLDER_CLASS}
-            inlineAutocompleteContext={agentInlineAutocompleteContext}
-            enableEntityMentions
-            entityMentions={{
-              prospectId: prospectId ?? null,
-              localEntities: threadPostMentionEntities,
-              remoteAllowedKinds: [
-                "prospect",
-                "plan",
-                "task",
-                "post",
-                "attachment",
-              ],
-              onSelectEntity: handleSelectMentionEntity,
-              buildInsertionText: buildAgentMentionReplacementText,
-            }}
-            onContentChange={handleAgentComposerContentChange}
-            onBridgeReady={setAgentComposerApi}
-            submitOnEnter
-            onSubmitShortcut={handleSendWithAttachments}
-          />
-          <div className="flex items-center justify-between pt-0.5">
-            <div className="flex items-center gap-1">
-              <input
-                ref={attachFileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={(event) => {
-                  void handleAttachFiles(event.target.files);
-                  event.target.value = "";
-                }}
-              />
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger
-                    className={buttonVariants({
-                      variant: "outline",
-                      size: "xsIcon",
-                    })}
-                    type="button"
-                    onClick={() => attachFileInputRef.current?.click()}
-                    disabled={isComposerLocked}
-                    aria-label="Attach media"
-                    title="Attach media"
-                  >
-                    <AttachFileIcon className="fill-current" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Attach media for the △ Agent to use
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <MentionPickerButton
-                disabled={isComposerLocked}
-                onTriggerMention={handleTriggerMentionInsertion}
-              />
-            </div>
-
-            {isLoading || isStreaming ? (
-              <MessageAction tooltip="Stop generating">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xsIcon"
-                  onClick={stop}
-                  aria-label="Stop generating"
-                  title="Stop generating"
-                >
-                  <StopIcon className="fill-current" />
-                </Button>
-              </MessageAction>
-            ) : (
-              <MessageAction tooltip="Send message">
-                <Button
-                  type="button"
-                  variant="default"
-                  size="xsIcon"
-                  onClick={handleSendWithAttachments}
-                  aria-label="Send message"
-                  title="Send message"
-                  disabled={
-                    (!input.trim() &&
-                      readyAttachments.length === 0 &&
-                      selectedMentionEntities.length === 0) ||
-                    hasUploadingAttachment ||
-                    isComposerLocked
-                  }
-                >
-                  <ArrowUpwardIcon className="fill-current" />
-                </Button>
-              </MessageAction>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

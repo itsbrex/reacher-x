@@ -31,6 +31,9 @@ import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
 import { useSetupThreadDraft } from "@/shared/hooks/useSetupThreadDraft";
 
+const AGENT_PANEL_LAYOUT_CLASS_NAME =
+  "md:[&>div]:border-l md:[&>div]:border-r-0";
+
 export function AgentPageShell() {
   const router = useRouter();
   const pathname = usePathname();
@@ -777,20 +780,11 @@ export function AgentPageShell() {
     (setupPanelDraft.isLoading || setupPanelDraft.setupDraft === null);
   const showSetupChatOnly =
     isSetupRoute && isMobile && setupOnboardingPanelOpen;
-  const showRightSurface =
-    showDynamicPanel ||
-    showPlanPanel ||
-    showHistoryPanel ||
-    showProspectPanel ||
-    showAgentTwitterPanel ||
-    (showSetupPanel && !isMobile);
-
   return (
     <div className="flex h-full min-h-0 w-full">
       <PageLayout
         className={cn(
-          "h-full w-full",
-          showRightSurface && !isMobile && "border-r",
+          "h-full w-full max-w-none flex-1 basis-0 border-none",
           ((showDynamicPanel || showPlanPanel) && isMobile) || showSetupChatOnly
             ? "hidden"
             : null
@@ -845,11 +839,17 @@ export function AgentPageShell() {
           onSelectThread={handleSelectThread}
           onNewThread={handleNewThread}
           onDeleteCurrentThread={handleDeleteCurrentThread}
+          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
         />
       )}
 
       {showAgentTwitterPanel && (
-        <aside className="flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0">
+        <aside
+          className={cn(
+            "flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0 md:border-l",
+            AGENT_PANEL_LAYOUT_CLASS_NAME
+          )}
+        >
           <TwitterProfilePanel
             className="flex h-full min-h-0 w-full flex-1 flex-col"
             prospectId={prospectId ?? undefined}
@@ -860,7 +860,9 @@ export function AgentPageShell() {
         </aside>
       )}
 
-      {showProspectPanel && <ProspectPanelRenderer />}
+      {showProspectPanel && (
+        <ProspectPanelRenderer className={AGENT_PANEL_LAYOUT_CLASS_NAME} />
+      )}
 
       {showDynamicPanel && activeDynamicPanelProspectId && (
         <AgentDynamicPanel
@@ -911,6 +913,7 @@ export function AgentPageShell() {
           onMismatchedTaskTarget={
             prospectId ? handleMismatchedTaskTarget : undefined
           }
+          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
         />
       )}
 
@@ -920,18 +923,25 @@ export function AgentPageShell() {
           currentThreadId={planPanelThreadId}
           onClose={handleClosePanel}
           onViewTask={handleViewTask}
+          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
         />
       )}
 
       {showSetupPanel &&
         (showSetupPanelSpinner ? (
           <AgentOnboardingPanelSpinner
-            className={cn(showSetupChatOnly && "border-l-0")}
+            className={cn(
+              AGENT_PANEL_LAYOUT_CLASS_NAME,
+              showSetupChatOnly && "border-l-0"
+            )}
           />
         ) : (
           <AgentOnboardingPanel
             threadId={setupPanelThreadId}
-            className={cn(showSetupChatOnly && "border-l-0")}
+            className={cn(
+              AGENT_PANEL_LAYOUT_CLASS_NAME,
+              showSetupChatOnly && "border-l-0"
+            )}
           />
         ))}
     </div>

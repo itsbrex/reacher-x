@@ -306,9 +306,7 @@ function NotificationCard({
 
   return (
     <article
-      className={cn(
-        "group border-border flex cursor-pointer items-start gap-3 border-b px-4 py-4"
-      )}
+      className={cn("group flex cursor-pointer items-start gap-3 px-4 py-4")}
       onClick={onSelect}
       role="button"
       tabIndex={0}
@@ -505,11 +503,7 @@ function NotificationsList({
   onDismiss,
 }: NotificationsListProps) {
   if (notifications.length === 0) {
-    return (
-      <p className="text-muted-foreground py-8 text-center text-sm">
-        No notifications
-      </p>
-    );
+    return null;
   }
 
   return (
@@ -534,96 +528,96 @@ function NotificationsList({
   );
 }
 
-export function NotificationsSkeleton() {
-  function NotificationSingleSkeleton({
-    avatarShape = "rounded-full",
-    iconOnly = false,
-    pending = false,
-  }: {
-    avatarShape?: "rounded-full" | "rounded-lg";
-    iconOnly?: boolean;
-    pending?: boolean;
-  }) {
-    return (
-      <article className="card-fade-bottom-mid border-border flex items-start gap-3 border-b px-4 py-4">
-        <div className="shrink-0 pt-0.5">
-          {iconOnly ? (
-            <Skeleton className="size-8 rounded-md" />
-          ) : (
-            <Skeleton className={cn("size-8", avatarShape)} />
-          )}
+function NotificationSingleSkeleton({
+  avatarShape = "rounded-full",
+  iconOnly = false,
+  pending = false,
+}: {
+  avatarShape?: "rounded-full" | "rounded-lg";
+  iconOnly?: boolean;
+  pending?: boolean;
+}) {
+  return (
+    <article className="card-fade-bottom-mid flex items-start gap-3 px-4 py-4">
+      <div className="shrink-0 pt-0.5">
+        {iconOnly ? (
+          <Skeleton className="size-8 rounded-md" />
+        ) : (
+          <Skeleton className={cn("size-8", avatarShape)} />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-3 w-[92%]" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+
+      <div className="flex shrink-0 items-start gap-2 pt-0.5">
+        {pending ? <Skeleton className="mt-2 size-2 rounded-full" /> : null}
+        <Skeleton className="size-7 rounded-md" />
+      </div>
+    </article>
+  );
+}
+
+function NotificationThreadSkeleton() {
+  return (
+    <article className="card-fade-bottom-mid flex items-start gap-3 px-4 py-4">
+      <div className="shrink-0 pt-0.5">
+        <Skeleton className="size-8 rounded-full" />
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="space-y-1">
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-3 w-36" />
         </div>
 
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-3 w-[92%]" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-
-        <div className="flex shrink-0 items-start gap-2 pt-0.5">
-          {pending ? <Skeleton className="mt-2 size-2 rounded-full" /> : null}
-          <Skeleton className="size-7 rounded-md" />
-        </div>
-      </article>
-    );
-  }
-
-  function NotificationThreadSkeleton() {
-    return (
-      <article className="card-fade-bottom-mid border-border flex items-start gap-3 border-b px-4 py-4">
-        <div className="shrink-0 pt-0.5">
-          <Skeleton className="size-8 rounded-full" />
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="space-y-1">
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-3 w-36" />
-          </div>
-
-          <div className="space-y-3 pt-1">
-            {[1, 2, 3].map((item, index) => {
-              const isLastItem = index === 2;
-              return (
-                <div key={item} className="flex gap-3">
-                  <div className="relative flex w-4 shrink-0 justify-center">
-                    {!isLastItem ? (
-                      <span
-                        className="bg-border absolute top-4 bottom-[-12px] left-1/2 w-px -translate-x-1/2"
-                        aria-hidden
-                      />
-                    ) : null}
-                    <Skeleton
-                      className={cn(
-                        "relative z-10 mt-1 size-2.5 rounded-full",
-                        index === 2 ? "bg-foreground/30" : "bg-muted"
-                      )}
+        <div className="space-y-3 pt-1">
+          {[1, 2, 3].map((item, index) => {
+            const isLastItem = index === 2;
+            return (
+              <div key={item} className="flex gap-3">
+                <div className="relative flex w-4 shrink-0 justify-center">
+                  {!isLastItem ? (
+                    <span
+                      className="bg-border absolute top-4 bottom-[-12px] left-1/2 w-px -translate-x-1/2"
+                      aria-hidden
                     />
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-[68%]" />
-                    <Skeleton className="h-3 w-[88%]" />
-                    <Skeleton className="h-3 w-14" />
-                  </div>
+                  ) : null}
+                  <Skeleton
+                    className={cn(
+                      "relative z-10 mt-1 size-2.5 rounded-full",
+                      index === 2 ? "bg-foreground/30" : "bg-muted"
+                    )}
+                  />
                 </div>
-              );
-            })}
-          </div>
 
-          <div className="pt-1">
-            <Skeleton className="h-7 w-24 rounded-md" />
-          </div>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-[68%]" />
+                  <Skeleton className="h-3 w-[88%]" />
+                  <Skeleton className="h-3 w-14" />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex shrink-0 items-start gap-2 pt-0.5">
-          <Skeleton className="mt-2 size-2 rounded-full" />
-          <Skeleton className="size-7 rounded-md" />
+        <div className="pt-1">
+          <Skeleton className="h-7 w-24 rounded-md" />
         </div>
-      </article>
-    );
-  }
+      </div>
 
+      <div className="flex shrink-0 items-start gap-2 pt-0.5">
+        <Skeleton className="mt-2 size-2 rounded-full" />
+        <Skeleton className="size-7 rounded-md" />
+      </div>
+    </article>
+  );
+}
+
+export function NotificationsSkeleton() {
   return (
     <div role="status" aria-label="Loading notifications">
       <NotificationSingleSkeleton pending />

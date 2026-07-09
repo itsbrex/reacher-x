@@ -18,6 +18,7 @@ import {
 import { Button } from "@/shared/ui/components/Button";
 import {
   ArchiveIcon,
+  ChangeHistoryIcon,
   ContentCopyIcon,
   IosShareIcon,
   MailIcon,
@@ -211,6 +212,14 @@ export function ProspectCardMenu({
     });
   };
 
+  const handleOpenAgentPanel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    openProspect(prospectId);
+    pushPanel("prospect-agent", {
+      prospectId: String(prospectId),
+    });
+  };
+
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
@@ -227,6 +236,21 @@ export function ProspectCardMenu({
         <DropdownMenuLabel>↳ Menu</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
+        {/* Agent */}
+        <DropdownMenuItem
+          disabled={isPreviewMode || status === "archived"}
+          title={
+            status === "archived"
+              ? "Unarchive this profile to chat with the agent"
+              : undefined
+          }
+          onClick={handleOpenAgentPanel}
+        >
+          <ChangeHistoryIcon className="fill-current" aria-hidden />
+          Agent
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+
         {/* View & Share */}
         <DropdownMenuItem onClick={handleViewProfile}>
           <PersonIcon className="fill-current" aria-hidden />
@@ -239,7 +263,7 @@ export function ProspectCardMenu({
           </DropdownMenuItem>
         ) : null}
 
-        <DropdownMenuSeparator />
+        {!isPreviewMode ? <DropdownMenuSeparator /> : null}
 
         {/* Status options - exclude current status */}
         {statusOptions
