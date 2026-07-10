@@ -7,3 +7,4 @@ export { ProspectCardHeader } from "./ProspectCardHeader";
 export { ProspectCardBody } from "./ProspectCardBody";
 export { ProspectCardFooter } from "./ProspectCardFooter";
 export { ProspectCardMenu } from "./ProspectCardMenu";
+export { ProspectOutreachProgressBadge } from "./ProspectOutreachProgressBadge";

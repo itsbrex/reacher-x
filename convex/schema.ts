@@ -9,6 +9,7 @@ import {
   prospectPlatformValidator,
   prospectStatusValidator,
   outreachPlanStatusValidator,
+  outreachProgressSummaryValidator,
   outreachTaskTypeValidator,
   outreachTaskStatusValidator,
   prospectActivityTypeValidator,
@@ -1217,6 +1218,8 @@ export default defineSchema({
     qualifiedAt: v.optional(v.number()),
     enrichmentStatus: v.optional(enrichmentStatusValidator),
     planGenerationStatus: v.optional(planGenerationStatusValidator),
+    /** Optional during rollout until existing summary rows are rebuilt. */
+    outreachProgress: v.optional(outreachProgressSummaryValidator),
     readyQualifiedEnriched: v.boolean(),
     actionableReady: v.optional(v.boolean()),
     readyAt: v.optional(v.number()),

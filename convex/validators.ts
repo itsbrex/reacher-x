@@ -1109,6 +1109,25 @@ export const outreachTaskStatusValidator = v.union(
   v.literal("failed")
 );
 
+/**
+ * Compact, denormalized outreach state for prospect list cards.
+ * Keep this intentionally small so paginated summary reads stay lightweight.
+ */
+export const outreachProgressSummaryValidator = v.object({
+  planStatus: outreachPlanStatusValidator,
+  finishedTaskCount: v.number(),
+  totalTaskCount: v.number(),
+  activeTask: v.optional(
+    v.object({
+      order: v.number(),
+      type: outreachTaskTypeValidator,
+      description: v.string(),
+      status: outreachTaskStatusValidator,
+      awaitingApproval: v.boolean(),
+    })
+  ),
+});
+
 // Task timing type
 export const outreachTaskTimingTypeValidator = v.union(
   v.literal("immediate"),

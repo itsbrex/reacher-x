@@ -111,6 +111,7 @@ import type * as lib_notificationHelpers from "../lib/notificationHelpers.js";
 import type * as lib_onboardingNavigation from "../lib/onboardingNavigation.js";
 import type * as lib_outreachCore from "../lib/outreachCore.js";
 import type * as lib_outreachPlanPool from "../lib/outreachPlanPool.js";
+import type * as lib_outreachProgressHelpers from "../lib/outreachProgressHelpers.js";
 import type * as lib_patchHelpers from "../lib/patchHelpers.js";
 import type * as lib_planConstants from "../lib/planConstants.js";
 import type * as lib_planCore from "../lib/planCore.js";
@@ -357,6 +358,7 @@ declare const fullApi: ApiFromModules<{
   "lib/onboardingNavigation": typeof lib_onboardingNavigation;
   "lib/outreachCore": typeof lib_outreachCore;
   "lib/outreachPlanPool": typeof lib_outreachPlanPool;
+  "lib/outreachProgressHelpers": typeof lib_outreachProgressHelpers;
   "lib/patchHelpers": typeof lib_patchHelpers;
   "lib/planConstants": typeof lib_planConstants;
   "lib/planCore": typeof lib_planCore;

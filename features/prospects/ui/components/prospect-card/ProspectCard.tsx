@@ -61,6 +61,8 @@ export function ProspectCard({
     "prospectId" in prospect
       ? prospect.financeDisplayValue
       : prospect.finance?.displayValue;
+  const outreachProgress =
+    "prospectId" in prospect ? prospect.outreachProgress : undefined;
   const displayTimestamp = getProspectDisplayTimestamp(prospect);
 
   // If optimistic status is set and differs from current, hide the card
@@ -126,6 +128,8 @@ export function ProspectCard({
       />
 
       <ProspectCardFooter
+        planGenerationStatus={prospect.planGenerationStatus}
+        outreachProgress={outreachProgress}
         qualificationStatus={prospect.qualificationStatus}
         qualificationScore={prospect.qualificationScore}
         finance={financeDisplayValue}

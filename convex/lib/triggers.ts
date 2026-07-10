@@ -27,6 +27,7 @@ import {
   mergeWorkspaceAgentOpsContributions,
   type TargetedWorkspaceAgentOpsContribution,
 } from "./agentOpsReadModelHelpers";
+import { buildOutreachProgressSummary } from "./outreachProgressHelpers";
 
 export const triggers = new Triggers<DataModel>();
 
@@ -58,6 +59,49 @@ function areJsonValuesEqual(left: unknown, right: unknown): boolean {
   }
 
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+async function syncProspectOutreachProgress(
+  db: TriggerDb,
+  prospectId: Id<"prospects">
+) {
+  const summary = await db
+    .query("prospectSummaries")
+    .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+    .first();
+  if (!summary) {
+    return;
+  }
+
+  const latestPlan = await db
+    .query("outreachPlans")
+    .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+    .order("desc")
+    .first();
+  const tasks = latestPlan
+    ? await db
+        .query("outreachTasks")
+        .withIndex("by_plan_order", (q) => q.eq("planId", latestPlan._id))
+        .collect()
+    : [];
+  const outreachProgress = latestPlan
+    ? buildOutreachProgressSummary(latestPlan, tasks)
+    : undefined;
+
+  if (areJsonValuesEqual(summary.outreachProgress, outreachProgress)) {
+    return;
+  }
+
+  await db.patch("prospectSummaries", summary._id, { outreachProgress });
+}
+
+async function syncProspectsOutreachProgress(
+  db: TriggerDb,
+  prospectIds: Iterable<Id<"prospects">>
+) {
+  for (const prospectId of new Set(prospectIds)) {
+    await syncProspectOutreachProgress(db, prospectId);
+  }
 }
 
 function isProspectWorkflowBookkeepingOnlyChange(
@@ -404,6 +448,13 @@ triggers.register("outreachPlans", async (ctx, change) => {
       ? getWorkspaceAnalyticsContributionsFromPlan(change.newDoc)
       : [],
   });
+
+  await syncProspectsOutreachProgress(
+    ctx.innerDb,
+    [change.oldDoc?.prospectId, change.newDoc?.prospectId].filter(
+      (prospectId): prospectId is Id<"prospects"> => prospectId !== undefined
+    )
+  );
 });
 
 triggers.register("outreachTasks", async (ctx, change) => {
@@ -434,6 +485,13 @@ triggers.register("outreachTasks", async (ctx, change) => {
           })
         : [],
   });
+
+  await syncProspectsOutreachProgress(
+    ctx.innerDb,
+    [oldPlan?.prospectId, newPlan?.prospectId].filter(
+      (prospectId): prospectId is Id<"prospects"> => prospectId !== undefined
+    )
+  );
 });
 
 triggers.register("outreachNotifications", async (ctx, change) => {

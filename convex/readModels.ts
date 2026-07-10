@@ -24,6 +24,7 @@ import {
   createEmptyReadModelRolloutTotals,
   mergeReadModelRolloutTotals,
 } from "./lib/readModelRolloutHelpers";
+import { buildOutreachProgressSummary } from "./lib/outreachProgressHelpers";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   readModelRebuildResultValidator,
@@ -170,18 +171,33 @@ export const rebuildWorkspaceReadModelsInternal = internalMutation({
       )
     );
     const plans = planGroups.flat();
+    const latestPlanByProspect = new Map<
+      Id<"prospects">,
+      Doc<"outreachPlans">
+    >();
+    for (const plan of plans) {
+      const currentLatest = latestPlanByProspect.get(plan.prospectId);
+      if (!currentLatest || plan._creationTime > currentLatest._creationTime) {
+        latestPlanByProspect.set(plan.prospectId, plan);
+      }
+    }
 
     let statsRecord = createEmptyWorkspaceStatsRecord({
       workspaceId,
       userId: workspace.userId,
     });
     const analyticsByDay = new Map<string, WorkspaceAnalyticsDailyRecord>();
+    const summaryIdByProspect = new Map<
+      Id<"prospects">,
+      Id<"prospectSummaries">
+    >();
 
     for (const prospect of prospects) {
-      await ctx.db.insert(
+      const summaryId = await ctx.db.insert(
         "prospectSummaries",
         buildProspectSummaryRecord(prospect)
       );
+      summaryIdByProspect.set(prospect._id, summaryId);
 
       statsRecord = mergeWorkspaceStatsContributions(statsRecord, {
         workspaceId,
@@ -224,6 +240,16 @@ export const rebuildWorkspaceReadModelsInternal = internalMutation({
         .query("outreachTasks")
         .withIndex("by_plan_order", (q) => q.eq("planId", plan._id))
         .collect();
+
+      if (latestPlanByProspect.get(plan.prospectId)?._id === plan._id) {
+        const summaryId = summaryIdByProspect.get(plan.prospectId);
+        const outreachProgress = buildOutreachProgressSummary(plan, tasks);
+        if (summaryId && outreachProgress) {
+          await ctx.db.patch("prospectSummaries", summaryId, {
+            outreachProgress,
+          });
+        }
+      }
 
       for (const task of tasks) {
         for (const targeted of getWorkspaceAnalyticsContributionsFromTask({

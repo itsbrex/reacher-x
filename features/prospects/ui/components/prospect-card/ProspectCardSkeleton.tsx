@@ -20,9 +20,9 @@ export function ProspectCardSkeleton() {
         <Skeleton className="h-4 w-3/4" />
       </div>
       <footer className="flex gap-2 pt-1">
-        <Skeleton className="h-6 w-20 rounded-full" />
-        <Skeleton className="h-6 w-24 rounded-full" />
-        <Skeleton className="h-6 w-28 rounded-full" />
+        <Skeleton className="h-[22px] w-40 rounded-md" />
+        <Skeleton className="h-[22px] w-20 rounded-md" />
+        <Skeleton className="h-[22px] w-28 rounded-md" />
       </footer>
     </article>
   );

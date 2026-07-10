@@ -14,6 +14,8 @@ import { Flag2Icon } from "@/shared/ui/components/icons";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { resolveQualificationPresentation } from "@/features/prospects/lib/qualificationUi";
+import type { ProspectOutreachProgress } from "@/features/prospects/lib/outreachProgressUi";
+import { ProspectOutreachProgressBadge } from "./ProspectOutreachProgressBadge";
 
 const compactBadgeClassName =
   "h-[22px] gap-1 overflow-hidden rounded-md py-0 font-normal leading-none";
@@ -22,6 +24,8 @@ const compactFitBarClassName = "font-mono text-[10px] !leading-none";
 const compactFitPercentClassName = "font-mono text-xs !leading-none";
 
 interface ProspectCardFooterProps {
+  planGenerationStatus?: Doc<"prospects">["planGenerationStatus"];
+  outreachProgress?: ProspectOutreachProgress;
   qualificationStatus?: Doc<"prospects">["qualificationStatus"];
   qualificationScore?: number;
   finance?: string;
@@ -110,6 +114,8 @@ function FitBar({
 }
 
 export function ProspectCardFooter({
+  planGenerationStatus,
+  outreachProgress,
   qualificationStatus,
   qualificationScore,
   finance,
@@ -120,6 +126,8 @@ export function ProspectCardFooter({
   const qualificationPresentation =
     resolveQualificationPresentation(qualificationStatus);
   const hasBadges =
+    planGenerationStatus === "generating" ||
+    outreachProgress !== undefined ||
     qualificationPresentation.showCardBadge ||
     qualificationScore !== undefined ||
     Boolean(finance) ||
@@ -156,6 +164,11 @@ export function ProspectCardFooter({
   return (
     <footer className="overflow-hidden">
       <div className="scroll-fade-x flex scrollbar-none items-center gap-2 overflow-x-auto [overflow-y:clip]">
+        <ProspectOutreachProgressBadge
+          planGenerationStatus={planGenerationStatus}
+          progress={outreachProgress}
+          className={compactBadgeClassName}
+        />
         {qualificationPresentation.showCardBadge && (
           <Badge variant="outline" className={compactBadgeClassName}>
             <Flag2Icon
