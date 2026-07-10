@@ -26,6 +26,7 @@ import {
 } from "../../../shared/lib/workspaceUseCases";
 import {
   getSocialContext,
+  getProspectInteractionHistory,
   getProspectPlan,
   generatePlan,
   refinePlan,
@@ -57,6 +58,7 @@ const outreachAgentLogger = logger.withScope("OutreachAgent");
 export const outreachAgentBaseTools = {
   // Context tools
   getSocialContext,
+  getProspectInteractionHistory,
   getProspectPlan,
   inspectWorkspace,
   researchProspect,

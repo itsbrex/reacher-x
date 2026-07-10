@@ -21,6 +21,7 @@ import type * as agents_outreach_tools_approveTask from "../agents/outreach/tool
 import type * as agents_outreach_tools_askHuman from "../agents/outreach/tools/askHuman.js";
 import type * as agents_outreach_tools_displayEntity from "../agents/outreach/tools/displayEntity.js";
 import type * as agents_outreach_tools_generatePlan from "../agents/outreach/tools/generatePlan.js";
+import type * as agents_outreach_tools_getProspectInteractionHistory from "../agents/outreach/tools/getProspectInteractionHistory.js";
 import type * as agents_outreach_tools_getProspectPlan from "../agents/outreach/tools/getProspectPlan.js";
 import type * as agents_outreach_tools_getSocialContext from "../agents/outreach/tools/getSocialContext.js";
 import type * as agents_outreach_tools_helpers from "../agents/outreach/tools/helpers.js";
@@ -44,6 +45,7 @@ import type * as agents_tools_index from "../agents/tools/index.js";
 import type * as agents_tools_logging from "../agents/tools/logging.js";
 import type * as agents_tools_prospectPlansFanout from "../agents/tools/prospectPlansFanout.js";
 import type * as agents_tools_qualifyProspect from "../agents/tools/qualifyProspect.js";
+import type * as agents_tools_queryWorkspace from "../agents/tools/queryWorkspace.js";
 import type * as agents_tools_rememberWorkspaceMemory from "../agents/tools/rememberWorkspaceMemory.js";
 import type * as agents_tools_schemas from "../agents/tools/schemas.js";
 import type * as agents_tools_searchProspects from "../agents/tools/searchProspects.js";
@@ -121,6 +123,7 @@ import type * as lib_previewBatchLimits from "../lib/previewBatchLimits.js";
 import type * as lib_previewEnrichmentPool from "../lib/previewEnrichmentPool.js";
 import type * as lib_previewQualificationPool from "../lib/previewQualificationPool.js";
 import type * as lib_prospectAnalyticsCore from "../lib/prospectAnalyticsCore.js";
+import type * as lib_prospectInteractionHistoryCore from "../lib/prospectInteractionHistoryCore.js";
 import type * as lib_prospectListFeedUtils from "../lib/prospectListFeedUtils.js";
 import type * as lib_prospectSearchMerge from "../lib/prospectSearchMerge.js";
 import type * as lib_prospectSearchText from "../lib/prospectSearchText.js";
@@ -264,6 +267,7 @@ declare const fullApi: ApiFromModules<{
   "agents/outreach/tools/askHuman": typeof agents_outreach_tools_askHuman;
   "agents/outreach/tools/displayEntity": typeof agents_outreach_tools_displayEntity;
   "agents/outreach/tools/generatePlan": typeof agents_outreach_tools_generatePlan;
+  "agents/outreach/tools/getProspectInteractionHistory": typeof agents_outreach_tools_getProspectInteractionHistory;
   "agents/outreach/tools/getProspectPlan": typeof agents_outreach_tools_getProspectPlan;
   "agents/outreach/tools/getSocialContext": typeof agents_outreach_tools_getSocialContext;
   "agents/outreach/tools/helpers": typeof agents_outreach_tools_helpers;
@@ -287,6 +291,7 @@ declare const fullApi: ApiFromModules<{
   "agents/tools/logging": typeof agents_tools_logging;
   "agents/tools/prospectPlansFanout": typeof agents_tools_prospectPlansFanout;
   "agents/tools/qualifyProspect": typeof agents_tools_qualifyProspect;
+  "agents/tools/queryWorkspace": typeof agents_tools_queryWorkspace;
   "agents/tools/rememberWorkspaceMemory": typeof agents_tools_rememberWorkspaceMemory;
   "agents/tools/schemas": typeof agents_tools_schemas;
   "agents/tools/searchProspects": typeof agents_tools_searchProspects;
@@ -364,6 +369,7 @@ declare const fullApi: ApiFromModules<{
   "lib/previewEnrichmentPool": typeof lib_previewEnrichmentPool;
   "lib/previewQualificationPool": typeof lib_previewQualificationPool;
   "lib/prospectAnalyticsCore": typeof lib_prospectAnalyticsCore;
+  "lib/prospectInteractionHistoryCore": typeof lib_prospectInteractionHistoryCore;
   "lib/prospectListFeedUtils": typeof lib_prospectListFeedUtils;
   "lib/prospectSearchMerge": typeof lib_prospectSearchMerge;
   "lib/prospectSearchText": typeof lib_prospectSearchText;

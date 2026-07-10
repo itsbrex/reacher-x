@@ -1548,6 +1548,34 @@ export const getProspectDmStateInternal = internalAction({
   },
 });
 
+/** Refresh and persist the real X DM conversation for an agent read. */
+export const refreshProspectDmConversationInternal = internalAction({
+  args: {
+    userId: v.id("users"),
+    prospectId: v.id("prospects"),
+  },
+  handler: async (ctx, args) => {
+    const panelContext = await resolveProspectDmPanelContext(
+      ctx,
+      args.userId,
+      args.prospectId
+    );
+    if (!panelContext) {
+      return null;
+    }
+
+    return {
+      conversationId: panelContext.conversationId,
+      messageCount: panelContext.messages.length,
+      latestMessageAt:
+        panelContext.messages.length > 0
+          ? panelContext.messages[panelContext.messages.length - 1]?.createdAt
+          : undefined,
+      warning: panelContext.warning?.message,
+    };
+  },
+});
+
 async function getProspectDmStateForUser(
   ctx: any,
   userId: Id<"users">,

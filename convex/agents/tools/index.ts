@@ -12,6 +12,7 @@ export { updateWorkspace } from "./updateWorkspace";
 export { rememberWorkspaceMemory } from "./rememberWorkspaceMemory";
 export { searchWorkspaceMemories } from "./searchWorkspaceMemories";
 export { continueProspectThread } from "./continueProspectThread";
+export { queryWorkspace } from "./queryWorkspace";
 
 // Prospecting tools
 export { convertToSocialQueries } from "./convertToSocialQueries";

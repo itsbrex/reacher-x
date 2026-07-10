@@ -15,12 +15,133 @@ import { summarizeTwitterPost } from "../shared/lib/twitter/contracts";
 import { toFallbackTweetFromSummary } from "../shared/lib/twitter/ui";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
+  prospectInteractionHistoryDirectionValidator,
+  prospectInteractionHistoryKindValidator,
+  prospectInteractionHistoryPlatformValidator,
   twitterConversationParticipantValidator,
   twitterInteractionDirectionValidator,
   twitterInteractionDiscoverySourceValidator,
   twitterInteractionOriginValidator,
   twitterInteractionStatusValidator,
 } from "./validators";
+import {
+  filterProspectInteractionHistory,
+  normalizeConversationMessage,
+  normalizePublicInteraction,
+} from "./lib/prospectInteractionHistoryCore";
+
+const MAX_AGENT_INTERACTION_HISTORY_LIMIT = 50;
+const MAX_AGENT_INTERACTION_CANDIDATES = 200;
+
+export const getProspectInteractionHistoryInternal = internalQuery({
+  args: {
+    userId: v.id("users"),
+    prospectId: v.id("prospects"),
+    platform: prospectInteractionHistoryPlatformValidator,
+    kinds: v.array(prospectInteractionHistoryKindValidator),
+    direction: prospectInteractionHistoryDirectionValidator,
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const prospect = await ctx.db.get(args.prospectId);
+    if (!prospect || prospect.userId !== args.userId) {
+      return null;
+    }
+
+    const limit = Math.min(
+      MAX_AGENT_INTERACTION_HISTORY_LIMIT,
+      Math.max(1, Math.floor(args.limit))
+    );
+    const candidateLimit = Math.min(
+      MAX_AGENT_INTERACTION_CANDIDATES,
+      Math.max(limit * 4, 20)
+    );
+    const platforms =
+      args.platform === "all"
+        ? (["twitter", "linkedin"] as const)
+        : ([args.platform] as const);
+    const includeDms = args.kinds.includes("dm");
+    const includePublicInteractions = args.kinds.some(
+      (kind) => kind === "comment" || kind === "reply"
+    );
+
+    const conversations = includeDms
+      ? (
+          await Promise.all(
+            platforms.map(async (platform) => {
+              const conversation = await ctx.db
+                .query("platformConversations")
+                .withIndex("by_prospect_platform", (q) =>
+                  q.eq("prospectId", args.prospectId).eq("platform", platform)
+                )
+                .first();
+              return conversation?.userId === args.userId ? conversation : null;
+            })
+          )
+        ).filter((conversation) => conversation !== null)
+      : [];
+
+    const conversationMessages = (
+      await Promise.all(
+        conversations.map((conversation) =>
+          ctx.db
+            .query("platformConversationMessages")
+            .withIndex("by_user_conversation_created_at", (q) =>
+              q
+                .eq("userId", args.userId)
+                .eq("conversationId", conversation.conversationId)
+            )
+            .order("desc")
+            .take(candidateLimit)
+        )
+      )
+    ).flat();
+
+    const publicInteractions = includePublicInteractions
+      ? await ctx.db
+          .query("prospectInteractions")
+          .withIndex("by_prospect_replied", (q) =>
+            q.eq("prospectId", args.prospectId)
+          )
+          .order("desc")
+          .take(candidateLimit)
+      : [];
+
+    const filtered = filterProspectInteractionHistory({
+      items: [
+        ...conversationMessages.map(normalizeConversationMessage),
+        ...publicInteractions
+          .filter((interaction) => interaction.userId === args.userId)
+          .map(normalizePublicInteraction),
+      ],
+      platform: args.platform,
+      kinds: args.kinds,
+      direction: args.direction,
+      limit,
+    });
+
+    return {
+      prospect: {
+        name: prospect.displayName ?? prospect.externalId,
+        platform: prospect.platform,
+      },
+      ...filtered,
+      coverage: platforms.map((platform) => {
+        const conversation = conversations.find(
+          (candidate) => candidate.platform === platform
+        );
+        return {
+          platform,
+          hasConversation: Boolean(conversation),
+          lastSyncSuccessAt: conversation?.lastSyncSuccessAt,
+          lastSyncAttemptAt: conversation?.lastSyncAttemptAt,
+          syncError: conversation?.lastSyncErrorMessage,
+        };
+      }),
+      queriedAt: getCurrentUTCTimestamp(),
+    };
+  },
+});
 
 export const getProspectInteractionSyncStateInternal = internalQuery({
   args: {

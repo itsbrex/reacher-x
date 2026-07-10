@@ -2,6 +2,7 @@
 // Barrel exports for outreach agent tools
 
 export { getSocialContext } from "./getSocialContext";
+export { getProspectInteractionHistory } from "./getProspectInteractionHistory";
 export { getProspectPlan } from "./getProspectPlan";
 export { generatePlan } from "./generatePlan";
 export { refinePlan } from "./refinePlan";

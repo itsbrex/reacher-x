@@ -65,8 +65,13 @@ import {
   bootstrapWorkspaceStyleProfilesForWorkspaceOnDb,
   type WorkspaceStyleBootstrapResult,
 } from "./lib/workspaceStyleProfileCore";
-import { isWorkspaceInactive } from "./lib/workspaceSystem";
+import {
+  deriveWorkspaceSystemStatus,
+  getWorkspaceDiscoveryState,
+  isWorkspaceInactive,
+} from "./lib/workspaceSystem";
 import { INACTIVITY_PAUSE_AFTER_MS } from "../shared/lib/workspaceSystem";
+import { getWorkspaceStatsSnapshot } from "./workspaceStats";
 import { workflow } from "./lib/workflow";
 import {
   preferredShellContextValidator,
@@ -437,6 +442,75 @@ export const getWorkspaceInspectionInternal = internalQuery({
       agentSettings: {
         autonomyMode: settings.autonomyMode,
       },
+    };
+  },
+});
+
+/**
+ * Live operational workspace snapshot for the main △ Agent.
+ *
+ * This deliberately reads the same maintained workspaceStats record used by
+ * the product UI. Agent answers about mutable workspace state must come from
+ * this source instead of being inferred from plans or conversation history.
+ */
+export const getWorkspaceOperationalSnapshotInternal = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) {
+      return null;
+    }
+
+    const [stats, settingsRow, discoveryState] = await Promise.all([
+      getWorkspaceStatsSnapshot({ db: ctx.db, workspace }),
+      getWorkspaceAgentSettingsRow(ctx, workspaceId),
+      getWorkspaceDiscoveryState(ctx.db, workspace),
+    ]);
+    const settings = settingsRow ?? getDefaultWorkspaceAgentSettings(workspace);
+    const systemStatus = deriveWorkspaceSystemStatus(workspace, {
+      discoveryState,
+    });
+
+    return {
+      workspace: {
+        name: workspace.name,
+        useCaseKey: workspace.useCaseKey ? String(workspace.useCaseKey) : null,
+      },
+      prospects: {
+        total: stats.totalProspectsCount,
+        qualified: stats.qualifiedProspectsCount,
+        enriched: stats.enrichedProspectsCount,
+        readyQualifiedEnriched: stats.readyQualifiedEnrichedCount,
+        actionableReady: stats.actionableReadyCount,
+        averageQualificationScore: stats.avgQualificationScore,
+        byStatus: {
+          new: stats.newProspectsCount,
+          contacted: stats.contactedProspectsCount,
+          inProgress: stats.inProgressProspectsCount,
+          converted: stats.convertedProspectsCount,
+          archived: stats.archivedProspectsCount,
+        },
+        byPlatform: {
+          twitter: stats.twitterProspectsCount,
+          linkedin: stats.linkedInProspectsCount,
+        },
+      },
+      outreach: {
+        plansGenerated: stats.plansGeneratedCount,
+      },
+      notifications: {
+        pending: stats.pendingNotificationCount,
+      },
+      agent: {
+        autonomyMode: settings.autonomyMode,
+        workflowStatus: workspace.prospectingWorkflowStatus ?? "stopped",
+        systemMode: systemStatus.mode,
+        pauseReason: systemStatus.pauseReason,
+        issueReason: systemStatus.issueReason,
+        canResume: systemStatus.canResume,
+      },
+      sourceUpdatedAt: stats.updatedAt,
+      queriedAt: getCurrentUTCTimestamp(),
     };
   },
 });

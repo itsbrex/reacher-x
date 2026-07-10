@@ -517,6 +517,24 @@ export const platformConversationDirectionValidator = v.union(
   v.literal("received")
 );
 
+export const prospectInteractionHistoryPlatformValidator = v.union(
+  v.literal("all"),
+  v.literal("twitter"),
+  v.literal("linkedin")
+);
+
+export const prospectInteractionHistoryKindValidator = v.union(
+  v.literal("dm"),
+  v.literal("comment"),
+  v.literal("reply")
+);
+
+export const prospectInteractionHistoryDirectionValidator = v.union(
+  v.literal("all"),
+  v.literal("sent"),
+  v.literal("received")
+);
+
 export const xDmEligibilityReasonCodeValidator = v.union(
   v.literal("eligible"),
   v.literal("not_allowed"),

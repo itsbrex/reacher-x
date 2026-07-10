@@ -33,6 +33,7 @@ import {
   searchWorkspaceMemories,
   continueProspectThread,
   listProspectPlans,
+  queryWorkspace,
   updatePlansBatch,
 } from "./tools";
 import {
@@ -42,6 +43,7 @@ import {
   cancelPlan,
   deletePlan,
   displayEntity,
+  getProspectInteractionHistory,
   getProspectPlan,
   getSocialContext,
   inspectWorkspace,
@@ -110,10 +112,12 @@ export const workspaceVisionLanguageModel = createWorkspaceLanguageModel(
 const mainAgentBaseTools = {
   // Workspace context + discovery
   inspectWorkspace,
+  queryWorkspace,
   searchProspects,
   listProspectPlans,
   updatePlansBatch,
   // Selected prospect context
+  getProspectInteractionHistory,
   getSocialContext,
   getProspectPlan,
   researchProspect,
