@@ -246,6 +246,19 @@ export const PINNED_AGENT_MODEL = MODELS.GPT_OSS;
 export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   createOnlyProviderOptions([OPENROUTER_PROVIDERS.CEREBRAS]);
 
+/**
+ * Vision-capable turns are pinned to Kimi and must stay on a true multimodal
+ * route. We allow a provider fallback within Kimi's lane, but never a silent
+ * downgrade to the default text-only agent model.
+ */
+export const PINNED_VISION_MODEL = MODELS.KIMI_K2_6;
+
+export const PINNED_VISION_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createOrderedProviderOptions({
+    order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
+    allowFallbacks: false,
+  });
+
 export type ModelRouting = "fast" | "reasoning";
 type JsonFailureLogLevel = "error" | "warn" | "info";
 const aiLogger = logger.withScope("AI");

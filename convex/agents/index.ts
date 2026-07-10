@@ -6,8 +6,11 @@ import { wrapLanguageModel } from "ai";
 import { components, internal } from "../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
+  type OpenRouterProviderOptions,
   PINNED_AGENT_MODEL,
   PINNED_AGENT_PROVIDER_OPTIONS,
+  PINNED_VISION_MODEL,
+  PINNED_VISION_PROVIDER_OPTIONS,
   getOpenRouterExtraBody,
 } from "../lib/ai";
 import {
@@ -80,14 +83,29 @@ function getOpenRouterProvider() {
 }
 
 const openrouter = getOpenRouterProvider();
-const workspaceLanguageModel = wrapLanguageModel({
+function createWorkspaceLanguageModel(
+  modelId: string,
+  providerOptions: OpenRouterProviderOptions
+) {
+  return wrapLanguageModel({
+    model: openrouter(modelId, {
+      extraBody: getOpenRouterExtraBody(providerOptions),
+    }) as any,
+    middleware: openRouterMetadataMiddleware,
+  });
+}
+
+export const workspaceLanguageModel = createWorkspaceLanguageModel(
   // Pin tool-calling setup runs to the validated Cerebras route. This avoids
   // provider roulette for multi-step streamed agent turns.
-  model: openrouter(PINNED_AGENT_MODEL, {
-    extraBody: getOpenRouterExtraBody(PINNED_AGENT_PROVIDER_OPTIONS),
-  }) as any,
-  middleware: openRouterMetadataMiddleware,
-});
+  PINNED_AGENT_MODEL,
+  PINNED_AGENT_PROVIDER_OPTIONS
+);
+
+export const workspaceVisionLanguageModel = createWorkspaceLanguageModel(
+  PINNED_VISION_MODEL,
+  PINNED_VISION_PROVIDER_OPTIONS
+);
 
 const mainAgentBaseTools = {
   // Workspace context + discovery

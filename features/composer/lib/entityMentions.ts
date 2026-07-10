@@ -1,4 +1,5 @@
 import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
+import { inferAttachmentMediaKind as inferSharedAttachmentMediaKind } from "@/shared/lib/utils/media/inferAttachmentMediaKind";
 import type {
   ComposerEntityMentionsConfig,
   ComposerInitialMediaUpload,
@@ -34,29 +35,10 @@ function inferAttachmentMediaKind(
     return entity.attachmentMediaKind;
   }
 
-  const mimeType = entity.attachmentMimeType?.toLowerCase() ?? "";
-  if (mimeType === "image/gif") {
-    return "gif";
-  }
-  if (mimeType.startsWith("video/")) {
-    return "video";
-  }
-  if (mimeType.startsWith("image/")) {
-    return "image";
-  }
-
-  const url = entity.attachmentUrl?.toLowerCase() ?? "";
-  if (/\.(gif)(?:$|[?#])/.test(url)) {
-    return "gif";
-  }
-  if (/\.(mp4|mov|webm|m4v)(?:$|[?#])/.test(url)) {
-    return "video";
-  }
-  if (/\.(png|jpe?g|webp|avif|bmp|svg)(?:$|[?#])/.test(url)) {
-    return "image";
-  }
-
-  return null;
+  return inferSharedAttachmentMediaKind({
+    mimeType: entity.attachmentMimeType,
+    url: entity.attachmentUrl,
+  });
 }
 
 export function buildComposerMentionInsertionText(args: {

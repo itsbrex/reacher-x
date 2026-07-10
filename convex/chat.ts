@@ -4,6 +4,7 @@
 
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import type { LanguageModel, ModelMessage } from "ai";
 import {
   action,
   internalAction,
@@ -26,8 +27,12 @@ import {
   type UIMessage,
   type StreamArgs,
 } from "@convex-dev/agent";
-import { mainAgent, setupAgent } from "./agents";
-import { outreachAgent, outreachAgentBaseTools } from "./agents/outreach";
+import { mainAgent, setupAgent, workspaceVisionLanguageModel } from "./agents";
+import {
+  outreachAgent,
+  outreachAgentBaseTools,
+  outreachVisionLanguageModel,
+} from "./agents/outreach";
 import {
   buildMainAgentPrompt,
   buildOutreachAgentPrompt,
@@ -84,15 +89,28 @@ import {
   normalizeAgentMessageContextMetadata,
   type AgentMessageContextMetadata,
 } from "../shared/lib/mentions/messageContext";
+import {
+  inferAttachmentMediaKind,
+  isVisionAttachmentMediaKind,
+} from "../shared/lib/utils/media/inferAttachmentMediaKind";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
 type OutreachAgentTools = typeof outreachAgentBaseTools;
 const chatLogger = logger.withScope("Chat");
 type WorkspaceAgentSurface = "main" | "setup";
-type HiddenContextMessage = {
-  role: "system";
-  content: string;
+type AgentTurnContextMessage = ModelMessage;
+type ResolvedAgentTurnContext = {
+  messages: AgentTurnContextMessage[];
+  hasVisionInput: boolean;
+};
+type AttachmentReferenceInput = {
+  uploadId: string | null;
+  fileName: string;
+  mediaUrl: string | null;
+};
+type ResolvedAttachmentReference = AttachmentReferenceInput & {
+  mimeType: string | null;
 };
 type ThreadRouteContextResult =
   | { kind: "missing" }
@@ -445,6 +463,46 @@ function buildResolvedAttachmentLine(args: {
     : `Attachment: ${args.fileName}`;
 }
 
+async function resolveAttachmentReference(
+  ctx: ActionCtx,
+  scope: AgentThreadScopeContext,
+  attachment: AttachmentReferenceInput
+): Promise<ResolvedAttachmentReference | null> {
+  if (attachment.uploadId) {
+    const upload = await ctx.runQuery(internal.chat.getMediaUploadInternal, {
+      uploadId: attachment.uploadId as Id<"mediaUploads">,
+    });
+    if (upload) {
+      if (
+        scope.workspaceId &&
+        upload.workspaceId &&
+        upload.workspaceId !== scope.workspaceId
+      ) {
+        return null;
+      }
+
+      return {
+        uploadId: String(upload._id),
+        fileName: upload.displayName ?? upload.fileName,
+        mediaUrl:
+          (await ctx.storage.getUrl(upload.storageId)) ?? attachment.mediaUrl,
+        mimeType: upload.mimeType ?? null,
+      };
+    }
+  }
+
+  if (!attachment.mediaUrl) {
+    return null;
+  }
+
+  return {
+    uploadId: attachment.uploadId,
+    fileName: attachment.fileName,
+    mediaUrl: attachment.mediaUrl,
+    mimeType: null,
+  };
+}
+
 async function buildResolvedTaggedEntityLine(
   ctx: ActionCtx,
   scope: AgentThreadScopeContext,
@@ -561,30 +619,18 @@ async function buildResolvedTaggedEntityLine(
       return `Task: Task ${task.order} for ${prospectLabel} (taskId: ${String(task._id)}; planId: ${String(plan._id)}; prospectId: ${String(plan.prospectId)}; status: ${task.status}; type: ${task.type}; summary: ${summary})`;
     }
     case "attachment": {
-      const upload = entity.entityId
-        ? await ctx.runQuery(internal.chat.getMediaUploadInternal, {
-            uploadId: entity.entityId as Id<"mediaUploads">,
-          })
-        : null;
-      if (!upload) {
-        return entity.attachmentUrl
-          ? buildResolvedAttachmentLine({
-              fileName: entity.label,
-              mediaUrl: entity.attachmentUrl,
-            })
-          : null;
-      }
-      if (
-        scope.workspaceId &&
-        upload.workspaceId &&
-        upload.workspaceId !== scope.workspaceId
-      ) {
+      const resolvedAttachment = await resolveAttachmentReference(ctx, scope, {
+        uploadId: entity.entityId ?? null,
+        fileName: entity.label,
+        mediaUrl: entity.attachmentUrl ?? null,
+      });
+      if (!resolvedAttachment) {
         return null;
       }
 
       return buildResolvedAttachmentLine({
-        fileName: upload.displayName ?? upload.fileName,
-        mediaUrl: await ctx.storage.getUrl(upload.storageId),
+        fileName: resolvedAttachment.fileName,
+        mediaUrl: resolvedAttachment.mediaUrl,
       });
     }
     case "post": {
@@ -630,34 +676,113 @@ async function buildResolvedAttachmentReferenceLine(
   scope: AgentThreadScopeContext,
   attachment: AgentMessageContextMetadata["attachments"][number]
 ): Promise<string | null> {
-  if (attachment.uploadId) {
-    const upload = await ctx.runQuery(internal.chat.getMediaUploadInternal, {
-      uploadId: attachment.uploadId as Id<"mediaUploads">,
-    });
-    if (upload) {
-      if (
-        scope.workspaceId &&
-        upload.workspaceId &&
-        upload.workspaceId !== scope.workspaceId
-      ) {
-        return null;
-      }
-
-      return buildResolvedAttachmentLine({
-        fileName: upload.displayName ?? upload.fileName,
-        mediaUrl: await ctx.storage.getUrl(upload.storageId),
-      });
-    }
-  }
-
-  if (!attachment.mediaUrl) {
+  const resolvedAttachment = await resolveAttachmentReference(ctx, scope, {
+    uploadId: attachment.uploadId,
+    fileName: attachment.fileName,
+    mediaUrl: attachment.mediaUrl,
+  });
+  if (!resolvedAttachment) {
     return null;
   }
 
   return buildResolvedAttachmentLine({
-    fileName: attachment.fileName,
-    mediaUrl: attachment.mediaUrl,
+    fileName: resolvedAttachment.fileName,
+    mediaUrl: resolvedAttachment.mediaUrl,
   });
+}
+
+async function buildVisionAttachmentMessage(
+  ctx: ActionCtx,
+  scope: AgentThreadScopeContext,
+  metadata: AgentMessageContextMetadata
+): Promise<AgentTurnContextMessage | null> {
+  const attachmentCandidates: AttachmentReferenceInput[] = [
+    ...metadata.attachments.map((attachment) => ({
+      uploadId: attachment.uploadId,
+      fileName: attachment.fileName,
+      mediaUrl: attachment.mediaUrl,
+    })),
+    ...metadata.taggedEntities.flatMap((entity) =>
+      entity.kind === "attachment"
+        ? [
+            {
+              uploadId: entity.entityId ?? null,
+              fileName: entity.label,
+              mediaUrl: entity.attachmentUrl ?? null,
+            },
+          ]
+        : []
+    ),
+  ];
+
+  const seenKeys = new Set<string>();
+  const dedupedCandidates = attachmentCandidates.filter((attachment) => {
+    const dedupeKey = [
+      attachment.uploadId ?? "",
+      attachment.mediaUrl ?? "",
+      attachment.fileName,
+    ].join("::");
+    if (seenKeys.has(dedupeKey)) {
+      return false;
+    }
+    seenKeys.add(dedupeKey);
+    return true;
+  });
+
+  const resolvedAttachments = (
+    await Promise.all(
+      dedupedCandidates.map((attachment) =>
+        resolveAttachmentReference(ctx, scope, attachment)
+      )
+    )
+  ).filter(
+    (
+      attachment
+    ): attachment is NonNullable<
+      Awaited<ReturnType<typeof resolveAttachmentReference>>
+    > => Boolean(attachment)
+  );
+
+  const imageParts = resolvedAttachments
+    .map((attachment) => {
+      const mediaKind = inferAttachmentMediaKind({
+        mimeType: attachment.mimeType,
+        url: attachment.mediaUrl ?? attachment.fileName,
+      });
+      if (!attachment.mediaUrl || !isVisionAttachmentMediaKind(mediaKind)) {
+        return null;
+      }
+
+      return {
+        type: "image" as const,
+        image: new URL(attachment.mediaUrl),
+        ...(attachment.mimeType ? { mediaType: attachment.mimeType } : {}),
+      };
+    })
+    .filter(
+      (
+        part
+      ): part is {
+        type: "image";
+        image: URL;
+        mediaType?: string;
+      } => Boolean(part)
+    );
+
+  if (imageParts.length === 0) {
+    return null;
+  }
+
+  return {
+    role: "user",
+    content: [
+      {
+        type: "text",
+        text: "The operator attached image files for this request. Inspect them directly and use them as first-class context for your response.",
+      },
+      ...imageParts,
+    ],
+  };
 }
 
 async function buildAgentTurnContextMessages(
@@ -666,13 +791,16 @@ async function buildAgentTurnContextMessages(
     threadId: string;
     promptMessageId: string;
   }
-): Promise<HiddenContextMessage[]> {
+): Promise<ResolvedAgentTurnContext> {
   const metadata = await getAgentMessageContextMetadataById(
     ctx,
     args.promptMessageId
   );
   if (!metadata) {
-    return [];
+    return {
+      messages: [],
+      hasVisionInput: false,
+    };
   }
 
   const scope = await resolveAgentThreadScopeContext(ctx, args.threadId);
@@ -690,38 +818,49 @@ async function buildAgentTurnContextMessages(
       )
     )
   ).filter((line): line is string => Boolean(line));
+  const visionAttachmentMessage = await buildVisionAttachmentMessage(
+    ctx,
+    scope,
+    metadata
+  );
+  const messages: AgentTurnContextMessage[] = [];
 
-  if (taggedEntityLines.length === 0 && attachmentLines.length === 0) {
-    return [];
-  }
+  if (taggedEntityLines.length > 0 || attachmentLines.length > 0) {
+    const sections: string[] = [
+      "These references were explicitly selected in the UI for the current request.",
+      "Treat them as deliberate context even when the visible user message is short or does not repeat the details.",
+    ];
 
-  const sections: string[] = [
-    "These references were explicitly selected in the UI for the current request.",
-    "Treat them as deliberate context even when the visible user message is short or does not repeat the details.",
-  ];
+    if (taggedEntityLines.length > 0) {
+      sections.push(
+        "",
+        "Tagged entities:",
+        ...taggedEntityLines.map((line) => `- ${line}`)
+      );
+    }
 
-  if (taggedEntityLines.length > 0) {
-    sections.push(
-      "",
-      "Tagged entities:",
-      ...taggedEntityLines.map((line) => `- ${line}`)
-    );
-  }
+    if (attachmentLines.length > 0) {
+      sections.push(
+        "",
+        "Attached media:",
+        ...attachmentLines.map((line) => `- ${line}`)
+      );
+    }
 
-  if (attachmentLines.length > 0) {
-    sections.push(
-      "",
-      "Attached media:",
-      ...attachmentLines.map((line) => `- ${line}`)
-    );
-  }
-
-  return [
-    {
+    messages.push({
       role: "system",
       content: sections.join("\n"),
-    },
-  ];
+    });
+  }
+
+  if (visionAttachmentMessage) {
+    messages.push(visionAttachmentMessage);
+  }
+
+  return {
+    messages,
+    hasVisionInput: visionAttachmentMessage !== null,
+  };
 }
 
 async function listLegacyWorkspaceThreadsByTitle(
@@ -885,7 +1024,8 @@ async function runOutreachStreamText(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
     contextOptions?: ReturnType<
       typeof buildDisabledHistorySearchContextOptions
     >;
@@ -899,6 +1039,7 @@ async function runOutreachStreamText(
         ? { promptMessageId: args.promptMessageId }
         : {}),
       ...(args.messages?.length ? { messages: args.messages } : {}),
+      ...(args.model ? { model: args.model } : {}),
       system: args.system,
       tools: args.tools,
     },
@@ -916,7 +1057,8 @@ async function runOutreachStreamTextWithHistoryFallback(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
     preferHistorySearch?: boolean;
   }
 ) {
@@ -956,7 +1098,8 @@ async function runSetupStreamText(
     promptMessageId?: string;
     prompt?: string;
     system: string;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
   }
 ) {
   return setupAgent.streamText(
@@ -968,6 +1111,7 @@ async function runSetupStreamText(
         : {}),
       ...(args.prompt ? { prompt: args.prompt } : {}),
       ...(args.messages?.length ? { messages: args.messages } : {}),
+      ...(args.model ? { model: args.model } : {}),
       system: args.system,
     },
     {
@@ -983,7 +1127,8 @@ async function runMainStreamText(
     promptMessageId?: string;
     prompt?: string;
     system: string;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
   }
 ) {
   return mainAgent.streamText(
@@ -995,6 +1140,7 @@ async function runMainStreamText(
         : {}),
       ...(args.prompt ? { prompt: args.prompt } : {}),
       ...(args.messages?.length ? { messages: args.messages } : {}),
+      ...(args.model ? { model: args.model } : {}),
       system: args.system,
     },
     {
@@ -1010,7 +1156,8 @@ async function streamOutreachTextWithFallback(
     promptMessageId?: string;
     system: string;
     tools: OutreachAgentTools;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
     preferHistorySearch?: boolean;
   }
 ) {
@@ -1055,7 +1202,8 @@ async function streamSetupTextWithRetry(
     threadId: string;
     promptMessageId: string;
     system: string;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
   }
 ) {
   const executeAttempt = async () => {
@@ -1099,7 +1247,8 @@ async function streamMainTextWithRetry(
     threadId: string;
     promptMessageId: string;
     system: string;
-    messages?: HiddenContextMessage[];
+    messages?: AgentTurnContextMessage[];
+    model?: LanguageModel;
   }
 ) {
   const executeAttempt = async () => {
@@ -2186,7 +2335,7 @@ async function runStreamOutreachResponse(
     const useCase = await resolveOutreachUseCaseForThread(ctx, args.threadId);
     const tools = await getOutreachToolsForThread(ctx, args.threadId);
     const promptText = await getPlainTextMessageById(ctx, args.promptMessageId);
-    const hiddenContextMessages = await buildAgentTurnContextMessages(ctx, {
+    const hiddenContext = await buildAgentTurnContextMessages(ctx, {
       threadId: args.threadId,
       promptMessageId: args.promptMessageId,
     });
@@ -2201,7 +2350,10 @@ async function runStreamOutreachResponse(
       promptMessageId: args.promptMessageId,
       system: buildOutreachAgentPrompt(useCase),
       tools,
-      messages: hiddenContextMessages,
+      messages: hiddenContext.messages,
+      model: hiddenContext.hasVisionInput
+        ? outreachVisionLanguageModel
+        : undefined,
       preferHistorySearch: shouldUseHistorySearch,
     });
 
@@ -2969,7 +3121,7 @@ export const streamAgentResponse = internalAction({
     try {
       const useCase = await resolveSetupUseCaseForThread(ctx, args.threadId);
       const surface = await resolveWorkspaceAgentSurface(ctx, args.threadId);
-      const hiddenContextMessages = await buildAgentTurnContextMessages(ctx, {
+      const hiddenContext = await buildAgentTurnContextMessages(ctx, {
         threadId: args.threadId,
         promptMessageId: args.promptMessageId,
       });
@@ -2978,13 +3130,19 @@ export const streamAgentResponse = internalAction({
           ? await streamMainTextWithRetry(ctx, {
               threadId: args.threadId,
               promptMessageId: args.promptMessageId,
-              messages: hiddenContextMessages,
+              messages: hiddenContext.messages,
+              model: hiddenContext.hasVisionInput
+                ? workspaceVisionLanguageModel
+                : undefined,
               system: buildMainAgentPrompt(useCase),
             })
           : await streamSetupTextWithRetry(ctx, {
               threadId: args.threadId,
               promptMessageId: args.promptMessageId,
-              messages: hiddenContextMessages,
+              messages: hiddenContext.messages,
+              model: hiddenContext.hasVisionInput
+                ? workspaceVisionLanguageModel
+                : undefined,
               system: buildSetupAgentPrompt(useCase),
             });
 

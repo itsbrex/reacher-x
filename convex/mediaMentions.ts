@@ -14,6 +14,7 @@ import {
   buildPostMentionEntity,
   buildTwitterReplyMentionEntity,
 } from "../shared/lib/mentions/postMentions";
+import { inferAttachmentMediaKind } from "../shared/lib/utils/media/inferAttachmentMediaKind";
 import type {
   MentionEntityKind,
   MentionEntitySearchResult,
@@ -97,22 +98,6 @@ function normalizeQueryValue(value: string) {
 
 function formatProspectSecondaryLabel(handle: string) {
   return handle.startsWith("@") ? handle : `@${handle}`;
-}
-
-function inferAttachmentMediaKind(
-  mimeType: string | undefined
-): "image" | "gif" | "video" | null {
-  const normalized = mimeType?.toLowerCase() ?? "";
-  if (normalized === "image/gif") {
-    return "gif";
-  }
-  if (normalized.startsWith("video/")) {
-    return "video";
-  }
-  if (normalized.startsWith("image/")) {
-    return "image";
-  }
-  return null;
 }
 
 function getProspectSummarySecondaryLabel(
@@ -516,7 +501,9 @@ export const searchMentionEntities = query({
               : String(workspace._id),
             attachmentUrl,
             attachmentMimeType: upload.mimeType,
-            attachmentMediaKind: inferAttachmentMediaKind(upload.mimeType),
+            attachmentMediaKind: inferAttachmentMediaKind({
+              mimeType: upload.mimeType,
+            }),
           };
         })
     );
