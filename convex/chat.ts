@@ -3834,7 +3834,9 @@ export const searchWorkspaceMessages = action({
             searchOptions: {
               limit: args.limit ?? 10,
               textSearch: true,
-              vectorSearch: true,
+              // Results are filtered to exact substring matches below. Avoid
+              // generating the same query embedding once for every thread.
+              vectorSearch: false,
             },
           },
         });
