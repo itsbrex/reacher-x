@@ -74,6 +74,7 @@ import {
   twitterInteractionOriginValidator,
   twitterInteractionStatusValidator,
   twitterConversationParticipantValidator,
+  prospectContactSourceValidator,
   platformConversationAttachmentValidator,
   platformConversationDirectionValidator,
   platformConversationEventTypeValidator,
@@ -583,7 +584,9 @@ export default defineSchema({
     websiteDisplayText: v.optional(v.string()),
     bioUrlEntities: v.optional(v.array(twitterUrlEntityValidator)),
     email: v.optional(v.string()),
+    emailSource: v.optional(prospectContactSourceValidator),
     phone: v.optional(v.string()),
+    phoneSource: v.optional(prospectContactSourceValidator),
     location: v.optional(v.string()),
 
     // Pipeline stage tracking

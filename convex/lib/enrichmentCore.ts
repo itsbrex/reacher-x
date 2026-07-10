@@ -17,11 +17,13 @@ import {
   normalizeHttpUrl,
   type TwitterUrlEntity,
 } from "../../shared/lib/twitter/profileLinks";
+import { type ProspectContactSource } from "../../shared/lib/utils/contact/contactUtils";
 import {
   getWorkflowEvidencePostId,
   getWorkflowEvidencePostText,
   getWorkflowEvidencePostUrl,
 } from "./workflowSafeProspect";
+import { discoverPublicContactInfo } from "./contactDiscoveryCore";
 import { hydrateTwitterProfileLinkMetadata } from "./twitterProfileLinkResolver";
 
 const enrichmentLogger = logger.withScope("EnrichmentCore");
@@ -74,7 +76,9 @@ export interface EnrichmentResult {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  emailSource?: ProspectContactSource;
   phone?: string;
+  phoneSource?: ProspectContactSource;
   location?: string;
   finance?: FinanceData;
   painPoints: PainPointWithSolution[];
@@ -452,6 +456,34 @@ export async function enrichTwitterProfile(params: {
         }
       : undefined;
 
+    const profileUrl = (profileWithResolvedLinks.screen_name as string)
+      ? `https://x.com/${profileWithResolvedLinks.screen_name}`
+      : undefined;
+    const discoveredContacts = await discoverPublicContactInfo({
+      platform: "twitter",
+      profileUrl,
+      profileTextBlocks: [
+        {
+          label: "bio",
+          text: (profileWithResolvedLinks.description as string) || undefined,
+        },
+        {
+          label: "extended_bio",
+          text: (enrichedProfile.extendedBio as string) || undefined,
+        },
+      ],
+      posts: evidencePosts.map((post) => ({
+        url: post.url,
+        text: post.text,
+      })),
+      websiteUrls: [
+        hydratedLinks.websiteHref,
+        ...(hydratedLinks.bioUrlEntities?.map(
+          (entity) => entity.expanded_url
+        ) ?? []),
+      ],
+    });
+
     return {
       prospectType: extracted.prospectType,
       displayName: (profileWithResolvedLinks.name as string) || undefined,
@@ -466,6 +498,10 @@ export async function enrichTwitterProfile(params: {
           ? formatUrlDisplayText(extractedWebsiteHref)
           : undefined),
       bioUrlEntities: hydratedLinks.bioUrlEntities,
+      email: discoveredContacts.email?.value,
+      emailSource: discoveredContacts.email?.source,
+      phone: discoveredContacts.phone?.value,
+      phoneSource: discoveredContacts.phone?.source,
       location: (profileWithResolvedLinks.location as string) || undefined,
       finance,
       painPoints,
@@ -601,8 +637,6 @@ export async function enrichLinkedInProfile(params: {
     let displayName: string | undefined;
     let company: string | undefined;
     let websiteUrl: string | undefined;
-    let email: string | undefined;
-    let phone: string | undefined;
     let location: string | undefined;
     let briefIntro: string | undefined;
 
@@ -641,9 +675,6 @@ export async function enrichLinkedInProfile(params: {
 
       // Contact info
       if (contactInfo) {
-        email = (contactInfo.emailAddress as string) || undefined;
-        phone = (contactInfo.phoneNumber as string) || undefined;
-
         const websites = contactInfo.websites as
           | Array<{ url: string }>
           | undefined;
@@ -653,6 +684,42 @@ export async function enrichLinkedInProfile(params: {
       }
     }
 
+    const profileUrl =
+      linkedinUrl ||
+      (profile.publicIdentifier
+        ? `https://linkedin.com/in/${profile.publicIdentifier}`
+        : undefined);
+    const contactWebsites =
+      (contactInfo?.websites as Array<{ url: string }> | undefined)?.map(
+        (site) => site.url
+      ) ?? [];
+    const discoveredContacts = await discoverPublicContactInfo({
+      platform: "linkedin",
+      profileUrl,
+      profileTextBlocks: [
+        {
+          label: "headline",
+          text: (profile.headline as string) || undefined,
+        },
+        {
+          label: "summary",
+          text:
+            (profile.summary as string) ||
+            (companyData?.description as string) ||
+            undefined,
+        },
+      ],
+      posts: evidencePosts.map((post) => ({
+        url: post.url,
+        text: post.text,
+      })),
+      websiteUrls: [websiteUrl, ...contactWebsites],
+      structuredEmail:
+        (contactInfo?.emailAddress as string | undefined) || undefined,
+      structuredPhone:
+        (contactInfo?.phoneNumber as string | undefined) || undefined,
+    });
+
     return {
       prospectType: isCompany ? "organization" : extracted.prospectType,
       displayName,
@@ -660,8 +727,10 @@ export async function enrichLinkedInProfile(params: {
       briefIntro,
       company,
       websiteUrl,
-      email,
-      phone,
+      email: discoveredContacts.email?.value,
+      emailSource: discoveredContacts.email?.source,
+      phone: discoveredContacts.phone?.value,
+      phoneSource: discoveredContacts.phone?.source,
       location,
       finance,
       painPoints,

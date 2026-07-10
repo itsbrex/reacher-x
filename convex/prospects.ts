@@ -27,6 +27,7 @@ import {
   planGenerationStatusValidator,
   prospectVisibilityModeValidator,
   setupProspectOriginValidator,
+  prospectContactSourceValidator,
   twitterUrlEntityValidator,
 } from "./validators";
 import { internal } from "./_generated/api";
@@ -2167,7 +2168,9 @@ export const updateProspectEnrichment = internalMutation({
     websiteDisplayText: v.optional(v.string()),
     bioUrlEntities: v.optional(v.array(twitterUrlEntityValidator)),
     email: v.optional(v.string()),
+    emailSource: v.optional(prospectContactSourceValidator),
     phone: v.optional(v.string()),
+    phoneSource: v.optional(prospectContactSourceValidator),
     location: v.optional(v.string()),
     pipelineStage: v.optional(prospectStatusValidator),
     finance: v.optional(
@@ -2243,7 +2246,11 @@ export const updateProspectEnrichment = internalMutation({
       updateData.bioUrlEntities = args.bioUrlEntities;
     }
     if (args.email !== undefined) updateData.email = args.email;
+    if (args.emailSource !== undefined)
+      updateData.emailSource = args.emailSource;
     if (args.phone !== undefined) updateData.phone = args.phone;
+    if (args.phoneSource !== undefined)
+      updateData.phoneSource = args.phoneSource;
     if (args.location !== undefined) updateData.location = args.location;
     if (args.pipelineStage !== undefined)
       updateData.pipelineStage = args.pipelineStage;

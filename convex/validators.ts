@@ -149,6 +149,22 @@ export const twitterUrlEntityValidator = v.object({
   indices: v.array(v.number()),
 });
 
+export const prospectContactSourceTypeValidator = v.union(
+  v.literal("linkedin_contact_info"),
+  v.literal("profile_bio"),
+  v.literal("profile_post"),
+  v.literal("website"),
+  v.literal("website_contact_page")
+);
+
+export const prospectContactSourceValidator = v.object({
+  sourceType: prospectContactSourceTypeValidator,
+  sourceLabel: v.string(),
+  confidence: v.number(),
+  sourceUrl: v.optional(v.string()),
+  sourceSnippet: v.optional(v.string()),
+});
+
 // UserMention validator
 const userMentionValidator = v.object({
   id: v.optional(v.number()),

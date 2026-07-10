@@ -29,6 +29,7 @@ import { usePanelStack } from "../../contexts/PanelStackContext";
 import { ProspectProfileHeader } from "./ProspectProfileHeader";
 import { PipelineTimeline, type PipelineStage } from "./PipelineTimeline";
 import { ProspectDetailsCard } from "./ProspectDetailsCard";
+import type { ProspectContactSource } from "@/shared/lib/utils/contact/contactUtils";
 import { PainSolutionGrid, type PainPoint } from "./PainSolutionGrid";
 import { SocialProfileLinks, type SocialProfiles } from "./SocialProfileLinks";
 import { RelevantActivityTab } from "./tabs/RelevantActivityTab";
@@ -73,7 +74,9 @@ export interface ProspectProfileData {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  emailSource?: ProspectContactSource;
   phone?: string;
+  phoneSource?: ProspectContactSource;
   finance?: {
     displayValue: string;
     evidencePosts?: unknown[];
@@ -432,7 +435,9 @@ export function ProspectProfilePanel({
                         websiteHref={prospect.websiteHref}
                         websiteDisplayText={prospect.websiteDisplayText}
                         email={prospect.email}
+                        emailSource={prospect.emailSource}
                         phone={prospect.phone}
+                        phoneSource={prospect.phoneSource}
                         finance={prospect.finance?.displayValue}
                         location={prospect.location}
                         foundViaLabel={

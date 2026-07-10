@@ -12,6 +12,10 @@ import {
   formatUrlDisplayText,
   selectProfileWebsiteHref,
 } from "@/shared/lib/twitter/profileLinks";
+import {
+  buildTelHref,
+  type ProspectContactSource,
+} from "@/shared/lib/utils/contact/contactUtils";
 import { Badge } from "@/shared/ui/components/Badge";
 import { Button } from "@/shared/ui/components/Button";
 import AnimatedPercent from "@/shared/ui/components/AnimatedPercent";
@@ -50,8 +54,12 @@ export interface ProspectDetailsCardProps {
   websiteDisplayText?: string;
   /** Email address */
   email?: string;
+  /** Email source metadata */
+  emailSource?: ProspectContactSource;
   /** Phone number */
   phone?: string;
+  /** Phone source metadata */
+  phoneSource?: ProspectContactSource;
   /** Finance display value (e.g., "$9000-$14000") */
   finance?: string;
   /** Location */
@@ -159,6 +167,32 @@ function DetailRow({
   );
 }
 
+function ContactSourceMeta({ source }: { source?: ProspectContactSource }) {
+  if (!source) {
+    return null;
+  }
+
+  const confidenceLabel = `${Math.round(source.confidence * 100)}% confidence`;
+
+  return (
+    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {source.sourceUrl ? (
+        <Link
+          href={source.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:underline"
+        >
+          {source.sourceLabel}
+        </Link>
+      ) : (
+        <span>{source.sourceLabel}</span>
+      )}
+      <span>{confidenceLabel}</span>
+    </div>
+  );
+}
+
 export function ProspectDetailsCard({
   qualificationStatus,
   qualificationScore = 0,
@@ -168,7 +202,9 @@ export function ProspectDetailsCard({
   websiteHref,
   websiteDisplayText,
   email,
+  emailSource,
   phone,
+  phoneSource,
   finance,
   location,
   foundViaLabel,
@@ -263,17 +299,29 @@ export function ProspectDetailsCard({
 
       {email ? (
         <DetailRow icon={<MailIcon className="fill-current" />} label="Email">
-          <a href={`mailto:${email}`} className="text-primary hover:underline">
-            {email}
-          </a>
+          <div>
+            <a
+              href={`mailto:${email}`}
+              className="text-primary break-all hover:underline"
+            >
+              {email}
+            </a>
+            <ContactSourceMeta source={emailSource} />
+          </div>
         </DetailRow>
       ) : null}
 
       {phone ? (
         <DetailRow icon={<PhoneIcon className="size-4" />} label="Phone">
-          <a href={`tel:${phone}`} className="text-primary hover:underline">
-            {phone}
-          </a>
+          <div>
+            <a
+              href={`tel:${buildTelHref(phone)}`}
+              className="text-primary hover:underline"
+            >
+              {phone}
+            </a>
+            <ContactSourceMeta source={phoneSource} />
+          </div>
         </DetailRow>
       ) : null}
 

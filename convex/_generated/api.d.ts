@@ -88,6 +88,7 @@ import type * as lib_agentOpsReadModelHelpers from "../lib/agentOpsReadModelHelp
 import type * as lib_agentThreadContextCore from "../lib/agentThreadContextCore.js";
 import type * as lib_ai from "../lib/ai.js";
 import type * as lib_analyticsCore from "../lib/analyticsCore.js";
+import type * as lib_contactDiscoveryCore from "../lib/contactDiscoveryCore.js";
 import type * as lib_deleteWorkspaceCascade from "../lib/deleteWorkspaceCascade.js";
 import type * as lib_discoveryEdgesCore from "../lib/discoveryEdgesCore.js";
 import type * as lib_embeddingModels from "../lib/embeddingModels.js";
@@ -330,6 +331,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agentThreadContextCore": typeof lib_agentThreadContextCore;
   "lib/ai": typeof lib_ai;
   "lib/analyticsCore": typeof lib_analyticsCore;
+  "lib/contactDiscoveryCore": typeof lib_contactDiscoveryCore;
   "lib/deleteWorkspaceCascade": typeof lib_deleteWorkspaceCascade;
   "lib/discoveryEdgesCore": typeof lib_discoveryEdgesCore;
   "lib/embeddingModels": typeof lib_embeddingModels;

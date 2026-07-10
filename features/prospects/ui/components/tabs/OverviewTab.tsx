@@ -15,6 +15,7 @@ import { PainSolutionGrid, type PainPoint } from "../PainSolutionGrid";
 import { SocialProfileLinks, type SocialProfiles } from "../SocialProfileLinks";
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { TwitterUrlEntity } from "@/shared/lib/twitter/profileLinks";
+import type { ProspectContactSource } from "@/shared/lib/utils/contact/contactUtils";
 
 export interface OverviewTabProps {
   briefIntro?: string;
@@ -29,7 +30,9 @@ export interface OverviewTabProps {
   websiteDisplayText?: string;
   bioUrlEntities?: TwitterUrlEntity[];
   email?: string;
+  emailSource?: ProspectContactSource;
   phone?: string;
+  phoneSource?: ProspectContactSource;
   finance?: { displayValue: string };
   location?: string;
   foundViaLabel?: string;
@@ -53,7 +56,9 @@ export function OverviewTab({
   websiteDisplayText,
   bioUrlEntities,
   email,
+  emailSource,
   phone,
+  phoneSource,
   finance,
   location,
   foundViaLabel,
@@ -112,7 +117,9 @@ export function OverviewTab({
           websiteHref={websiteHref}
           websiteDisplayText={websiteDisplayText}
           email={email}
+          emailSource={emailSource}
           phone={phone}
+          phoneSource={phoneSource}
           finance={finance?.displayValue}
           location={location}
           foundViaLabel={foundViaLabel}

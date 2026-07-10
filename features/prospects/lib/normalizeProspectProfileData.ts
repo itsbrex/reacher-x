@@ -6,6 +6,7 @@ import {
   normalizeTwitterUrlEntities,
   selectProfileWebsiteHref,
 } from "@/shared/lib/twitter/profileLinks";
+import type { ProspectContactSource } from "@/shared/lib/utils/contact/contactUtils";
 
 function getEvidencePostId(post: unknown): string | null {
   if (!post || typeof post !== "object") return null;
@@ -99,6 +100,8 @@ export function normalizeProspectProfileData(
     : undefined;
 
   const bioUrlEntities = normalizeTwitterUrlEntities(prospect.bioUrlEntities);
+  const emailSource = prospect.emailSource as ProspectContactSource | undefined;
+  const phoneSource = prospect.phoneSource as ProspectContactSource | undefined;
 
   let avatarUrl: string | undefined;
   let profileUrl: string | undefined;
@@ -177,6 +180,9 @@ export function normalizeProspectProfileData(
     websiteDisplayText: prospect.websiteDisplayText as string | undefined,
     bioUrlEntities,
     email: prospect.email as string | undefined,
+    emailSource,
+    phone: prospect.phone as string | undefined,
+    phoneSource,
     finance,
     location: prospect.location as string | undefined,
     painPoints,
