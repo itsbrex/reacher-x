@@ -1195,22 +1195,21 @@ function ProspectsToolbar({
   className,
 }: ProspectsToolbarProps) {
   return (
-    <div className={className}>
-      <div className="w-full md:hidden">
-        <SearchInput
-          defaultValue={searchQuery}
-          onQueryChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          showExactMatch={false}
-        />
-      </div>
+    <div className={cn("@container", className)}>
+      <nav className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 md:gap-y-2 @[760px]:mt-3 @[760px]:grid-cols-[auto_minmax(0,1fr)_auto] @[760px]:gap-y-0">
+        <div className="col-span-2 row-start-1 min-w-0 md:col-span-1 @[760px]:col-start-2 @[760px]:w-72 @[760px]:justify-self-end @[960px]:w-80">
+          <SearchInput
+            defaultValue={searchQuery}
+            onQueryChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            showExactMatch={false}
+          />
+        </div>
 
-      {/* Tabs + Filter/Sort */}
-      <nav className="mt-3 flex min-w-0 items-center justify-between gap-2">
         <Tabs
           value={activeTab}
           onValueChange={(v) => onTabChange(v as TabType)}
-          className="min-w-0"
+          className="col-start-1 row-start-2 min-w-0 overflow-x-auto md:col-span-2 @[760px]:col-span-1 @[760px]:row-start-1"
         >
           <TabsList size="sm" className="h-9 max-w-full p-1">
             {tabs.map((tab) => {
@@ -1259,21 +1258,14 @@ function ProspectsToolbar({
           </TabsList>
         </Tabs>
 
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="hidden md:block md:w-72 lg:w-80">
-            <SearchInput
-              defaultValue={searchQuery}
-              onQueryChange={onSearchChange}
-              placeholder={searchPlaceholder}
-              showExactMatch={false}
-            />
-          </div>
+        <div className="col-start-2 row-start-2 flex shrink-0 items-center gap-2 md:row-start-1 @[760px]:col-start-3">
           <IconButtonWithIndicator
             aria-label="Open filters"
             showIndicator={filterActiveCount > 0}
             onClick={onOpenFilters}
             type="button"
-            className="h-9 w-9"
+            size="xsIcon"
+            className="shrink-0 md:h-9 md:w-9"
           >
             <FilterAltIcon className="fill-current" />
           </IconButtonWithIndicator>
@@ -1282,7 +1274,8 @@ function ProspectsToolbar({
             showIndicator={sortActive}
             onClick={onOpenSort}
             type="button"
-            className="h-9 w-9"
+            size="xsIcon"
+            className="shrink-0 md:h-9 md:w-9"
           >
             <SwapVertIcon className="h-4 w-4 fill-current" />
           </IconButtonWithIndicator>
