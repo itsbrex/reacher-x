@@ -32,6 +32,10 @@ import {
   type ToolPartLike,
 } from "../lib";
 import { isAssistantPlaceholderMessage } from "../lib/assistantMessageState";
+import {
+  resolveReasoningDisclosureOpen,
+  resolveReasoningDisclosureRequest,
+} from "../lib/reasoningDisclosure";
 import { getUIMessageDisplayText } from "../lib/uiMessageText";
 import { ThinkingBar } from "@/shared/ui/components/ThinkingBar";
 import {
@@ -857,15 +861,33 @@ function ReasoningSection({
   const summary = extractAssistantReasoningSummary(message);
   const steps = extractAssistantReasoningSteps(message);
   const redacted = hasRedactedReasoning(message);
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const isOpen = resolveReasoningDisclosureOpen({
+    isStreaming,
+    completedOpen,
+  });
+
+  const handleOpenChange = useCallback(
+    (requestedOpen: boolean) => {
+      setCompletedOpen((currentCompletedOpen) =>
+        resolveReasoningDisclosureRequest({
+          isStreaming,
+          currentCompletedOpen,
+          requestedOpen,
+        })
+      );
+    },
+    [isStreaming]
+  );
 
   if (!reasoning && !redacted) {
     return null;
   }
 
   return (
-    <Reasoning className="mt-1">
+    <Reasoning className="mt-1" open={isOpen} onOpenChange={handleOpenChange}>
       <ReasoningTrigger className="text-xs font-medium">
-        {isStreaming ? "Thinking" : "Analysis"}
+        Analysis
       </ReasoningTrigger>
       <ReasoningContent
         className="mt-2"
@@ -1511,7 +1533,8 @@ function ChatMessage({
     isAssistant &&
     (isPending || isStreaming) &&
     !displayText &&
-    !toolCalls.length
+    !toolCalls.length &&
+    !hasAssistantMetadata
   ) {
     return (
       <Message align="start" className="items-start">
@@ -1601,8 +1624,7 @@ function ChatMessage({
         slotClassName={AGENT_MESSAGE_AVATAR_SLOT_CLASSNAME}
       />
       <MessageContent className="max-w-[85%] gap-2">
-        {!isStreaming &&
-        (assistantReasoning || hasRedactedReasoning(message)) ? (
+        {assistantReasoning || hasRedactedReasoning(message) ? (
           <ReasoningSection message={message} isStreaming={isStreaming} />
         ) : null}
 
