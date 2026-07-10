@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAgentProspectQuery } from "@/features/agent/hooks/useAgentProspectQuery";
 import { AgentChat } from "@/features/agent/ui/AgentChat";
+import { HistoryPanel } from "@/features/agent/ui/components/HistoryPanel";
 import {
   getTweetIdFromPostPayload,
   type InlinePanelOpenPayload,
@@ -26,6 +28,42 @@ export function ProspectAgentPanel({
   const { pushPanel, popPanel } = usePanelStack();
   const { openProspect } = useProspectProfile();
   const { openProfile } = useProfile();
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(
+    null
+  );
+  const [effectiveThreadId, setEffectiveThreadId] = React.useState<
+    string | null
+  >(null);
+  const [newThreadSignal, setNewThreadSignal] = React.useState(0);
+  const prospectQuery = useAgentProspectQuery(prospectId);
+  const prospectArchived = prospectQuery.data?.status === "archived";
+
+  const handleNewThread = React.useCallback(() => {
+    setSelectedThreadId(null);
+    setEffectiveThreadId(null);
+    setNewThreadSignal((current) => current + 1);
+    setHistoryOpen(false);
+  }, []);
+
+  const handleSelectThread = React.useCallback((threadId: string) => {
+    setSelectedThreadId(threadId);
+    setEffectiveThreadId(threadId);
+    setHistoryOpen(false);
+  }, []);
+
+  const handleDeleteCurrentThread = React.useCallback(() => {
+    setSelectedThreadId(null);
+    setEffectiveThreadId(null);
+  }, []);
+
+  const handleOpenHistory = React.useCallback(() => {
+    setHistoryOpen(true);
+  }, []);
+
+  const handleCloseHistory = React.useCallback(() => {
+    setHistoryOpen(false);
+  }, []);
 
   const handleOpenPanelFromCard = React.useCallback(
     (payload: InlinePanelOpenPayload) => {
@@ -133,20 +171,47 @@ export function ProspectAgentPanel({
     [prospectId, pushPanel]
   );
 
+  const panelClassName = cn(
+    "flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
+    className
+  );
+
+  if (historyOpen) {
+    return (
+      <HistoryPanel
+        scope={{
+          kind: "prospect",
+          prospectId: prospectId as Id<"prospects">,
+          prospectArchived,
+        }}
+        currentThreadId={effectiveThreadId ?? selectedThreadId ?? undefined}
+        onClose={handleCloseHistory}
+        onSelectThread={handleSelectThread}
+        onNewThread={handleNewThread}
+        onDeleteCurrentThread={handleDeleteCurrentThread}
+        className={panelClassName}
+      />
+    );
+  }
+
   return (
-    <aside
-      className={cn(
-        "flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
-        className
-      )}
-    >
+    <aside className={panelClassName}>
       <AgentChat
         prospectId={prospectId}
+        threadId={selectedThreadId ?? undefined}
         onBack={onBack}
+        onHistoryClick={handleOpenHistory}
+        onNewThread={handleNewThread}
+        newThreadSignal={newThreadSignal}
+        onEffectiveThreadIdChange={setEffectiveThreadId}
         onOpenPanelFromCard={handleOpenPanelFromCard}
         onOpenPlanPanel={handleOpenPlanPanel}
         onViewProfile={popPanel}
         onOpenDmPanel={handleOpenDmPanel}
+        shellProspectQuery={{
+          data: prospectQuery.data,
+          isPending: prospectQuery.isPending,
+        }}
       />
     </aside>
   );

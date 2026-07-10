@@ -19,6 +19,7 @@ import { XConversationPanel } from "./XConversationPanel";
 import { LinkedInConversationPanel } from "./LinkedInConversationPanel";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
+import { useRouter } from "next/navigation";
 import { cn } from "@/shared/lib/utils";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
@@ -42,6 +43,7 @@ export interface ProspectPanelRendererProps {
 export function ProspectPanelRenderer({
   className,
 }: ProspectPanelRendererProps) {
+  const router = useRouter();
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
   const isMobile = useIsMobile();
@@ -81,9 +83,9 @@ export function ProspectPanelRenderer({
   // Handle Chat with Agent navigation
   const handleChatWithAgent = React.useCallback(() => {
     if (prospect) {
-      pushPanel("prospect-agent", { prospectId: prospect.id });
+      router.push(`/agent?prospectId=${prospect.id}`);
     }
-  }, [prospect, pushPanel]);
+  }, [prospect, router]);
 
   if (!currentPanel) {
     return null;

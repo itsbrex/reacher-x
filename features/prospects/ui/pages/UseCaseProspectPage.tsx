@@ -24,7 +24,7 @@ export function UseCaseProspectPage({
   const router = useRouter();
   const { entityPlural, entitySingular, routes } = useActiveUseCaseLabels();
   const { isLoading: isWorkspaceLoading } = useWorkspace();
-  const { currentPanel, depth, pushPanel } = usePanelStack();
+  const { currentPanel, depth } = usePanelStack();
   const { prospect, loading, openProspect } = useProspectProfile();
   const entityPluralLower = entityPlural.toLowerCase();
   const isCanonicalRoute = entitySlug === routes.entitySlug;
@@ -43,7 +43,7 @@ export function UseCaseProspectPage({
 
   const handleChatWithAgent = () => {
     if (prospectId) {
-      pushPanel("prospect-agent", { prospectId });
+      router.push(`/agent?prospectId=${prospectId}`);
     }
   };
 

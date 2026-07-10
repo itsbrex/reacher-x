@@ -739,10 +739,12 @@ export function AgentPageShell() {
 
   const showHistoryPanel = historyOpen && !isMobile && canUseThreadHistory;
 
+  // Prospect context selects the chat. Only an explicit profile action starts
+  // a profile-panel session, so client-side navigation cannot reopen it.
   const showProspectPanel =
     !isMobile &&
-    !!activeProspectSurfaceId &&
-    activeProspectPanelId === activeProspectSurfaceId &&
+    !!prospectPanelSessionProspectId &&
+    activeProspectPanelId === prospectPanelSessionProspectId &&
     !showHistoryPanel &&
     ((!hasPanelContext && !isPlanPanelActive) ||
       (agentRightSurfaceActive && (hasPanelContext || isPlanPanelActive)));
