@@ -1,3 +1,16 @@
+# ReacherX Agent Instructions
+
+Read and follow `AGENTS.md` before editing this repository. Its mandatory
+authentication and routing contract applies to every change touching AuthKit,
+the proxy, `/`, `/agent`, `/agent/setup`, workspace setup, or thread URLs.
+
+Never treat a loading auth state as anonymous, and never make `/` plus a
+client-side skeleton redirect the normal post-signup path. Acquisition signup
+flows must carry their validated destination through WorkOS `returnTo` state.
+All landing login/signup/acquisition touchpoints must use `LandingAuthLink`;
+never add a raw landing `Link` or router navigation to those auth routes, and
+never delay auth navigation while waiting for Convex requests.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.

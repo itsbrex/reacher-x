@@ -394,6 +394,48 @@ if (prospect.workspaceId !== args.workspaceId) {
 This prevents cross-workspace access even if the LLM provides a valid but
 incorrect prospect ID from a different workspace.
 
+---
+
+## Authentication and Routing Contracts (MANDATORY)
+
+Authentication redirects and setup-thread routing are one end-to-end contract.
+Before changing any part of this flow, trace and preserve all of these files:
+
+- `proxy.ts` public/protected route behavior
+- `app/login/route.ts`, `app/signup/route.ts`, and `app/callback/route.ts`
+- `app/ConvexClientProvider.tsx` and AuthKit's loading/authenticated state
+- `shared/lib/urls/authRoutes.ts` and `shared/lib/urls/setupHref.ts`
+- `features/landing/ui/components/LandingAuthLink.tsx` for every landing auth link
+- `features/agent/hooks/useAgentChat.ts` setup bootstrap behavior
+- `features/webapp/ui/components/OnboardingLockGuardProvider.tsx`
+
+Rules:
+
+1. Public acquisition CTAs must preserve their post-auth intent. “Reach people”
+   returns to `/agent/setup`; it must never rely on the `/` page to repair the
+   route after client-side queries finish.
+2. Use WorkOS `getSignInUrl()` / `getSignUpUrl()` in route handlers and pass a
+   validated internal `returnTo`. Never hand-build an AuthKit URL or accept an
+   external/protocol-relative return path.
+3. Do not make auth-sensitive links guess that a loading user is anonymous.
+   With Cache Components enabled, do not move `withAuth()` into the root layout
+   outside a Suspense boundary; that breaks static rendering with uncached data.
+4. Every login, signup, logout, pricing, and acquisition auth link rendered on
+   landing pages must use `LandingAuthLink`; raw `Link`/`router.push` navigation
+   to `/login` or `/signup` is forbidden. `LandingAuthLink` must navigate
+   synchronously via `navigateDocumentIntentionally()`—never wait for Convex
+   requests. The custom Convex unload guard bypasses exactly that intentional
+   unload while keeping unsaved-change protection enabled for genuine pending
+   work.
+5. Do not redirect from a loading skeleton as the primary routing mechanism.
+   Resolve the destination at the initiating auth route; client guards are a
+   recovery layer only.
+6. Canonical setup URLs use `/agent/setup?threadId=...` via `buildSetupHref()`.
+   Do not add `sessionId`, raw Convex document IDs, or parallel URL formats.
+7. Any routing/auth change must add or update a regression test and manually
+   verify: anonymous CTA → AuthKit → callback → setup thread with the first agent
+   response visible, with no browser unload warning.
+
 ================================================================================
 END OF CONTEXT
 ================================================================================
