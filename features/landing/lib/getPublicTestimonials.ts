@@ -32,7 +32,7 @@ const getCachedPublicTestimonials = unstable_cache(
       return [] as Tweet[];
     }
   },
-  ["public-testimonials"],
+  ["public-testimonials-x-api"],
   {
     revalidate: PUBLIC_TESTIMONIALS_REVALIDATE_SECONDS,
   }

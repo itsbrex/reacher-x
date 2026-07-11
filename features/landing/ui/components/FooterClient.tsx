@@ -31,6 +31,7 @@ import {
   LightModeIcon,
   DarkModeIcon,
 } from "@/shared/ui/components/icons";
+import { useIsHydrated } from "@/shared/ui/hooks/useIsHydrated";
 
 const FOOTER_COLUMNS = [
   {
@@ -153,7 +154,9 @@ export function FooterClient({
 }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const themeValue = isThemeOptionValue(theme ?? "") ? theme : "system";
+  const isHydrated = useIsHydrated();
+  const themeValue =
+    isHydrated && isThemeOptionValue(theme ?? "") ? theme : "system";
   const selectedThemeOption =
     THEME_OPTIONS.find((option) => option.value === themeValue) ??
     THEME_OPTIONS[0];
