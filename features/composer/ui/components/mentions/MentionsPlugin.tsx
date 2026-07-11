@@ -16,7 +16,11 @@ import {
   TextNode,
 } from "lexical";
 import { createPortal } from "react-dom";
-import { useMentionEntitySearch, useWorkspace } from "@/shared/hooks";
+import {
+  useActiveUseCaseLabels,
+  useMentionEntitySearch,
+  useWorkspace,
+} from "@/shared/hooks";
 import type {
   MentionEntityKind,
   MentionEntitySearchResult,
@@ -134,6 +138,7 @@ export function MentionsPlugin({
   const searchParams = useSearchParams();
   const prospectId =
     entityMentions?.prospectId ?? searchParams.get("prospectId");
+  const { entityPlural } = useActiveUseCaseLabels();
   const { workspace } = useWorkspace();
   const [queryString, setQueryString] = React.useState<string | null>(null);
   const [activeFilter, setActiveFilter] =
@@ -351,6 +356,7 @@ export function MentionsPlugin({
                   }}
                   className="w-[min(20rem,calc(100vw-2rem))]"
                   bodyStyle={{ maxHeight }}
+                  entityPluralLabel={entityPlural}
                   availableKinds={availableKinds}
                   activeFilter={activeFilter}
                   onActiveFilterChange={(filter) => {

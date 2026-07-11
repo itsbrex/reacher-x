@@ -41,10 +41,10 @@ export type MentionEntityFilter = "all" | MentionEntityKind;
 
 const MENTION_ENTITY_GROUPS: ReadonlyArray<{
   value: MentionEntityFilter;
-  label: string;
+  label: string | null;
 }> = [
   { value: "all", label: "All" },
-  { value: "prospect", label: "Prospects" },
+  { value: "prospect", label: null },
   { value: "post", label: "Posts" },
   { value: "plan", label: "Plans" },
   { value: "task", label: "Tasks" },
@@ -223,6 +223,7 @@ export function MentionEntityMenu({
   className,
   bodyStyle,
   searchSlot,
+  entityPluralLabel = "People",
   availableKinds,
   activeFilter = "all",
   onActiveFilterChange,
@@ -238,6 +239,7 @@ export function MentionEntityMenu({
   className?: string;
   bodyStyle?: React.CSSProperties;
   searchSlot?: React.ReactNode;
+  entityPluralLabel?: string;
   availableKinds?: MentionEntityKind[];
   activeFilter?: MentionEntityFilter;
   onActiveFilterChange?: (filter: MentionEntityFilter) => void;
@@ -361,7 +363,7 @@ export function MentionEntityMenu({
                   onActiveFilterChange(group.value);
                 }}
               >
-                {group.label}
+                {group.value === "prospect" ? entityPluralLabel : group.label}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
