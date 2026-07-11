@@ -184,6 +184,7 @@ export const QuoteThreadCard: React.FC<QuoteThreadCardProps> = ({
               className={undefined}
             >
               <time
+                suppressHydrationWarning
                 className={cn(timeClass, "text-muted-foreground shrink-0")}
                 dateTime={tweet?.tweet_created_at}
                 title={
@@ -209,12 +210,6 @@ export const QuoteThreadCard: React.FC<QuoteThreadCardProps> = ({
             bodyClass,
             "word-break [&_a]:text-muted-foreground mb-1 hyphens-auto whitespace-pre-line [&_a]:hover:underline dark:[&_a]:text-neutral-400"
           )}
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest("a")) {
-              e.stopPropagation();
-            }
-          }}
         >
           {highlightedBody}
         </p>

@@ -185,16 +185,15 @@ function isXUserVerified(user: Record<string, unknown>): boolean {
   return Boolean(verifiedType && verifiedType !== "none");
 }
 
-function mapXUserToLegacyUser(user?: Record<string, unknown>): User | undefined {
+function mapXUserToLegacyUser(
+  user?: Record<string, unknown>
+): User | undefined {
   if (!user) {
     return undefined;
   }
 
-  const publicMetrics = getNestedRecord(
-    user,
-    "publicMetrics",
-    "public_metrics"
-  ) ?? {};
+  const publicMetrics =
+    getNestedRecord(user, "publicMetrics", "public_metrics") ?? {};
   const username =
     asString(user.username) ??
     asString(user.screenName) ??
@@ -420,11 +419,8 @@ function mapXPostToLegacyTweet(
   const replyUser = inReplyToUserId
     ? lookups.users.get(inReplyToUserId)
     : undefined;
-  const publicMetrics = getNestedRecord(
-    post,
-    "publicMetrics",
-    "public_metrics"
-  ) ?? {};
+  const publicMetrics =
+    getNestedRecord(post, "publicMetrics", "public_metrics") ?? {};
   const text = getPostText(post);
 
   return {
@@ -543,6 +539,49 @@ function getNextToken(meta: unknown): string | undefined {
   );
 }
 
+export function normalizePublicTweetIds(tweetIds: string[]): string[] {
+  const deduped = new Set<string>();
+
+  for (const rawTweetId of tweetIds) {
+    const tweetId = rawTweetId.trim();
+    if (!tweetId || deduped.has(tweetId)) {
+      continue;
+    }
+
+    deduped.add(tweetId);
+    if (deduped.size === 100) {
+      break;
+    }
+  }
+
+  return [...deduped];
+}
+
+export async function fetchPublicTweetsFromXApi(
+  tweetIds: string[]
+): Promise<Tweet[]> {
+  const normalizedIds = normalizePublicTweetIds(tweetIds);
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const params = buildXHydrationParams();
+  params.set("ids", normalizedIds.join(","));
+
+  const response = await fetchXAppJson("/2/tweets", params);
+  const tweetsById = new Map(
+    mapPostsResponseToLegacyTweets(response).map((tweet) => [
+      tweet.id_str,
+      tweet,
+    ])
+  );
+
+  return normalizedIds.flatMap((tweetId) => {
+    const tweet = tweetsById.get(tweetId);
+    return tweet ? [tweet] : [];
+  });
+}
+
 export async function fetchPublicThreadFromXApi(
   threadId: string
 ): Promise<Thread | null> {
@@ -562,7 +601,9 @@ export async function fetchPublicThreadFromXApi(
   const conversationId = rootTweet.conversation_id_str ?? rootTweet.id_str;
   const authorId =
     rootTweet.user?.id_str ??
-    asString((rootResponse.data as Record<string, unknown> | undefined)?.author_id);
+    asString(
+      (rootResponse.data as Record<string, unknown> | undefined)?.author_id
+    );
   if (!authorId) {
     return {
       threadId,

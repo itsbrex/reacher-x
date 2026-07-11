@@ -9,7 +9,7 @@ import { internal } from "./_generated/api";
 import {
   fetchPublicThreadById,
   type NormalizedOrderedConfigEntry,
-  fetchPublicTweetsByIds,
+  fetchPublicTestimonialTweetsByIds,
   normalizeOrderedConfigEntries,
   normalizeOrderedConfigIds,
 } from "./lib/publicSocialCore";
@@ -170,7 +170,7 @@ export const getPublicTestimonials = action({
       }
     )) as string[];
 
-    const tweets = await fetchPublicTweetsByIds(ctx, tweetIds);
+    const tweets = await fetchPublicTestimonialTweetsByIds(tweetIds);
 
     return { tweets };
   },

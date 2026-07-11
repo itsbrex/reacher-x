@@ -1,10 +1,15 @@
 import type { Tweet, Thread } from "../../features/threads/types";
+import type { ActionCtx } from "../_generated/server";
 import { logger } from "../../shared/lib/logger";
 import {
   getCurrentUTCTimestamp,
   parseIsoToTimestamp,
 } from "../../shared/lib/utils/time/timeUtils";
-import { fetchPublicThreadFromXApi } from "./publicThreadXCore";
+import {
+  fetchPublicThreadFromXApi,
+  fetchPublicTweetsFromXApi,
+  normalizePublicTweetIds,
+} from "./publicThreadXCore";
 import { acquireSocialApiBudget } from "./socialApiBudget";
 import { mapSocialApiTweet } from "./socialApiTwitterMap";
 
@@ -56,7 +61,7 @@ function isSocialApiNotFoundError(error: unknown): boolean {
 }
 
 export async function fetchSocialApiJson(
-  ctx: any,
+  ctx: ActionCtx,
   consumer: string,
   path: string,
   params?: URLSearchParams
@@ -90,8 +95,8 @@ export async function fetchSocialApiJson(
   return await response.json();
 }
 
-export async function postSocialApiJson(
-  ctx: any,
+async function postSocialApiJson(
+  ctx: ActionCtx,
   consumer: string,
   path: string,
   body: Record<string, unknown>
@@ -209,13 +214,32 @@ function getTweetTimestamp(tweet?: Tweet): number {
   return Number.isFinite(numericId) ? numericId : getCurrentUTCTimestamp();
 }
 
-export async function fetchPublicTweetsByIds(
-  ctx: any,
+export async function fetchPublicTestimonialTweetsByIds(
   tweetIds: string[]
 ): Promise<Tweet[]> {
-  const normalizedIds = [
-    ...new Set(tweetIds.map((tweetId) => tweetId.trim()).filter(Boolean)),
-  ].slice(0, 100);
+  if (tweetIds.length === 0) {
+    return [];
+  }
+
+  try {
+    return await fetchPublicTweetsFromXApi(tweetIds);
+  } catch (error) {
+    publicSocialLogger.warn(
+      "[publicSocial] Failed to fetch public tweets from X API",
+      {
+        tweetIds,
+        error,
+      }
+    );
+    return [];
+  }
+}
+
+async function fetchSocialApiTweetsByIds(
+  ctx: ActionCtx,
+  tweetIds: string[]
+): Promise<Tweet[]> {
+  const normalizedIds = normalizePublicTweetIds(tweetIds);
   if (normalizedIds.length === 0) {
     return [];
   }
@@ -223,7 +247,7 @@ export async function fetchPublicTweetsByIds(
   try {
     const responsePayload = (await postSocialApiJson(
       ctx,
-      "publicSocial.fetchPublicTweetsByIds",
+      "publicSocial.fetchSocialApiTweetsByIds",
       "/twitter/tweets-by-ids",
       {
         ids: normalizedIds,
@@ -240,9 +264,11 @@ export async function fetchPublicTweetsByIds(
         ? responsePayload.tweets
         : [];
 
-    const mappedTweets = mapTweetsFromThreadPayload(rawTweets);
     const tweetsById = new Map(
-      mappedTweets.map((tweet) => [tweet.id_str, tweet] as const)
+      mapTweetsFromThreadPayload(rawTweets).map((tweet) => [
+        tweet.id_str,
+        tweet,
+      ])
     );
 
     return normalizedIds.flatMap((tweetId) => {
@@ -252,7 +278,7 @@ export async function fetchPublicTweetsByIds(
   } catch (error) {
     if (!isSocialApiNotFoundError(error)) {
       publicSocialLogger.warn(
-        "[publicSocial] Failed to fetch testimonial tweets",
+        "[publicSocial] Failed to fetch fallback tweets from SocialAPI",
         {
           tweetIds: normalizedIds,
           error,
@@ -264,7 +290,7 @@ export async function fetchPublicTweetsByIds(
 }
 
 export async function fetchPublicThreadById(
-  ctx: any,
+  ctx: ActionCtx,
   threadId: string
 ): Promise<Thread | null> {
   try {
@@ -296,7 +322,7 @@ export async function fetchPublicThreadById(
       : [];
 
     if (tweets.length === 0) {
-      const fallbackTweets = await fetchPublicTweetsByIds(ctx, [threadId]);
+      const fallbackTweets = await fetchSocialApiTweetsByIds(ctx, [threadId]);
       const fallbackTweet = fallbackTweets[0];
       if (!fallbackTweet) {
         return null;
@@ -322,7 +348,7 @@ export async function fetchPublicThreadById(
       });
     }
 
-    const fallbackTweets = await fetchPublicTweetsByIds(ctx, [threadId]);
+    const fallbackTweets = await fetchSocialApiTweetsByIds(ctx, [threadId]);
     const fallbackTweet = fallbackTweets[0];
     if (!fallbackTweet) {
       return null;
