@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import MuxPlayer from "@mux/mux-player-react/lazy";
+import MuxPlayer from "@mux/mux-player-react";
 import { getMuxPosterUrl } from "@/features/landing/lib/muxVideo";
 import { cn } from "@/shared/lib/utils";
 import { useMuxPlaybackIdStatus } from "../hooks/useMuxPlaybackIdStatus";
@@ -54,7 +54,7 @@ export function LandingMuxHoverPlayer({
       {canUseMux ? (
         <MuxPlayer
           className="absolute inset-0 h-full w-full"
-          loading={loading}
+          preload={loading === "page" ? "auto" : "metadata"}
           accentColor="hsl(var(--muted-foreground))"
           playbackId={playbackId}
           poster={posterUrl ?? undefined}
@@ -66,6 +66,7 @@ export function LandingMuxHoverPlayer({
           streamType="on-demand"
           maxResolution={maxResolution}
           muted
+          autoPlay
           loop
           playsInline
           disablePictureInPicture
@@ -76,6 +77,9 @@ export function LandingMuxHoverPlayer({
         <video
           src={mp4Url}
           controls
+          muted
+          autoPlay
+          loop
           playsInline
           preload="metadata"
           aria-label={ariaLabel}
