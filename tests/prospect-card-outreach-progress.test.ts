@@ -100,6 +100,30 @@ test("an executing task awaiting approval asks the user to review it", () => {
   assert.equal(presentation?.tone, "attention");
 });
 
+test("a paused plan waiting on a manual X reply clearly asks for action", () => {
+  const presentation = resolveOutreachProgressPresentation({
+    progress: createProgress("paused", [
+      createTask({ status: "waiting_manual" }),
+    ]),
+  });
+
+  assert.equal(presentation?.label, "Manual reply needed · 0/1");
+  assert.equal(presentation?.indicator, "warning");
+  assert.equal(presentation?.tone, "attention");
+});
+
+test("a connect-first LinkedIn recovery requires no user action", () => {
+  const presentation = resolveOutreachProgressPresentation({
+    progress: createProgress("paused", [
+      createTask({ type: "dm", status: "waiting_connection" }),
+    ]),
+  });
+
+  assert.equal(presentation?.label, "Connection requested · 0/1");
+  assert.equal(presentation?.indicator, "none");
+  assert.equal(presentation?.tone, "active");
+});
+
 test("active, waiting, blocked, and completed plans get distinct treatments", () => {
   const executing = resolveOutreachProgressPresentation({
     progress: createProgress("executing", [

@@ -8,15 +8,18 @@ import { Checkbox } from "@/shared/ui/components/Checkbox";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { useReplyPanel } from "@/shared/contexts/ReplyPanelContext";
 import { cn, parseText } from "@/shared/lib/utils";
-import type {
-  TwitterPostRef,
-  TwitterPostSummary,
+import {
+  buildTwitterPostUrl,
+  type TwitterPostRef,
+  type TwitterPostSummary,
 } from "@/shared/lib/twitter/contracts";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   scheduled: "Scheduled",
   executing: "Executing",
+  waiting_manual: "Waiting for you",
+  waiting_connection: "Waiting for connection",
   waiting_response: "Waiting",
   completed: "Completed",
   skipped: "Skipped",
@@ -25,6 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const SPINNER_VARIANT: Record<string, "spinner" | "pulse" | "clock"> = {
   executing: "spinner",
+  waiting_connection: "pulse",
   waiting_response: "pulse",
   scheduled: "clock",
 };
@@ -100,6 +104,8 @@ export function TaskItem({
   const isCompleted = status === "completed";
   const isSkipped = status === "skipped";
   const isFailed = status === "failed";
+  const isWaitingManual = status === "waiting_manual";
+  const isWaitingConnection = status === "waiting_connection";
   const isAwaitingApproval = status === "pending" || status === "executing";
   const isDimmed = isCompleted || isSkipped;
   const spinnerVariant = SPINNER_VARIANT[status];
@@ -124,6 +130,8 @@ export function TaskItem({
     approvalReady &&
     (type === "comment" || type === "dm") &&
     !!onApproveTask;
+  const showOpenXButton =
+    isWaitingManual && type === "comment" && !!targetTweetId;
   const rowIsClickable = isInteractive && !!onClick;
   const panelMode = getPanelModeForStatus(status);
 
@@ -198,6 +206,16 @@ export function TaskItem({
     onApproveTask?.({ taskId, type });
   };
 
+  const handleOpenX = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!targetTweetId) return;
+    window.open(
+      buildTwitterPostUrl({ postId: targetTweetId }),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   return (
     <li
       className={cn(
@@ -265,6 +283,20 @@ export function TaskItem({
             </div>
           )}
 
+          {isWaitingManual && (
+            <p className="text-muted-foreground mt-1.5 text-xs">
+              Post this reply on X. ReacherX is watching automatically and will
+              continue when it appears.
+            </p>
+          )}
+
+          {isWaitingConnection && (
+            <p className="text-muted-foreground mt-1.5 text-xs">
+              Connection request sent. The approved DM will be sent
+              automatically after acceptance.
+            </p>
+          )}
+
           <div className="mt-2 flex items-center justify-between gap-2">
             <Badge
               variant="outline"
@@ -286,7 +318,10 @@ export function TaskItem({
               )}
             </Badge>
 
-            {(showEditButton || showViewButton || showApproveButton) && (
+            {(showEditButton ||
+              showViewButton ||
+              showApproveButton ||
+              showOpenXButton) && (
               <div className="flex items-center gap-1">
                 {showEditButton && (
                   <Button
@@ -311,6 +346,11 @@ export function TaskItem({
                 {showApproveButton && (
                   <Button size="xs" variant="outline" onClick={handleApprove}>
                     Approve
+                  </Button>
+                )}
+                {showOpenXButton && (
+                  <Button size="xs" variant="outline" onClick={handleOpenX}>
+                    Open X
                   </Button>
                 )}
               </div>

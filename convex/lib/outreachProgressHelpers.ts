@@ -27,13 +27,15 @@ const ACTIVE_TASK_STATUS_PRIORITY: Record<
   OutreachProgressTaskSource["status"],
   number
 > = {
-  executing: 0,
-  scheduled: 1,
-  pending: 2,
-  waiting_response: 3,
-  failed: 4,
-  completed: 5,
-  skipped: 6,
+  waiting_manual: 0,
+  waiting_connection: 0,
+  executing: 1,
+  scheduled: 2,
+  pending: 3,
+  waiting_response: 4,
+  failed: 5,
+  completed: 6,
+  skipped: 7,
 };
 
 /**

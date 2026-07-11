@@ -107,6 +107,24 @@ export function resolveOutreachProgressPresentation({
         tone: "active",
       };
     case "paused":
+      if (progress.activeTask?.status === "waiting_manual") {
+        return {
+          label: withProgress("Manual reply needed"),
+          title:
+            "Post the prepared reply on X; ReacherX is watching automatically",
+          indicator: "warning",
+          tone: "attention",
+        };
+      }
+      if (progress.activeTask?.status === "waiting_connection") {
+        return {
+          label: withProgress("Connection requested"),
+          title:
+            "ReacherX will send the approved DM automatically after acceptance",
+          indicator: "none",
+          tone: "active",
+        };
+      }
       return {
         label: withProgress("Paused"),
         title: "Outreach execution is paused",

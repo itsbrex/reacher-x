@@ -221,7 +221,14 @@ export function OutreachPlanCard({
   const isExecuting = status === "executing";
   const isPaused = status === "paused";
   const isBlockedAuth = status === "blocked_auth";
-  const isResumable = isPaused || isBlockedAuth;
+  const hasWaitingManual = tasks.some(
+    (task) => task.status === "waiting_manual"
+  );
+  const hasWaitingConnection = tasks.some(
+    (task) => task.status === "waiting_connection"
+  );
+  const isResumable =
+    (isPaused && !hasWaitingManual && !hasWaitingConnection) || isBlockedAuth;
   const hasMenuActions = !!onEdit || !!onDeletePlan;
   const hasPrimaryAction =
     (isDraft && !!onApprove) ||
@@ -245,7 +252,9 @@ export function OutreachPlanCard({
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate text-base font-medium">{title}</h3>
             <Badge variant="outline" className="shrink-0 text-xs font-normal">
-              {getOutreachPlanStatusLabel(status)}
+              {hasWaitingManual
+                ? "Manual reply needed"
+                : getOutreachPlanStatusLabel(status)}
             </Badge>
           </div>
 
