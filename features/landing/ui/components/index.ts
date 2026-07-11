@@ -7,6 +7,7 @@ export { FigureVideo } from "./FigureVideo";
 export { Footer } from "./Footer";
 export { Header } from "./Header";
 export { LandingAutoPlayProvider } from "./LandingAutoPlayProvider";
+export { LandingAuthLink } from "./LandingAuthLink";
 export { LandingMuxBackgroundVideo } from "./LandingMuxBackgroundVideo";
 export { LandingMuxHoverPlayer } from "./LandingMuxHoverPlayer";
 export { LandingPrimaryCta } from "./LandingPrimaryCta";

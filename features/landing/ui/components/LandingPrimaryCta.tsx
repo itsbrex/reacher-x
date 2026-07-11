@@ -3,34 +3,58 @@
 import Link from "next/link";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
 import { cn } from "@/shared/lib/utils";
+import {
+  type AuthRouteHref,
+  buildLoginHref,
+  SETUP_AUTH_RETURN_TO,
+} from "@/shared/lib/urls/authRoutes";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { ChangeHistoryIcon } from "@/shared/ui/components/icons";
+import { LandingAuthLink } from "./LandingAuthLink";
 
 interface LandingPrimaryCtaProps {
   authenticatedHref?: string;
-  anonymousHref?: string;
+  anonymousHref?: AuthRouteHref;
   className?: string;
 }
 
 export function LandingPrimaryCta({
   authenticatedHref = "/",
-  anonymousHref = "/login",
+  anonymousHref = buildLoginHref(SETUP_AUTH_RETURN_TO),
   className,
 }: LandingPrimaryCtaProps) {
   const { user, loading } = useAuth();
-  const href = !loading && user ? authenticatedHref : anonymousHref;
+  const classNames = cn(
+    buttonVariants({ variant: "default" }),
+    "rounded-full",
+    className
+  );
+
+  // AuthKit resolves the session asynchronously. Never guess that a loading
+  // user is anonymous: an external OAuth redirect during Convex provisioning
+  // can trigger Convex's native "unsaved changes" unload warning.
+  if (loading) {
+    return (
+      <span className={classNames} aria-busy="true" aria-disabled="true">
+        <ChangeHistoryIcon className="size-4 fill-current" />
+        Reach people
+      </span>
+    );
+  }
+
+  if (user) {
+    return (
+      <Link href={authenticatedHref} className={classNames}>
+        <ChangeHistoryIcon className="size-4 fill-current" />
+        Reach people
+      </Link>
+    );
+  }
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        buttonVariants({ variant: "default" }),
-        "rounded-full",
-        className
-      )}
-    >
+    <LandingAuthLink href={anonymousHref} className={classNames}>
       <ChangeHistoryIcon className="size-4 fill-current" />
       Reach people
-    </Link>
+    </LandingAuthLink>
   );
 }

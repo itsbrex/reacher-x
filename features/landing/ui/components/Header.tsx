@@ -93,6 +93,12 @@ import {
 } from "@/shared/lib/workspaceUseCases";
 import { getWorkspaceRoutes } from "@/shared/lib/workspaceRoutes";
 import { buildSetupHref } from "@/shared/lib/urls/setupHref";
+import {
+  LOGIN_HREF,
+  LOGOUT_HREF,
+  SETUP_SIGN_UP_HREF,
+} from "@/shared/lib/urls/authRoutes";
+import { LandingAuthLink } from "./LandingAuthLink";
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -698,9 +704,11 @@ function AvatarDropdown({
           </DropdownMenuItem>
 
           {/* Log out */}
-          <DropdownMenuItem onClick={() => router.push("/logout")}>
-            <LogoutIcon className="fill-current" aria-hidden="true" />
-            Log out
+          <DropdownMenuItem asChild>
+            <LandingAuthLink href={LOGOUT_HREF}>
+              <LogoutIcon className="fill-current" aria-hidden="true" />
+              Log out
+            </LandingAuthLink>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -778,18 +786,18 @@ export function Header({ githubStarsCount }: { githubStarsCount: number }) {
               <AvatarDropdown user={user} />
             ) : (
               <>
-                <Link
-                  href="/login"
+                <LandingAuthLink
+                  href={LOGIN_HREF}
                   className={buttonVariants({ variant: "ghost", size: "xs" })}
                 >
                   Log in
-                </Link>
-                <Link
-                  href="/login"
+                </LandingAuthLink>
+                <LandingAuthLink
+                  href={SETUP_SIGN_UP_HREF}
                   className={buttonVariants({ variant: "default", size: "xs" })}
                 >
                   Sign up
-                </Link>
+                </LandingAuthLink>
               </>
             )}
           </div>
@@ -830,22 +838,22 @@ export function Header({ githubStarsCount }: { githubStarsCount: number }) {
                   <>
                     <li>
                       <DrawerClose asChild>
-                        <Link
-                          href="/login"
+                        <LandingAuthLink
+                          href={LOGIN_HREF}
                           className="text-foreground py-2 text-xl font-normal hover:underline"
                         >
                           Log in
-                        </Link>
+                        </LandingAuthLink>
                       </DrawerClose>
                     </li>
                     <li>
                       <DrawerClose asChild>
-                        <Link
-                          href="/login"
+                        <LandingAuthLink
+                          href={SETUP_SIGN_UP_HREF}
                           className="text-foreground py-2 text-xl font-normal hover:underline"
                         >
                           Sign up
-                        </Link>
+                        </LandingAuthLink>
                       </DrawerClose>
                     </li>
                     <Separator className="my-4" />

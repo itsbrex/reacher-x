@@ -65,6 +65,8 @@ import {
   formatPlanPriceLabel,
 } from "@/features/agent/ui/components/onboarding/planStepConfig";
 import { resolvePricingFeatureCopy } from "@/features/landing/lib/pricingUseCaseCopy";
+import { LandingAuthLink } from "@/features/landing/ui/components/LandingAuthLink";
+import { SETUP_SIGN_UP_HREF } from "@/shared/lib/urls/authRoutes";
 
 /* -------------------------------------------------------------------------- */
 /*  Price display                                                              */
@@ -151,11 +153,7 @@ function TierCard({
   const isLowerThanCurrentPlan =
     currentTierId != null &&
     PRICING_TIER_RANK[tier.id] < PRICING_TIER_RANK[currentTierId];
-  const ctaHref = !isAuthenticated
-    ? "/login"
-    : isLowerThanCurrentPlan
-      ? PLANS_PATH
-      : getPlansUpgradeHref();
+  const ctaHref = isLowerThanCurrentPlan ? PLANS_PATH : getPlansUpgradeHref();
 
   const ctaLabel = (() => {
     if (isLowerThanCurrentPlan) {
@@ -199,17 +197,24 @@ function TierCard({
       );
     }
 
+    const ctaClassName = cn(
+      buttonVariants({
+        variant: ctaVariant,
+        size: "default",
+      }),
+      "w-full"
+    );
+
+    if (!isAuthenticated) {
+      return (
+        <LandingAuthLink href={SETUP_SIGN_UP_HREF} className={ctaClassName}>
+          {ctaLabel}
+        </LandingAuthLink>
+      );
+    }
+
     return (
-      <Link
-        href={ctaHref}
-        className={cn(
-          buttonVariants({
-            variant: ctaVariant,
-            size: "default",
-          }),
-          "w-full"
-        )}
-      >
+      <Link href={ctaHref} className={ctaClassName}>
         {ctaLabel}
       </Link>
     );
@@ -311,7 +316,7 @@ export function PricingSection({
     getWorkspaceUseCaseLocalStorageSnapshot,
     getWorkspaceUseCaseLocalStorageServerSnapshot
   );
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isAuthenticated = Boolean(user);
   const planQuery = useQueryWithStatus(
     api.plans.getCurrentPlan,
@@ -322,7 +327,8 @@ export function PricingSection({
       ? (planQuery.data?.tier ?? "free")
       : null;
   const currentTierId = getCurrentPricingTierId(currentPlanTier);
-  const isCheckingCurrentPlan = isAuthenticated && planQuery.isPending;
+  const isCheckingCurrentPlan =
+    authLoading || (isAuthenticated && planQuery.isPending);
   const selectedUseCaseKey = persistedUseCaseKey ?? initialUseCaseKey;
 
   return (
