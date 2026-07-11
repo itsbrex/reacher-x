@@ -1,22 +1,55 @@
 "use client";
 
 import * as React from "react";
-import {
-  CircleUserRoundIcon,
-  ListTodo,
-  MessageSquareText,
-  Paperclip,
-  Workflow,
-} from "lucide-react";
-import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
+import Image from "next/image";
+import { CircleUserRoundIcon, MessageSquareText } from "lucide-react";
+import type {
+  MentionEntityKind,
+  MentionEntitySearchResult,
+} from "@/shared/lib/mentions/mentionEntities";
+import { inferFileVisualKind } from "@/shared/lib/utils/media/inferFileVisualKind";
 import { cn } from "@/shared/lib/utils";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
+import { AttachmentMedia } from "@/shared/ui/components/Attachment";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
-import { NewReleasesIcon } from "@/shared/ui/components/icons";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/shared/ui/components/ToggleGroup";
+import {
+  AudioFileIcon,
+  ChangeHistoryIcon,
+  CheckBoxOutlineBlankIcon,
+  CodeIcon,
+  DraftIcon,
+  FolderZipIcon,
+  ImageIcon,
+  LinkedinIcon,
+  NewReleasesIcon,
+  PictureAsPdfIcon,
+  TableIcon,
+  TransitionSlideIcon,
+  TwitterIcon,
+  VideoLibraryIcon,
+} from "@/shared/ui/components/icons";
+
+export type MentionEntityFilter = "all" | MentionEntityKind;
+
+const MENTION_ENTITY_GROUPS: ReadonlyArray<{
+  value: MentionEntityFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All" },
+  { value: "prospect", label: "Prospects" },
+  { value: "post", label: "Posts" },
+  { value: "plan", label: "Plans" },
+  { value: "task", label: "Tasks" },
+  { value: "attachment", label: "Attachments" },
+];
 
 class MentionEntityMenuBoundary extends React.Component<
   {
@@ -63,17 +96,113 @@ class MentionEntityMenuBoundary extends React.Component<
 function getMentionEntityIcon(kind: MentionEntitySearchResult["kind"]) {
   switch (kind) {
     case "plan":
-      return <Workflow className="size-4" aria-hidden="true" />;
+      return (
+        <ChangeHistoryIcon className="size-4 fill-current" aria-hidden="true" />
+      );
     case "task":
-      return <ListTodo className="size-4" aria-hidden="true" />;
+      return (
+        <CheckBoxOutlineBlankIcon
+          className="size-4 fill-current"
+          aria-hidden="true"
+        />
+      );
     case "post":
       return <MessageSquareText className="size-4" aria-hidden="true" />;
-    case "attachment":
-      return <Paperclip className="size-4" aria-hidden="true" />;
     case "prospect":
+    case "attachment":
     default:
       return <CircleUserRoundIcon className="size-4" aria-hidden="true" />;
   }
+}
+
+function getAttachmentIcon(entity: MentionEntitySearchResult) {
+  const visualKind = inferFileVisualKind({
+    fileName: entity.label,
+    mimeType: entity.attachmentMimeType,
+    url: entity.attachmentUrl,
+  });
+
+  switch (visualKind) {
+    case "archive":
+      return <FolderZipIcon className="size-4 fill-current" />;
+    case "audio":
+      return <AudioFileIcon className="size-4 fill-current" />;
+    case "code":
+      return <CodeIcon className="size-4 fill-current" />;
+    case "image":
+      return <ImageIcon className="size-4 fill-current" />;
+    case "pdf":
+      return <PictureAsPdfIcon className="size-4 fill-current" />;
+    case "presentation":
+      return <TransitionSlideIcon className="size-4 fill-current" />;
+    case "spreadsheet":
+      return <TableIcon className="size-4 fill-current" />;
+    case "video":
+      return <VideoLibraryIcon className="size-4 fill-current" />;
+    case "document":
+    default:
+      return <DraftIcon className="size-4 fill-current" />;
+  }
+}
+
+function MentionEntityVisual({
+  entity,
+}: {
+  entity: MentionEntitySearchResult;
+}) {
+  if (entity.kind === "prospect") {
+    return (
+      <Avatar className="ring-border h-9 w-9 ring-1">
+        {entity.avatarUrl ? (
+          <AvatarImage src={entity.avatarUrl} alt="" />
+        ) : null}
+        <AvatarFallback>{getMentionEntityFallbackLabel(entity)}</AvatarFallback>
+      </Avatar>
+    );
+  }
+
+  if (entity.kind === "attachment") {
+    const showsImagePreview =
+      entity.attachmentMediaKind === "image" ||
+      entity.attachmentMediaKind === "gif";
+
+    return (
+      <AttachmentMedia
+        variant={showsImagePreview && entity.attachmentUrl ? "image" : "icon"}
+        className="border-border size-9 w-9 rounded-lg border bg-transparent [&_img]:size-full [&_img]:object-cover"
+        aria-hidden="true"
+      >
+        {showsImagePreview && entity.attachmentUrl ? (
+          <Image
+            src={entity.attachmentUrl}
+            alt=""
+            width={36}
+            height={36}
+            sizes="36px"
+            loading="lazy"
+          />
+        ) : (
+          getAttachmentIcon(entity)
+        )}
+      </AttachmentMedia>
+    );
+  }
+
+  let icon = getMentionEntityIcon(entity.kind);
+  if (entity.kind === "post" && entity.postPlatform === "twitter") {
+    icon = <TwitterIcon className="size-4" aria-hidden="true" />;
+  } else if (entity.kind === "post" && entity.postPlatform === "linkedin") {
+    icon = <LinkedinIcon className="size-4 fill-current" aria-hidden="true" />;
+  }
+
+  return (
+    <span
+      className="border-border text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border bg-transparent"
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
+  );
 }
 
 function getMentionEntityFallbackLabel(entity: MentionEntitySearchResult) {
@@ -94,6 +223,9 @@ export function MentionEntityMenu({
   className,
   bodyStyle,
   searchSlot,
+  availableKinds,
+  activeFilter = "all",
+  onActiveFilterChange,
   listboxId,
   getOptionId,
 }: {
@@ -106,11 +238,34 @@ export function MentionEntityMenu({
   className?: string;
   bodyStyle?: React.CSSProperties;
   searchSlot?: React.ReactNode;
+  availableKinds?: MentionEntityKind[];
+  activeFilter?: MentionEntityFilter;
+  onActiveFilterChange?: (filter: MentionEntityFilter) => void;
   listboxId?: string;
   getOptionId?: (item: MentionEntitySearchResult, index: number) => string;
 }) {
+  const listboxRef = React.useRef<HTMLDivElement>(null);
+  const selectedResultId = results[selectedIndex]?.id;
+  const visibleGroups = MENTION_ENTITY_GROUPS.filter(
+    (group) =>
+      group.value === "all" || availableKinds?.includes(group.value) === true
+  );
+  const showGroups = visibleGroups.length > 2 && onActiveFilterChange;
+
+  React.useEffect(() => {
+    if (!selectedResultId) {
+      return;
+    }
+
+    const selectedOption = listboxRef.current?.querySelector<HTMLElement>(
+      '[role="option"][aria-selected="true"]'
+    );
+    selectedOption?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedResultId]);
+
   const menuBody = (
     <div
+      ref={listboxRef}
       id={listboxId}
       role="listbox"
       className="scroll-fade-b max-h-72 overflow-auto p-1"
@@ -149,17 +304,7 @@ export function MentionEntityMenu({
             onMouseEnter={() => onHover?.(index)}
             onClick={() => onSelect(item)}
           >
-            <Avatar className="ring-border h-9 w-9 ring-1">
-              {item.avatarUrl ? (
-                <AvatarImage
-                  src={item.avatarUrl}
-                  alt={`Avatar for ${item.label}`}
-                />
-              ) : null}
-              <AvatarFallback>
-                {getMentionEntityFallbackLabel(item)}
-              </AvatarFallback>
-            </Avatar>
+            <MentionEntityVisual entity={item} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <span className="text-foreground truncate text-sm font-medium">
@@ -190,6 +335,38 @@ export function MentionEntityMenu({
       )}
     >
       {searchSlot ? <div className="border-b p-2">{searchSlot}</div> : null}
+      {showGroups ? (
+        <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] border-b px-2 py-2 [&::-webkit-scrollbar]:hidden">
+          <ToggleGroup
+            type="single"
+            value={activeFilter}
+            variant="outline"
+            size="xs"
+            className="w-max justify-start gap-1"
+            aria-label="Filter mentions"
+            onValueChange={(value) => {
+              const group = visibleGroups.find((item) => item.value === value);
+              if (group) {
+                onActiveFilterChange(group.value);
+              }
+            }}
+          >
+            {visibleGroups.map((group) => (
+              <ToggleGroupItem
+                key={group.value}
+                value={group.value}
+                className="bg-background text-muted-foreground data-[state=on]:border-muted-foreground/30 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:hover:bg-accent data-[state=on]:hover:text-accent-foreground px-2.5"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  onActiveFilterChange(group.value);
+                }}
+              >
+                {group.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      ) : null}
       <MentionEntityMenuBoundary
         resetKey={`${loading}:${results.map((item) => item.id).join("|")}`}
         fallback={

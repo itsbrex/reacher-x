@@ -57,6 +57,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "image.mux.com",
       },
+      {
+        // Convex storage (workspace attachment previews)
+        protocol: "https",
+        hostname: "*.convex.cloud",
+      },
     ],
   },
 

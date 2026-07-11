@@ -17,8 +17,14 @@ import {
 } from "lexical";
 import { createPortal } from "react-dom";
 import { useMentionEntitySearch, useWorkspace } from "@/shared/hooks";
-import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
-import { MentionEntityMenu } from "@/shared/ui/components/mentions/MentionEntityMenu";
+import type {
+  MentionEntityKind,
+  MentionEntitySearchResult,
+} from "@/shared/lib/mentions/mentionEntities";
+import {
+  MentionEntityMenu,
+  type MentionEntityFilter,
+} from "@/shared/ui/components/mentions/MentionEntityMenu";
 import { buildComposerMentionInsertionText } from "@/features/composer/lib/entityMentions";
 import type { ComposerEntityMentionsConfig } from "@/features/composer/types";
 import { $createMentionNode } from "./MentionNode";
@@ -75,6 +81,13 @@ const AtSignMentionsRegexAliasRegex = new RegExp(
 );
 
 const SUGGESTION_LIST_LENGTH_LIMIT = 8;
+const MENTION_ENTITY_KIND_ORDER: MentionEntityKind[] = [
+  "prospect",
+  "post",
+  "plan",
+  "task",
+  "attachment",
+];
 
 function checkForAtSignMentions(
   text: string,
@@ -123,17 +136,58 @@ export function MentionsPlugin({
     entityMentions?.prospectId ?? searchParams.get("prospectId");
   const { workspace } = useWorkspace();
   const [queryString, setQueryString] = React.useState<string | null>(null);
+  const [activeFilter, setActiveFilter] =
+    React.useState<MentionEntityFilter>("all");
   const closeSuppressionTimeoutRef = React.useRef<number | null>(null);
   const suppressQueryWhileClosingRef = React.useRef(false);
+  const availableKinds = React.useMemo(() => {
+    const remoteKinds = new Set(
+      entityMentions?.remoteAllowedKinds ?? MENTION_ENTITY_KIND_ORDER
+    );
+    const localKinds = new Set(
+      entityMentions?.localEntities?.map((entity) => entity.kind) ?? []
+    );
+
+    return MENTION_ENTITY_KIND_ORDER.filter(
+      (kind) => remoteKinds.has(kind) || localKinds.has(kind)
+    );
+  }, [entityMentions?.localEntities, entityMentions?.remoteAllowedKinds]);
+  const activeRemoteAllowedKinds = React.useMemo(() => {
+    if (activeFilter === "all") {
+      return entityMentions?.remoteAllowedKinds;
+    }
+
+    const configuredKinds = entityMentions?.remoteAllowedKinds;
+    return configuredKinds === undefined ||
+      configuredKinds.includes(activeFilter)
+      ? [activeFilter]
+      : [];
+  }, [activeFilter, entityMentions?.remoteAllowedKinds]);
+  const activeLocalEntities = React.useMemo(
+    () =>
+      activeFilter === "all"
+        ? entityMentions?.localEntities
+        : entityMentions?.localEntities?.filter(
+            (entity) => entity.kind === activeFilter
+          ),
+    [activeFilter, entityMentions?.localEntities]
+  );
   const { results, loading } = useMentionEntitySearch({
     enabled: queryString !== null,
     query: queryString,
     workspaceId: workspace?._id ?? null,
     prospectId,
     limit: SUGGESTION_LIST_LENGTH_LIMIT,
-    remoteAllowedKinds: entityMentions?.remoteAllowedKinds,
-    localEntities: entityMentions?.localEntities,
+    remoteAllowedKinds: activeRemoteAllowedKinds,
+    localEntities: activeLocalEntities,
   });
+  const visibleResults = React.useMemo(
+    () =>
+      activeFilter === "all"
+        ? results
+        : results.filter((result) => result.kind === activeFilter),
+    [activeFilter, results]
+  );
 
   React.useEffect(
     () => () => {
@@ -150,6 +204,9 @@ export function MentionsPlugin({
       return;
     }
 
+    if (nextQuery === null) {
+      setActiveFilter("all");
+    }
     setQueryString(nextQuery);
   }, []);
 
@@ -159,10 +216,10 @@ export function MentionsPlugin({
 
   const options = React.useMemo(
     () =>
-      results
+      visibleResults
         .map((result) => new MentionTypeaheadOption(result))
         .slice(0, SUGGESTION_LIST_LENGTH_LIMIT),
-    [results]
+    [visibleResults]
   );
 
   const armMentionCloseSuppression = React.useCallback(() => {
@@ -280,7 +337,7 @@ export function MentionsPlugin({
                 }
               >
                 <MentionEntityMenu
-                  results={results}
+                  results={visibleResults}
                   loading={loading}
                   selectedIndex={selectedIndex}
                   onHover={setHighlightedIndex}
@@ -294,6 +351,12 @@ export function MentionsPlugin({
                   }}
                   className="w-[min(20rem,calc(100vw-2rem))]"
                   bodyStyle={{ maxHeight }}
+                  availableKinds={availableKinds}
+                  activeFilter={activeFilter}
+                  onActiveFilterChange={(filter) => {
+                    setActiveFilter(filter);
+                    setHighlightedIndex(0);
+                  }}
                 />
               </div>,
               anchorElementRef.current
