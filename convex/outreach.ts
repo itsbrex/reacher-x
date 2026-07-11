@@ -1687,6 +1687,28 @@ export const resumePlan = mutation({
     if (plan.status !== "paused" && plan.status !== "blocked_auth") {
       throw new Error("Can only resume paused or blocked plans");
     }
+    const waitingManualTask = await ctx.db
+      .query("outreachTasks")
+      .withIndex("by_plan_status", (q) =>
+        q.eq("planId", planId).eq("status", "waiting_manual")
+      )
+      .first();
+    if (waitingManualTask) {
+      throw new Error(
+        "This plan is waiting for a manual X reply that ReacherX is monitoring automatically"
+      );
+    }
+    const waitingConnectionTask = await ctx.db
+      .query("outreachTasks")
+      .withIndex("by_plan_status", (q) =>
+        q.eq("planId", planId).eq("status", "waiting_connection")
+      )
+      .first();
+    if (waitingConnectionTask) {
+      throw new Error(
+        "This plan is waiting for a LinkedIn connection; ReacherX will resume it automatically"
+      );
+    }
 
     const prospectResume = await ctx.db.get(plan.prospectId);
     if (!prospectResume) {
@@ -1852,6 +1874,28 @@ export const setPlanLifecycleInternal = internalMutation({
     if (action === "resume") {
       if (plan.status !== "paused" && plan.status !== "blocked_auth") {
         throw new Error("Can only resume paused or blocked plans");
+      }
+      const waitingManualTask = await ctx.db
+        .query("outreachTasks")
+        .withIndex("by_plan_status", (q) =>
+          q.eq("planId", planId).eq("status", "waiting_manual")
+        )
+        .first();
+      if (waitingManualTask) {
+        throw new Error(
+          "This plan is waiting for a manual X reply that ReacherX is monitoring automatically"
+        );
+      }
+      const waitingConnectionTask = await ctx.db
+        .query("outreachTasks")
+        .withIndex("by_plan_status", (q) =>
+          q.eq("planId", planId).eq("status", "waiting_connection")
+        )
+        .first();
+      if (waitingConnectionTask) {
+        throw new Error(
+          "This plan is waiting for a LinkedIn connection; ReacherX will resume it automatically"
+        );
       }
       await ctx.db.patch(planId, {
         status: "approved",
@@ -2760,6 +2804,7 @@ async function handleProspectResponseCore(
       | "twitter_reply"
       | "twitter_dm"
       | "linkedin_dm"
+      | "linkedin_comment"
       | "linkedin_invite";
     responseMessageId: string;
     conversationId?: string;
@@ -2821,9 +2866,11 @@ async function handleProspectResponseCore(
           ? `The ${entitySingularLower} accepted your LinkedIn invitation.`
           : args.responseChannel === "twitter_reply"
             ? "A new reply came in on X."
-            : args.responseChannel === "linkedin_dm"
-              ? "A new DM reply came in on LinkedIn."
-              : "A new DM reply came in on X.",
+            : args.responseChannel === "linkedin_comment"
+              ? "A new reply came in under your LinkedIn comment."
+              : args.responseChannel === "linkedin_dm"
+                ? "A new DM reply came in on LinkedIn."
+                : "A new DM reply came in on X.",
       status: "pending",
       prospectId: args.prospectId,
       prospectAvatarUrl,
@@ -2842,9 +2889,11 @@ async function handleProspectResponseCore(
         args.responseChannel === "twitter_dm" ||
         args.responseChannel === "linkedin_dm"
           ? "DM response received"
-          : args.responseChannel === "linkedin_invite"
-            ? "Invitation accepted"
-            : "Response received",
+          : args.responseChannel === "linkedin_comment"
+            ? "LinkedIn comment response received"
+            : args.responseChannel === "linkedin_invite"
+              ? "Invitation accepted"
+              : "Response received",
       description: args.responseText,
       metadata: {
         responseTweetId:
@@ -2858,6 +2907,10 @@ async function handleProspectResponseCore(
             : undefined,
         responseInviteId:
           args.responseChannel === "linkedin_invite"
+            ? args.responseMessageId
+            : undefined,
+        responseCommentId:
+          args.responseChannel === "linkedin_comment"
             ? args.responseMessageId
             : undefined,
         conversationId: args.conversationId,
@@ -2881,11 +2934,28 @@ async function handleProspectResponseCore(
     return { success: true, planless: true };
   }
 
-  const waitingTask = await ctx.db
+  const waitingTasks = await ctx.db
     .query("outreachTasks")
-    .withIndex("by_plan", (q: any) => q.eq("planId", plan._id))
-    .filter((q: any) => q.eq(q.field("status"), "waiting_response"))
-    .first();
+    .withIndex("by_plan_status", (q: any) =>
+      q.eq("planId", plan._id).eq("status", "waiting_response")
+    )
+    .take(20);
+  const waitingTask = waitingTasks.find((task: Doc<"outreachTasks">) => {
+    const platform = task.approvalContext?.platform ?? "twitter";
+    if (args.responseChannel === "twitter_reply") {
+      return task.type === "comment" && platform === "twitter";
+    }
+    if (args.responseChannel === "linkedin_comment") {
+      return task.type === "comment" && platform === "linkedin";
+    }
+    if (args.responseChannel === "twitter_dm") {
+      return task.type === "dm" && platform === "twitter";
+    }
+    if (args.responseChannel === "linkedin_dm") {
+      return task.type === "dm" && platform === "linkedin";
+    }
+    return false;
+  });
 
   if (waitingTask) {
     const existingPostedTweetId = getPostedTweetId(waitingTask.resultData);
@@ -2905,7 +2975,12 @@ async function handleProspectResponseCore(
             ? args.responseMessageId
             : undefined,
         responseDmMessageId:
-          args.responseChannel === "twitter_dm"
+          args.responseChannel === "twitter_dm" ||
+          args.responseChannel === "linkedin_dm"
+            ? args.responseMessageId
+            : undefined,
+        responseCommentId:
+          args.responseChannel === "linkedin_comment"
             ? args.responseMessageId
             : undefined,
         responseChannel: args.responseChannel,
@@ -3005,9 +3080,11 @@ async function handleProspectResponseCore(
       args.responseChannel === "twitter_dm" ||
       args.responseChannel === "linkedin_dm"
         ? "DM response received"
-        : args.responseChannel === "linkedin_invite"
-          ? "Invitation accepted"
-          : "Response received",
+        : args.responseChannel === "linkedin_comment"
+          ? "LinkedIn comment response received"
+          : args.responseChannel === "linkedin_invite"
+            ? "Invitation accepted"
+            : "Response received",
     description: args.responseText,
     metadata: {
       responseTweetId:
@@ -3021,6 +3098,10 @@ async function handleProspectResponseCore(
           : undefined,
       responseInviteId:
         args.responseChannel === "linkedin_invite"
+          ? args.responseMessageId
+          : undefined,
+      responseCommentId:
+        args.responseChannel === "linkedin_comment"
           ? args.responseMessageId
           : undefined,
       conversationId: args.conversationId,
@@ -3092,7 +3173,11 @@ export const onProspectLinkedInResponse = internalMutation({
   args: {
     prospectId: v.id("prospects"),
     planId: v.optional(v.id("outreachPlans")),
-    responseType: v.union(v.literal("dm"), v.literal("invite")),
+    responseType: v.union(
+      v.literal("dm"),
+      v.literal("invite"),
+      v.literal("comment")
+    ),
     responseMessageId: v.string(),
     responseText: v.optional(v.string()),
     responseData: v.optional(v.any()),
@@ -3105,7 +3190,11 @@ export const onProspectLinkedInResponse = internalMutation({
       responseText: args.responseText,
       responseData: args.responseData,
       responseChannel:
-        args.responseType === "invite" ? "linkedin_invite" : "linkedin_dm",
+        args.responseType === "invite"
+          ? "linkedin_invite"
+          : args.responseType === "comment"
+            ? "linkedin_comment"
+            : "linkedin_dm",
       responseMessageId: args.responseMessageId,
       conversationId: args.conversationId,
     });

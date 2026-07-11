@@ -132,6 +132,8 @@ export const outreachPlanWorkflow = workflowManager.define({
           candidate.order >= nextTaskOrder &&
           candidate.status !== "completed" &&
           candidate.status !== "skipped" &&
+          candidate.status !== "waiting_manual" &&
+          candidate.status !== "waiting_connection" &&
           candidate.status !== "waiting_response"
       );
 
@@ -170,7 +172,8 @@ export const outreachPlanWorkflow = workflowManager.define({
               workspaceId: currentPlan.workspaceId,
             }
           );
-          const requiresApproval = agentSettings?.autonomyMode !== "autonomous";
+          const requiresApproval =
+            agentSettings?.autonomyMode !== "autonomous" && !task.approvedAt;
 
           if (requiresApproval) {
             const approvalSignal = await step.runMutation(
@@ -269,7 +272,8 @@ export const outreachPlanWorkflow = workflowManager.define({
               workspaceId: currentPlan.workspaceId,
             }
           );
-          const requiresApproval = agentSettings?.autonomyMode !== "autonomous";
+          const requiresApproval =
+            agentSettings?.autonomyMode !== "autonomous" && !task.approvedAt;
 
           if (requiresApproval) {
             const approvalSignal = await step.runMutation(
@@ -312,6 +316,12 @@ export const outreachPlanWorkflow = workflowManager.define({
           );
 
           if (!executionResult.success) {
+            if (executionResult.recoveryStarted) {
+              return {
+                success: true,
+                status: "waiting_connection",
+              };
+            }
             const isAuthBlocker =
               executionResult.errorClass === "reauth_required" ||
               executionResult.errorClass === "scope_missing";
@@ -434,7 +444,7 @@ export const outreachPlanWorkflow = workflowManager.define({
         });
 
         // Critical task failed - pause workflow
-        if (task.type === "comment") {
+        if (task.type === "comment" || task.type === "dm") {
           const nextPlanStatus =
             errorMessage.includes("reauth_required") ||
             errorMessage.includes("scope_missing")
@@ -476,17 +486,25 @@ export const outreachPlanWorkflow = workflowManager.define({
     const hasWaitingResponse = latest.tasks.some(
       (task: Doc<"outreachTasks">) => task.status === "waiting_response"
     );
+    const hasWaitingConnection = latest.tasks.some(
+      (task: Doc<"outreachTasks">) => task.status === "waiting_connection"
+    );
     const hasIncompleteTasks = latest.tasks.some(
       (task: Doc<"outreachTasks">) =>
         task.status !== "completed" &&
         task.status !== "skipped" &&
-        task.status !== "waiting_response"
+        task.status !== "waiting_response" &&
+        task.status !== "waiting_connection"
     );
 
-    if (hasWaitingResponse || hasIncompleteTasks) {
+    if (hasWaitingResponse || hasWaitingConnection || hasIncompleteTasks) {
       return {
         success: true,
-        status: hasWaitingResponse ? "waiting_response" : "executing",
+        status: hasWaitingConnection
+          ? "waiting_connection"
+          : hasWaitingResponse
+            ? "waiting_response"
+            : "executing",
       };
     }
 

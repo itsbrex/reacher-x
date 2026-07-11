@@ -12,6 +12,9 @@ import {
   outreachProgressSummaryValidator,
   outreachTaskTypeValidator,
   outreachTaskStatusValidator,
+  outreachRecoveryKindValidator,
+  outreachRecoveryStageValidator,
+  outreachRecoveryStatusValidator,
   prospectActivityTypeValidator,
   outreachNotificationTypeValidator as notificationTypeValidator,
   outreachNotificationStatusValidator as notificationStatusValidator,
@@ -1990,6 +1993,37 @@ export default defineSchema({
     .index("by_plan_status", ["planId", "status"])
     .index("by_plan_order", ["planId", "order"])
     .index("by_target_tweet", ["targetTweetId"]),
+
+  /**
+   * Durable reconciliation state for outreach actions observed outside the
+   * original API write path (manual X replies and LinkedIn comment replies).
+   */
+  outreachRecoveryMonitors: defineTable({
+    userId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    prospectId: v.id("prospects"),
+    planId: v.optional(v.id("outreachPlans")),
+    taskId: v.optional(v.id("outreachTasks")),
+    kind: outreachRecoveryKindValidator,
+    stage: outreachRecoveryStageValidator,
+    status: outreachRecoveryStatusValidator,
+    sourcePostId: v.string(),
+    outboundArtifactId: v.optional(v.string()),
+    outboundParentArtifactId: v.optional(v.string()),
+    expectedText: v.optional(v.string()),
+    baselineArtifactIdsJson: v.optional(v.string()),
+    startedAt: v.number(),
+    expiresAt: v.number(),
+    attemptCount: v.number(),
+    lastCheckedAt: v.optional(v.number()),
+    nextCheckAt: v.optional(v.number()),
+    lastErrorMessage: v.optional(v.string()),
+    detectedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_task_and_kind", ["taskId", "kind"])
+    .index("by_prospect_and_status", ["prospectId", "status"])
+    .index("by_status_and_next_check", ["status", "nextCheckAt"]),
 
   /**
    * Activity log for prospects (timeline).

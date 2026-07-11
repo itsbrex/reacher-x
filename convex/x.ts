@@ -2138,6 +2138,23 @@ export const getHydratedTwitterPostInternal = internalAction({
   },
 });
 
+export const getTwitterConnectionIdentityInternal = internalAction({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const status = await getXConnectionStatusForUser(
+      ctx,
+      internal.xStore,
+      args.userId
+    );
+    return {
+      isConnected: status.isConnected,
+      xUserId: status.xUserId,
+      screenName: status.screenName,
+      name: status.name,
+    };
+  },
+});
+
 export const getHydratedTwitterPostsByIds = action({
   args: {
     tweetIds: v.array(v.string()),

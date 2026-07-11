@@ -583,6 +583,13 @@ export async function deleteOutreachPlanCascade(
     .withIndex("by_plan", (q) => q.eq("planId", plan._id))
     .collect();
 
+  const recoveryMonitors = await ctx.db
+    .query("outreachRecoveryMonitors")
+    .withIndex("by_prospect_and_status", (q) =>
+      q.eq("prospectId", plan.prospectId)
+    )
+    .take(100);
+
   for (const monitor of planMonitors) {
     if (monitor.status !== "deleted") {
       await ctx.scheduler.runAfter(
@@ -592,6 +599,12 @@ export async function deleteOutreachPlanCascade(
       );
     }
     await ctx.db.delete(monitor._id);
+  }
+
+  for (const monitor of recoveryMonitors) {
+    if (monitor.planId === plan._id) {
+      await ctx.db.delete(monitor._id);
+    }
   }
 
   const actionRequestsByStatus = await Promise.all(

@@ -1103,9 +1103,30 @@ export const outreachTaskStatusValidator = v.union(
   v.literal("pending"),
   v.literal("scheduled"),
   v.literal("executing"),
+  v.literal("waiting_manual"),
+  v.literal("waiting_connection"),
   v.literal("waiting_response"),
   v.literal("completed"),
   v.literal("skipped"),
+  v.literal("failed")
+);
+
+export const outreachRecoveryKindValidator = v.union(
+  v.literal("twitter_manual_reply"),
+  v.literal("linkedin_comment_reply"),
+  v.literal("linkedin_connection_then_dm")
+);
+
+export const outreachRecoveryStageValidator = v.union(
+  v.literal("detecting_outbound"),
+  v.literal("awaiting_connection"),
+  v.literal("awaiting_response")
+);
+
+export const outreachRecoveryStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("completed"),
+  v.literal("expired"),
   v.literal("failed")
 );
 
@@ -1354,6 +1375,7 @@ export const prospectActivityMetadataValidator = v.object({
   responseTweetId: v.optional(v.string()),
   responseDmMessageId: v.optional(v.string()),
   responseInviteId: v.optional(v.string()),
+  responseCommentId: v.optional(v.string()),
   conversationId: v.optional(v.string()),
   planSnapshot: v.optional(storedOutreachPlanSnapshotValidator),
 });

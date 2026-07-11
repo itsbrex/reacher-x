@@ -2602,6 +2602,14 @@ export const bridgeOutreachTaskStatusToThread = internalAction({
       message = responseReceived
         ? `Prospect responded. Reply was posted successfully (tweet ID: ${postedTweetId}).`
         : `Reply posted successfully on X (tweet ID: ${postedTweetId}).`;
+    } else if (task.status === "waiting_manual") {
+      bridgeState = "waiting_manual_x_reply";
+      message =
+        "X blocked automatic posting for this reply. Open the target post and publish the prepared reply manually. ReacherX is monitoring X automatically and will continue this plan when the reply is detected.";
+    } else if (task.status === "waiting_connection") {
+      bridgeState = "waiting_linkedin_connection";
+      message =
+        "LinkedIn requires a connection before this DM can be sent. ReacherX sent the connection request and will send the already-approved DM automatically after acceptance.";
     } else if (task.status === "failed") {
       if (failureClass === "reauth_required") {
         bridgeState = "failed_reauth";
@@ -2613,7 +2621,8 @@ export const bridgeOutreachTaskStatusToThread = internalAction({
           "Posting is blocked because required X write permissions are missing. Reconnect with tweet.write and media.write to resume.";
       } else {
         bridgeState = "failed_other";
-        message = `Reply execution failed${task.errorMessage ? `: ${task.errorMessage}` : "."}`;
+        const actionLabel = task.type === "dm" ? "DM" : "Reply";
+        message = `${actionLabel} execution failed${task.errorMessage ? `: ${task.errorMessage}` : "."}`;
       }
     }
 

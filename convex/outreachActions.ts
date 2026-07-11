@@ -45,6 +45,7 @@ import {
   hasPostBody,
 } from "../shared/lib/twitter/xPostTextLimit";
 import { logger } from "../shared/lib/logger";
+import { getLinkedInFailure } from "./lib/unipileClient";
 
 type OutreachFailureClass =
   | "reauth_required"
@@ -55,6 +56,17 @@ type OutreachFailureClass =
   | "api_policy_forbidden"
   | "content_too_long"
   | "target_not_found"
+  | "not_connected"
+  | "already_connected"
+  | "already_invited_recently"
+  | "user_unreachable"
+  | "action_required"
+  | "feature_unavailable"
+  | "feature_not_subscribed"
+  | "subscription_required"
+  | "forbidden"
+  | "unprocessable"
+  | "service_unavailable"
   | "unknown_error";
 
 type StructuredOutreachError = {
@@ -93,6 +105,7 @@ type ExecuteDmTaskResult =
       errorMessage: string;
       retryable: boolean;
       attemptId: string;
+      recoveryStarted?: boolean;
     };
 
 function getAttemptId(): string {
@@ -104,19 +117,29 @@ const outreachActionsLogger = logger.withScope("OutreachActions");
 function shouldNotifyTaskExecutionFailure(
   classification: OutreachFailureClass
 ): boolean {
-  return classification !== "reauth_required" && classification !== "scope_missing";
+  return (
+    classification !== "reauth_required" && classification !== "scope_missing"
+  );
 }
 
 function parseTwitterError(
   error: unknown,
   options?: { platform?: "twitter" | "linkedin" }
 ): StructuredOutreachError {
+  if (options?.platform === "linkedin") {
+    const failure = getLinkedInFailure(error);
+    return {
+      classification: normalizeLinkedInFailureClass(failure.classification),
+      message: failure.message,
+      retryable: failure.retryable,
+      code: failure.status,
+      details: failure.type,
+    };
+  }
+
   const xFailure = getXExecutionFailure(error);
   if (xFailure) {
-    const formattedMessage =
-      options?.platform === "linkedin"
-        ? xFailure.message
-        : formatXWriteActionError(error).message;
+    const formattedMessage = formatXWriteActionError(error).message;
     return {
       classification: xFailure.classification,
       message: formattedMessage,
@@ -154,6 +177,30 @@ function parseTwitterError(
     message: "An unknown error occurred",
     retryable: false,
   };
+}
+
+function normalizeLinkedInFailureClass(
+  classification: string
+): OutreachFailureClass {
+  switch (classification) {
+    case "reauth_required":
+    case "rate_limited":
+    case "target_not_found":
+    case "not_connected":
+    case "already_connected":
+    case "already_invited_recently":
+    case "user_unreachable":
+    case "action_required":
+    case "feature_unavailable":
+    case "feature_not_subscribed":
+    case "subscription_required":
+    case "forbidden":
+    case "unprocessable":
+    case "service_unavailable":
+      return classification;
+    default:
+      return "unknown_error";
+  }
 }
 
 /**
@@ -397,7 +444,34 @@ export const executeCommentTask = internalAction({
         );
       }
 
-      if (shouldNotifyTaskExecutionFailure(errorDetails.classification)) {
+      let manualRecovery: { started: boolean } = { started: false };
+      if (errorDetails.classification === "api_policy_forbidden") {
+        try {
+          manualRecovery = await ctx.runAction(
+            internal.outreachRecovery.beginTwitterManualReplyRecovery,
+            {
+              taskId: args.taskId,
+              planId: args.planId,
+              errorMessage: errorDetails.message,
+            }
+          );
+        } catch (recoveryError) {
+          outreachActionsLogger.warn(
+            "Could not start automatic manual-reply recovery",
+            {
+              planId: String(args.planId),
+              taskId: String(args.taskId),
+              attemptId,
+            },
+            recoveryError
+          );
+        }
+      }
+
+      if (
+        !manualRecovery.started &&
+        shouldNotifyTaskExecutionFailure(errorDetails.classification)
+      ) {
         await ctx.runMutation(
           internal.outreach.createTaskExecutionFailureNotification,
           {
@@ -475,7 +549,7 @@ export const executeDmTask = internalAction({
 
       if (platform === "linkedin") {
         const result = await ctx.runAction(
-          internal.linkedin.sendLinkedInMessageInternal,
+          internal.linkedin.sendLinkedInMessageForOutreachInternal,
           {
             userId: planUserId,
             prospectId: plan.prospectId,
@@ -487,6 +561,15 @@ export const executeDmTask = internalAction({
             mediaUrls,
           }
         );
+        if (!result.success) {
+          throw {
+            body: {
+              status: result.status,
+              type: result.type,
+              detail: result.message,
+            },
+          };
+        }
         conversationId = result?.conversationId;
         messageId =
           typeof result?.messageId === "string" ? result.messageId : undefined;
@@ -540,6 +623,32 @@ export const executeDmTask = internalAction({
       };
     } catch (error) {
       const structured = parseTwitterError(error, { platform });
+      if (
+        platform === "linkedin" &&
+        structured.classification === "not_connected"
+      ) {
+        const recovery = await ctx.runAction(
+          internal.outreachRecovery.beginLinkedInConnectionThenDmRecovery,
+          {
+            taskId: args.taskId,
+            planId: args.planId,
+            errorMessage: structured.message,
+          }
+        );
+        if (recovery.started) {
+          await bridgeStatusMessage();
+          return {
+            success: false,
+            errorClass: structured.classification,
+            errorMessage:
+              "A LinkedIn connection is required. The request was sent; the approved DM will be sent automatically after acceptance.",
+            retryable: false,
+            attemptId,
+            recoveryStarted: true,
+          };
+        }
+      }
+
       await ctx.runMutation(internal.outreach.updateTaskResult, {
         taskId: args.taskId,
         status: "failed",
@@ -552,6 +661,12 @@ export const executeDmTask = internalAction({
           platform,
         },
       });
+
+      if (structured.retryable) {
+        throw new Error(
+          `${structured.classification}:${args.planId}:${args.taskId}:${attemptId}:${structured.message}`
+        );
+      }
 
       if (shouldNotifyTaskExecutionFailure(structured.classification)) {
         await ctx.runMutation(
