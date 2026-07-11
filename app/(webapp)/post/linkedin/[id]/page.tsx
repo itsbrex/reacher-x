@@ -7,6 +7,7 @@ import { LinkedInPostThreadPanel } from "@/features/webapp/ui/components";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
+import { ProspectPanelRenderer } from "@/features/prospects/ui/components/ProspectPanelRenderer";
 
 function Inner() {
   const router = useRouter();
@@ -46,11 +47,14 @@ function Inner() {
   }
 
   return (
-    <LinkedInPostThreadPanel
-      post={post}
-      onBack={() => router.back()}
-      previewScenario={previewScenario}
-    />
+    <div className="flex min-h-0 w-full">
+      <LinkedInPostThreadPanel
+        post={post}
+        onBack={() => router.back()}
+        previewScenario={previewScenario}
+      />
+      <ProspectPanelRenderer className="w-full max-w-lg border-l" />
+    </div>
   );
 }
 

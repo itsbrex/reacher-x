@@ -19,10 +19,10 @@ import {
   PersonIcon,
 } from "@/shared/ui/components/icons";
 
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import { getVisibleTweetPlainText } from "@/shared/lib/utils";
 import { toast } from "sonner";
+import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
 
 export function TweetMenu({
   tweetUrl,
@@ -43,7 +43,7 @@ export function TweetMenu({
   className?: string;
   readOnly?: boolean;
 }) {
-  const { openProfile } = useProfile();
+  const { openProfile } = useTwitterProfileNavigation();
 
   const handleCopyLink = (event: React.MouseEvent) => {
     event.stopPropagation();

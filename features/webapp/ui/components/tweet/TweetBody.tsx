@@ -1,11 +1,11 @@
 import * as React from "react";
 // No direct Link usage here; and avoid circular hook import in SSR
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { cn } from "@/shared/lib/utils";
 import { parseText } from "@/shared/lib/utils";
 import { highlightInReactTreeMultiple } from "@/shared/lib/utils";
 import { Tweet as TweetType } from "@/features/threads/types";
 import { getVisibleTweetPlainText } from "@/shared/lib/utils";
+import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
 
 function getNodeText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -93,7 +93,6 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
   bodyLineClamp,
   highlightQueries,
   className,
-  readOnly = false,
 }) => {
   const visibleText = getVisibleTweetPlainText(tweet, {
     characterLimit,
@@ -106,7 +105,7 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
     Array.isArray(highlightQueries) && highlightQueries.length > 0
       ? highlightInReactTreeMultiple(parsedBody, highlightQueries)
       : parsedBody;
-  const { openProfile } = useProfile();
+  const { openProfile } = useTwitterProfileNavigation();
   const handleMentionClick = React.useCallback(
     (username: string, event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
@@ -116,11 +115,8 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
     [openProfile]
   );
   const interactiveBody = React.useMemo(
-    () =>
-      readOnly
-        ? highlightedBody
-        : enhanceMentionLinks(highlightedBody, handleMentionClick),
-    [handleMentionClick, highlightedBody, readOnly]
+    () => enhanceMentionLinks(highlightedBody, handleMentionClick),
+    [handleMentionClick, highlightedBody]
   );
 
   return (
@@ -131,24 +127,18 @@ export const TweetBody: React.FC<TweetBodyProps> = ({
           className={cn("text-muted-foreground text-sm font-medium", className)}
         >
           Replying to{" "}
-          {readOnly ? (
-            <span className="text-foreground font-mono">
-              @{tweet?.in_reply_to_screen_name}
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="text-foreground font-mono hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (tweet?.in_reply_to_screen_name) {
-                  openProfile({ username: tweet.in_reply_to_screen_name });
-                }
-              }}
-            >
-              @{tweet?.in_reply_to_screen_name}
-            </button>
-          )}
+          <button
+            type="button"
+            className="text-foreground font-mono hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tweet?.in_reply_to_screen_name) {
+                openProfile({ username: tweet.in_reply_to_screen_name });
+              }
+            }}
+          >
+            @{tweet?.in_reply_to_screen_name}
+          </button>
         </p>
       )}
 

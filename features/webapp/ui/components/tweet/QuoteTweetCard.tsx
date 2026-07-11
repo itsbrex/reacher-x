@@ -13,7 +13,6 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { TweetMenu } from "./TweetMenu";
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { useRouter } from "next/navigation";
 import { OpenGraphPreview } from "@/features/composer/ui/components/OpenGraphPreview";
 import {
@@ -21,6 +20,13 @@ import {
   isLikelyToHaveOpenGraph,
   normalizeUrl,
 } from "@/shared/lib/utils";
+import {
+  buildXPostHref,
+  shouldIgnorePostCardClick,
+  shouldIgnorePostCardKeyDown,
+} from "@/features/webapp/lib/postNavigation";
+import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
+import { useOptionalPanelStack } from "@/features/prospects/contexts/PanelStackContext";
 
 export interface QuoteTweetCardProps {
   tweet: TweetType;
@@ -47,34 +53,34 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   const externalTweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
   const externalProfileUrl = `https://x.com/${tweet?.user?.screen_name}`;
   const screenName = tweet?.user?.screen_name || "";
-  const { openProfile, prefetchProfile } = useProfile();
+  const { openProfile, prefetchProfile } = useTwitterProfileNavigation();
   const router = useRouter();
+  const panelStack = useOptionalPanelStack();
   const hasQuoted = tweet?.is_quote_status && tweet?.quoted_status;
+
+  const postHref = React.useMemo(() => buildXPostHref(tweet), [tweet]);
+
+  const openPost = React.useCallback(() => {
+    const postId = tweet.id_str || tweet.id?.toString();
+    if (!postId) return;
+
+    if (panelStack) {
+      panelStack.pushPanel("conversation", {
+        threadId: tweet.conversation_id_str || postId,
+        sourceTweetId: postId,
+        sourceTweet: tweet,
+      });
+      return;
+    }
+
+    if (postHref) router.push(postHref, { scroll: false });
+  }, [panelStack, postHref, router, tweet]);
 
   const handleCardNavigate = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly) return;
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    // Ignore clicks on interactive elements EXCEPT the card container itself
-    const interactive = target.closest(
-      "a,button,[role=button],video,media-chrome"
-    ) as HTMLElement | null;
-    if (interactive && interactive !== e.currentTarget) return;
+    if (shouldIgnorePostCardClick(e)) return;
     e.stopPropagation();
-
-    const id = tweet?.id_str || String(tweet?.id || "");
-    if (!id) return;
-
-    const params = new URLSearchParams();
-    const conversationId = tweet?.conversation_id_str || id;
-    if (conversationId && conversationId !== id) {
-      params.set("cid", conversationId);
-    }
-
-    router.push(
-      `/post/x/${id}${params.toString() ? `?${params.toString()}` : ""}`,
-      { scroll: false }
-    );
+    openPost();
   };
 
   // Detect first external URL suitable for Open Graph preview
@@ -109,16 +115,10 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
         tabIndex: 0,
         onClick: handleCardNavigate,
         onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            const synthetic = {
-              ...e,
-              target: e.target as EventTarget & HTMLElement,
-              currentTarget: e.currentTarget as EventTarget & HTMLDivElement,
-              stopPropagation: () => {},
-            } as unknown as React.MouseEvent<HTMLDivElement>;
-            handleCardNavigate(synthetic);
-          }
+          if (shouldIgnorePostCardKeyDown(e) || !postHref) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openPost();
         },
       };
 
@@ -136,7 +136,20 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
       <div className="flex flex-col">
         {/* Header with integrated avatar */}
         <header className="mb-1 flex min-w-0 items-center gap-2">
-          {readOnly ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (screenName)
+                openProfile({
+                  username: screenName,
+                  seedProfile: tweet.user,
+                });
+            }}
+            onMouseEnter={() => screenName && prefetchProfile(screenName)}
+            onFocus={() => screenName && prefetchProfile(screenName)}
+            aria-label={`View ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}'s profile`}
+          >
             <Avatar className="ring-border h-6 w-6 ring-1">
               <AvatarImage
                 src={tweet?.user?.profile_image_url_https}
@@ -146,43 +159,13 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
                 {tweet?.user?.name?.charAt(0).toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (screenName)
-                  openProfile({
-                    username: screenName,
-                    seedProfile: tweet.user,
-                  });
-              }}
-              onMouseEnter={() => screenName && prefetchProfile(screenName)}
-              onFocus={() => screenName && prefetchProfile(screenName)}
-              aria-label={`View ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}'s profile`}
-            >
-              <Avatar className="ring-border h-6 w-6 ring-1">
-                <AvatarImage
-                  src={tweet?.user?.profile_image_url_https}
-                  alt={`Avatar of ${tweet?.user?.name}`}
-                />
-                <AvatarFallback>
-                  {tweet?.user?.name?.charAt(0).toUpperCase() || "?"}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          )}
+          </button>
 
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <TweetHeader staticUser={tweet?.user} readOnly={readOnly}>
+            <TweetHeader staticUser={tweet?.user}>
               <time
                 className="text-muted-foreground shrink-0 text-sm"
                 dateTime={tweet?.tweet_created_at}
-                title={
-                  tweet?.tweet_created_at
-                    ? new Date(tweet.tweet_created_at).toLocaleString()
-                    : undefined
-                }
               >
                 · {formatRelativeTime(tweet?.tweet_created_at)}
               </time>
@@ -209,7 +192,6 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
           bodyLineClamp={bodyLineClamp}
           highlightQueries={highlightQueries}
           className="mb-1"
-          readOnly={readOnly}
         />
 
         {/* Open Graph preview for external links (only when no media and no quote) */}

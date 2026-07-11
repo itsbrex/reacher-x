@@ -136,6 +136,7 @@ function PostDetailInner() {
                 tweet={displayTweet}
                 showFullContent={true}
                 showThread={!shouldShowThread}
+                openBehavior="none"
               />
             </div>
           )}

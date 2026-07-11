@@ -1,5 +1,6 @@
 import React from "react";
 import twitter from "twitter-text";
+import type { LinkedInTextAttribute } from "../../linkedin/identity";
 
 // Link email addresses within a text segment
 function linkEmails(text: string, keyPrefix?: string): React.ReactNode[] {
@@ -64,7 +65,10 @@ function toDisplayUrl(url: string): string {
   }
 }
 
-export function parseLinkedInText(body: string): React.ReactNode {
+function parseLinkedInTextSegment(
+  body: string,
+  keyPrefix: string
+): React.ReactNode {
   if (!body) return null;
   const text = decodeEntities(body);
 
@@ -110,7 +114,7 @@ export function parseLinkedInText(body: string): React.ReactNode {
 
     nodes.push(
       <a
-        key={`a-${match.index}`}
+        key={`${keyPrefix}-a-${match.index}`}
         href={href}
         target={target}
         rel={rel}
@@ -124,6 +128,70 @@ export function parseLinkedInText(body: string): React.ReactNode {
   }
 
   pushText(html.slice(lastIndex), `t-${lastIndex}`);
+
+  return <>{nodes}</>;
+}
+
+export function parseLinkedInText(
+  body: string,
+  options?: {
+    attributes?: LinkedInTextAttribute[];
+    onMentionClick?: (attribute: LinkedInTextAttribute) => void;
+  }
+): React.ReactNode {
+  if (!body) return null;
+
+  const attributes = options?.attributes ?? [];
+  if (attributes.length === 0 || !options?.onMentionClick) {
+    return parseLinkedInTextSegment(body, "root");
+  }
+
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (const [index, attribute] of attributes.entries()) {
+    const mentionStart = body.indexOf(attribute.text, cursor);
+    if (mentionStart < 0) {
+      continue;
+    }
+
+    if (mentionStart > cursor) {
+      nodes.push(
+        <React.Fragment key={`text-${cursor}`}>
+          {parseLinkedInTextSegment(
+            body.slice(cursor, mentionStart),
+            `text-${cursor}`
+          )}
+        </React.Fragment>
+      );
+    }
+
+    nodes.push(
+      <button
+        key={`mention-${attribute.type}-${attribute.urn ?? index}-${mentionStart}`}
+        type="button"
+        className="text-muted-foreground font-inherit inline hover:underline"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onMentionClick?.(attribute);
+        }}
+        aria-label={`View ${attribute.text} profile`}
+      >
+        {attribute.text}
+      </button>
+    );
+
+    cursor = mentionStart + attribute.text.length;
+  }
+
+  if (cursor < body.length) {
+    nodes.push(
+      <React.Fragment key={`text-${cursor}`}>
+        {parseLinkedInTextSegment(body.slice(cursor), `text-${cursor}`)}
+      </React.Fragment>
+    );
+  }
 
   return <>{nodes}</>;
 }

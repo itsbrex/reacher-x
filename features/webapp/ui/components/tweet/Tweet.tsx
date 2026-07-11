@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import { cn } from "@/shared/lib/utils";
@@ -5,7 +7,6 @@ import { formatRelativeTime } from "@/shared/lib/utils";
 import { TweetHeader } from "./TweetHeader";
 import { TweetFooter } from "./TweetFooter";
 import { TweetMenu } from "./TweetMenu";
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TweetMedia } from "@/features/threads/ui/components/TweetMedia";
 import { TweetBody } from "./TweetBody";
 import { QuoteTweetCard } from "./QuoteTweetCard";
@@ -23,6 +24,14 @@ import {
   normalizeUrl,
 } from "@/shared/lib/utils";
 import { parseTweetSource } from "@/shared/lib/utils";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  buildXPostHref,
+  shouldIgnorePostCardClick,
+  shouldIgnorePostCardKeyDown,
+} from "@/features/webapp/lib/postNavigation";
+import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
+import { useOptionalPanelStack } from "@/features/prospects/contexts/PanelStackContext";
 
 export interface TweetProps {
   tweet: TweetType;
@@ -34,6 +43,7 @@ export interface TweetProps {
   showSource?: boolean;
   showFooter?: boolean;
   interactiveCursor?: boolean;
+  openBehavior?: "auto" | "none" | "route" | "panel";
   showThread?: boolean;
   hideThreadLine?: boolean;
   isInReplyLaterList?: boolean;
@@ -54,6 +64,7 @@ export const Tweet: React.FC<TweetProps> = ({
   showSource = true,
   showFooter = true,
   interactiveCursor,
+  openBehavior = "auto",
   showThread = false,
   hideThreadLine = false,
   isInReplyLaterList = false,
@@ -67,9 +78,70 @@ export const Tweet: React.FC<TweetProps> = ({
   const tweetUrl = `https://x.com/${tweet?.user?.screen_name}/status/${tweet?.id_str}`;
   const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
   const screenName = tweet?.user?.screen_name || "";
-  const { openProfile } = useProfile();
+  const { openProfile } = useTwitterProfileNavigation();
+  const router = useRouter();
+  const pathname = usePathname();
+  const panelStack = useOptionalPanelStack();
   const [isHovered, setIsHovered] = React.useState(false);
   const shouldShowMenu = showMenu ?? !readOnly;
+  const postHref = React.useMemo(() => buildXPostHref(tweet), [tweet]);
+  const resolvedOpenBehavior =
+    openBehavior === "auto"
+      ? pathname?.startsWith("/post/x/")
+        ? "none"
+        : panelStack
+          ? "panel"
+          : "route"
+      : openBehavior;
+  const isPostInteractive = Boolean(
+    postHref && resolvedOpenBehavior !== "none"
+  );
+
+  const openPost = React.useCallback(() => {
+    if (!postHref || resolvedOpenBehavior === "none") {
+      return;
+    }
+
+    if (resolvedOpenBehavior === "panel" && panelStack) {
+      const postId = tweet.id_str || tweet.id?.toString();
+      if (!postId) return;
+      panelStack.pushPanel("conversation", {
+        threadId: tweet.conversation_id_str || postId,
+        sourceTweetId: postId,
+        sourceTweet: tweet,
+      });
+      return;
+    }
+
+    if (resolvedOpenBehavior === "route") {
+      router.push(postHref, { scroll: false });
+    }
+  }, [panelStack, postHref, resolvedOpenBehavior, router, tweet]);
+
+  const handleCardClick = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (!isPostInteractive || shouldIgnorePostCardClick(event)) {
+        return;
+      }
+
+      event.stopPropagation();
+      openPost();
+    },
+    [isPostInteractive, openPost]
+  );
+
+  const handleCardKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (!isPostInteractive || shouldIgnorePostCardKeyDown(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      openPost();
+    },
+    [isPostInteractive, openPost]
+  );
 
   // Detect first external URL suitable for Open Graph preview
   const ogUrl: string | null = React.useMemo(() => {
@@ -106,17 +178,31 @@ export const Tweet: React.FC<TweetProps> = ({
   return (
     <article
       className={cn(
-        "group flex w-full gap-2 overflow-hidden",
-        (interactiveCursor ?? !readOnly) ? "cursor-pointer" : "cursor-default",
+        "group flex w-full gap-2 overflow-hidden transition-colors",
+        (interactiveCursor ?? isPostInteractive)
+          ? "cursor-pointer"
+          : "cursor-default",
         className
       )}
       aria-label={`Post by ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}`}
+      role={isPostInteractive ? "button" : undefined}
+      tabIndex={isPostInteractive ? 0 : undefined}
+      onClick={isPostInteractive ? handleCardClick : undefined}
+      onKeyDown={isPostInteractive ? handleCardKeyDown : undefined}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Left column: avatar + thread guideline */}
       <div className="flex flex-col items-center gap-2">
-        {readOnly ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (screenName)
+              openProfile({ username: screenName, seedProfile: tweet.user });
+          }}
+          aria-label={`View ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}'s profile`}
+        >
           <Avatar className="ring-border mt-1 h-8 w-8 ring-1">
             <AvatarImage
               src={tweet?.user?.profile_image_url_https}
@@ -126,27 +212,7 @@ export const Tweet: React.FC<TweetProps> = ({
               {tweet?.user?.name?.charAt(0).toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (screenName)
-                openProfile({ username: screenName, seedProfile: tweet.user });
-            }}
-            aria-label={`View ${tweet?.user?.name ?? tweet?.user?.screen_name ?? "user"}'s profile`}
-          >
-            <Avatar className="ring-border mt-1 h-8 w-8 ring-1">
-              <AvatarImage
-                src={tweet?.user?.profile_image_url_https}
-                alt={`Avatar of ${tweet?.user?.name}`}
-              />
-              <AvatarFallback>
-                {tweet?.user?.name?.charAt(0).toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-          </button>
-        )}
+        </button>
         {!showThread && !hideThreadLine && (
           <Separator className="w-0.5 flex-1" />
         )}
@@ -155,15 +221,10 @@ export const Tweet: React.FC<TweetProps> = ({
       {/* Right column: content */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex min-w-0 items-center gap-2">
-          <TweetHeader staticUser={tweet?.user} readOnly={readOnly}>
+          <TweetHeader staticUser={tweet?.user}>
             <time
               className="text-muted-foreground shrink-0 text-sm"
               dateTime={tweet?.tweet_created_at}
-              title={
-                tweet?.tweet_created_at
-                  ? new Date(tweet.tweet_created_at).toLocaleString()
-                  : undefined
-              }
             >
               · {formatRelativeTime(tweet?.tweet_created_at)}
             </time>

@@ -10,6 +10,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
+import type { LinkedInProfileIdentity } from "@/shared/lib/linkedin/profile";
 
 export interface LinkedInHeaderProps {
   post: UnifiedPost;
@@ -17,6 +18,8 @@ export interface LinkedInHeaderProps {
   className?: string;
   size?: "sm" | "md";
   disableProfileNavigation?: boolean;
+  profileIdentity?: LinkedInProfileIdentity | null;
+  onOpenProfile?: (identity: LinkedInProfileIdentity) => void;
 }
 
 function isOrganizationProfile(url?: string | null): boolean {
@@ -103,6 +106,8 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
   className,
   size = "md",
   disableProfileNavigation = false,
+  profileIdentity,
+  onOpenProfile,
 }) => {
   const profileUrl = post?.author?.profileUrl || post?.author?.handle || "";
   const authorName = post?.author?.name || "LinkedIn user";
@@ -117,12 +122,23 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
       : "";
 
   const followers = org ? extractFollowers(post?.raw) : undefined;
+  const canOpenProfile = Boolean(
+    !disableProfileNavigation && profileIdentity && onOpenProfile
+  );
+
+  const handleProfileClick = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (profileIdentity) {
+      onOpenProfile?.(profileIdentity);
+    }
+  };
 
   return (
     <header className={cn("flex min-w-0 items-start gap-2", className)}>
       <div className="flex min-w-0 flex-1 items-start gap-2">
         {/* Avatar */}
-        {disableProfileNavigation ? (
+        {!canOpenProfile ? (
           <Avatar
             className={cn(
               "ring-border h-8 w-8 ring-1",
@@ -139,12 +155,10 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
             </AvatarFallback>
           </Avatar>
         ) : (
-          <a
-            href={profileUrl || "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View ${authorName} profile on LinkedIn`}
+          <button
+            type="button"
+            onClick={handleProfileClick}
+            aria-label={`View ${authorName} profile`}
           >
             <Avatar
               className={cn(
@@ -161,13 +175,13 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
                 {authorName?.charAt(0).toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
-          </a>
+          </button>
         )}
 
         {/* Name and meta */}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
-            {disableProfileNavigation ? (
+            {!canOpenProfile ? (
               <span
                 className={cn(
                   "min-w-0 truncate font-medium",
@@ -178,19 +192,17 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
                 {authorName}
               </span>
             ) : (
-              <a
-                href={profileUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={handleProfileClick}
                 className={cn(
-                  "min-w-0 truncate font-medium hover:underline",
+                  "min-w-0 truncate text-left font-medium hover:underline",
                   size === "md" ? "text-sm" : "text-xs"
                 )}
                 title={authorName}
               >
                 {authorName}
-              </a>
+              </button>
             )}
             {createdAtIso && (
               <div className="shrink-0">
@@ -200,7 +212,6 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
                     size === "md" ? "text-sm" : "text-xs"
                   )}
                   dateTime={createdAtIso}
-                  title={new Date(createdAtIso).toLocaleString()}
                 >
                   · {formatRelativeTime(createdAtIso)}
                 </time>

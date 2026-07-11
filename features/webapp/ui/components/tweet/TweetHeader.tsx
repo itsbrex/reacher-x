@@ -2,10 +2,10 @@
 "use client";
 
 import { useRef } from "react";
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { cn } from "@/shared/lib/utils";
 import { NewReleasesIcon } from "@/shared/ui/components/icons";
 import { User } from "@/features/threads/types";
+import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
 
 interface TweetHeaderProps {
   children?: React.ReactNode;
@@ -18,7 +18,7 @@ export function TweetHeader({
   staticUser,
   readOnly = false,
 }: TweetHeaderProps) {
-  const { openProfile, prefetchProfile } = useProfile();
+  const { openProfile, prefetchProfile } = useTwitterProfileNavigation();
   const nameClass = cn("text-sm");
 
   const newReleasesIconClass = cn("size-3");

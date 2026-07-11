@@ -28,6 +28,8 @@ import {
   buildLinkedInCommentAuthorMentionEntity,
   buildLinkedInPostMentionEntities,
 } from "./linkedinComposerMentions";
+import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
+import type { LinkedInProfileIdentity } from "@/shared/lib/linkedin/profile";
 
 export interface LinkedInCommentItemProps {
   comment: LinkedInPostComment;
@@ -72,7 +74,19 @@ export function LinkedInCommentItem({
   onReplySubmit,
   children,
 }: LinkedInCommentItemProps) {
+  const openLinkedInProfile = useLinkedInProfileNavigation();
   const authorInitial = comment.author.name.charAt(0).toUpperCase();
+  const authorIdentity = React.useMemo<LinkedInProfileIdentity>(
+    () => ({
+      entityType: "person",
+      displayName: comment.author.name,
+      headline: comment.author.headline,
+      avatarUrl: comment.author.avatarUrl,
+      profileUrl: comment.author.profileUrl,
+      providerId: comment.author.id,
+    }),
+    [comment.author]
+  );
   const replyMentionEntities = React.useMemo(
     () =>
       buildLinkedInPostMentionEntities({
@@ -91,18 +105,32 @@ export function LinkedInCommentItem({
 
   return (
     <article className="flex items-start gap-3">
-      <Avatar className="ring-border size-8 shrink-0 ring-1">
-        <AvatarImage src={comment.author.avatarUrl} alt={comment.author.name} />
-        <AvatarFallback>{authorInitial}</AvatarFallback>
-      </Avatar>
+      <button
+        type="button"
+        className="shrink-0"
+        onClick={() => openLinkedInProfile(authorIdentity)}
+        aria-label={`View ${comment.author.name} profile`}
+      >
+        <Avatar className="ring-border size-8 ring-1">
+          <AvatarImage
+            src={comment.author.avatarUrl}
+            alt={comment.author.name}
+          />
+          <AvatarFallback>{authorInitial}</AvatarFallback>
+        </Avatar>
+      </button>
 
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-medium">
+              <button
+                type="button"
+                className="truncate text-left text-sm font-medium hover:underline"
+                onClick={() => openLinkedInProfile(authorIdentity)}
+              >
                 {comment.author.name}
-              </span>
+              </button>
               {comment.createdAt ? (
                 <span className="text-muted-foreground shrink-0 text-xs">
                   · {formatRelativeTime(comment.createdAt)}

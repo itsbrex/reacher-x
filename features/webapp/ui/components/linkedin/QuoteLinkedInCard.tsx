@@ -10,12 +10,18 @@ import { LinkedInBody } from "./LinkedInBody";
 import { LinkedInMediaGrid } from "./LinkedInMediaGrid";
 import { OpenGraphPreview } from "@/features/composer/ui/components/OpenGraphPreview";
 import { useRouter } from "next/navigation";
-import { base64UrlEncodeUtf8 } from "@/shared/lib/utils";
 import {
   getFirstValidUrl,
   isLikelyToHaveOpenGraph,
   normalizeUrl,
 } from "@/shared/lib/utils";
+import {
+  buildLinkedInPostHref,
+  shouldIgnorePostCardClick,
+  shouldIgnorePostCardKeyDown,
+} from "@/features/webapp/lib/postNavigation";
+import { buildLinkedInAuthorIdentity } from "@/shared/lib/linkedin/identity";
+import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
 
 export interface QuoteLinkedInCardProps {
   post: UnifiedPost;
@@ -23,6 +29,7 @@ export interface QuoteLinkedInCardProps {
   showFullContent?: boolean;
   highlightQueries?: string[];
   className?: string;
+  prospectId?: string;
 }
 
 export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
@@ -31,8 +38,14 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
   showFullContent = false,
   highlightQueries,
   className,
+  prospectId,
 }) => {
   const { push } = useRouter();
+  const openLinkedInProfile = useLinkedInProfileNavigation();
+  const authorIdentity = React.useMemo(
+    () => buildLinkedInAuthorIdentity(post.author),
+    [post.author]
+  );
   const ogUrl: string | null = React.useMemo(() => {
     const rawText = post?.text || "";
     const candidate = getFirstValidUrl(rawText);
@@ -42,37 +55,10 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
   }, [post]);
 
   const handleNavigate = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    const interactive = target.closest(
-      "a,button,[role=button],video,media-chrome"
-    ) as HTMLElement | null;
-    if (interactive && interactive !== e.currentTarget) return;
-    const hasSelection =
-      typeof window !== "undefined" && !!window.getSelection()?.toString();
-    if (
-      e.defaultPrevented ||
-      e.button !== 0 ||
-      e.metaKey ||
-      e.ctrlKey ||
-      e.shiftKey ||
-      e.altKey ||
-      hasSelection ||
-      e.detail > 1
-    ) {
-      return;
-    }
+    if (shouldIgnorePostCardClick(e)) return;
     e.stopPropagation();
-    const id = String(post?.id || "");
-    if (!id) return;
-    let packed = "";
-    try {
-      packed = base64UrlEncodeUtf8(JSON.stringify(post));
-    } catch {}
-    const params = new URLSearchParams();
-    if (packed) params.set("t", packed);
-    const url = `/post/linkedin/${id}${params.toString() ? `?${params.toString()}` : ""}`;
-    push(url, { scroll: false });
+    const postHref = buildLinkedInPostHref(post);
+    if (postHref) push(postHref, { scroll: false });
   };
   return (
     <div
@@ -84,20 +70,21 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
       tabIndex={0}
       onClick={handleNavigate}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          const synthetic = {
-            ...e,
-            target: e.target as EventTarget & HTMLElement,
-            currentTarget: e.currentTarget as EventTarget & HTMLDivElement,
-            stopPropagation: () => {},
-          } as unknown as React.MouseEvent<HTMLDivElement>;
-          handleNavigate(synthetic);
-        }
+        if (shouldIgnorePostCardKeyDown(e)) return;
+        const postHref = buildLinkedInPostHref(post);
+        if (!postHref) return;
+        e.preventDefault();
+        e.stopPropagation();
+        push(postHref, { scroll: false });
       }}
       aria-label={`View LinkedIn post by ${post?.author?.name || "LinkedIn user"}`}
     >
-      <LinkedInHeader post={post} disableProfileNavigation>
+      <LinkedInHeader
+        post={post}
+        disableProfileNavigation={!authorIdentity}
+        profileIdentity={authorIdentity}
+        onOpenProfile={(identity) => openLinkedInProfile(identity, prospectId)}
+      >
         <LinkedInMenu post={post} />
       </LinkedInHeader>
       <LinkedInBody
@@ -105,6 +92,7 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
         characterLimit={characterLimit}
         showFullContent={showFullContent}
         highlightQueries={highlightQueries}
+        onOpenProfile={(identity) => openLinkedInProfile(identity)}
         className="mt-1"
       />
       {/* Open Graph preview for external links (only when no media) */}

@@ -14,11 +14,17 @@ import { LinkedInFooter } from "./LinkedInFooter";
 import { QuoteLinkedInCard } from "./QuoteLinkedInCard";
 import { OpenGraphPreview } from "@/features/composer/ui/components/OpenGraphPreview";
 import {
-  base64UrlEncodeUtf8,
   getFirstValidUrl,
   isLikelyToHaveOpenGraph,
   normalizeUrl,
 } from "@/shared/lib/utils";
+import {
+  buildLinkedInPostHref,
+  shouldIgnorePostCardClick,
+  shouldIgnorePostCardKeyDown,
+} from "@/features/webapp/lib/postNavigation";
+import { buildLinkedInAuthorIdentity } from "@/shared/lib/linkedin/identity";
+import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
 
 export interface LinkedInPostCardProps {
   post: UnifiedPost;
@@ -70,6 +76,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
 }) => {
   const { push } = useRouter();
   const panelStack = useOptionalPanelStack();
+  const openLinkedInProfile = useLinkedInProfileNavigation();
   const [isHovered, setIsHovered] = React.useState(false);
   type RawLinkedIn = {
     resharedPostContent?: {
@@ -130,6 +137,10 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
   }, [post?.raw]);
 
   const effectiveQuotedPost = quotedPost || autoQuotedPost;
+  const authorIdentity = React.useMemo(
+    () => buildLinkedInAuthorIdentity(post.author),
+    [post.author]
+  );
   const canOpenInternally = Boolean(post?.id);
   const resolvedOpenBehavior =
     openBehavior === "auto"
@@ -169,14 +180,8 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
     }
 
     if (resolvedOpenBehavior === "route" && canOpenInternally) {
-      const params = new URLSearchParams();
-      try {
-        params.set("t", base64UrlEncodeUtf8(JSON.stringify(post)));
-      } catch {}
-      push(
-        `/post/linkedin/${String(post.id)}${params.toString() ? `?${params.toString()}` : ""}`,
-        { scroll: false }
-      );
+      const postHref = buildLinkedInPostHref(post);
+      if (postHref) push(postHref, { scroll: false });
       return;
     }
 
@@ -195,26 +200,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
 
   const handleCardActivate = React.useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const interactive = target.closest(
-        "a,button,[role=button],video,media-chrome"
-      ) as HTMLElement | null;
-      if (interactive && interactive !== e.currentTarget) return;
-      const hasSelection =
-        typeof window !== "undefined" && !!window.getSelection()?.toString();
-      if (
-        e.defaultPrevented ||
-        e.button !== 0 ||
-        e.metaKey ||
-        e.ctrlKey ||
-        e.shiftKey ||
-        e.altKey ||
-        hasSelection ||
-        e.detail > 1
-      ) {
-        return;
-      }
+      if (shouldIgnorePostCardClick(e)) return;
       e.stopPropagation();
       openResolvedPost();
     },
@@ -223,17 +209,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
 
   const handleCardKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
-      if (!isInteractive || (e.key !== "Enter" && e.key !== " ")) {
-        return;
-      }
-
-      const target = e.target as HTMLElement | null;
-      const interactive = target?.closest(
-        "a,button,[role=button],video,media-chrome"
-      );
-      if (interactive && interactive !== e.currentTarget) {
-        return;
-      }
+      if (!isInteractive || shouldIgnorePostCardKeyDown(e)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -251,7 +227,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
       )}
       onClick={isInteractive ? handleCardActivate : undefined}
       aria-label={`LinkedIn post by ${post?.author?.name || "LinkedIn user"}`}
-      role={isInteractive ? "button" : "article"}
+      role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       onKeyDown={isInteractive ? handleCardKeyDown : undefined}
       onMouseEnter={() => setIsHovered(true)}
@@ -260,7 +236,9 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
       {/* Left column handled inside header for consistent avatar spacing */}
       <LinkedInHeader
         post={post}
-        disableProfileNavigation={resolvedOpenBehavior !== "external"}
+        disableProfileNavigation={!authorIdentity}
+        profileIdentity={authorIdentity}
+        onOpenProfile={(identity) => openLinkedInProfile(identity, prospectId)}
       >
         {(showMenu ?? !readOnly) ? <LinkedInMenu post={post} /> : null}
       </LinkedInHeader>
@@ -272,6 +250,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
           characterLimit={characterLimit}
           showFullContent={showFullContent}
           highlightQueries={highlightQueries}
+          onOpenProfile={(identity) => openLinkedInProfile(identity)}
         />
         {/* Open Graph preview for external links (only when no media and no quote) */}
         {ogUrl &&
@@ -295,6 +274,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
               characterLimit={characterLimit}
               showFullContent={showFullContent}
               highlightQueries={highlightQueries}
+              prospectId={prospectId}
             />
           </div>
         )}

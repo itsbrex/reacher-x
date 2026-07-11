@@ -9,6 +9,11 @@ import {
   highlightInReactTreeMultiple,
   HIGHLIGHT_PRESETS,
 } from "@/shared/lib/utils";
+import type { LinkedInProfileIdentity } from "@/shared/lib/linkedin/profile";
+import {
+  buildLinkedInMentionIdentity,
+  getLinkedInTextAttributes,
+} from "@/shared/lib/linkedin/identity";
 
 export interface LinkedInBodyProps {
   post: UnifiedPost;
@@ -16,6 +21,7 @@ export interface LinkedInBodyProps {
   showFullContent?: boolean;
   highlightQueries?: string[];
   className?: string;
+  onOpenProfile?: (identity: LinkedInProfileIdentity) => void;
 }
 
 function getVisibleLinkedInText(
@@ -34,13 +40,23 @@ export const LinkedInBody: React.FC<LinkedInBodyProps> = ({
   showFullContent = false,
   highlightQueries,
   className,
+  onOpenProfile,
 }) => {
   const visible = getVisibleLinkedInText(post?.text || "", {
     characterLimit,
     showFullContent,
   });
 
-  const parsed = parseLinkedInText(visible);
+  const textAttributes = React.useMemo(
+    () => getLinkedInTextAttributes(post),
+    [post]
+  );
+  const parsed = parseLinkedInText(visible, {
+    attributes: textAttributes,
+    onMentionClick: onOpenProfile
+      ? (attribute) => onOpenProfile(buildLinkedInMentionIdentity(attribute))
+      : undefined,
+  });
   const content =
     Array.isArray(highlightQueries) && highlightQueries.length > 0
       ? highlightInReactTreeMultiple(parsed, highlightQueries, {
@@ -51,7 +67,7 @@ export const LinkedInBody: React.FC<LinkedInBodyProps> = ({
   return (
     <div
       className={cn(
-        "word-break [&_a]:text-muted-foreground text-sm hyphens-auto whitespace-pre-line [&_a]:hover:underline dark:[&_a]:text-neutral-400",
+        "word-break [&_a]:text-muted-foreground [&_button]:text-muted-foreground text-sm hyphens-auto whitespace-pre-line [&_a]:hover:underline dark:[&_a]:text-neutral-400 [&_button]:hover:underline dark:[&_button]:text-neutral-400",
         className
       )}
       lang="auto"
