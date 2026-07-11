@@ -7,7 +7,10 @@
 "use client";
 
 import * as React from "react";
-import { usePanelStack } from "../../contexts/PanelStackContext";
+import {
+  usePanelStack,
+  type PanelEntry,
+} from "../../contexts/PanelStackContext";
 import { useProspectProfile } from "../../contexts/ProspectProfileContext";
 import { ProspectProfilePanel } from "./ProspectProfilePanel";
 import { ProspectAgentPanel } from "./ProspectAgentPanel";
@@ -29,6 +32,7 @@ import { AgentDynamicPanel } from "@/features/agent/ui/components/AgentDynamicPa
 import type { Tweet } from "@/features/threads/types";
 import type { TwitterPostSummary } from "@/shared/lib/twitter/contracts";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
+import type { LinkedInProfileIdentity } from "@/shared/lib/linkedin/profile";
 import type { AgentPanelMode } from "@/features/agent/lib";
 
 export interface ProspectPanelRendererProps {
@@ -47,7 +51,7 @@ export function ProspectPanelRenderer({
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
   const isMobile = useIsMobile();
-  const { currentPanel, popPanel, pushPanel, depth } = usePanelStack();
+  const { currentPanel, stack, popPanel, pushPanel, depth } = usePanelStack();
   const { prospect, loading, error } = useProspectProfile();
   const { isOpen: twitterProfileOpen, openProfile } = useProfile();
   const isClosingSubPanelRef = React.useRef(false);
@@ -92,10 +96,12 @@ export function ProspectPanelRenderer({
   }
 
   // Check if this is a sub-panel (not the main prospect-profile)
-  const isSubPanel = depth > 1 && currentPanel.type !== "prospect-profile";
+  const isSubPanel =
+    currentPanel.type !== "prospect-profile" && (depth > 1 || isMobile);
 
   // Render the panel content based on type
-  const renderPanelContent = () => {
+  const renderPanelContent = (panelEntry: PanelEntry) => {
+    const currentPanel = panelEntry;
     switch (currentPanel.type) {
       case "prospect-profile":
         if (error) {
@@ -143,12 +149,17 @@ export function ProspectPanelRenderer({
       }
 
       case "twitter-profile": {
+        const twitterProfileUsername = currentPanel.props.username as
+          | string
+          | undefined;
         const twitterProfileProspectId =
-          (currentPanel.props.prospectId as string | undefined) ?? prospect?.id;
+          (currentPanel.props.prospectId as string | undefined) ??
+          (twitterProfileUsername ? undefined : prospect?.id);
         return (
           <TwitterProfilePanel
             className={className}
             prospectId={twitterProfileProspectId}
+            disableMobileDrawer
             onOpenConversationAction={
               twitterProfileProspectId
                 ? () => {
@@ -163,25 +174,33 @@ export function ProspectPanelRenderer({
         );
       }
 
-      case "linkedin-profile":
+      case "linkedin-profile": {
+        const linkedInIdentity = currentPanel.props.identity as
+          | LinkedInProfileIdentity
+          | undefined;
+        const linkedInProfileProspectId =
+          (currentPanel.props.prospectId as string | undefined) ??
+          (linkedInIdentity ? undefined : prospect?.id);
         return (
           <LinkedInProfilePanel
-            prospectId={
-              (currentPanel.props.prospectId as string | undefined) ??
-              prospect?.id
-            }
+            prospectId={linkedInProfileProspectId}
+            identity={linkedInIdentity}
             className={className}
+            disableMobileDrawer
             onBack={closeCurrentSubPanel}
-            onOpenConversation={() => {
-              pushPanel("platform-conversation", {
-                prospectId:
-                  (currentPanel.props.prospectId as string | undefined) ??
-                  prospect?.id,
-                platform: "linkedin",
-              });
-            }}
+            onOpenConversation={
+              linkedInProfileProspectId
+                ? () => {
+                    pushPanel("platform-conversation", {
+                      prospectId: linkedInProfileProspectId,
+                      platform: "linkedin",
+                    });
+                  }
+                : undefined
+            }
           />
         );
+      }
 
       case "linkedin-post-thread":
         return (
@@ -381,20 +400,31 @@ export function ProspectPanelRenderer({
     }
   };
 
-  const panelContent = renderPanelContent();
+  const panelLayers = stack.map((panelEntry, index) => {
+    const isActive = index === stack.length - 1;
+    return (
+      <div
+        key={panelEntry.stackKey}
+        className={isActive ? "contents" : "hidden"}
+        aria-hidden={!isActive}
+      >
+        {renderPanelContent(panelEntry)}
+      </div>
+    );
+  });
 
   // On mobile, wrap sub-panels in a Drawer
-  if (isMobile && isSubPanel && panelContent) {
+  if (isMobile && isSubPanel && panelLayers.length > 0) {
     return (
       <Drawer open onOpenChange={(o) => !o && closeCurrentSubPanel()}>
         <DrawerContent className="mt-0 flex h-dvh max-h-dvh">
           <div className="flex h-full min-h-0 w-full flex-col">
-            <div className="flex min-h-0 flex-1 flex-col">{panelContent}</div>
+            <div className="flex min-h-0 flex-1 flex-col">{panelLayers}</div>
           </div>
         </DrawerContent>
       </Drawer>
     );
   }
 
-  return panelContent;
+  return panelLayers;
 }

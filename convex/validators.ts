@@ -1234,6 +1234,16 @@ export const linkedinAccountStatusValidator = v.union(
   v.literal("disconnected")
 );
 
+export const linkedinProfileIdentityValidator = v.object({
+  entityType: v.union(v.literal("person"), v.literal("company")),
+  displayName: v.optional(v.string()),
+  headline: v.optional(v.string()),
+  avatarUrl: v.optional(v.string()),
+  profileUrl: v.optional(v.string()),
+  providerId: v.optional(v.string()),
+  username: v.optional(v.string()),
+});
+
 export const unipileAccountSourceStatusValidator = v.union(
   v.literal("OK"),
   v.literal("STOPPED"),

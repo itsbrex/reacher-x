@@ -52,7 +52,10 @@ import {
   MoreHorizIcon,
   OpenInNewIcon,
 } from "@/shared/ui/components/icons";
-import type { LinkedInProfileData } from "@/shared/lib/linkedin/profile";
+import type {
+  LinkedInProfileData,
+  LinkedInProfileIdentity,
+} from "@/shared/lib/linkedin/profile";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import {
   base64UrlEncodeUtf8,
@@ -322,12 +325,12 @@ function isFreshLinkedInProfileCache(timestamp?: number) {
   );
 }
 
-function getFreshLinkedInProfileCache(prospectId?: string) {
-  if (!prospectId) {
+function getFreshLinkedInProfileCache(cacheKey?: string) {
+  if (!cacheKey) {
     return undefined;
   }
 
-  const cached = linkedInProfileCache.get(prospectId);
+  const cached = linkedInProfileCache.get(cacheKey);
   return cached && isFreshLinkedInProfileCache(cached.fetchedAt)
     ? cached
     : undefined;
@@ -339,6 +342,7 @@ function getFreshLinkedInProfileCache(prospectId?: string) {
 
 export interface LinkedInProfilePanelProps {
   prospectId?: string;
+  identity?: LinkedInProfileIdentity;
   profile?: LinkedInProfileData | null;
   className?: string;
   onBack?: () => void;
@@ -346,10 +350,12 @@ export interface LinkedInProfilePanelProps {
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
+  disableMobileDrawer?: boolean;
 }
 
 export function LinkedInProfilePanel({
   prospectId,
+  identity,
   profile,
   className,
   onBack,
@@ -357,6 +363,7 @@ export function LinkedInProfilePanel({
   loading: externalLoading,
   error: externalError,
   onRetry,
+  disableMobileDrawer = false,
 }: LinkedInProfilePanelProps) {
   const isMobile = useIsMobile();
   const { push } = useRouter();
@@ -364,8 +371,14 @@ export function LinkedInProfilePanel({
   const getLinkedInProfile = useAction(
     (api as any).linkedin.getLinkedInProfile
   );
+  const getLinkedInIdentityProfile = useAction(
+    (api as any).linkedin.getLinkedInIdentityProfile
+  );
   const getLinkedInProfilePostsPage = useAction(
     (api as any).linkedin.getLinkedInProfilePostsPage
+  );
+  const getLinkedInIdentityProfilePostsPage = useAction(
+    (api as any).linkedin.getLinkedInIdentityProfilePostsPage
   );
   const getLinkedInProfileRelationship = useAction(
     (api as any).linkedin.getLinkedInProfileRelationship
@@ -375,8 +388,20 @@ export function LinkedInProfilePanel({
   );
   const [resolvedProfile, setResolvedProfile] =
     React.useState<LinkedInProfileData | null>(profile ?? null);
+  const identityCacheKey = identity
+    ? [
+        identity.entityType,
+        identity.providerId,
+        identity.username,
+        identity.profileUrl,
+        identity.displayName,
+      ]
+        .filter(Boolean)
+        .join(":")
+    : undefined;
+  const profileCacheKey = prospectId ?? identityCacheKey;
   const [loading, setLoading] = React.useState(
-    externalLoading || (!profile && Boolean(prospectId) && !externalError)
+    externalLoading || (!profile && Boolean(profileCacheKey) && !externalError)
   );
   const [error, setError] = React.useState<string | undefined>(externalError);
   const [activeTab, setActiveTab] = React.useState("posts");
@@ -399,7 +424,7 @@ export function LinkedInProfilePanel({
 
   const loadProfile = React.useCallback(
     async (force = false) => {
-      if (!prospectId) {
+      if (!profileCacheKey) {
         setResolvedProfile(profile ?? null);
         setLoading(false);
         setError(externalError);
@@ -412,7 +437,7 @@ export function LinkedInProfilePanel({
         setLoading(false);
         setError(externalError);
         setNextPostsCursor(profile.recentPostsCursor ?? null);
-        linkedInProfileCache.set(prospectId, {
+        linkedInProfileCache.set(profileCacheKey, {
           profile,
           fetchedAt: getCurrentUTCTimestamp(),
         });
@@ -420,7 +445,7 @@ export function LinkedInProfilePanel({
       }
 
       const cached = !force
-        ? getFreshLinkedInProfileCache(prospectId)
+        ? getFreshLinkedInProfileCache(profileCacheKey)
         : undefined;
       if (cached) {
         setResolvedProfile(cached.profile);
@@ -430,19 +455,22 @@ export function LinkedInProfilePanel({
         return;
       }
 
-      const existingRequest = linkedInProfileInflight.get(prospectId);
+      const existingRequest = linkedInProfileInflight.get(profileCacheKey);
       const request =
         existingRequest ??
-        (
-          getLinkedInProfile({
-            prospectId,
-          }) as Promise<LinkedInProfileData | null>
+        (prospectId
+          ? (getLinkedInProfile({
+              prospectId,
+            }) as Promise<LinkedInProfileData | null>)
+          : (getLinkedInIdentityProfile({
+              identity,
+            }) as Promise<LinkedInProfileData | null>)
         ).finally(() => {
-          linkedInProfileInflight.delete(prospectId);
+          linkedInProfileInflight.delete(profileCacheKey);
         });
 
       if (!existingRequest) {
-        linkedInProfileInflight.set(prospectId, request);
+        linkedInProfileInflight.set(profileCacheKey, request);
       }
 
       try {
@@ -452,7 +480,7 @@ export function LinkedInProfilePanel({
           throw new Error("Could not load LinkedIn profile.");
         }
 
-        linkedInProfileCache.set(prospectId, {
+        linkedInProfileCache.set(profileCacheKey, {
           profile: result,
           fetchedAt: getCurrentUTCTimestamp(),
         });
@@ -474,7 +502,15 @@ export function LinkedInProfilePanel({
         setLoading(false);
       }
     },
-    [externalError, getLinkedInProfile, profile, prospectId]
+    [
+      externalError,
+      getLinkedInIdentityProfile,
+      getLinkedInProfile,
+      identity,
+      profile,
+      profileCacheKey,
+      prospectId,
+    ]
   );
 
   React.useEffect(() => {
@@ -490,7 +526,9 @@ export function LinkedInProfilePanel({
   const profileUrl =
     profileData?.profileUrl ||
     (profileData?.username
-      ? `https://linkedin.com/in/${profileData.username}`
+      ? profileData.entityType === "company"
+        ? `https://linkedin.com/company/${profileData.username}`
+        : `https://linkedin.com/in/${profileData.username}`
       : undefined);
 
   const recentPosts = React.useMemo(
@@ -521,7 +559,7 @@ export function LinkedInProfilePanel({
     const profileUrn = profileData?.urn;
     const requestedProfileData = profileData;
     if (
-      !prospectId ||
+      !profileCacheKey ||
       !requestedProfileData ||
       !profileUrn ||
       loading ||
@@ -538,11 +576,17 @@ export function LinkedInProfilePanel({
 
     void (async () => {
       try {
-        const result = (await getLinkedInProfilePostsPage({
-          prospectId,
-          profileUrn,
-          limit: 10,
-        })) as { posts?: UnifiedPost[]; nextCursor?: string | null };
+        const result = (await (prospectId
+          ? getLinkedInProfilePostsPage({
+              prospectId,
+              profileUrn,
+              limit: 10,
+            })
+          : getLinkedInIdentityProfilePostsPage({
+              identity,
+              profileUrn,
+              limit: 10,
+            }))) as { posts?: UnifiedPost[]; nextCursor?: string | null };
         if (cancelled) {
           return;
         }
@@ -560,7 +604,7 @@ export function LinkedInProfilePanel({
             recentPostsCursor: nextCursor,
           } satisfies LinkedInProfileData;
 
-          linkedInProfileCache.set(prospectId, {
+          linkedInProfileCache.set(profileCacheKey, {
             profile: nextProfile,
             fetchedAt: getCurrentUTCTimestamp(),
           });
@@ -588,7 +632,11 @@ export function LinkedInProfilePanel({
     };
   }, [
     getLinkedInProfilePostsPage,
+    getLinkedInIdentityProfilePostsPage,
+    identity,
     loading,
+    profileCacheKey,
+    profileData,
     profileData?.urn,
     prospectId,
     recentPosts.length,
@@ -678,6 +726,7 @@ export function LinkedInProfilePanel({
   }, [
     getLinkedInProfileRelationship,
     loading,
+    profileData,
     profileData?.relationshipStatusKnown,
     profileData?.urn,
     profileData?.username,
@@ -714,7 +763,8 @@ export function LinkedInProfilePanel({
 
   const handleLoadMorePosts = React.useCallback(async () => {
     if (
-      !prospectId ||
+      !profileCacheKey ||
+      (!prospectId && !identity) ||
       !profileData?.urn ||
       !nextPostsCursor ||
       loadingMorePosts
@@ -724,12 +774,19 @@ export function LinkedInProfilePanel({
 
     try {
       setLoadingMorePosts(true);
-      const result = (await getLinkedInProfilePostsPage({
-        prospectId,
-        profileUrn: profileData.urn,
-        cursor: nextPostsCursor,
-        limit: 20,
-      })) as { posts?: UnifiedPost[]; nextCursor?: string | null };
+      const result = (await (prospectId
+        ? getLinkedInProfilePostsPage({
+            prospectId,
+            profileUrn: profileData.urn,
+            cursor: nextPostsCursor,
+            limit: 20,
+          })
+        : getLinkedInIdentityProfilePostsPage({
+            identity,
+            profileUrn: profileData.urn,
+            cursor: nextPostsCursor,
+            limit: 20,
+          }))) as { posts?: UnifiedPost[]; nextCursor?: string | null };
       const nextCursor =
         typeof result.nextCursor === "string" ? result.nextCursor : null;
       const nextProfile =
@@ -744,7 +801,7 @@ export function LinkedInProfilePanel({
         } satisfies LinkedInProfileData);
       if (nextProfile) {
         setResolvedProfile(nextProfile);
-        linkedInProfileCache.set(prospectId, {
+        linkedInProfileCache.set(profileCacheKey, {
           profile: nextProfile,
           fetchedAt: getCurrentUTCTimestamp(),
         });
@@ -762,9 +819,12 @@ export function LinkedInProfilePanel({
     }
   }, [
     getLinkedInProfilePostsPage,
+    getLinkedInIdentityProfilePostsPage,
+    identity,
     loadingMorePosts,
     nextPostsCursor,
     profileData,
+    profileCacheKey,
     prospectId,
     recentPosts,
   ]);
@@ -870,41 +930,44 @@ export function LinkedInProfilePanel({
         ...profileData,
         profileUrl,
       }}
+      linkName={false}
       actions={
         <>
-          <Button
-            size="xs"
-            variant={connectionState === "connected" ? "outline" : "default"}
-            disabled={
-              pendingConnectionAction ||
-              isRelationshipStatusPending ||
-              isRelationshipActionUnavailable ||
-              connectionState === "pending" ||
-              (profileData.viewerAccountConnected === true && !prospectId)
-            }
-            title={
-              isRelationshipActionUnavailable
-                ? "Could not verify this LinkedIn relationship right now."
-                : undefined
-            }
-            onClick={() => void handleConnectionAction()}
-          >
-            {pendingConnectionAction
-              ? "Connecting..."
-              : profileData.viewerAccountConnected !== true
-                ? "Connect account"
-                : isRelationshipStatusPending
-                  ? "Checking..."
-                  : isRelationshipActionUnavailable
-                    ? "Unavailable"
-                    : connectionState === "connected"
-                      ? "Connected"
-                      : connectionState === "pending"
-                        ? "Pending"
-                        : "Connect"}
-          </Button>
+          {prospectId && profileData.entityType !== "company" ? (
+            <Button
+              size="xs"
+              variant={connectionState === "connected" ? "outline" : "default"}
+              disabled={
+                pendingConnectionAction ||
+                isRelationshipStatusPending ||
+                isRelationshipActionUnavailable ||
+                connectionState === "pending" ||
+                (profileData.viewerAccountConnected === true && !prospectId)
+              }
+              title={
+                isRelationshipActionUnavailable
+                  ? "Could not verify this LinkedIn relationship right now."
+                  : undefined
+              }
+              onClick={() => void handleConnectionAction()}
+            >
+              {pendingConnectionAction
+                ? "Connecting..."
+                : profileData.viewerAccountConnected !== true
+                  ? "Connect account"
+                  : isRelationshipStatusPending
+                    ? "Checking..."
+                    : isRelationshipActionUnavailable
+                      ? "Unavailable"
+                      : connectionState === "connected"
+                        ? "Connected"
+                        : connectionState === "pending"
+                          ? "Pending"
+                          : "Connect"}
+            </Button>
+          ) : null}
 
-          {onOpenConversation ? (
+          {onOpenConversation && prospectId ? (
             <Button
               variant="outline"
               size="xsIcon"
@@ -1482,7 +1545,7 @@ export function LinkedInProfilePanel({
     </aside>
   );
 
-  if (isMobile) {
+  if (isMobile && !disableMobileDrawer) {
     return (
       <Drawer open onOpenChange={(open) => !open && onBack?.()}>
         <DrawerContent className="mt-0 flex h-dvh max-h-dvh">

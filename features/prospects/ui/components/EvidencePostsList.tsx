@@ -213,6 +213,7 @@ export function EvidencePostsList({
                     showMenu={showPostActions ? undefined : false}
                     showFooter={showPostActions}
                     interactiveCursor={Boolean(onPostSelect)}
+                    openBehavior={onPostSelect ? "none" : "auto"}
                   />
                 );
               }
@@ -230,6 +231,7 @@ export function EvidencePostsList({
                     showMenu={showPostActions ? undefined : false}
                     showFooter={showPostActions}
                     interactiveCursor={Boolean(onPostSelect)}
+                    openBehavior={onPostSelect ? "none" : "auto"}
                   />
                 );
               }

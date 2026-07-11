@@ -61,6 +61,8 @@ import {
   buildStyleSourceKey,
   getNextStyleSourceVersion,
 } from "./lib/styleSourceCore";
+import { linkedinProfileIdentityValidator } from "./validators";
+import type { LinkedInProfileIdentity } from "../shared/lib/linkedin/profile";
 
 async function getAccessibleDefaultWorkspaceForUserAction(
   ctx: any,
@@ -1191,7 +1193,7 @@ function toUnifiedLinkedInProfilePost(post: LinkedInProfilePost): UnifiedPost {
       avatarUrl: post.author?.profilePictureURL,
       profileUrl: post.author?.url,
       headline: post.author?.headline,
-      type: "person",
+      type: post.author?.type ?? "person",
     },
     text: post.text,
     createdAt: post.postedAt,
@@ -1272,6 +1274,7 @@ function buildLinkedInProfileData(args: {
       : undefined);
 
   return {
+    entityType: "person",
     username:
       args.profile.username ||
       args.liveProfile?.public_identifier ||
@@ -1427,6 +1430,64 @@ function buildLinkedInProfileData(args: {
         : undefined,
     recentPosts: args.recentPosts,
     recentPostsCursor: args.recentPostsCursor ?? null,
+  };
+}
+
+function normalizeLinkedInCompanyId(value?: string): string | undefined {
+  const normalized = toOptionalString(value)?.replace(
+    /^urn:li:(?:organization|company):/i,
+    ""
+  );
+  return normalized && /^\d+$/.test(normalized) ? normalized : undefined;
+}
+
+function buildLinkedInCompanyProfileData(args: {
+  company: LinkedInCompany;
+  identity: LinkedInProfileIdentity;
+  viewerConnectionStatus: LinkedInConnectionStatus;
+}): LinkedInProfileData {
+  const company = args.company;
+  const industry = Array.isArray(company.industriesV2)
+    ? company.industriesV2[0]
+    : undefined;
+
+  return {
+    entityType: "company",
+    username: company.universalName || args.identity.username || company.id,
+    firstName: company.name,
+    lastName: "",
+    displayName:
+      company.name || args.identity.displayName || "LinkedIn company",
+    headline: industry || args.identity.headline || "Company",
+    summary: toOptionalString(company.description),
+    profilePictureUrl:
+      toOptionalString(company.images?.logo) ?? args.identity.avatarUrl,
+    backgroundImageUrl: toOptionalString(company.images?.cover),
+    profileUrl:
+      toOptionalString(company.linkedinUrl) ?? args.identity.profileUrl,
+    urn: company.id,
+    followerCount: toOptionalNumber(company.followerCount),
+    relationshipStatusKnown: false,
+    viewerAccountConnected: args.viewerConnectionStatus.isConnected,
+    viewerAccountStatus: args.viewerConnectionStatus.status,
+    positions: [],
+    education: [],
+    skills: [],
+    currentCompany: {
+      name: company.name || args.identity.displayName || "LinkedIn company",
+      description: toOptionalString(company.description),
+      website: toOptionalString(company.website),
+      logoUrl: toOptionalString(company.images?.logo),
+      staffCount: toOptionalNumber(company.staffCount),
+      industry,
+      headquarter: toOptionalString(company.headquarter?.city),
+      specialities: Array.isArray(company.specialities)
+        ? company.specialities
+        : undefined,
+      founded: toOptionalNumber(company.founded?.year),
+    },
+    recentPosts: [],
+    recentPostsCursor: null,
   };
 }
 
@@ -2870,6 +2931,81 @@ export const getLinkedInProfile = action({
   },
 });
 
+export const getLinkedInIdentityProfile = action({
+  args: {
+    identity: linkedinProfileIdentityValidator,
+  },
+  handler: async (ctx, args): Promise<LinkedInProfileData | null> => {
+    const userId = await getCurrentUserId(ctx);
+    const identity = args.identity;
+    const storedAccountPromise = ctx.runQuery(
+      internalLinkedInStore.getLinkedInAccountForUserInternal,
+      { userId }
+    );
+
+    if (identity.entityType === "company") {
+      const companyId = normalizeLinkedInCompanyId(identity.providerId);
+      const companyResult = await ctx.runAction(
+        internal.integrations.linkedin.getCompany.getCompany,
+        {
+          id: companyId,
+          name: companyId
+            ? undefined
+            : (identity.displayName ?? identity.username),
+        }
+      );
+      if (!companyResult.success || !companyResult.company) {
+        throw new Error(
+          companyResult.error || "Could not load LinkedIn company."
+        );
+      }
+
+      const storedAccount = await storedAccountPromise;
+      return buildLinkedInCompanyProfileData({
+        company: companyResult.company,
+        identity,
+        viewerConnectionStatus: toConnectionStatus(storedAccount),
+      });
+    }
+
+    const username =
+      identity.username ??
+      (identity.profileUrl
+        ? extractLinkedInUsername(identity.profileUrl)
+        : undefined);
+    const profileResult = await ctx.runAction(
+      internal.integrations.linkedin.getProfile.getProfile,
+      {
+        username,
+        urn: identity.providerId,
+        includeContactInfo: false,
+      }
+    );
+    if (!profileResult.success || !profileResult.profile) {
+      throw new Error(
+        profileResult.error || "Could not load LinkedIn profile."
+      );
+    }
+
+    const storedAccount = await storedAccountPromise;
+    return buildLinkedInProfileData({
+      prospectIdentity: {
+        displayName: identity.displayName ?? "LinkedIn user",
+        title: identity.headline,
+        avatarUrl: identity.avatarUrl,
+        profileUrl: identity.profileUrl,
+        username,
+        providerId: identity.providerId,
+      },
+      profile: profileResult.profile,
+      contactInfo: profileResult.contactInfo,
+      viewerConnectionStatus: toConnectionStatus(storedAccount),
+      recentPosts: [],
+      recentPostsCursor: null,
+    });
+  },
+});
+
 export const getLinkedInProfileRelationship = action({
   args: {
     prospectId: v.id("prospects"),
@@ -3113,6 +3249,68 @@ export const getLinkedInProfilePostsPage = action({
         urn: args.profileUrn,
         cursor: args.cursor,
         maxPosts: args.limit ?? 20,
+      }
+    );
+
+    return {
+      posts: Array.isArray(page?.posts)
+        ? page.posts.map((post: LinkedInProfilePost) =>
+            toUnifiedLinkedInProfilePost(post)
+          )
+        : [],
+      nextCursor: typeof page?.nextCursor === "string" ? page.nextCursor : null,
+    };
+  },
+});
+
+export const getLinkedInIdentityProfilePostsPage = action({
+  args: {
+    identity: linkedinProfileIdentityValidator,
+    profileUrn: v.string(),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ posts: UnifiedPost[]; nextCursor: string | null }> => {
+    await getCurrentUserId(ctx);
+
+    if (args.identity.entityType === "company") {
+      const companyId =
+        normalizeLinkedInCompanyId(args.profileUrn) ??
+        normalizeLinkedInCompanyId(args.identity.providerId);
+      if (!companyId) {
+        return { posts: [], nextCursor: null };
+      }
+
+      const start = Math.max(0, Number.parseInt(args.cursor ?? "0", 10) || 0);
+      const result = await requestLinkdApiData<{
+        posts?: LinkedInProfilePost[];
+      }>(ctx, {
+        path: "/api/v1/companies/company/posts",
+        query: {
+          id: companyId,
+          start,
+        },
+        consumer: `linkedin.getCompanyPosts:${companyId}:${start}`,
+      });
+      const posts = Array.isArray(result.posts)
+        ? result.posts.map((post) => toUnifiedLinkedInProfilePost(post))
+        : [];
+
+      return {
+        posts,
+        nextCursor: posts.length > 0 ? String(start + posts.length) : null,
+      };
+    }
+
+    const page = await ctx.runAction(
+      internal.integrations.linkedin.getProfilePosts.getProfilePostsInternal,
+      {
+        urn: args.profileUrn,
+        cursor: args.cursor,
+        maxPosts: Math.min(Math.max(args.limit ?? 20, 1), 50),
       }
     );
 

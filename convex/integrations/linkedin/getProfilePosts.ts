@@ -17,7 +17,15 @@ export interface LinkedInProfilePost {
     urn?: string;
     url?: string;
     profilePictureURL?: string;
+    type?: string;
   };
+  textAttributes?: Array<{
+    length?: number;
+    text: string;
+    type: string;
+    urn?: string;
+    url?: string;
+  }>;
   engagements?: {
     totalReactions?: number;
     commentsCount?: number;
@@ -79,6 +87,26 @@ function normalizePost(
           url: typeof entry.url === "string" ? entry.url : undefined,
         }))
     : undefined;
+  const textAttributes = Array.isArray(record.textAttributes)
+    ? record.textAttributes.flatMap((attribute) => {
+        if (!attribute || typeof attribute !== "object") {
+          return [];
+        }
+        const value = attribute as Record<string, unknown>;
+        if (typeof value.text !== "string" || typeof value.type !== "string") {
+          return [];
+        }
+        return [
+          {
+            length: typeof value.length === "number" ? value.length : undefined,
+            text: value.text,
+            type: value.type,
+            urn: typeof value.urn === "string" ? value.urn : undefined,
+            url: typeof value.url === "string" ? value.url : undefined,
+          },
+        ];
+      })
+    : undefined;
 
   return {
     urn,
@@ -103,8 +131,13 @@ function normalizePost(
             typeof authorRecord.profilePictureURL === "string"
               ? authorRecord.profilePictureURL
               : undefined,
+          type:
+            typeof authorRecord.type === "string"
+              ? authorRecord.type
+              : undefined,
         }
       : undefined,
+    textAttributes,
     engagements: engagementsRecord
       ? {
           totalReactions:

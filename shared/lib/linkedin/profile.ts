@@ -1,6 +1,17 @@
 import type { UnifiedPost } from "../platforms/types";
 
+export interface LinkedInProfileIdentity {
+  entityType: "person" | "company";
+  displayName?: string;
+  headline?: string;
+  avatarUrl?: string;
+  profileUrl?: string;
+  providerId?: string;
+  username?: string;
+}
+
 export interface LinkedInProfileData {
+  entityType?: "person" | "company";
   username: string;
   firstName: string;
   lastName: string;

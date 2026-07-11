@@ -22,6 +22,7 @@ export type PanelType =
   | "task-compose";
 
 export interface PanelEntry {
+  stackKey: string;
   type: PanelType;
   props: Record<string, unknown>;
 }
@@ -68,6 +69,19 @@ export function PanelStackProvider({
   children: React.ReactNode;
 }) {
   const [stack, setStack] = React.useState<PanelEntry[]>([]);
+  const nextStackKeyRef = React.useRef(0);
+
+  const createPanelEntry = React.useCallback(
+    (type: PanelType, props: Record<string, unknown>): PanelEntry => {
+      nextStackKeyRef.current += 1;
+      return {
+        stackKey: `${type}:${nextStackKeyRef.current}`,
+        type,
+        props,
+      };
+    },
+    []
+  );
 
   const currentPanel = React.useMemo(
     () => (stack.length > 0 ? stack[stack.length - 1] : null),
@@ -76,9 +90,9 @@ export function PanelStackProvider({
 
   const pushPanel = React.useCallback(
     (type: PanelType, props: Record<string, unknown> = {}) => {
-      setStack((prev) => [...prev, { type, props }]);
+      setStack((prev) => [...prev, createPanelEntry(type, props)]);
     },
-    []
+    [createPanelEntry]
   );
 
   const popPanel = React.useCallback(() => {
@@ -95,12 +109,12 @@ export function PanelStackProvider({
     (type: PanelType, props: Record<string, unknown> = {}) => {
       setStack((prev) => {
         if (prev.length === 0) {
-          return [{ type, props }];
+          return [createPanelEntry(type, props)];
         }
-        return [...prev.slice(0, -1), { type, props }];
+        return [...prev.slice(0, -1), createPanelEntry(type, props)];
       });
     },
-    []
+    [createPanelEntry]
   );
 
   const clearStack = React.useCallback(() => {
