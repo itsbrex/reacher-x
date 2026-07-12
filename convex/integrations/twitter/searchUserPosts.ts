@@ -269,9 +269,9 @@ export const searchUserPostsInternal = internalAction({
 
       const data = pageResult.data;
       const rawTweets = Array.isArray(data.tweets) ? data.tweets : [];
-      const tweets: TwitterPost[] = rawTweets.map((tweet) =>
-        flattenTweetForStorage(tweet as TwitterPost)
-      );
+      const tweets: TwitterPost[] = rawTweets
+        .map(flattenTweetForStorage)
+        .filter((tweet): tweet is TwitterPost => tweet !== null);
 
       allPosts.push(...tweets);
       page++;

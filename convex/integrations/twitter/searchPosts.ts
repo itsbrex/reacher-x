@@ -12,74 +12,25 @@ import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils
 import type { RunId } from "@convex-dev/action-retrier";
 import { acquireSocialApiBudget } from "../../lib/socialApiBudget";
 import { twitterSearchTypeValidator } from "../../validators";
+import {
+  compactTwitterSearchPost,
+  compactTwitterSearchResults,
+  type TwitterPost,
+} from "../../lib/twitterSearchResultCore";
+export type {
+  TwitterPost,
+  TwitterUser,
+} from "../../lib/twitterSearchResultCore";
 const twitterSearchPostsLogger = logger.withScope("TwitterSearchPosts");
 
 // ============================================================================
 // Types
 // ============================================================================
 
-/** Twitter user from socialapi.io */
-export interface TwitterUser {
-  id: number;
-  id_str: string;
-  name: string;
-  screen_name: string;
-  location?: string;
-  url?: string;
-  description?: string;
-  protected: boolean;
-  verified: boolean;
-  followers_count: number;
-  friends_count: number;
-  listed_count: number;
-  favourites_count: number;
-  statuses_count: number;
-  created_at: string;
-  profile_banner_url?: string;
-  profile_image_url_https: string;
-  can_dm: boolean;
-}
-
-/** Twitter post (tweet) from socialapi.io search */
-export interface TwitterPost {
-  tweet_created_at: string;
-  id_str: string;
-  conversation_id_str?: string;
-  text?: string;
-  full_text?: string;
-  source?: string;
-  in_reply_to_status_id_str?: string;
-  in_reply_to_user_id_str?: string;
-  in_reply_to_screen_name?: string;
-  user: TwitterUser;
-  is_quote_status?: boolean;
-  quoted_status_id_str?: string;
-  quote_count?: number;
-  reply_count?: number;
-  retweet_count?: number;
-  favorite_count?: number;
-  views_count?: number;
-  bookmark_count?: number;
-  lang?: string;
-  entities?: {
-    urls?: Array<{
-      url: string;
-      expanded_url: string;
-      display_url: string;
-    }>;
-    hashtags?: Array<{ text: string }>;
-    user_mentions?: Array<{
-      id_str: string;
-      name: string;
-      screen_name: string;
-    }>;
-  };
-}
-
 /** socialapi.io search response */
 interface ApiResponse {
   next_cursor?: string;
-  tweets: TwitterPost[];
+  tweets?: unknown[];
 }
 
 /** Single search result */
@@ -214,29 +165,8 @@ function normalizeQueryList(queries: string[]) {
  * fields (Tweet containing Tweet containing Tweet…). We keep one level of nesting
  * so the UI can still render quote-tweet cards, but strip the recursion beyond that.
  */
-export function flattenTweetForStorage<T>(tweet: T): T {
-  const raw = tweet as Record<string, unknown>;
-  const result = { ...raw };
-
-  const stripRecursion = (
-    nested: Record<string, unknown>
-  ): Record<string, unknown> => {
-    const { quoted_status: _qs, retweeted_status: _rs, ...rest } = nested;
-    return rest;
-  };
-
-  if (result.quoted_status && typeof result.quoted_status === "object") {
-    result.quoted_status = stripRecursion(
-      result.quoted_status as Record<string, unknown>
-    );
-  }
-  if (result.retweeted_status && typeof result.retweeted_status === "object") {
-    result.retweeted_status = stripRecursion(
-      result.retweeted_status as Record<string, unknown>
-    );
-  }
-
-  return result as T;
+export function flattenTweetForStorage(tweet: unknown): TwitterPost | null {
+  return compactTwitterSearchPost(tweet);
 }
 
 // ============================================================================
@@ -294,7 +224,7 @@ export const searchInternal = internalAction({
 
     return {
       success: true,
-      posts: (data.tweets ?? []).map(flattenTweetForStorage),
+      posts: compactTwitterSearchResults(data.tweets ?? []),
       nextCursor: data.next_cursor,
       hasMore: !!data.next_cursor,
     };
