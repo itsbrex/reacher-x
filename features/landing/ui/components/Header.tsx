@@ -61,12 +61,14 @@ import {
   BlueskyIcon,
   ThreadsIcon,
   AccountBoxIcon,
+  ActivityZoneIcon,
   AddIcon,
   ArchiveIcon,
   BidLandscapeIcon,
   ChangeHistoryIcon,
   CheckIcon,
   CreditCardIcon,
+  DataUsageIcon,
   FolderCopyIcon,
   FolderIcon,
   FramePersonIcon,
@@ -462,6 +464,52 @@ function AvatarDropdown({
 
           <DropdownMenuGroup>
             <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+              Agent
+            </DropdownMenuLabel>
+            <DropdownMenuItem disabled={locked} asChild={!locked}>
+              {locked ? (
+                <>
+                  <ChangeHistoryIcon
+                    className="fill-current"
+                    aria-hidden="true"
+                  />
+                  Agent
+                </>
+              ) : (
+                <Link href="/agent">
+                  <ChangeHistoryIcon
+                    className="fill-current"
+                    aria-hidden="true"
+                  />
+                  Agent
+                </Link>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={locked} asChild={!locked}>
+              {locked ? (
+                <>
+                  <ActivityZoneIcon
+                    className="fill-current"
+                    aria-hidden="true"
+                  />
+                  Agent observability
+                </>
+              ) : (
+                <Link href="/agent-ops">
+                  <ActivityZoneIcon
+                    className="fill-current"
+                    aria-hidden="true"
+                  />
+                  Agent observability
+                </Link>
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
               Insights
             </DropdownMenuLabel>
             <DropdownMenuItem disabled={locked} asChild={!locked}>
@@ -483,25 +531,6 @@ function AvatarDropdown({
                 </Link>
               )}
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={locked} asChild={!locked}>
-              {locked ? (
-                <>
-                  <ChangeHistoryIcon
-                    className="fill-current"
-                    aria-hidden="true"
-                  />
-                  Agent observability
-                </>
-              ) : (
-                <Link href="/agent-ops">
-                  <ChangeHistoryIcon
-                    className="fill-current"
-                    aria-hidden="true"
-                  />
-                  Agent observability
-                </Link>
-              )}
-            </DropdownMenuItem>
           </DropdownMenuGroup>
 
           <DropdownMenuSeparator />
@@ -520,6 +549,19 @@ function AvatarDropdown({
                 <Link href="/plans">
                   <CreditCardIcon className="fill-current" aria-hidden="true" />
                   Plans
+                </Link>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={locked} asChild={!locked}>
+              {locked ? (
+                <>
+                  <DataUsageIcon className="fill-current" aria-hidden="true" />
+                  Usage
+                </>
+              ) : (
+                <Link href="/usage">
+                  <DataUsageIcon className="fill-current" aria-hidden="true" />
+                  Usage
                 </Link>
               )}
             </DropdownMenuItem>
