@@ -977,15 +977,24 @@ export async function deleteWorkspaceAgentMemoriesByCategory(
   return { deleted };
 }
 
-function memoryIdentityHash(parsed: ParsedAgentMemory): string {
+function memoryIdentityHashFromFields(args: {
+  workspaceId: string;
+  category: WorkspaceMemoryCategory;
+  title: string;
+  summary: string;
+}): string {
   return createStableHash(
     JSON.stringify({
-      workspaceId: parsed.workspaceId,
-      category: parsed.category,
-      title: normalizeMemoryText(parsed.title),
-      summary: normalizeMemoryText(parsed.summary),
+      workspaceId: args.workspaceId,
+      category: args.category,
+      title: normalizeMemoryText(args.title),
+      summary: normalizeMemoryText(args.summary),
     })
   );
+}
+
+function memoryIdentityHash(parsed: ParsedAgentMemory): string {
+  return memoryIdentityHashFromFields(parsed);
 }
 
 export async function promoteAgentMemory(
@@ -995,32 +1004,42 @@ export async function promoteAgentMemory(
   const parsed = buildMemoryMeta(args);
   const memoryText = serializeAgentMemory(parsed);
   const identityHash = memoryIdentityHash(parsed);
-  const existingRows = await listRecentAgentMemories(db, {
-    userId: args.userId,
-    limit: 40,
-  });
+  const existingInventoryRows = await db
+    .query("workspaceAgentMemoryInventory")
+    .withIndex("by_workspace_created_at", (q: any) =>
+      q.eq("workspaceId", args.workspaceId as Id<"workspaces">)
+    )
+    .order("desc")
+    .take(40);
 
-  for (const row of existingRows) {
-    const existingParsed = parseAgentMemory(row.memory);
-    if (!existingParsed) {
+  for (const inventoryRow of existingInventoryRows) {
+    const existingIdentityHash = memoryIdentityHashFromFields({
+      workspaceId: String(inventoryRow.workspaceId),
+      category: inventoryRow.category as WorkspaceMemoryCategory,
+      title: inventoryRow.title,
+      summary: inventoryRow.summary,
+    });
+    if (existingIdentityHash !== identityHash) {
       continue;
     }
-    if (memoryIdentityHash(existingParsed) === identityHash) {
-      await ensureWorkspaceAgentMemoryInventoryRecord(db, {
-        workspaceId: args.workspaceId as Id<"workspaces">,
-        record: buildWorkspaceAgentMemoryInventoryRecord({
-          memoryId: row._id,
-          createdAt: row._creationTime,
-          parsed: existingParsed,
-        }),
-      });
-      return {
-        created: false,
-        memoryId: row._id,
-        memoryText: row.memory,
-        parsed: existingParsed,
-      };
+
+    const existingRow = await getBuiltInAgentMemoryRowById(
+      db,
+      inventoryRow.memoryId
+    );
+    const existingParsed = existingRow
+      ? parseAgentMemory(existingRow.memory)
+      : null;
+    if (!existingRow || !existingParsed) {
+      continue;
     }
+
+    return {
+      created: false,
+      memoryId: existingRow._id,
+      memoryText: existingRow.memory,
+      parsed: existingParsed,
+    };
   }
 
   const componentDb = getComponentMemoryWriter(db);
