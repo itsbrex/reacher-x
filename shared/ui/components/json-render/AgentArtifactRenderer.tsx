@@ -403,8 +403,8 @@ function MemoryArtifactCard({
           type="button"
           variant="outline"
           size="xsIcon"
-          aria-label="Open memory in Agent Ops"
-          title="Open in Agent Ops"
+          aria-label="Open memory in Agent observability"
+          title="Open in Agent observability"
           onClick={() => router.push(href)}
         >
           <OpenInNewIcon className="fill-current" />

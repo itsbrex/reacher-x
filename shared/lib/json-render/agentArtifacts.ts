@@ -175,7 +175,7 @@ export const agentArtifactCatalog = defineCatalog(schema, {
         impactScore: z.number(),
       }),
       description:
-        "Slim confirmation card for a saved workspace memory, with category badge and optional deep link into Agent Ops.",
+        "Slim confirmation card for a saved workspace memory, with category badge and optional deep link into Agent observability.",
     },
     TwitterActionCard: {
       props: z.object({
