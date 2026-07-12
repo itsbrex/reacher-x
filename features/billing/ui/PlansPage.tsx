@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -28,7 +27,6 @@ import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { PLANS_UPGRADE_VALUE } from "@/features/billing/lib/plansUpgradeUrl";
 
 export function PlansPage() {
-  const router = useRouter();
   const isMobile = useIsMobile();
   const [upgradeParam, setUpgradeParam] = useQueryState(
     "upgrade",
@@ -169,7 +167,7 @@ export function PlansPage() {
         upgradeOpen && !isMobile && "md:min-w-0 md:flex-1 md:basis-0"
       )}
     >
-      <PageHeader title="Plans" onBack={() => router.back()} />
+      <PageHeader title="Plans" />
       <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto p-0">
         <div className="flex h-full min-h-0 w-full flex-col">
           <ActivePlanSection

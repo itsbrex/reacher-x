@@ -89,9 +89,8 @@ export function AgentOpsDashboard() {
   const [querySort, setQuerySort] = React.useState<
     "updated_desc" | "novelty_desc" | "performance_desc"
   >("updated_desc");
-  const [memorySort, setMemorySort] = React.useState<
-    AgentOpsMemorySort
-  >("impact_desc");
+  const [memorySort, setMemorySort] =
+    React.useState<AgentOpsMemorySort>("impact_desc");
   const [memoryPage, setMemoryPage] = React.useState(0);
   const [isExportingMemories, setIsExportingMemories] = React.useState(false);
   const [queryPageSize, setQueryPageSize] = React.useState(10);
@@ -181,15 +180,15 @@ export function AgentOpsDashboard() {
   );
   const data =
     (dashboardQuery.data as AgentOpsDashboardData | undefined) ?? defaultData;
-  const memoryInventoryData =
-    (memoryInventoryQuery.data as AgentOpsMemoryInventoryPageData | undefined) ??
-    {
-      rows: [],
-      page: 0,
-      totalCount: 0,
-      totalPages: 1,
-      availableCategories: [],
-    };
+  const memoryInventoryData = (memoryInventoryQuery.data as
+    | AgentOpsMemoryInventoryPageData
+    | undefined) ?? {
+    rows: [],
+    page: 0,
+    totalCount: 0,
+    totalPages: 1,
+    availableCategories: [],
+  };
   const updateMemorySearch = (value: string) => {
     setMemoryPage(0);
     setMemorySearch(value);
@@ -391,7 +390,11 @@ export function AgentOpsDashboard() {
       )) as AgentOpsMemoryInventoryPageData;
 
       const rows = [...firstPage.rows];
-      for (let pageIndex = 1; pageIndex < firstPage.totalPages; pageIndex += 1) {
+      for (
+        let pageIndex = 1;
+        pageIndex < firstPage.totalPages;
+        pageIndex += 1
+      ) {
         const nextPage = (await convex.query(
           api.agentOps.getAgentOpsMemoryInventoryPage,
           {
@@ -614,7 +617,7 @@ export function AgentOpsDashboard() {
       memoryInventoryQuery.isError ? (
         <div className="border-destructive bg-destructive/10 rounded-lg border p-4">
           <p className="text-destructive text-sm font-medium">
-            Could not load Agent Ops
+            Could not load Agent observability
           </p>
           <p className="text-destructive/80 mt-1 text-sm">
             {dashboardQuery.error?.message ||
@@ -868,10 +871,9 @@ export function AgentOpsDashboard() {
             onFilterChange={updateMemoryCategory}
             filterOptions={[
               ["all", "All categories"],
-              ...memoryInventoryData.availableCategories.map((value) => [
-                value,
-                value,
-              ] as const),
+              ...memoryInventoryData.availableCategories.map(
+                (value) => [value, value] as const
+              ),
             ]}
             sortValue={memorySort}
             onSortChange={(value) =>
@@ -1027,9 +1029,12 @@ export function AgentOpsDashboard() {
 
       {workspaceId && hasPanel && isMobile ? (
         <Drawer open onOpenChange={(open) => !open && closePanel()}>
-          <DrawerContent fullScreen ariaTitle="Agent Ops detail panel">
+          <DrawerContent
+            fullScreen
+            ariaTitle="Agent observability detail panel"
+          >
             <DrawerHeader className="border-b text-left">
-              <DrawerTitle>Agent Ops detail</DrawerTitle>
+              <DrawerTitle>Agent observability detail</DrawerTitle>
             </DrawerHeader>
             <AgentOpsPanel
               workspaceId={workspaceId}

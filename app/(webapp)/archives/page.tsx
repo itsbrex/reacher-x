@@ -241,7 +241,7 @@ export default function ArchivesPage() {
             "hidden md:flex"
         )}
       >
-        <PageHeader title={pageLabels.archives} onBack={() => router.back()} />
+        <PageHeader title={pageLabels.archives} />
         <PageContent className="flex min-h-0 flex-1 flex-col p-0">
           <ScrollArea className="min-w-0 flex-1">
             <WorkspacePlanLimitAlert className="mx-4 mt-4" />

@@ -210,7 +210,6 @@ export function UsagePage() {
     <PageLayout className="flex max-w-none flex-col overflow-hidden border-none">
       <PageHeader
         title="Usage"
-        onBack={() => router.back()}
         actions={
           <Select
             value={selectedValue}

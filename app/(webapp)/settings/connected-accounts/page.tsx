@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
 import { useConvexAuth } from "convex/react";
 import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components";
 import { api } from "@/convex/_generated/api";
@@ -20,7 +19,6 @@ import { useLinkedInAccountConnection } from "@/features/linked-accounts/hooks/u
 import { useQueryWithStatus } from "@/shared/hooks";
 
 export default function ConnectedAccountsPage() {
-  const router = useRouter();
   const { isAuthenticated, isLoading: convexLoading } = useConvexAuth();
   const { user, loading: workosLoading } = useWorkosAuth();
   const [linkedInDialogOpen, setLinkedInDialogOpen] = React.useState(false);
@@ -79,7 +77,7 @@ export default function ConnectedAccountsPage() {
 
   return (
     <PageLayout className="flex max-w-none flex-col overflow-hidden border-none">
-      <PageHeader title="Connected accounts" onBack={() => router.back()} />
+      <PageHeader title="Connected accounts" />
       <div className="scroll-fade min-h-0 flex-1 overflow-y-auto">
         <PageContent className="mx-4 mt-4 w-full max-w-lg pb-4">
           <ConnectedAccountsListWithErrorHint statusError={statusError}>

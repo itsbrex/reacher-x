@@ -532,11 +532,7 @@ export default function WorkspacePage() {
   if (authLoading || isHydrating) {
     return (
       <PageLayout className="max-w-none border-r-0 md:border-r-0">
-        <PageHeader
-          className="border-b-0"
-          title="Workspace"
-          onBack={() => router.back()}
-        />
+        <PageHeader className="border-b-0" title="Workspace" />
         <div className={workspaceBodyColumnClassName}>
           <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <WorkspacePageSkeleton />
@@ -574,7 +570,6 @@ export default function WorkspacePage() {
                   </span>
                 ) : null
               }
-              onBack={isEditing ? handleCancel : () => router.back()}
               actions={
                 isAuthenticated && workspace ? (
                   refineOpen ? null : isEditing ? (

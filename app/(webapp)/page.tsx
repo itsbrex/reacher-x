@@ -58,7 +58,6 @@ import {
 import { useProspectListFilters } from "@/features/prospects/hooks/useProspectListFilters";
 import { useProspectListSort } from "@/features/prospects/hooks/useProspectListSort";
 import { cn } from "@/shared/lib/utils";
-import { useCanGoBack } from "@/shared/ui/hooks/useCanGoBack";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import {
   createDefaultProspectListFilters,
@@ -204,7 +203,6 @@ export default function ProspectsPage() {
   const trimmedSearchQuery = searchQuery.trim();
   const browseMode = trimmedSearchQuery === "";
   const visibilityMode = "ready_only" as const;
-  const canGoBack = useCanGoBack();
   const entitiesLower = entityPlural.toLowerCase();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
   const { isLoading: isConvexReadyLoading, isReady: isConvexReady } =
@@ -922,11 +920,7 @@ export default function ProspectsPage() {
           hideMainContentOnMobile && "hidden md:flex"
         )}
       >
-        <PageHeader
-          title={pageLabels.entities}
-          onBack={() => router.back()}
-          backDisabled={!canGoBack}
-        />
+        <PageHeader title={pageLabels.entities} />
         <PageContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
           <ScrollArea className="min-w-0 flex-1">
             <WorkspacePlanLimitAlert className="mx-4 mt-4" />

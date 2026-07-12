@@ -309,7 +309,7 @@ const TOOL_LABELS: Record<string, string> = {
   socialAction: "Taking social action",
 };
 
-const AGENT_DISPLAY_NAME = "△ Agent";
+const AGENT_DISPLAY_NAME = "Agent";
 const AGENT_AVATAR_FALLBACK = "△";
 const AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME = "mx-auto w-full max-w-[48rem]";
 

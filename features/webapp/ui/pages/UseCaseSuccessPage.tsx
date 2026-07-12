@@ -268,7 +268,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
             "hidden md:flex"
         )}
       >
-        <PageHeader title={pageLabels.converts} onBack={() => router.back()} />
+        <PageHeader title={pageLabels.converts} />
         <PageContent className="flex min-h-0 flex-1 flex-col p-0">
           <ScrollArea className="min-w-0 flex-1">
             <WorkspacePlanLimitAlert className="mx-4 mt-4" />

@@ -1,7 +1,6 @@
 // app/(webapp)/analytics/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   PageLayout,
   PageHeader,
@@ -12,12 +11,11 @@ import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/Worksp
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 
 export default function AnalyticsPage() {
-  const router = useRouter();
   const { pageLabels } = useActiveUseCaseLabels();
 
   return (
     <PageLayout className="flex max-w-none flex-col overflow-hidden border-none">
-      <PageHeader title={pageLabels.analytics} onBack={() => router.back()} />
+      <PageHeader title={pageLabels.analytics} />
       <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto p-4">
         <WorkspacePlanLimitAlert className="mb-4" />
         <AnalyticsDashboard />

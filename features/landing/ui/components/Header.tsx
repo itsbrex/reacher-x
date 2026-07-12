@@ -490,7 +490,7 @@ function AvatarDropdown({
                     className="fill-current"
                     aria-hidden="true"
                   />
-                  Agent Ops
+                  Agent observability
                 </>
               ) : (
                 <Link href="/agent-ops">
@@ -498,7 +498,7 @@ function AvatarDropdown({
                     className="fill-current"
                     aria-hidden="true"
                   />
-                  Agent Ops
+                  Agent observability
                 </Link>
               )}
             </DropdownMenuItem>

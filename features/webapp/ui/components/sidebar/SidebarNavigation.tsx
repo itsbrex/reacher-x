@@ -4,7 +4,7 @@
  *
  * Renders the main navigation section of the sidebar with four groups:
  * - People: Prospects, Contacts, Archive
- * - Agent: Agent, Agent Ops
+ * - Agent: Agent, Agent observability
  * - Insights: Analytics
  * - Accounts: Plans, Usage, Settings (collapsible) → Connected accounts
  *
@@ -155,7 +155,7 @@ export function SidebarNavigation() {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Agent Ops"
+                tooltip="Agent observability"
                 isActive={pathname === "/agent-ops"}
                 disabled={locked}
                 asChild={!locked}
@@ -163,12 +163,12 @@ export function SidebarNavigation() {
                 {locked ? (
                   <>
                     <ActivityZoneIcon className="fill-sidebar-foreground" />
-                    <span className="truncate">Agent Ops</span>
+                    <span className="truncate">Agent observability</span>
                   </>
                 ) : (
                   <Link href="/agent-ops">
                     <ActivityZoneIcon className="fill-sidebar-foreground" />
-                    <span className="truncate">Agent Ops</span>
+                    <span className="truncate">Agent observability</span>
                   </Link>
                 )}
               </SidebarMenuButton>

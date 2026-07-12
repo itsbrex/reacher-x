@@ -268,10 +268,6 @@ export function AgentPageShell() {
     [setParams, setRightPanelSessionActive]
   );
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
-
   const handleOpenSetupOnboardingPanel = useCallback(() => {
     setSetupOnboardingPanelOpen(true);
   }, []);
@@ -798,7 +794,6 @@ export function AgentPageShell() {
             threadId={threadId ?? undefined}
             action={action ?? undefined}
             notificationId={notificationId ?? undefined}
-            onBack={handleBack}
             onHistoryClick={
               canUseThreadHistory ? handleHistoryClick : undefined
             }

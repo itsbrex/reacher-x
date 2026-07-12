@@ -674,7 +674,7 @@ export function Header({
                           className="fill-current"
                           aria-hidden="true"
                         />
-                        Agent Ops
+                        Agent observability
                       </>
                     ) : (
                       <Link href="/agent-ops">
@@ -682,7 +682,7 @@ export function Header({
                           className="fill-current"
                           aria-hidden="true"
                         />
-                        Agent Ops
+                        Agent observability
                       </Link>
                     )}
                   </DropdownMenuItem>

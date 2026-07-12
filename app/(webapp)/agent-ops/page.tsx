@@ -1,6 +1,4 @@
 "use client";
-
-import { useRouter } from "next/navigation";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import {
   PageContent,
@@ -26,7 +24,6 @@ const TAB_OPTIONS: { value: AgentOpsTab; label: string }[] = [
 ];
 
 export default function AgentOpsPage() {
-  const router = useRouter();
   const [tab, setTab] = useQueryState(
     "tab",
     parseAsStringLiteral([
@@ -41,8 +38,7 @@ export default function AgentOpsPage() {
   return (
     <PageLayout className="flex max-w-none flex-col overflow-hidden border-none">
       <PageHeader
-        title="Agent Ops"
-        onBack={() => router.back()}
+        title="Agent observability"
         actions={
           <Select
             value={tab}

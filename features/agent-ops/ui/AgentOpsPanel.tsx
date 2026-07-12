@@ -133,7 +133,7 @@ export function AgentOpsPanel({
                 : "No selection yet";
   const panelSubtitle = hasSelection
     ? "Inspect the selected operational record."
-    : "Select a query, monitor, memory, event, run, or suggestion in Agent Ops.";
+    : "Select a query, monitor, memory, event, run, or suggestion in Agent observability.";
 
   return (
     <div className="flex h-full flex-col">
