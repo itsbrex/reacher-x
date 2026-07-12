@@ -8,6 +8,7 @@ import { Id } from "../_generated/dataModel";
 // Import from planCore using static import (not dynamic)
 import { getOrCreateUserPlan } from "./planCore";
 import {
+  canProvisionUnpaidFirstWorkspacePreview,
   getReservedEntitlementSlots,
   getWorkspaceSlotLimitForTier,
 } from "./workspaceEntitlements";
@@ -152,8 +153,21 @@ export async function canCreateWorkspace(
   });
   const used = [...reservedSlots].filter((slot) => slot <= limit).length;
   const remaining = Math.max(0, limit - used);
+  const unpaidPreviewSession =
+    !isPaidPlanTier(plan.tier) && options?.excludeSetupSessionId
+      ? await ctx.db.get(
+          "workspaceSetupSessions",
+          options.excludeSetupSessionId
+        )
+      : null;
+  const canProvisionUnpaidPreview = canProvisionUnpaidFirstWorkspacePreview({
+    session: unpaidPreviewSession,
+    userId,
+    setupSessionId: options?.excludeSetupSessionId,
+    entitlementSlot: options?.consumeEntitlementSlot,
+  });
 
-  if (!isPaidPlanTier(plan.tier)) {
+  if (!isPaidPlanTier(plan.tier) && !canProvisionUnpaidPreview) {
     return {
       allowed: false,
       tier: plan.tier,

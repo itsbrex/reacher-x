@@ -22,7 +22,37 @@ import {
   getWorkflowEvidencePostText,
   getWorkflowEvidencePostUrl,
 } from "../lib/workflowSafeProspect";
+import { isValidatedSetupPreviewProspect } from "../lib/setupSessionCore";
+import type { Doc } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
 const qualificationWorkflowLogger = logger.withScope("QualificationWorkflow");
+
+async function hasValidatedSetupPreviewContext(
+  ctx: ActionCtx,
+  prospect: Doc<"prospects">,
+  workspaceId: Doc<"workspaces">["_id"]
+): Promise<boolean> {
+  if (!prospect.setupSessionId) {
+    return false;
+  }
+
+  const [session, workspace] = await Promise.all([
+    ctx.runQuery(internal.setupSessions.getByIdInternal, {
+      sessionId: prospect.setupSessionId,
+    }),
+    ctx.runQuery(internal.workspaces.getById, { workspaceId }),
+  ]);
+
+  return Boolean(
+    workspace &&
+    isValidatedSetupPreviewProspect({
+      prospect,
+      session,
+      workspaceUserId: workspace.userId,
+      workspaceId,
+    })
+  );
+}
 
 // ============================================================================
 // Qualification Action (Node.js runtime)
@@ -489,20 +519,37 @@ export const runQualificationWorkflow = internalAction({
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
-    const limitState = await ctx.runQuery(
-      internal.workflows.prospecting.checkProspectLimitInternal,
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
       {
-        workspaceId: args.workspaceId,
+        prospectId: args.prospectId,
       }
     );
-    if (limitState.limitReached) {
-      await ctx.runAction(
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
+    if (!prospect) {
+      return { workflowId: "" };
+    }
+
+    const isValidatedSetupPreview = await hasValidatedSetupPreviewContext(
+      ctx,
+      prospect,
+      args.workspaceId
+    );
+    if (!isValidatedSetupPreview) {
+      const limitState = await ctx.runQuery(
+        internal.workflows.prospecting.checkProspectLimitInternal,
         {
           workspaceId: args.workspaceId,
         }
       );
-      return { workflowId: "" };
+      if (limitState.limitReached) {
+        await ctx.runAction(
+          internal.workspaces.reconcileWorkspaceCapacityStateInternal,
+          {
+            workspaceId: args.workspaceId,
+          }
+        );
+        return { workflowId: "" };
+      }
     }
 
     const wfId = await workflow.start(
@@ -596,19 +643,9 @@ export const startPreviewQualification = internalAction({
       return { workId: "" };
     }
 
-    const limitState = await ctx.runQuery(
-      internal.workflows.prospecting.checkProspectLimitInternal,
-      {
-        workspaceId: args.workspaceId,
-      }
-    );
-    if (limitState.limitReached) {
-      await ctx.runAction(
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-        {
-          workspaceId: args.workspaceId,
-        }
-      );
+    if (
+      !(await hasValidatedSetupPreviewContext(ctx, prospect, args.workspaceId))
+    ) {
       return { workId: "" };
     }
 

@@ -76,6 +76,11 @@ import {
   sanitizeProspectDataForWorkflow,
   sanitizeProspectEvidencePostsForWorkflow,
 } from "./lib/workflowSafeProspect";
+import { PREVIEW_BATCH_LIMITS } from "./lib/previewBatchLimits";
+import {
+  buildSetupPreviewCapacityResetPatch,
+  canWriteSetupPreviewProspectBatch,
+} from "./lib/setupSessionCore";
 import { logger } from "../shared/lib/logger";
 import { hydrateTwitterProfileLinkMetadata } from "./lib/twitterProfileLinkResolver";
 import {
@@ -1047,12 +1052,65 @@ export const createProspectsBatch = internalMutation({
     let updated = 0;
     let shouldReconcileWorkspaceCapacity = false;
     const prospectIds: Id<"prospects">[] = [];
-    const workspace = await ctx.db.get(args.workspaceId);
-    const canCreateNewProspects =
-      workspace?.prospectingWorkflowStatus !== "limit_reached" &&
-      (await canAddProspects(ctx, args.workspaceId, 1)).allowed;
+    const workspace = await ctx.db.get("workspaces", args.workspaceId);
+    let isValidatedSetupPreviewBatch = false;
 
-    if (!canCreateNewProspects) {
+    if (processingMode === "preview" && args.prospects.length > 0) {
+      const firstProspect = args.prospects[0];
+      const previewSessionId = firstProspect.setupSessionId;
+      const previewRevision = firstProspect.setupRevision;
+      const hasConsistentPreviewProvenance =
+        firstProspect.origin === "setup_preview" &&
+        previewSessionId !== undefined &&
+        previewRevision !== undefined &&
+        args.prospects.every(
+          (prospect) =>
+            prospect.origin === "setup_preview" &&
+            prospect.setupSessionId === previewSessionId &&
+            prospect.setupRevision === previewRevision
+        );
+
+      if (!workspace || !hasConsistentPreviewProvenance) {
+        throw new Error("Invalid setup preview prospect batch");
+      }
+
+      const session = await ctx.db.get(
+        "workspaceSetupSessions",
+        previewSessionId
+      );
+      isValidatedSetupPreviewBatch = canWriteSetupPreviewProspectBatch({
+        session,
+        sessionId: previewSessionId,
+        userId: args.userId,
+        workspaceId: args.workspaceId,
+        workspaceUserId: workspace.userId,
+        previewRevision,
+        batchSize: args.prospects.length,
+        maxBatchSize: PREVIEW_BATCH_LIMITS.previewProspectWriteBatch,
+      });
+
+      if (!isValidatedSetupPreviewBatch) {
+        throw new Error("Invalid setup preview prospect batch");
+      }
+
+      if (
+        workspace.setupCompletedAt === undefined &&
+        workspace.prospectingWorkflowStatus === "limit_reached"
+      ) {
+        await ctx.db.patch(
+          "workspaces",
+          workspace._id,
+          buildSetupPreviewCapacityResetPatch()
+        );
+      }
+    }
+
+    const canCreateNewProspects =
+      isValidatedSetupPreviewBatch ||
+      (workspace?.prospectingWorkflowStatus !== "limit_reached" &&
+        (await canAddProspects(ctx, args.workspaceId, 1)).allowed);
+
+    if (!canCreateNewProspects && processingMode !== "preview") {
       await ctx.scheduler.runAfter(
         0,
         internal.workspaces.reconcileWorkspaceCapacityStateInternal,

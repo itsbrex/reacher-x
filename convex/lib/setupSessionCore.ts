@@ -8,6 +8,31 @@ type SetupSessionDb = QueryCtx["db"] | MutationCtx["db"];
 type ActiveSetupSessionOptions = {
   includeRefine?: boolean;
 };
+type SetupPreviewProspectWriteSession = Pick<
+  SetupSessionDoc,
+  "_id" | "userId" | "targetWorkspaceId" | "previewRevision" | "status"
+>;
+type SetupPreviewProspectIdentity = {
+  origin?: "setup_preview" | "workspace_discovery" | "manual";
+  setupSessionId?: Id<"workspaceSetupSessions">;
+  setupRevision?: number;
+  userId: Id<"users">;
+  workspaceId: Id<"workspaces">;
+};
+
+const SETUP_PREVIEW_PROSPECT_WRITE_STATUSES = new Set<
+  SetupSessionDoc["status"]
+>([
+  "discovering_preview_prospects",
+  "preview_search_in_progress",
+  "awaiting_preview_confirmation",
+]);
+
+export function isSetupPreviewProspectWriteStatus(
+  status: SetupSessionDoc["status"]
+): boolean {
+  return SETUP_PREVIEW_PROSPECT_WRITE_STATUSES.has(status);
+}
 
 export const TERMINAL_SETUP_SESSION_STATUSES = new Set<
   SetupSessionDoc["status"]
@@ -59,6 +84,97 @@ export function hasSetupGenerationData(
     Array.isArray(session.generatedProfiles) &&
     session.generatedProfiles.length > 0
   );
+}
+
+export function buildPreviewProvisioningFailurePatch(args: {
+  now: number;
+  errorMessage: string;
+}) {
+  return {
+    status: "awaiting_icp_confirmation" as const,
+    previewWorkflowId: undefined,
+    previewDiscoveryStartedAt: undefined,
+    previewProspectIds: undefined,
+    previewReviewMode: undefined,
+    previewReadyAt: undefined,
+    previewApprovedAt: undefined,
+    lastAgentActionAt: args.now,
+    lastActiveAt: args.now,
+    statusUpdatedAt: args.now,
+    errorCode: "preview_provisioning_failed",
+    errorMessage: args.errorMessage,
+  };
+}
+
+export function canWriteSetupPreviewProspectBatch(args: {
+  session: SetupPreviewProspectWriteSession | null | undefined;
+  sessionId: Id<"workspaceSetupSessions">;
+  userId: Id<"users">;
+  workspaceId: Id<"workspaces">;
+  workspaceUserId: Id<"users">;
+  previewRevision: number;
+  batchSize: number;
+  maxBatchSize: number;
+}): boolean {
+  const { session } = args;
+
+  return Boolean(
+    session &&
+    session._id === args.sessionId &&
+    session.userId === args.userId &&
+    args.workspaceUserId === args.userId &&
+    session.targetWorkspaceId === args.workspaceId &&
+    session.previewRevision === args.previewRevision &&
+    isSetupPreviewProspectWriteStatus(session.status) &&
+    args.batchSize > 0 &&
+    args.batchSize <= args.maxBatchSize
+  );
+}
+
+export function isValidatedSetupPreviewProspect(args: {
+  prospect: SetupPreviewProspectIdentity;
+  session: SetupPreviewProspectWriteSession | null | undefined;
+  workspaceUserId: Id<"users">;
+  workspaceId: Id<"workspaces">;
+}): boolean {
+  const { prospect } = args;
+  if (
+    prospect.origin !== "setup_preview" ||
+    !prospect.setupSessionId ||
+    prospect.setupRevision === undefined ||
+    prospect.workspaceId !== args.workspaceId
+  ) {
+    return false;
+  }
+
+  return canWriteSetupPreviewProspectBatch({
+    session: args.session,
+    sessionId: prospect.setupSessionId,
+    userId: prospect.userId,
+    workspaceId: args.workspaceId,
+    workspaceUserId: args.workspaceUserId,
+    previewRevision: prospect.setupRevision,
+    batchSize: 1,
+    maxBatchSize: 1,
+  });
+}
+
+export function buildSetupPreviewCapacityResetPatch() {
+  return {
+    prospectingWorkflowId: undefined,
+    prospectingWorkflowStatus: undefined,
+    prospectingWorkflowStartedAt: undefined,
+    prospectingWorkflowPauseReason: undefined,
+    prospectingWorkflowPausedAt: undefined,
+    prospectingFailureStreak: undefined,
+    prospectingRecoveryAttemptId: undefined,
+    prospectingLastFailureAt: undefined,
+    prospectingNextRunAt: undefined,
+    prospectingNextRecoveryAt: undefined,
+    onboardingIssueStatusCode: undefined,
+    onboardingIssueSource: undefined,
+    onboardingIssueUpdatedAt: undefined,
+  };
 }
 
 export function getSetupSessionDisplayName(session: SetupSessionDoc): string {

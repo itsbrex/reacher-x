@@ -9,6 +9,16 @@ type EntitlementCtx = QueryCtx | MutationCtx;
 
 type WorkspaceDoc = Doc<"workspaces">;
 type SetupSessionDoc = Doc<"workspaceSetupSessions">;
+type UnpaidFirstWorkspacePreviewSession = Pick<
+  SetupSessionDoc,
+  | "_id"
+  | "userId"
+  | "mode"
+  | "status"
+  | "entitlementSlot"
+  | "targetWorkspaceId"
+  | "existingWorkspaceId"
+>;
 type ReservedEntitlementOptions = {
   consumeEntitlementSlot?: number;
   excludeSetupSessionId?: Id<"workspaceSetupSessions">;
@@ -52,6 +62,34 @@ export function doesSetupSessionReserveEntitlementSlot(
   return (
     session.mode === "new_workspace" &&
     !isTerminalSetupSessionStatus(session.status)
+  );
+}
+
+/**
+ * Authorize the single provisional workspace needed to show an unpaid user
+ * their onboarding preview. This does not authorize normal workspace creation:
+ * the caller must provide the exact first-workspace setup session and slot that
+ * are currently being provisioned.
+ */
+export function canProvisionUnpaidFirstWorkspacePreview(args: {
+  session: UnpaidFirstWorkspacePreviewSession | null;
+  userId: Id<"users">;
+  setupSessionId: Id<"workspaceSetupSessions"> | undefined;
+  entitlementSlot: number | undefined;
+}): boolean {
+  const { session } = args;
+
+  return Boolean(
+    session &&
+    args.setupSessionId &&
+    session._id === args.setupSessionId &&
+    session.userId === args.userId &&
+    session.mode === "first_workspace" &&
+    session.status === "provisioning_preview_workspace" &&
+    typeof args.entitlementSlot === "number" &&
+    session.entitlementSlot === args.entitlementSlot &&
+    !session.targetWorkspaceId &&
+    !session.existingWorkspaceId
   );
 }
 

@@ -21,12 +21,15 @@ import {
 } from "./lib/accessHelpers";
 import { hasRequiredWorkspaceAgentData } from "./lib/workspaceSetup";
 import {
+  buildPreviewProvisioningFailurePatch,
+  buildSetupPreviewCapacityResetPatch,
   getActiveSetupSessionForUser,
   getActiveSetupSessionByTargetWorkspaceId,
   getSetupSessionByTargetWorkspaceId,
   getSetupSessionByThreadId,
   getSetupSessionDisplayName,
   hasSetupGenerationData,
+  isSetupPreviewProspectWriteStatus,
   isTerminalSetupSessionStatus,
   resolveNextSetupDraftOrdinal,
 } from "./lib/setupSessionCore";
@@ -2535,6 +2538,8 @@ export const confirmSetupIcps = mutation({
       previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
+      errorCode: undefined,
+      errorMessage: undefined,
       statusUpdatedAt: now,
       lastUserActionAt: now,
       lastActiveAt: now,
@@ -2549,6 +2554,8 @@ export const confirmSetupIcps = mutation({
       previewReviewMode: undefined,
       previewReadyAt: undefined,
       previewApprovedAt: undefined,
+      errorCode: undefined,
+      errorMessage: undefined,
       statusUpdatedAt: now,
       lastUserActionAt: now,
       lastActiveAt: now,
@@ -2797,64 +2804,83 @@ export const provisionDraftWorkspaceForPreviewInternal = internalAction({
     }
 
     const normalizedWorkspaceName = formatWorkspaceName(session.draftName);
-    const linkedWorkspaceId =
-      session.targetWorkspaceId ?? session.existingWorkspaceId ?? null;
     let targetWorkspaceId: Id<"workspaces">;
 
-    if (linkedWorkspaceId) {
-      await ctx.runMutation(
-        internal.workspaces.captureRefineRollbackSnapshotInternal,
-        { workspaceId: linkedWorkspaceId }
-      );
-      await ctx.runMutation(internal.workspaces.updateWorkspaceInternal, {
-        workspaceId: linkedWorkspaceId,
-        seedDescription: session.seedDescription,
-        improvedDescription: session.improvedDescription,
-        description: session.improvedDescription,
-        icps: session.generatedProfiles,
-        sourceUrl: getSetupSessionSourceUrl(session),
-        descriptionSource: getSetupSessionInputMode(session),
-        useCaseKey: resolveWorkspaceUseCaseKey(session.useCaseKey),
-        fitScoreMin: 70,
-        fitScoreMax: 100,
-      });
-      targetWorkspaceId = linkedWorkspaceId;
-    } else {
-      targetWorkspaceId = await ctx.runMutation(
-        internal.workspaces.createWorkspaceInternal,
-        {
-          userId: session.userId,
-          name: normalizedWorkspaceName,
-          description: session.improvedDescription,
-          seedDescription:
-            session.seedDescription ?? session.improvedDescription,
+    try {
+      const linkedWorkspaceId =
+        session.targetWorkspaceId ?? session.existingWorkspaceId ?? null;
+
+      if (linkedWorkspaceId) {
+        await ctx.runMutation(
+          internal.workspaces.captureRefineRollbackSnapshotInternal,
+          { workspaceId: linkedWorkspaceId }
+        );
+        await ctx.runMutation(internal.workspaces.updateWorkspaceInternal, {
+          workspaceId: linkedWorkspaceId,
+          seedDescription: session.seedDescription,
           improvedDescription: session.improvedDescription,
+          description: session.improvedDescription,
           icps: session.generatedProfiles,
           sourceUrl: getSetupSessionSourceUrl(session),
           descriptionSource: getSetupSessionInputMode(session),
           useCaseKey: resolveWorkspaceUseCaseKey(session.useCaseKey),
-          isDefault: false,
-          entitlementSlot: session.entitlementSlot ?? 1,
-          consumeReservedEntitlementSlot: session.entitlementSlot ?? 1,
-          consumingSetupSessionId: session._id,
           fitScoreMin: 70,
           fitScoreMax: 100,
+        });
+        targetWorkspaceId = linkedWorkspaceId;
+      } else {
+        targetWorkspaceId = await ctx.runMutation(
+          internal.workspaces.createWorkspaceInternal,
+          {
+            userId: session.userId,
+            name: normalizedWorkspaceName,
+            description: session.improvedDescription,
+            seedDescription:
+              session.seedDescription ?? session.improvedDescription,
+            improvedDescription: session.improvedDescription,
+            icps: session.generatedProfiles,
+            sourceUrl: getSetupSessionSourceUrl(session),
+            descriptionSource: getSetupSessionInputMode(session),
+            useCaseKey: resolveWorkspaceUseCaseKey(session.useCaseKey),
+            isDefault: false,
+            entitlementSlot: session.entitlementSlot ?? 1,
+            consumeReservedEntitlementSlot: session.entitlementSlot ?? 1,
+            consumingSetupSessionId: session._id,
+            fitScoreMin: 70,
+            fitScoreMax: 100,
+          }
+        );
+      }
+
+      await ctx.runMutation(internal.workspaces.setOnboardingThreadInternal, {
+        workspaceId: targetWorkspaceId,
+        threadId: session.setupThreadId,
+      });
+      await ctx.runMutation(
+        internal.setupSessions.recordPreviewWorkspaceProvisionedInternal,
+        {
+          sessionId,
+          targetWorkspaceId,
+          workspaceName: normalizedWorkspaceName,
         }
       );
+    } catch (error) {
+      console.error("[SetupSessions] Preview workspace provisioning failed", {
+        error: error instanceof Error ? error.message : String(error),
+        sessionId: String(sessionId),
+        threadId: session.setupThreadId,
+      });
+      await ctx.runMutation(
+        internal.setupSessions.markPreviewProvisioningFailedInternal,
+        {
+          sessionId,
+          errorMessage:
+            "We couldn't start the preview. Please approve these ideal profiles again to retry.",
+        }
+      );
+      return { targetWorkspaceId: null };
     }
 
-    await ctx.runMutation(internal.workspaces.setOnboardingThreadInternal, {
-      workspaceId: targetWorkspaceId,
-      threadId: session.setupThreadId,
-    });
-    await ctx.runMutation(
-      internal.setupSessions.recordPreviewWorkspaceProvisionedInternal,
-      {
-        sessionId,
-        targetWorkspaceId,
-        workspaceName: normalizedWorkspaceName,
-      }
-    );
     await ctx.runAction(internal.setupSessions.startPreviewWorkflowInternal, {
       sessionId,
     });
@@ -2888,6 +2914,63 @@ export const markGenerationFailedInternal = internalMutation({
       errorCode: "generation_failed",
       errorMessage,
     });
+  },
+});
+
+export const markPreviewProvisioningFailedInternal = internalMutation({
+  args: {
+    sessionId: v.id("workspaceSetupSessions"),
+    errorMessage: v.string(),
+  },
+  handler: async (ctx, { sessionId, errorMessage }) => {
+    const session = await ctx.db.get("workspaceSetupSessions", sessionId);
+    if (!session || session.status !== "provisioning_preview_workspace") {
+      return { updated: false as const };
+    }
+
+    await ctx.db.patch(
+      "workspaceSetupSessions",
+      sessionId,
+      buildPreviewProvisioningFailurePatch({
+        now: getCurrentUTCTimestamp(),
+        errorMessage,
+      })
+    );
+
+    return { updated: true as const };
+  },
+});
+
+export const clearErroneousPreviewCapacityStateInternal = internalMutation({
+  args: {
+    sessionId: v.id("workspaceSetupSessions"),
+  },
+  handler: async (ctx, { sessionId }) => {
+    const session = await ctx.db.get("workspaceSetupSessions", sessionId);
+    if (
+      !session?.targetWorkspaceId ||
+      !isSetupPreviewProspectWriteStatus(session.status)
+    ) {
+      return { cleared: false as const };
+    }
+
+    const workspace = await ctx.db.get("workspaces", session.targetWorkspaceId);
+    if (
+      !workspace ||
+      workspace.userId !== session.userId ||
+      workspace.setupCompletedAt !== undefined ||
+      workspace.prospectingWorkflowStatus !== "limit_reached"
+    ) {
+      return { cleared: false as const };
+    }
+
+    await ctx.db.patch(
+      "workspaces",
+      workspace._id,
+      buildSetupPreviewCapacityResetPatch()
+    );
+
+    return { cleared: true as const };
   },
 });
 
