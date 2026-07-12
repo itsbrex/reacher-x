@@ -1,11 +1,10 @@
-"use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useDebouncedValue } from "@/shared/lib/utils/useDebouncedValue";
 import { QUERY_CHAR_LIMIT } from "@/shared/lib/utils/validation/queryLimit";
+import { dedupeProspectListResults } from "@/features/prospects/lib/prospectListResults";
 
 export const PROSPECTS_PER_PAGE = 10;
 
@@ -28,7 +27,7 @@ export type ProspectListSearchArgs = {
   searchQuery: string;
   browseResults: Doc<"prospectSummaries">[];
   browseStatus: PaginationStatus;
-  browseLoadMore: (numItems: number) => void;
+  onBrowseLoadMore: (numItems: number) => void;
 };
 
 export function useProspectListSearch({
@@ -44,7 +43,7 @@ export function useProspectListSearch({
   searchQuery,
   browseResults,
   browseStatus,
-  browseLoadMore,
+  onBrowseLoadMore,
 }: ProspectListSearchArgs) {
   const searchUnified = useAction(
     api.prospectSearchUnified.searchProspectsUnified
@@ -63,6 +62,7 @@ export function useProspectListSearch({
   const [unifiedDone, setUnifiedDone] = useState(true);
   const [unifiedLoading, setUnifiedLoading] = useState(false);
   const [unifiedLoadingMore, setUnifiedLoadingMore] = useState(false);
+  const [unifiedLoadMoreError, setUnifiedLoadMoreError] = useState(false);
 
   const unifiedCursorRef = useRef<string | undefined>(undefined);
   const requestGenerationRef = useRef(0);
@@ -92,6 +92,7 @@ export function useProspectListSearch({
       setUnifiedCursor(undefined);
       unifiedCursorRef.current = undefined;
       setUnifiedDone(false);
+      setUnifiedLoadMoreError(false);
 
       void searchUnified({
         workspaceId,
@@ -160,6 +161,7 @@ export function useProspectListSearch({
 
     const genAtStart = requestGenerationRef.current;
     setUnifiedLoadingMore(true);
+    setUnifiedLoadMoreError(false);
 
     void searchUnified({
       workspaceId,
@@ -184,6 +186,7 @@ export function useProspectListSearch({
       })
       .catch(() => {
         if (genAtStart !== requestGenerationRef.current) return;
+        setUnifiedLoadMoreError(true);
       })
       .finally(() => {
         if (genAtStart !== requestGenerationRef.current) return;
@@ -207,13 +210,18 @@ export function useProspectListSearch({
     searchUnified,
   ]);
 
-  const displayProspects = browseMode
-    ? browseResults
-    : isDebouncing
-      ? []
-      : unifiedResults;
+  const displayProspects = useMemo(
+    () =>
+      dedupeProspectListResults(
+        browseMode ? browseResults : isDebouncing ? [] : unifiedResults
+      ),
+    [browseMode, browseResults, isDebouncing, unifiedResults]
+  );
 
   const prospectIdsForMap = displayProspects.map((p) => p.prospectId);
+  const paginationResultCount = browseMode
+    ? browseResults.length
+    : unifiedResults.length;
 
   const isSearchLoading =
     !browseMode &&
@@ -229,18 +237,20 @@ export function useProspectListSearch({
 
   const loadMore = useCallback(() => {
     if (browseMode) {
-      browseLoadMore(PROSPECTS_PER_PAGE);
+      onBrowseLoadMore(PROSPECTS_PER_PAGE);
     } else {
       loadMoreUnified();
     }
-  }, [browseMode, browseLoadMore, loadMoreUnified]);
+  }, [browseMode, onBrowseLoadMore, loadMoreUnified]);
 
   return {
     browseMode,
     displayProspects,
     prospectIdsForMap,
+    paginationResultCount,
     isSearchLoading,
     isLoadingMore,
+    loadMoreError: !browseMode && unifiedLoadMoreError,
     hasMore,
     loadMore,
   };

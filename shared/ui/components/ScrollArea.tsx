@@ -6,7 +6,14 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { cn } from "@/shared/lib/utils";
 import { useTouchPrimary } from "@/shared/ui/hooks/use-has-primary-touch";
 
-const ScrollAreaContext = React.createContext<boolean>(false);
+type ScrollAreaContextValue = {
+  isTouch: boolean;
+  viewportRef: React.RefObject<HTMLDivElement | null>;
+};
+
+const ScrollAreaContext = React.createContext<ScrollAreaContextValue | null>(
+  null
+);
 
 type Mask = {
   top: boolean;
@@ -106,9 +113,14 @@ const ScrollArea = React.forwardRef<
       };
     }, [checkScrollability, isTouch]);
 
+    const contextValue = React.useMemo(
+      () => ({ isTouch, viewportRef }),
+      [isTouch]
+    );
+
     if (isTouch) {
       return (
-        <ScrollAreaContext.Provider value={isTouch}>
+        <ScrollAreaContext.Provider value={contextValue}>
           <div
             ref={ref}
             role="group"
@@ -143,7 +155,7 @@ const ScrollArea = React.forwardRef<
     }
 
     return (
-      <ScrollAreaContext.Provider value={isTouch}>
+      <ScrollAreaContext.Provider value={contextValue}>
         <ScrollAreaPrimitive.Root
           ref={ref}
           data-slot="scroll-area"
@@ -189,7 +201,7 @@ const ScrollBar = React.forwardRef<
   React.ComponentRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
 >(({ className, orientation = "vertical", ...props }, ref) => {
-  const isTouch = React.useContext(ScrollAreaContext);
+  const isTouch = React.useContext(ScrollAreaContext)?.isTouch ?? false;
 
   if (isTouch) return null;
 
@@ -221,6 +233,10 @@ const ScrollBar = React.forwardRef<
 });
 
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName;
+
+function useScrollAreaViewportRef() {
+  return React.useContext(ScrollAreaContext)?.viewportRef ?? null;
+}
 
 function ScrollMask({
   showMask,
@@ -279,4 +295,4 @@ function ScrollMask({
   );
 }
 
-export { ScrollArea, ScrollBar };
+export { ScrollArea, ScrollBar, useScrollAreaViewportRef };

@@ -11,6 +11,13 @@ export type ProspectListSortOption =
 export const DEFAULT_PROSPECT_LIST_SORT: ProspectListSortOption =
   "best_fit_first";
 
+export function isTerminalStableFeedBuffer(args: {
+  sourceCursor: string | null;
+  bufferedSummaryCount: number;
+}): boolean {
+  return args.sourceCursor === null && args.bufferedSummaryCount > 0;
+}
+
 type NormalizedProspectType = Exclude<
   Doc<"prospects">["prospectType"],
   undefined

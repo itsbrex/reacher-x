@@ -12,7 +12,6 @@ import {
   useQueryWithStatus,
   useWorkspace,
 } from "@/shared/hooks";
-import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import {
   PageLayout,
   PageHeader,
@@ -23,6 +22,7 @@ import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { Button } from "@/shared/ui/components/Button";
 import { IconButtonWithIndicator } from "@/shared/ui/components/IconButtonWithIndicator";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
+import { InfiniteScrollTrigger } from "@/shared/ui/components/InfiniteScrollTrigger";
 import {
   ProspectCard,
   ProspectCardSkeleton,
@@ -204,10 +204,12 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
 
   const {
     displayProspects,
+    paginationResultCount,
     isSearchLoading,
     hasMore,
     loadMore,
     isLoadingMore: searchLoadingMore,
+    loadMoreError,
   } = useProspectListSearch({
     workspaceId,
     status: "converted",
@@ -220,7 +222,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
     searchQuery,
     browseResults: convertedProspects,
     browseStatus,
-    browseLoadMore: () => prospectsQuery.loadMore(PROSPECTS_PER_PAGE),
+    onBrowseLoadMore: () => prospectsQuery.loadMore(PROSPECTS_PER_PAGE),
   });
 
   const listFirstPageLoading = browseMode
@@ -386,6 +388,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
                   ) : (
                     <div className="pb-8">
                       <ul
+                        aria-busy={isLoadingMore}
                         className={cn(
                           "grid gap-3",
                           "grid-cols-1",
@@ -405,22 +408,13 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
                         ))}
                       </ul>
 
-                      {hasMore && (
-                        <div className="pt-2">
-                          <Button
-                            size="xs"
-                            className="w-full"
-                            onClick={loadMore}
-                            disabled={isLoadingMore}
-                          >
-                            {isLoadingMore ? (
-                              <AsciiSpinnerText text="Loading" />
-                            ) : (
-                              "Load more"
-                            )}
-                          </Button>
-                        </div>
-                      )}
+                      <InfiniteScrollTrigger
+                        hasMore={hasMore}
+                        isLoading={isLoadingMore}
+                        loadMoreError={loadMoreError}
+                        onLoadMore={loadMore}
+                        resultCount={paginationResultCount}
+                      />
                     </div>
                   )}
                 </div>

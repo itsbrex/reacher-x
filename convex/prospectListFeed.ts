@@ -7,7 +7,10 @@ import {
   requireOwnedWorkspace,
   requireUser,
 } from "./lib/accessHelpers";
-import { normalizeProspectListSort } from "./lib/prospectListFeedUtils";
+import {
+  isTerminalStableFeedBuffer,
+  normalizeProspectListSort,
+} from "./lib/prospectListFeedUtils";
 import { mutation, query } from "./lib/functionBuilders";
 import { listWorkspaceProspectSummariesPage } from "./prospectSummaries";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -347,6 +350,19 @@ async function listStableFeedPage(
       page: bufferedRows.slice(0, targetCount),
       isDone: continueCursor.length === 0,
       continueCursor,
+    };
+  }
+
+  if (
+    isTerminalStableFeedBuffer({
+      sourceCursor: cursorState.sourceCursor,
+      bufferedSummaryCount: cursorState.bufferedSummaryIds.length,
+    })
+  ) {
+    return {
+      page: bufferedRows,
+      isDone: true,
+      continueCursor: "",
     };
   }
 

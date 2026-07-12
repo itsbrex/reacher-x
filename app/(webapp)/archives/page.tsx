@@ -12,7 +12,6 @@ import {
   usePreferredShellQueryArgs,
   useQueryWithStatus,
 } from "@/shared/hooks";
-import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import {
   PageLayout,
   PageHeader,
@@ -23,6 +22,7 @@ import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { Button } from "@/shared/ui/components/Button";
 import { IconButtonWithIndicator } from "@/shared/ui/components/IconButtonWithIndicator";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
+import { InfiniteScrollTrigger } from "@/shared/ui/components/InfiniteScrollTrigger";
 import {
   ProspectCard,
   ProspectCardSkeleton,
@@ -181,10 +181,12 @@ export default function ArchivesPage() {
 
   const {
     displayProspects,
+    paginationResultCount,
     isSearchLoading,
     hasMore,
     loadMore,
     isLoadingMore: searchLoadingMore,
+    loadMoreError,
   } = useProspectListSearch({
     workspaceId,
     status: "archived",
@@ -197,7 +199,7 @@ export default function ArchivesPage() {
     searchQuery,
     browseResults: archivedProspects,
     browseStatus,
-    browseLoadMore: () => prospectsQuery.loadMore(PROSPECTS_PER_PAGE),
+    onBrowseLoadMore: () => prospectsQuery.loadMore(PROSPECTS_PER_PAGE),
   });
 
   const listFirstPageLoading = browseMode
@@ -356,6 +358,7 @@ export default function ArchivesPage() {
                   ) : (
                     <div className="pb-8">
                       <ul
+                        aria-busy={isLoadingMore}
                         className={cn(
                           "grid gap-3",
                           "grid-cols-1",
@@ -375,22 +378,13 @@ export default function ArchivesPage() {
                         ))}
                       </ul>
 
-                      {hasMore && (
-                        <div className="pt-2">
-                          <Button
-                            size="xs"
-                            className="w-full"
-                            onClick={loadMore}
-                            disabled={isLoadingMore}
-                          >
-                            {isLoadingMore ? (
-                              <AsciiSpinnerText text="Loading" />
-                            ) : (
-                              "Load more"
-                            )}
-                          </Button>
-                        </div>
-                      )}
+                      <InfiniteScrollTrigger
+                        hasMore={hasMore}
+                        isLoading={isLoadingMore}
+                        loadMoreError={loadMoreError}
+                        onLoadMore={loadMore}
+                        resultCount={paginationResultCount}
+                      />
                     </div>
                   )}
                 </div>

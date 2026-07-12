@@ -15,7 +15,6 @@ import {
   usePaginatedQuery,
   useQuery,
 } from "convex/react";
-import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
@@ -34,6 +33,7 @@ import { SearchInput } from "@/features/search/ui/components/SearchInput";
 import { Button } from "@/shared/ui/components/Button";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/components/Tabs";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
+import { InfiniteScrollTrigger } from "@/shared/ui/components/InfiniteScrollTrigger";
 import {
   FilterAltIcon,
   SwapVertIcon,
@@ -65,6 +65,7 @@ import {
 } from "@/features/prospects/lib/prospectListFilters";
 import { getProspectPipelineEmptyStateCopy } from "@/features/prospects/lib/prospectEmptyStateCopy";
 import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectListSort";
+import { shouldShowProspectFeedSkeleton } from "@/features/prospects/lib/prospectListResults";
 import { WorkspaceSystemStatusFeedBar } from "@/features/webapp/ui/components/WorkspaceSystemStatusFeedBar";
 import { buildSetupHref } from "@/shared/lib/urls/setupHref";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
@@ -188,9 +189,11 @@ export default function ProspectsPage() {
   const [stageCountsState, setStageCountsState] = useState<{
     scopeKey: string | null;
     value: ProspectStageCounts | undefined;
+    resolved: boolean;
   }>({
     scopeKey: null,
     value: undefined,
+    resolved: false,
   });
   const [feedStateState, setFeedStateState] = useState<{
     scopeKey: string | null;
@@ -372,6 +375,11 @@ export default function ProspectsPage() {
     stageCountsState.scopeKey === stageCountScopeKey
       ? stageCountsState.value
       : undefined;
+  const stageCountsPending =
+    workspaceId !== null &&
+    fitScoreRange !== null &&
+    (stageCountsState.scopeKey !== stageCountScopeKey ||
+      !stageCountsState.resolved);
 
   useEffect(() => {
     let cancelled = false;
@@ -397,6 +405,7 @@ export default function ProspectsPage() {
           setStageCountsState({
             scopeKey: stageCountScopeKey,
             value: counts as ProspectStageCounts,
+            resolved: true,
           });
         }
       })
@@ -412,6 +421,7 @@ export default function ProspectsPage() {
           setStageCountsState({
             scopeKey: stageCountScopeKey,
             value: undefined,
+            resolved: true,
           });
         }
       });
@@ -733,11 +743,13 @@ export default function ProspectsPage() {
 
   const {
     displayProspects,
+    paginationResultCount,
     prospectIdsForMap,
     isSearchLoading,
     hasMore,
     loadMore,
     isLoadingMore: searchLoadingMore,
+    loadMoreError,
   } = useProspectListSearch({
     workspaceId,
     status: activeTabStatus,
@@ -751,7 +763,7 @@ export default function ProspectsPage() {
     searchQuery,
     browseResults: tabProspects,
     browseStatus: currentTabStatus,
-    browseLoadMore,
+    onBrowseLoadMore: browseLoadMore,
   });
 
   const openedMapQuery = useQuery(
@@ -863,13 +875,20 @@ export default function ProspectsPage() {
   const listFirstPageLoading = browseMode
     ? currentTabStatus === "LoadingFirstPage"
     : isSearchLoading;
+  const listContentLoading = shouldShowProspectFeedSkeleton({
+    browseMode,
+    firstPageLoading: listFirstPageLoading,
+    countsPending: stageCountsPending,
+    expectedResultCount: stageCounts?.[activeTab],
+    displayedResultCount: displayProspects.length,
+  });
   const isWorkspaceReady = setupStatus?.status === "complete";
 
   const isLoading =
     isConvexReadyLoading ||
     setupStatusQuery.isPending ||
     !isWorkspaceReady ||
-    (workspaceId !== null && listFirstPageLoading);
+    (workspaceId !== null && listContentLoading);
   const isLoadingMore = browseMode
     ? currentTabStatus === "LoadingMore"
     : searchLoadingMore;
@@ -1066,6 +1085,7 @@ export default function ProspectsPage() {
                   ) : (
                     <div className="min-w-0 pb-8">
                       <ul
+                        aria-busy={isLoadingMore}
                         className={cn(
                           "grid min-w-0 gap-3",
                           "grid-cols-1",
@@ -1094,23 +1114,13 @@ export default function ProspectsPage() {
                         ))}
                       </ul>
 
-                      {showLoadMore && (
-                        <div className="pt-2">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="w-full"
-                            onClick={loadMore}
-                            disabled={isLoadingMore}
-                          >
-                            {isLoadingMore ? (
-                              <AsciiSpinnerText text="Loading" />
-                            ) : (
-                              "Load more"
-                            )}
-                          </Button>
-                        </div>
-                      )}
+                      <InfiniteScrollTrigger
+                        hasMore={showLoadMore}
+                        isLoading={isLoadingMore}
+                        loadMoreError={loadMoreError}
+                        onLoadMore={loadMore}
+                        resultCount={paginationResultCount}
+                      />
                     </div>
                   )}
                 </div>
