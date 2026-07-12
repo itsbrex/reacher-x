@@ -2570,6 +2570,8 @@ export function AgentChat({
 
   const onboardingLock = useStore($onboardingLock);
   const isSetupRoute = pathname === "/agent/setup";
+  const isBareWorkspaceDraft =
+    !threadId && !prospectId && !action && !isSetupRoute;
   const {
     setupDraft: setupSessionForInlineCard,
     isLoading: isSetupDraftLoading,
@@ -2648,6 +2650,7 @@ export function AgentChat({
           shellStateQuery.data?.activeSetupSession?.status ?? ""
         )));
   const isComposerLocked =
+    !isInitialized ||
     isLoading ||
     isStreaming ||
     (onboardingLock && !isSetupRoute) ||
@@ -2746,8 +2749,10 @@ export function AgentChat({
     [chatAttachments, handleRemoveAttachment, selectedAttachmentEntities]
   );
 
-  // Loading state while initializing - use skeleton UI to prevent CLS
-  if (!isInitialized) {
+  // Bare /agent already knows its final empty-state layout. Render that exact
+  // centered composer disabled during initialization so it never jumps from a
+  // bottom-positioned skeleton. Contextual routes still need a chat skeleton.
+  if (!isInitialized && !isBareWorkspaceDraft) {
     return (
       <ChatSkeleton
         onBack={onBack}
