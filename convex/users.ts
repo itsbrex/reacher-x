@@ -34,6 +34,14 @@ export const getUserByWorkosIdInternal = internalQuery({
 export const createOrUpdateUser = mutation({
   args: createOrUpdateUserArgsValidator,
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    if (identity.subject !== args.workosUserId) {
+      throw new Error("Authenticated user does not match the requested user");
+    }
+
     // Check if user already exists
     const existingUser = await ctx.db
       .query("users")

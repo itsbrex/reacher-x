@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ConvexClientProvider } from "./ConvexClientProvider";
@@ -103,22 +104,22 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${geistPixelSquare.variable} antialiased`}
       >
         <PostHogProvider>
-          <ConvexClientProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <NuqsAdapter>
-                <MediaChromeYTTemplate />
-                {children}
-                <Toaster />
-                <Analytics />
-                <SpeedInsights />
-              </NuqsAdapter>
-            </ThemeProvider>
-          </ConvexClientProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <NuqsAdapter>
+              <MediaChromeYTTemplate />
+              <Suspense fallback={null}>
+                <ConvexClientProvider>{children}</ConvexClientProvider>
+              </Suspense>
+              <Toaster />
+              <Analytics />
+              <SpeedInsights />
+            </NuqsAdapter>
+          </ThemeProvider>
         </PostHogProvider>
       </body>
     </html>

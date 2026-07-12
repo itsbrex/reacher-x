@@ -883,6 +883,7 @@ export const getSetupBootstrapState = query({
       return {
         activeSession: null,
         suggestedMode: null as SetupSessionDoc["mode"] | null,
+        requiresFirstWorkspace: false,
       };
     }
 
@@ -891,14 +892,21 @@ export const getSetupBootstrapState = query({
       return {
         activeSession: null,
         suggestedMode: null as SetupSessionDoc["mode"] | null,
+        requiresFirstWorkspace: false,
       };
     }
 
-    const activeSession = await getAccessibleActiveSetupSessionForUser(
-      ctx,
-      user._id,
-      { includeRefine: false }
-    );
+    const [activeSession, defaultWorkspace] = await Promise.all([
+      getAccessibleActiveSetupSessionForUser(ctx, user._id, {
+        includeRefine: false,
+      }),
+      getDefaultWorkspaceForUser(ctx, user._id),
+    ]);
+    const requiresFirstWorkspace =
+      !defaultWorkspace ||
+      !hasRequiredWorkspaceAgentData(defaultWorkspace) ||
+      !defaultWorkspace.setupCompletedAt;
+
     if (activeSession) {
       return {
         activeSession: await toPublicSetupSessionState(
@@ -907,37 +915,22 @@ export const getSetupBootstrapState = query({
           user
         ),
         suggestedMode: activeSession.mode,
+        requiresFirstWorkspace,
       };
     }
 
-    const defaultWorkspace = await getDefaultWorkspaceForUser(ctx, user._id);
-    if (!defaultWorkspace) {
+    if (requiresFirstWorkspace) {
       return {
         activeSession: null,
         suggestedMode: "first_workspace" as const,
-      };
-    }
-
-    if (!hasRequiredWorkspaceAgentData(defaultWorkspace)) {
-      return {
-        activeSession: null,
-        suggestedMode: "first_workspace" as const,
-      };
-    }
-
-    // Workspace can have ICPs from preview while onboarding is unfinished
-    // (no preference step yet). Without this, deleting a draft or landing on
-    // setup with no active session would not auto-bootstrap.
-    if (!defaultWorkspace.setupCompletedAt) {
-      return {
-        activeSession: null,
-        suggestedMode: "first_workspace" as const,
+        requiresFirstWorkspace: true,
       };
     }
 
     return {
       activeSession: null,
       suggestedMode: null as SetupSessionDoc["mode"] | null,
+      requiresFirstWorkspace: false,
     };
   },
 });
