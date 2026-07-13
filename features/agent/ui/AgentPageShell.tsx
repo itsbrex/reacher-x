@@ -816,10 +816,9 @@ export function AgentPageShell() {
             threadId={threadId ?? undefined}
             action={action ?? undefined}
             notificationId={notificationId ?? undefined}
-            onHistoryClick={
-              canUseThreadHistory ? handleHistoryClick : undefined
-            }
-            onNewThread={canUseThreadHistory ? handleNewThread : undefined}
+            threadActionsReady={canUseThreadHistory}
+            onHistoryClick={!isSetupRoute ? handleHistoryClick : undefined}
+            onNewThread={!isSetupRoute ? handleNewThread : undefined}
             newThreadSignal={newThreadSignal}
             onEffectiveThreadIdChange={handleEffectiveThreadIdChange}
             onOpenPanelFromCard={handleOpenPanelFromCard}

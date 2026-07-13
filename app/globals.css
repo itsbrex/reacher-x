@@ -136,6 +136,27 @@
   animation: notification-bump 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.agent-workspace-mark {
+  color: hsl(var(--foreground));
+  opacity: 1;
+}
+
+.agent-workspace-mark-resolving {
+  animation: agent-mark-tube-flicker 1.5s steps(1, end) infinite;
+}
+
+.agent-workspace-mark-ready {
+  color: hsl(var(--foreground));
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-workspace-mark-resolving {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
 @layer base {
   :root {
     /* Set --background to your desired main background color (white) */
@@ -308,6 +329,52 @@ h6 {
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+@keyframes agent-mark-tube-flicker {
+  0% {
+    opacity: 0.08;
+  }
+  7% {
+    opacity: 0.92;
+  }
+  11% {
+    opacity: 0.06;
+  }
+  18% {
+    opacity: 1;
+  }
+  23% {
+    opacity: 0.12;
+  }
+  29% {
+    opacity: 0.82;
+  }
+  33% {
+    opacity: 0.08;
+  }
+  38% {
+    opacity: 1;
+  }
+  42% {
+    opacity: 0.16;
+  }
+  47% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.42;
+  }
+  57% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.22;
+  }
+  68%,
+  100% {
+    opacity: 1;
   }
 }
 

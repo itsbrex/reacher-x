@@ -104,17 +104,12 @@ import {
 } from "@/shared/lib/mentions/messageContext";
 import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
 import { AgentProspectEmptyState } from "./components/AgentProspectEmptyState";
+import { AgentWorkspaceEmptyState } from "./components/AgentWorkspaceEmptyState";
 import {
   OutreachPlanCard,
   type OutreachPlanCardTask,
 } from "@/features/prospects/ui/components/outreach-plan";
 import { Button, buttonVariants } from "@/shared/ui/components/Button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/shared/ui/components/Tooltip";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Markdown } from "@/shared/ui/components/Markdown";
 import { cn, extractTextFromEditorState } from "@/shared/lib/utils";
@@ -167,7 +162,6 @@ import {
   PersonIcon,
   ChangeHistoryIcon,
 } from "@/shared/ui/components/icons";
-import { Avatar, AvatarFallback } from "@/shared/ui/components/Avatar";
 import {
   useOutreachPlanPreviewState,
   usePreferredShellQueryArgs,
@@ -242,27 +236,18 @@ function MentionPickerButton({
   onTriggerMention,
 }: MentionPickerButtonProps) {
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="xsIcon"
-            type="button"
-            disabled={disabled}
-            aria-label="Tag people, plans, tasks, posts, or attachments"
-            title="Tag people, plans, tasks, posts, or attachments"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={onTriggerMention}
-          >
-            <AlternateEmailIcon className="fill-current" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          Tag people, plans, tasks, posts, or attachments
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="ghost"
+      size="xsIcon"
+      type="button"
+      disabled={disabled}
+      aria-label="Tag people, plans, tasks, posts, or attachments"
+      title="Tag people, plans, tasks, posts, or attachments"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onTriggerMention}
+    >
+      <AlternateEmailIcon className="fill-current" />
+    </Button>
   );
 }
 
@@ -328,6 +313,8 @@ export interface AgentChatProps {
   notificationId?: string;
   /** Handler for back button click */
   onBack?: () => void;
+  /** Whether workspace context is ready for History and New thread actions. */
+  threadActionsReady?: boolean;
   /** Handler for History button click */
   onHistoryClick?: () => void;
   /** Handler for New thread button click */
@@ -1764,6 +1751,7 @@ interface ChatHeaderProps {
   onBack?: () => void;
   onHistoryClick?: () => void;
   onNewThread?: () => void;
+  threadActionsReady?: boolean;
   /** Whether workspace setup is complete - buttons disabled if false */
   isSetupComplete?: boolean;
   /** When the open prospect is archived, New thread is disabled; History stays available. */
@@ -1782,6 +1770,7 @@ function ChatHeader({
   onBack,
   onHistoryClick,
   onNewThread,
+  threadActionsReady = true,
   isSetupComplete = false,
   prospectArchived = false,
   onViewProfile,
@@ -1792,7 +1781,8 @@ function ChatHeader({
 }: ChatHeaderProps) {
   const showButtons = onHistoryClick !== undefined;
   const setupIncomplete = !isSetupComplete;
-  const newThreadDisabled = setupIncomplete || prospectArchived;
+  const historyDisabled = setupIncomplete || !threadActionsReady;
+  const newThreadDisabled = historyDisabled || prospectArchived;
   const resolvedDmPlatform = dmPlatform === "linkedin" ? "linkedin" : "twitter";
 
   return (
@@ -1813,49 +1803,43 @@ function ChatHeader({
       </div>
       {showButtons && (
         <div className="flex items-center gap-1">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
-                aria-disabled={setupIncomplete}
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "xs" }),
-                  setupIncomplete && "opacity-50"
-                )}
-                onClick={setupIncomplete ? undefined : onHistoryClick}
-                type="button"
-              >
-                <SearchActivityIcon className="fill-current" />
-                History
-              </TooltipTrigger>
-              {setupIncomplete && (
-                <TooltipContent>Complete workspace setup first</TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={onHistoryClick}
+            type="button"
+            disabled={historyDisabled}
+            title={
+              !threadActionsReady
+                ? "Loading workspace"
+                : setupIncomplete
+                  ? "Complete workspace setup first"
+                  : "History"
+            }
+          >
+            <SearchActivityIcon className="fill-current" />
+            History
+          </Button>
           {onNewThread && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  aria-disabled={newThreadDisabled}
-                  className={cn(
-                    buttonVariants({ variant: "secondary", size: "xs" }),
-                    newThreadDisabled && "opacity-50"
-                  )}
-                  onClick={newThreadDisabled ? undefined : onNewThread}
-                  type="button"
-                >
-                  <AddIcon className="fill-current" />
-                  New
-                </TooltipTrigger>
-                {newThreadDisabled && (
-                  <TooltipContent>
-                    {setupIncomplete
-                      ? "Complete workspace setup first"
-                      : "Unarchive this profile to start a new thread"}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={onNewThread}
+              type="button"
+              disabled={newThreadDisabled}
+              title={
+                !threadActionsReady
+                  ? "Loading workspace"
+                  : setupIncomplete
+                    ? "Complete workspace setup first"
+                    : prospectArchived
+                      ? "Unarchive this profile to start a new thread"
+                      : "New thread"
+              }
+            >
+              <AddIcon className="fill-current" />
+              New
+            </Button>
           )}
           {onViewProfile || (onOpenDmPanel && dmEligibility) ? (
             isBusy ? (
@@ -1929,12 +1913,17 @@ function ChatHeader({
  */
 function ChatSkeleton({
   onBack,
+  threadActionsReady = true,
   onHistoryClick,
   onNewThread,
   onOpenDmPanel,
 }: Pick<
   AgentChatProps,
-  "onBack" | "onHistoryClick" | "onNewThread" | "onOpenDmPanel"
+  | "onBack"
+  | "threadActionsReady"
+  | "onHistoryClick"
+  | "onNewThread"
+  | "onOpenDmPanel"
 >) {
   return (
     <div className="flex h-full w-full flex-col">
@@ -1943,6 +1932,7 @@ function ChatSkeleton({
         onBack={onBack}
         onHistoryClick={onHistoryClick}
         onNewThread={onNewThread}
+        threadActionsReady={threadActionsReady}
         onOpenDmPanel={onOpenDmPanel}
         isSetupComplete={false}
       />
@@ -2072,6 +2062,7 @@ export function AgentChat({
   action,
   notificationId: _notificationId,
   onBack,
+  threadActionsReady = true,
   onHistoryClick,
   onNewThread,
   newThreadSignal,
@@ -2087,7 +2078,8 @@ export function AgentChat({
   const pathname = usePathname();
   // Get WorkOS auth user for profile image (same as Header)
   const { user: authUser } = useAuth();
-  const { workspace: currentWorkspace } = useWorkspace();
+  const { workspace: currentWorkspace, isLoading: isWorkspaceLoading } =
+    useWorkspace();
 
   const {
     messages,
@@ -2767,6 +2759,7 @@ export function AgentChat({
     return (
       <ChatSkeleton
         onBack={onBack}
+        threadActionsReady={threadActionsReady}
         onHistoryClick={onHistoryClick}
         onNewThread={onNewThread}
         onOpenDmPanel={onOpenDmPanel}
@@ -2778,6 +2771,7 @@ export function AgentChat({
     return (
       <ChatSkeleton
         onBack={onBack}
+        threadActionsReady={threadActionsReady}
         onHistoryClick={onHistoryClick}
         onNewThread={onNewThread}
         onOpenDmPanel={onOpenDmPanel}
@@ -2866,26 +2860,17 @@ export function AgentChat({
                 event.target.value = "";
               }}
             />
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "xsIcon",
-                  })}
-                  type="button"
-                  onClick={() => attachFileInputRef.current?.click()}
-                  disabled={isComposerLocked}
-                  aria-label="Attach media"
-                  title="Attach media"
-                >
-                  <AttachFileIcon className="fill-current" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  Attach media for the △ Agent to use
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              variant="ghost"
+              size="xsIcon"
+              type="button"
+              onClick={() => attachFileInputRef.current?.click()}
+              disabled={isComposerLocked}
+              aria-label="Attach media"
+              title="Attach media for the △ Agent to use"
+            >
+              <AttachFileIcon className="fill-current" />
+            </Button>
             <MentionPickerButton
               disabled={isComposerLocked}
               onTriggerMention={handleTriggerMentionInsertion}
@@ -2938,6 +2923,7 @@ export function AgentChat({
         onBack={onBack}
         onHistoryClick={onHistoryClick}
         onNewThread={onNewThread}
+        threadActionsReady={threadActionsReady}
         onViewProfile={onViewProfile}
         onOpenDmPanel={onOpenDmPanel}
         dmPlatform={prospectPlatform}
@@ -3120,23 +3106,15 @@ export function AgentChat({
                         messageId="chat-empty"
                         className="mb-6"
                       >
-                        <div className="space-y-6 py-6 text-center">
-                          <Avatar
-                            className={cn(
-                              "ring-border mx-auto size-12 rounded-xl ring-1"
-                            )}
-                          >
-                            <AvatarFallback className="bg-background text-foreground text-3xl">
-                              {AGENT_AVATAR_FALLBACK}
-                            </AvatarFallback>
-                          </Avatar>
-                          <h3 className="text-foreground mt-2 text-lg font-medium">
-                            {AGENT_DISPLAY_NAME}
-                          </h3>
-                          <div className="pt-2 text-left">
-                            {composerContent}
-                          </div>
-                        </div>
+                        <AgentWorkspaceEmptyState
+                          isResolving={
+                            !isInitialized ||
+                            isWorkspaceLoading ||
+                            workspaceStatusQuery.isPending
+                          }
+                        >
+                          {composerContent}
+                        </AgentWorkspaceEmptyState>
                       </MessageScrollerItem>
                     )
                   )}
