@@ -24,11 +24,12 @@ export {
 // ============================================================================
 // Page layout components
 // ============================================================================
-export { PageLayout, PageHeader, PageContent } from "./page";
+export { PageLayout, PageHeader, PageContent, PageScrollArea } from "./page";
 export type {
   PageLayoutProps,
   PageHeaderProps,
   PageContentProps,
+  PageScrollAreaProps,
 } from "./page";
 
 // ============================================================================

@@ -70,7 +70,7 @@ export default function AgentHistoryPage() {
 
   if (!prospectId && !workspace?._id) {
     return (
-      <PageLayout>
+      <PageLayout className="max-w-none border-r-0">
         <PageHeader title="History" onBack={handleClose} />
         <PageContent>
           <p className="text-muted-foreground py-8 text-center text-sm">
@@ -99,6 +99,7 @@ export default function AgentHistoryPage() {
       onSelectThread={handleSelectThread}
       onNewThread={handleNewThread}
       className="max-w-none"
+      layoutClassName="max-w-none border-r-0"
     />
   );
 }

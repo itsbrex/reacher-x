@@ -78,6 +78,7 @@ export interface HistoryPanelProps {
   onNewThread: () => void;
   onDeleteCurrentThread?: () => void;
   className?: string;
+  layoutClassName?: string;
 }
 
 export function HistoryPanel({
@@ -88,6 +89,7 @@ export function HistoryPanel({
   onNewThread,
   onDeleteCurrentThread,
   className,
+  layoutClassName,
 }: HistoryPanelProps) {
   const { entitySingular } = useActiveUseCaseLabels();
   const {
@@ -278,7 +280,7 @@ export function HistoryPanel({
         className
       )}
     >
-      <PageLayout className="flex flex-col">
+      <PageLayout className={cn("flex flex-col", layoutClassName)}>
         <PageHeader
           title={
             scope.kind === "prospect"

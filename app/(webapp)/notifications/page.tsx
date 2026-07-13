@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -10,6 +9,7 @@ import {
   PageContent,
   PageHeader,
   PageLayout,
+  PageScrollArea,
 } from "@/features/webapp/ui/components";
 import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { NotificationsInbox } from "@/features/webapp/ui/components/notifications/NotificationsInbox";
@@ -17,7 +17,7 @@ import type { NotificationItem } from "@/features/webapp/ui/components/notificat
 import { Button } from "@/shared/ui/components/Button";
 
 const NOTIFICATIONS_BODY_COLUMN_CLASS_NAME =
-  "flex min-h-0 flex-1 flex-col self-stretch overflow-hidden md:w-[min(32rem,100%)] md:max-w-lg md:flex-none md:self-start";
+  "w-full min-w-0 md:w-[min(32rem,100%)] md:max-w-lg";
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -117,8 +117,10 @@ export default function NotificationsPage() {
     <div className="flex h-full min-h-0 w-full">
       <PageLayout className="flex h-full min-h-0 max-w-none flex-col overflow-hidden border-r-0 md:border-r-0">
         <PageHeader title="Notifications" onBack={() => router.back()} />
-        <div className={NOTIFICATIONS_BODY_COLUMN_CLASS_NAME}>
-          <PageContent className="scroll-fade min-h-0 flex-1 overflow-y-auto pt-4 pb-6">
+        <PageScrollArea>
+          <PageContent
+            className={`${NOTIFICATIONS_BODY_COLUMN_CLASS_NAME} pt-4 pb-6`}
+          >
             <WorkspacePlanLimitAlert className="mx-4 mb-4" />
             {(notificationWorkspaceError ||
               shellStateQuery.isError ||
@@ -148,7 +150,7 @@ export default function NotificationsPage() {
               onDismiss={handleDismiss}
             />
           </PageContent>
-        </div>
+        </PageScrollArea>
       </PageLayout>
     </div>
   );
