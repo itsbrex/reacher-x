@@ -66,6 +66,7 @@ export type AutoPlanFailureCode =
   | "reconnect_required"
   | "writing_style_unavailable"
   | "grounding_unavailable"
+  | "provider_balance_unavailable"
   | "provider_schema_unsupported"
   | "context_too_large"
   | "provider_transient"
@@ -75,9 +76,28 @@ export type AutoPlanFailure = {
   code: AutoPlanFailureCode;
   retryable: boolean;
   userMessage: string;
-  actionLabel: "Reconnect" | "View details";
+  actionLabel?: "Reconnect";
   targetHref?: string;
 };
+
+export const AUTO_PLAN_RECOVERY_FAILURE_CODES = [
+  "grounding_unavailable",
+  "provider_balance_unavailable",
+  "provider_schema_unsupported",
+  "context_too_large",
+  "provider_transient",
+  "generation_failed",
+] as const satisfies readonly AutoPlanFailureCode[];
+
+const AUTO_PLAN_RECOVERY_CODE_SET = new Set<AutoPlanFailureCode>(
+  AUTO_PLAN_RECOVERY_FAILURE_CODES
+);
+
+export function isAutoPlanFailureRecoveryEligible(
+  code: AutoPlanFailureCode | undefined
+): boolean {
+  return code != null && AUTO_PLAN_RECOVERY_CODE_SET.has(code);
+}
 
 function stringifyAutoPlanError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -85,6 +105,23 @@ function stringifyAutoPlanError(error: unknown): string {
 
 export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
   const message = stringifyAutoPlanError(error).toLowerCase();
+
+  if (
+    message.includes("insufficient balance") ||
+    message.includes("no_more_credits") ||
+    message.includes("no more credits") ||
+    message.includes("credits exhausted") ||
+    message.includes("budget exceeded") ||
+    message.includes("payment required") ||
+    message.includes("provider circuit is open (credits)") ||
+    /\b402\b/.test(message)
+  ) {
+    return {
+      code: "provider_balance_unavailable",
+      retryable: false,
+      userMessage: "We’ll try again automatically.",
+    };
+  }
 
   if (
     message.includes("reconnect") ||
@@ -131,8 +168,7 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     return {
       code: "provider_schema_unsupported",
       retryable: false,
-      userMessage: "The model provider rejected the plan format.",
-      actionLabel: "View details",
+      userMessage: "We’ll try again automatically.",
     };
   }
 
@@ -147,8 +183,7 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     return {
       code: "context_too_large",
       retryable: false,
-      userMessage: "The provider could not process the planning context.",
-      actionLabel: "View details",
+      userMessage: "We’ll try again automatically.",
     };
   }
 
@@ -161,9 +196,7 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     return {
       code: "grounding_unavailable",
       retryable: false,
-      userMessage:
-        "Required prospect research is unavailable. Open the prospect for details.",
-      actionLabel: "View details",
+      userMessage: "We’ll try again automatically.",
     };
   }
 
@@ -181,16 +214,14 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     return {
       code: "provider_transient",
       retryable: true,
-      userMessage: "The provider stayed unavailable after automatic retries.",
-      actionLabel: "View details",
+      userMessage: "We’ll try again automatically.",
     };
   }
 
   return {
     code: "generation_failed",
     retryable: true,
-    userMessage: "The plan could not be created after automatic retries.",
-    actionLabel: "View details",
+    userMessage: "We’ll try again automatically.",
   };
 }
 

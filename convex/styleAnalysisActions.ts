@@ -7,7 +7,7 @@
 import { internalAction } from "./lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import { distillWritingStyleProfile } from "./lib/styleDistillation";
 import { retrier } from "./lib/retrier";
 import { BATCH_ANALYSIS_THRESHOLD } from "./lib/workspaceStyleProfileCore";
@@ -181,11 +181,6 @@ export const fetchUserTimelinePage = internalAction({
       };
     }
 
-    await acquireSocialApiBudget(
-      ctx,
-      `styleAnalysis.timeline.${args.endpoint}`
-    );
-
     const url = new URL(
       `${SOCIALAPI_BASE_URL}/twitter/user/${args.xUserId}/${args.endpoint}`
     );
@@ -193,13 +188,18 @@ export const fetchUserTimelinePage = internalAction({
       url.searchParams.set("cursor", args.cursor);
     }
 
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-    });
+    const response = await fetchSocialApi(
+      ctx,
+      `styleAnalysis.timeline.${args.endpoint}`,
+      url.toString(),
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

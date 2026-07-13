@@ -13,7 +13,7 @@ import { internal } from "./_generated/api";
 import { getUserFromIdentity } from "./lib/userUtils";
 import { formatWorkspaceLogContext } from "./lib/logHelpers";
 import { getRetriedActionStatus, runRetriedAction } from "./lib/retrier";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import {
   monitorStatusValidator,
   socialQueryMonitorPurposeValidator,
@@ -410,8 +410,14 @@ export const createMonitorApiCall = internalAction({
       return { success: false, error: "SocialAPI not configured" };
     }
 
-    await acquireSocialApiBudget(ctx, "socialapiMonitors.createMonitor");
-    const response = await fetch(
+    const requestContext = {
+      consumer: "socialapiMonitors.createMonitor",
+      endpoint: "/monitors/search-query",
+      workspaceId: args.workspaceId,
+    };
+    const response = await fetchSocialApi(
+      ctx,
+      requestContext.consumer,
       `${SOCIALAPI_BASE_URL}/monitors/search-query`,
       {
         method: "POST",
@@ -425,6 +431,10 @@ export const createMonitorApiCall = internalAction({
           refresh_frequency: args.refreshFrequency,
           webhook_url: args.webhookUrl,
         }),
+      },
+      {
+        workspaceId: args.workspaceId,
+        estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }),
       }
     );
 
@@ -460,8 +470,13 @@ export const deleteMonitorApiCall = internalAction({
       return { success: false, error: "SocialAPI not configured" };
     }
 
-    await acquireSocialApiBudget(ctx, "socialapiMonitors.deleteMonitor");
-    const response = await fetch(
+    const requestContext = {
+      consumer: "socialapiMonitors.deleteMonitor",
+      endpoint: "/monitors/:id",
+    };
+    const response = await fetchSocialApi(
+      ctx,
+      requestContext.consumer,
       `${SOCIALAPI_BASE_URL}/monitors/${args.monitorId}`,
       {
         method: "DELETE",
@@ -469,6 +484,9 @@ export const deleteMonitorApiCall = internalAction({
           Authorization: `Bearer ${apiKey}`,
           Accept: "application/json",
         },
+      },
+      {
+        estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }),
       }
     );
 
@@ -748,7 +766,7 @@ export const createMonitorsFromSocialQueries = action({
       }
     );
 
-    if (!keywords || keywords.socialQueries.length === 0) {
+    if (!keywords || keywords.twitterSocialQueries.length === 0) {
       return {
         success: true,
         created: 0,
@@ -771,7 +789,7 @@ export const createMonitorsFromSocialQueries = action({
     let failed = 0;
     const errors: string[] = [];
 
-    for (const query of keywords.socialQueries) {
+    for (const query of keywords.twitterSocialQueries) {
       // Skip if monitor already exists for this query
       if (existingQueries.has(query.toLowerCase())) {
         continue;
@@ -995,7 +1013,7 @@ export const createMonitorsFromSocialQueriesInternal = internalAction({
       }
     );
 
-    if (!keywords || keywords.socialQueries.length === 0) {
+    if (!keywords || keywords.twitterSocialQueries.length === 0) {
       return {
         success: true,
         created: 0,
@@ -1018,7 +1036,7 @@ export const createMonitorsFromSocialQueriesInternal = internalAction({
     let failed = 0;
     const errors: string[] = [];
 
-    for (const query of keywords.socialQueries) {
+    for (const query of keywords.twitterSocialQueries) {
       // Skip if monitor already exists for this query
       if (existingQueries.has(query.toLowerCase())) {
         continue;

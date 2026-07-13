@@ -7,7 +7,7 @@
 import { internalAction } from "./lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import { buildStyleSourceKey } from "./lib/styleSourceCore";
 import { BATCH_ANALYSIS_THRESHOLD } from "./lib/workspaceStyleProfileCore";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
@@ -60,19 +60,24 @@ async function createStyleMonitorApi(
     return { success: false, error: "SocialAPI not configured" };
   }
 
-  await acquireSocialApiBudget(ctx, "styleMonitors.createMonitor");
-  const response = await fetch(`${SOCIALAPI_BASE_URL}/monitors/user-tweets`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const response = await fetchSocialApi(
+    ctx,
+    "styleMonitors.createMonitor",
+    `${SOCIALAPI_BASE_URL}/monitors/user-tweets`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        user_id: args.xUserId,
+        user_screen_name: args.username,
+      }),
     },
-    body: JSON.stringify({
-      user_id: args.xUserId,
-      user_screen_name: args.username,
-    }),
-  });
+    { estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }) }
+  );
 
   const data = (await response.json()) as SocialAPICreateMonitorResponse;
 
@@ -96,8 +101,9 @@ async function deleteStyleMonitorApi(
     return { success: false, error: "SocialAPI not configured" };
   }
 
-  await acquireSocialApiBudget(ctx, "styleMonitors.deleteMonitor");
-  const response = await fetch(
+  const response = await fetchSocialApi(
+    ctx,
+    "styleMonitors.deleteMonitor",
     `${SOCIALAPI_BASE_URL}/monitors/${args.monitorId}`,
     {
       method: "DELETE",
@@ -105,7 +111,8 @@ async function deleteStyleMonitorApi(
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json",
       },
-    }
+    },
+    { estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }) }
   );
 
   if (!response.ok) {

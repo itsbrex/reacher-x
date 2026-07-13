@@ -7,6 +7,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../../_generated/api";
+import type { ActionCtx } from "../../../_generated/server";
 import {
   readWebPages,
   runDeepResearch,
@@ -87,9 +88,17 @@ export const researchProspect = createTool({
         prospect.websiteHref,
         prospect.websiteUrl
       );
+      const providerContext = {
+        ctx: ctx as unknown as ActionCtx,
+        consumer: "outreach.researchProspect",
+        workspaceId: prospect.workspaceId,
+        prospectId,
+      };
       const [website, research] = await Promise.all([
-        websiteUrl ? readWebPages([websiteUrl]) : Promise.resolve([]),
-        runDeepResearch(queries),
+        websiteUrl
+          ? readWebPages([websiteUrl], providerContext)
+          : Promise.resolve([]),
+        runDeepResearch(queries, providerContext),
       ]);
       return { success: true, website, research };
     } catch (error) {

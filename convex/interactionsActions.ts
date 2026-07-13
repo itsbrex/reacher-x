@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./lib/functionBuilders";
 import { api, internal } from "./_generated/api";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import {
   getTwitterPostId,
   getTwitterPostRef,
@@ -186,8 +186,9 @@ async function searchSocialApiTweets(args: {
     query: args.query,
     type: "Latest",
   });
-  await acquireSocialApiBudget(args.ctx, "interactions.searchSocialApiTweets");
-  const response = await fetch(
+  const response = await fetchSocialApi(
+    args.ctx,
+    "interactions.searchSocialApiTweets",
     `${SOCIALAPI_BASE_URL}/twitter/search?${params.toString()}`,
     {
       headers: {

@@ -40,6 +40,10 @@ import {
   planGenerationStatusValidator,
   autoPlanRunStatusValidator,
   autoPlanFailureCodeValidator,
+  providerNameValidator,
+  providerCircuitStatusValidator,
+  providerCircuitReasonValidator,
+  providerRequestOutcomeValidator,
   outreachPlanArchiveHoldValidator,
   hourlyAnalyticsCountsValidator,
   readModelRolloutScopeValidator,
@@ -1148,6 +1152,50 @@ export default defineSchema({
     lastConsumer: v.optional(v.string()),
   }).index("by_provider", ["provider"]),
 
+  exaApiBudgetState: defineTable({
+    provider: v.string(),
+    nextAvailableAt: v.number(),
+    updatedAt: v.number(),
+    lastConsumer: v.string(),
+  }).index("by_provider", ["provider"]),
+
+  /** Shared provider circuit state used to stop account-wide retry storms. */
+  providerCircuitStates: defineTable({
+    provider: providerNameValidator,
+    status: providerCircuitStatusValidator,
+    reason: v.optional(providerCircuitReasonValidator),
+    errorMessage: v.optional(v.string()),
+    consecutiveFailures: v.number(),
+    openedAt: v.optional(v.number()),
+    retryAfterAt: v.optional(v.number()),
+    probeLeaseUntil: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    lastFailureAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_provider", ["provider"]),
+
+  /** One row per ReacherX-initiated provider request for cost and failures. */
+  providerRequestEvents: defineTable({
+    provider: providerNameValidator,
+    outcome: providerRequestOutcomeValidator,
+    consumer: v.string(),
+    endpoint: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+    prospectId: v.optional(v.id("prospects")),
+    autoPlanRunId: v.optional(v.id("autoPlanRuns")),
+    requestCount: v.number(),
+    billableUnits: v.number(),
+    estimatedCostUsd: v.number(),
+    httpStatus: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    durationMs: v.number(),
+    recordedAt: v.number(),
+  })
+    .index("by_workspace_recorded_at", ["workspaceId", "recordedAt"])
+    .index("by_provider_recorded_at", ["provider", "recordedAt"])
+    .index("by_auto_plan_run", ["autoPlanRunId", "recordedAt"]),
+
   /**
    * Canonical relationship table between prospects and agent threads.
    * Stores the small history/search fields locally so hot read paths do not
@@ -1968,10 +2016,31 @@ export default defineSchema({
     retryable: v.optional(v.boolean()),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    recoveryRetriedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_prospect", ["prospectId"])
-    .index("by_workspace_and_status", ["workspaceId", "status"]),
+    .index("by_workspace_and_status", ["workspaceId", "status"])
+    .index("by_status_error_and_recovery", [
+      "status",
+      "errorCode",
+      "recoveryRetriedAt",
+    ]),
+
+  /** Successful grounding stages reused across workpool and recovery retries. */
+  autoPlanGroundingCache: defineTable({
+    prospectId: v.id("prospects"),
+    workspaceId: v.id("workspaces"),
+    platformProfile: v.optional(v.any()),
+    platformProfileCompletedAt: v.optional(v.number()),
+    recentPosts: v.optional(v.any()),
+    recentPostsCompletedAt: v.optional(v.number()),
+    websiteResearch: v.optional(v.any()),
+    websiteResearchCompletedAt: v.optional(v.number()),
+    webResearch: v.optional(v.any()),
+    webResearchCompletedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_prospect", ["prospectId"]),
 
   /**
    * Individual tasks within an outreach plan.

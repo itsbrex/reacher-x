@@ -7,7 +7,7 @@ import {
   internalMutation,
   internalQuery,
 } from "./lib/functionBuilders";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   buildTwitterPostUrl,
@@ -108,8 +108,9 @@ async function fetchSocialApiJson<T>(
     throw new Error("SOCIALAPI_API_KEY is not set");
   }
 
-  await acquireSocialApiBudget(ctx, consumer);
-  const response = await fetch(
+  const response = await fetchSocialApi(
+    ctx,
+    consumer,
     `${SOCIALAPI_BASE_URL}${path}${params ? `?${params.toString()}` : ""}`,
     {
       headers: {

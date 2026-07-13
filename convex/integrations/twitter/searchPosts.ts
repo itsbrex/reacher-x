@@ -10,7 +10,7 @@ import { getRetriedActionStatus, runRetriedAction } from "../../lib/retrier";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import type { RunId } from "@convex-dev/action-retrier";
-import { acquireSocialApiBudget } from "../../lib/socialApiBudget";
+import { fetchSocialApi } from "../../lib/socialApiFetch";
 import { twitterSearchTypeValidator } from "../../validators";
 import {
   compactTwitterSearchPost,
@@ -205,14 +205,18 @@ export const searchInternal = internalAction({
 
     const url = `https://api.socialapi.me/twitter/search?${params.toString()}`;
 
-    await acquireSocialApiBudget(ctx, "twitter.searchPosts.searchInternal");
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-    });
+    const response = await fetchSocialApi(
+      ctx,
+      "twitter.searchPosts.searchInternal",
+      url,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

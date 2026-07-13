@@ -1,5 +1,9 @@
 import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
+import {
+  assertProviderRequestAllowed,
+  type ProviderRequestContext,
+} from "./providerReliability";
 
 export const SOCIAL_API_PROVIDER = "socialapi";
 export const SOCIAL_API_REQUESTS_PER_MINUTE = 500;
@@ -13,7 +17,16 @@ export const SOCIAL_API_REQUEST_SPACING_MS = Math.ceil(
 export const SOCIAL_API_OCC_RETRY_BASE_MS = 25;
 export const SOCIAL_API_OCC_RETRY_JITTER_MS = 40;
 
-export async function acquireSocialApiBudget(ctx: ActionCtx, consumer: string) {
+export async function acquireSocialApiBudget(
+  ctx: ActionCtx,
+  consumer: string,
+  requestContext?: Omit<ProviderRequestContext, "consumer" | "endpoint">
+) {
+  await assertProviderRequestAllowed(ctx, "socialapi", {
+    consumer,
+    endpoint: consumer,
+    ...requestContext,
+  });
   return await ctx.runAction(
     internal.socialApiBudget.acquireSocialApiBudgetInternal,
     {

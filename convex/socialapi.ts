@@ -5,7 +5,7 @@ import { action } from "./lib/functionBuilders";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import {
   getXConnectionStatusForUser,
   getXProviderContextForUser,
@@ -78,9 +78,8 @@ async function fetchSocialApiJson(
     throw new Error("SOCIALAPI_API_KEY is not set");
   }
 
-  await acquireSocialApiBudget(ctx, consumer);
   const url = `${SOCIALAPI_BASE_URL}${path}${params ? `?${params.toString()}` : ""}`;
-  const response = await fetch(url, {
+  const response = await fetchSocialApi(ctx, consumer, url, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
@@ -681,9 +680,10 @@ export const verifyUserRetweetedPost = action({
     if (!apiKey) {
       throw new Error("SOCIALAPI_API_KEY is not set");
     }
-    await acquireSocialApiBudget(ctx, "socialapi.verifyUserRetweeted");
     const tweetId = args.tweetId.trim();
-    const response = await fetch(
+    const response = await fetchSocialApi(
+      ctx,
+      "socialapi.verifyUserRetweeted",
       `https://api.socialapi.me/twitter/tweets/${tweetId}/retweeted_by/${xUserId}`,
       {
         headers: {
@@ -716,9 +716,10 @@ export const verifyUserCommentedOnPost = action({
     if (!apiKey) {
       throw new Error("SOCIALAPI_API_KEY is not set");
     }
-    await acquireSocialApiBudget(ctx, "socialapi.verifyUserCommented");
     const tweetId = args.tweetId.trim();
-    const response = await fetch(
+    const response = await fetchSocialApi(
+      ctx,
+      "socialapi.verifyUserCommented",
       `https://api.socialapi.me/twitter/tweets/${tweetId}/commented_by/${xUserId}`,
       {
         headers: {
@@ -751,9 +752,10 @@ export const verifyUserIsFollowing = action({
     if (!apiKey) {
       throw new Error("SOCIALAPI_API_KEY is not set");
     }
-    await acquireSocialApiBudget(ctx, "socialapi.verifyUserFollowing");
     const targetUserId = args.targetUserId.trim();
-    const response = await fetch(
+    const response = await fetchSocialApi(
+      ctx,
+      "socialapi.verifyUserFollowing",
       `https://api.socialapi.me/twitter/user/${xUserId}/following/${targetUserId}`,
       {
         headers: {

@@ -87,11 +87,10 @@ export const handleAutoPlanWorkComplete = internalMutation({
         userId: prospect.userId,
         workspaceId: prospect.workspaceId,
         type: "error",
-        title: `Plan needs attention — ${prospectName}`,
+        title: `Couldn’t create a plan for ${prospectName}`,
         message: failure.userMessage,
         notificationKey,
-        targetHref:
-          failure.targetHref ?? `/agent?prospectId=${String(prospect._id)}`,
+        targetHref: failure.targetHref,
         actionLabel: failure.actionLabel,
         prospectId: prospect._id,
         ...displayFields,

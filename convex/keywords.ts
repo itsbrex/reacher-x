@@ -217,6 +217,7 @@ export const getWorkspaceKeywordsInternal = internalQuery({
       { keyword: string } & DiscoveredKeywordMetadata
     > = [];
     const socialQueries: string[] = [];
+    const twitterSocialQueries: string[] = [];
 
     for (const kw of keywords) {
       switch (kw.type) {
@@ -237,6 +238,9 @@ export const getWorkspaceKeywordsInternal = internalQuery({
           break;
         case "social_query":
           socialQueries.push(kw.originalValue ?? kw.value);
+          if (keywordTargetsPlatform(kw, "twitter")) {
+            twitterSocialQueries.push(kw.originalValue ?? kw.value);
+          }
           break;
       }
     }
@@ -245,6 +249,7 @@ export const getWorkspaceKeywordsInternal = internalQuery({
       seedKeywords,
       discoveredKeywords,
       socialQueries,
+      twitterSocialQueries,
       _raw: keywords, // Include raw keywords if needed
     };
   },

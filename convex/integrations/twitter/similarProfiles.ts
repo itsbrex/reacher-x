@@ -3,7 +3,7 @@
 import { action } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
-import { acquireSocialApiBudget } from "../../lib/socialApiBudget";
+import { fetchSocialApi } from "../../lib/socialApiFetch";
 import type { TwitterUser } from "./searchPosts";
 
 interface SimilarProfilesApiResponse {
@@ -129,14 +129,18 @@ export const getSimilarProfiles = action({
       )}/similar${queryString ? `?${queryString}` : ""}`;
 
       try {
-        await acquireSocialApiBudget(ctx, "twitter.similarProfiles");
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: "application/json",
-          },
-        });
+        const response = await fetchSocialApi(
+          ctx,
+          "twitter.similarProfiles",
+          url,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              Accept: "application/json",
+            },
+          }
+        );
 
         if (!response.ok) {
           const error = formatSocialApiError(

@@ -8,6 +8,14 @@
  */
 
 import Exa from "exa-js";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
+import { acquireExaApiBudget } from "./exaApiBudget";
+import {
+  EXA_CONTENT_COST_PER_PAGE_USD,
+  EXA_SEARCH_COST_PER_REQUEST_USD,
+  trackProviderRequest,
+} from "./providerReliability";
 
 const MAX_QUERIES = 4;
 const RESULTS_PER_QUERY = 4;
@@ -48,9 +56,18 @@ export interface WebPageReadOutcome {
   error?: string;
 }
 
+export type ResearchProviderContext = {
+  ctx: ActionCtx;
+  consumer: string;
+  workspaceId?: Id<"workspaces">;
+  prospectId?: Id<"prospects">;
+  autoPlanRunId?: Id<"autoPlanRuns">;
+};
+
 /** Read clean page text directly from known URLs already stored on a profile. */
 export async function readWebPages(
-  urls: string[]
+  urls: string[],
+  providerContext: ResearchProviderContext
 ): Promise<WebPageReadOutcome[]> {
   const exa = getExaClient();
   const limitedUrls = [
@@ -62,8 +79,32 @@ export async function readWebPages(
   }
 
   try {
-    const response = await exa.getContents(limitedUrls, {
-      text: { maxCharacters: SNIPPET_MAX_CHARS },
+    const response = await trackProviderRequest({
+      ctx: providerContext.ctx,
+      provider: "exa",
+      request: {
+        consumer: providerContext.consumer,
+        endpoint: "/contents",
+        workspaceId: providerContext.workspaceId,
+        prospectId: providerContext.prospectId,
+        autoPlanRunId: providerContext.autoPlanRunId,
+      },
+      execute: async () => {
+        await acquireExaApiBudget(
+          providerContext.ctx,
+          providerContext.consumer
+        );
+        return await exa.getContents(limitedUrls, {
+          text: { maxCharacters: SNIPPET_MAX_CHARS },
+        });
+      },
+      estimateUsage: (result) => {
+        const billableUnits = result.results?.length ?? 0;
+        return {
+          billableUnits,
+          estimatedCostUsd: billableUnits * EXA_CONTENT_COST_PER_PAGE_USD,
+        };
+      },
     });
 
     return (response.results ?? []).map((result) => ({
@@ -89,7 +130,8 @@ export async function readWebPages(
  * the whole batch.
  */
 export async function runDeepResearch(
-  queries: string[]
+  queries: string[],
+  providerContext: ResearchProviderContext
 ): Promise<ResearchQueryOutcome[]> {
   const exa = getExaClient();
   const limited = queries
@@ -97,32 +139,61 @@ export async function runDeepResearch(
     .filter(Boolean)
     .slice(0, MAX_QUERIES);
 
-  return await Promise.all(
-    limited.map(async (query): Promise<ResearchQueryOutcome> => {
-      try {
-        const response = await exa.searchAndContents(query, {
-          type: "auto",
-          numResults: RESULTS_PER_QUERY,
-          text: { maxCharacters: SNIPPET_MAX_CHARS },
-        });
+  const outcomes: ResearchQueryOutcome[] = [];
+  for (const query of limited) {
+    try {
+      const response = await trackProviderRequest({
+        ctx: providerContext.ctx,
+        provider: "exa",
+        request: {
+          consumer: providerContext.consumer,
+          endpoint: "/search",
+          workspaceId: providerContext.workspaceId,
+          prospectId: providerContext.prospectId,
+          autoPlanRunId: providerContext.autoPlanRunId,
+        },
+        execute: async () => {
+          await acquireExaApiBudget(
+            providerContext.ctx,
+            providerContext.consumer
+          );
+          return await exa.search(query, {
+            type: "auto",
+            numResults: RESULTS_PER_QUERY,
+            contents: {
+              text: { maxCharacters: SNIPPET_MAX_CHARS },
+            },
+          });
+        },
+        estimateUsage: (result) => {
+          const billableUnits = result.results?.length ?? 0;
+          return {
+            billableUnits,
+            estimatedCostUsd:
+              EXA_SEARCH_COST_PER_REQUEST_USD +
+              billableUnits * EXA_CONTENT_COST_PER_PAGE_USD,
+          };
+        },
+      });
 
-        const findings: ResearchFinding[] = (response.results ?? []).map(
-          (result) => ({
-            title: result.title?.trim() || result.url,
-            url: result.url,
-            publishedDate: result.publishedDate ?? undefined,
-            snippet: (result.text ?? "").replace(/\s+/g, " ").trim(),
-          })
-        );
+      const findings: ResearchFinding[] = (response.results ?? []).map(
+        (result) => ({
+          title: result.title?.trim() || result.url,
+          url: result.url,
+          publishedDate: result.publishedDate ?? undefined,
+          snippet: (result.text ?? "").replace(/\s+/g, " ").trim(),
+        })
+      );
 
-        return { query, findings };
-      } catch (error) {
-        return {
-          query,
-          findings: [],
-          error: error instanceof Error ? error.message : "Search failed",
-        };
-      }
-    })
-  );
+      outcomes.push({ query, findings });
+    } catch (error) {
+      outcomes.push({
+        query,
+        findings: [],
+        error: error instanceof Error ? error.message : "Search failed",
+      });
+      break;
+    }
+  }
+  return outcomes;
 }

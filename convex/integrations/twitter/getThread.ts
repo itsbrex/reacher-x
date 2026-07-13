@@ -6,7 +6,7 @@
 import { action, internalAction } from "../../lib/functionBuilders";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
-import { acquireSocialApiBudget } from "../../lib/socialApiBudget";
+import { fetchSocialApi } from "../../lib/socialApiFetch";
 import { logger } from "../../../shared/lib/logger";
 const twitterThreadLogger = logger.withScope("TwitterGetThread");
 
@@ -79,14 +79,18 @@ export const getThread = internalAction({
         url.searchParams.set("cursor", args.cursor);
       }
 
-      await acquireSocialApiBudget(ctx, "twitter.getThread");
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: "application/json",
-        },
-      });
+      const response = await fetchSocialApi(
+        ctx,
+        "twitter.getThread",
+        url.toString(),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();

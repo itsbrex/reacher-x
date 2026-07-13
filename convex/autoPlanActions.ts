@@ -29,29 +29,23 @@ import {
   type AutoPlanSocialPost,
 } from "./lib/autoPlanCore";
 import { getStyleMemoryCategory } from "./lib/styleSourceCore";
+import { isAutoPlanGroundingStageFresh } from "./lib/autoPlanGroundingCacheCore";
 import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
-import { readWebPages, runDeepResearch } from "./lib/researchCore";
+import {
+  readWebPages,
+  runDeepResearch,
+  type ResearchQueryOutcome,
+  type WebPageReadOutcome,
+} from "./lib/researchCore";
 import { getStringProperty, isRecord } from "./lib/typeGuards";
-import { autoPlanGenerationResultValidator } from "./validators";
+import {
+  autoPlanGenerationResultValidator,
+  providerNameValidator,
+} from "./validators";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { selectProfileWebsiteHref } from "../shared/lib/twitter/profileLinks";
 import { getWorkspaceUseCase } from "../shared/lib/workspaceUseCases";
-
-type Settled<T> =
-  | { value: T; error?: undefined }
-  | { value: null; error: string };
-
-async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
-  try {
-    return { value: await promise };
-  } catch (error) {
-    return {
-      value: null,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
 
 function throwClassifiedAutoPlanError(error: unknown): never {
   const normalized = error instanceof Error ? error : new Error(String(error));
@@ -60,6 +54,16 @@ function throwClassifiedAutoPlanError(error: unknown): never {
     throw new NonRetryableError(normalized.message, { cause: normalized });
   }
   throw normalized;
+}
+
+function createAutoPlanSocialContext(ctx: ActionCtx, userId: Id<"users">) {
+  return {
+    ...ctx,
+    agent: outreachAgent,
+    userId: String(userId),
+    threadId: undefined,
+    messageId: undefined,
+  } as unknown as ToolContext;
 }
 
 async function ensureVisibleAutoPlanThread(
@@ -85,15 +89,19 @@ async function ensureVisibleAutoPlanThread(
 
   const messages = await outreachAgent.listMessages(ctx, {
     threadId,
-    paginationOpts: { numItems: 1, cursor: null },
+    paginationOpts: { numItems: 20, cursor: null },
   });
-  if (messages.page.length === 0) {
+  const hasVisibleMessage = messages.page.some((message) => {
+    const role = message.message?.role;
+    return role === "user" || role === "assistant";
+  });
+  if (!hasVisibleMessage) {
     await outreachAgent.saveMessage(ctx, {
       threadId,
       userId: String(args.userId),
       message: {
         role: "assistant",
-        content: `I created a research-grounded outreach plan for ${args.prospectName}. Review the strategy and drafted steps in the plan panel.`,
+        content: `The outreach plan for ${args.prospectName} is ready to review.`,
       },
       skipEmbeddings: true,
     });
@@ -136,6 +144,61 @@ function countStoredSignals(prospect: {
     ...(prospect.evidencePosts ?? []),
   ].filter(Boolean).length;
 }
+
+export const probeAutoPlanProviderHealth = internalAction({
+  args: {
+    prospectId: v.id("prospects"),
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    providers: v.array(providerNameValidator),
+  },
+  handler: async (ctx, args): Promise<{ success: true }> => {
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
+      {
+        prospectId: args.prospectId,
+      }
+    );
+    if (
+      !prospect ||
+      prospect.workspaceId !== args.workspaceId ||
+      prospect.userId !== args.userId ||
+      prospect.platform !== "twitter"
+    ) {
+      throw new Error("No eligible X/Twitter provider health-check target");
+    }
+
+    if (args.providers.includes("socialapi")) {
+      await resolveSocialContext(
+        createAutoPlanSocialContext(ctx, args.userId),
+        {
+          mode: "platform_profile",
+          platform: "twitter",
+          limit: 1,
+          trustedProspectId: args.prospectId,
+        }
+      );
+    }
+
+    if (args.providers.includes("exa")) {
+      const outcomes = await runDeepResearch(
+        [prospect.displayName || prospect.externalId],
+        {
+          ctx,
+          consumer: "autoPlan.recoveryHealthCheck",
+          workspaceId: args.workspaceId,
+          prospectId: args.prospectId,
+        }
+      );
+      const failedOutcome = outcomes.find((outcome) => outcome.error);
+      if (failedOutcome?.error) {
+        throw new Error(failedOutcome.error);
+      }
+    }
+
+    return { success: true };
+  },
+});
 
 /**
  * Mandatory grounding and structured generation for one automatic plan.
@@ -254,13 +317,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
       : undefined;
     const writingStyle = parsedStyle || styleMemory?.promptLine || "";
 
-    const socialContextCtx = {
-      ...ctx,
-      agent: outreachAgent,
-      userId: String(args.userId),
-      threadId: undefined,
-      messageId: undefined,
-    } as unknown as ToolContext;
+    const socialContextCtx = createAutoPlanSocialContext(ctx, args.userId);
     const websiteUrl = selectProfileWebsiteHref(
       prospect.websiteHref,
       prospect.websiteUrl
@@ -272,44 +329,138 @@ export const generateGroundedAutoPlanDraft = internalAction({
       workspaceDescription: workspaceInspection.description,
     });
 
-    const [profileOutcome, postsOutcome, websiteOutcome, researchOutcome] =
-      await Promise.all([
-        settle(
-          resolveSocialContext(socialContextCtx, {
-            mode: "platform_profile",
-            platform: "auto",
-            limit: 10,
-            trustedProspectId: args.prospectId,
-          })
-        ),
-        settle(
-          resolveSocialContext(socialContextCtx, {
-            mode: "posts",
-            platform: "auto",
-            limit: 10,
-            includeReplies: true,
-            trustedProspectId: args.prospectId,
-          })
-        ),
-        settle(readWebPages(websiteUrl ? [websiteUrl] : [])),
-        settle(runDeepResearch(researchQueries)),
-      ]);
+    const now = getCurrentUTCTimestamp();
+    const cachedGrounding = await ctx.runQuery(
+      internal.autoPlanGroundingCache.getAutoPlanGroundingCacheInternal,
+      { prospectId: args.prospectId }
+    );
 
-    const websiteResearch = websiteOutcome.value ?? [];
-    const webResearch = researchOutcome.value ?? [];
+    let refreshedProfile =
+      isAutoPlanGroundingStageFresh(
+        cachedGrounding?.platformProfileCompletedAt,
+        now
+      ) && cachedGrounding?.platformProfile !== undefined
+        ? (cachedGrounding.platformProfile as ResolvedSocialContext | null)
+        : undefined;
+    if (refreshedProfile === undefined) {
+      try {
+        refreshedProfile = await resolveSocialContext(socialContextCtx, {
+          mode: "platform_profile",
+          platform: "auto",
+          limit: 10,
+          trustedProspectId: args.prospectId,
+        });
+        await ctx.runMutation(
+          internal.autoPlanGroundingCache.saveAutoPlanGroundingStageInternal,
+          {
+            prospectId: args.prospectId,
+            workspaceId: args.workspaceId,
+            stage: "platform_profile",
+            value: refreshedProfile,
+          }
+        );
+      } catch (error) {
+        throwClassifiedAutoPlanError(
+          new Error(
+            `Platform profile refresh failed: ${error instanceof Error ? error.message : String(error)}`
+          )
+        );
+      }
+    }
+
+    let recentPosts =
+      isAutoPlanGroundingStageFresh(
+        cachedGrounding?.recentPostsCompletedAt,
+        now
+      ) && Array.isArray(cachedGrounding?.recentPosts)
+        ? (cachedGrounding.recentPosts as AutoPlanSocialPost[])
+        : undefined;
+    if (recentPosts === undefined) {
+      try {
+        const postsContext = await resolveSocialContext(socialContextCtx, {
+          mode: "posts",
+          platform: "auto",
+          limit: 10,
+          includeReplies: true,
+          trustedProspectId: args.prospectId,
+        });
+        recentPosts = toPromptSafePosts(postsContext);
+        await ctx.runMutation(
+          internal.autoPlanGroundingCache.saveAutoPlanGroundingStageInternal,
+          {
+            prospectId: args.prospectId,
+            workspaceId: args.workspaceId,
+            stage: "recent_posts",
+            value: recentPosts,
+          }
+        );
+      } catch (error) {
+        throwClassifiedAutoPlanError(
+          new Error(
+            `Recent posts refresh failed: ${error instanceof Error ? error.message : String(error)}`
+          )
+        );
+      }
+    }
+
+    const researchProviderContext = {
+      ctx,
+      consumer: "autoPlan.grounding",
+      workspaceId: args.workspaceId,
+      prospectId: args.prospectId,
+      autoPlanRunId: args.runId,
+    };
+    let websiteResearch: WebPageReadOutcome[] | undefined =
+      isAutoPlanGroundingStageFresh(
+        cachedGrounding?.websiteResearchCompletedAt,
+        now
+      ) && Array.isArray(cachedGrounding?.websiteResearch)
+        ? (cachedGrounding.websiteResearch as WebPageReadOutcome[])
+        : undefined;
+    if (websiteResearch === undefined) {
+      websiteResearch = await readWebPages(
+        websiteUrl ? [websiteUrl] : [],
+        researchProviderContext
+      );
+      if (!websiteResearch.some((page) => page.error)) {
+        await ctx.runMutation(
+          internal.autoPlanGroundingCache.saveAutoPlanGroundingStageInternal,
+          {
+            prospectId: args.prospectId,
+            workspaceId: args.workspaceId,
+            stage: "website_research",
+            value: websiteResearch,
+          }
+        );
+      }
+    }
+
+    let webResearch: ResearchQueryOutcome[] | undefined =
+      isAutoPlanGroundingStageFresh(
+        cachedGrounding?.webResearchCompletedAt,
+        now
+      ) && Array.isArray(cachedGrounding?.webResearch)
+        ? (cachedGrounding.webResearch as ResearchQueryOutcome[])
+        : undefined;
+    if (webResearch === undefined) {
+      webResearch = await runDeepResearch(
+        researchQueries,
+        researchProviderContext
+      );
+      if (!webResearch.some((result) => result.error)) {
+        await ctx.runMutation(
+          internal.autoPlanGroundingCache.saveAutoPlanGroundingStageInternal,
+          {
+            prospectId: args.prospectId,
+            workspaceId: args.workspaceId,
+            stage: "web_research",
+            value: webResearch,
+          }
+        );
+      }
+    }
+
     const retrievalErrors = [
-      profileOutcome.error
-        ? `platform profile refresh: ${profileOutcome.error}`
-        : undefined,
-      postsOutcome.error
-        ? `recent posts refresh: ${postsOutcome.error}`
-        : undefined,
-      websiteOutcome.error
-        ? `website research: ${websiteOutcome.error}`
-        : undefined,
-      researchOutcome.error
-        ? `web research: ${researchOutcome.error}`
-        : undefined,
       ...websiteResearch
         .filter((page) => page.error)
         .map((page) => `website ${page.url}: ${page.error}`),
@@ -318,7 +469,6 @@ export const generateGroundedAutoPlanDraft = internalAction({
         .map((result) => `research ${result.query}: ${result.error}`),
     ].filter((message): message is string => Boolean(message));
 
-    const recentPosts = toPromptSafePosts(postsOutcome.value);
     const groundingContext: AutoPlanGroundingContext = {
       generatedAt: getCurrentUTCTimestamp(),
       workspace: {
@@ -330,7 +480,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
       prospectProfileContext,
       storedSignalCount: countStoredSignals(prospect),
       writingStyle,
-      freshPlatformProfile: profileOutcome.value?.profile ?? null,
+      freshPlatformProfile: refreshedProfile?.profile ?? null,
       recentPosts,
       websiteResearch,
       webResearch,
@@ -375,7 +525,18 @@ export const generateGroundedAutoPlanDraft = internalAction({
             }),
             maxOutputTokens: 3_000,
           },
-          { storageOptions: { saveMessages: "none" } }
+          {
+            storageOptions: { saveMessages: "none" },
+            contextOptions: {
+              recentMessages: 0,
+              searchOtherThreads: false,
+              searchOptions: {
+                limit: 0,
+                textSearch: false,
+                vectorSearch: false,
+              },
+            },
+          }
         );
       } catch (error) {
         throwClassifiedAutoPlanError(error);

@@ -22,13 +22,14 @@ import {
   buildRelationshipDisplay,
   mapSocialApiProfile,
 } from "../../../lib/socialApiTwitterMap";
-import { acquireSocialApiBudget } from "../../../lib/socialApiBudget";
+import { fetchSocialApi } from "../../../lib/socialApiFetch";
 import { hydrateTwitterProfileLinkMetadata } from "../../../lib/twitterProfileLinkResolver";
 import type { LinkedInProfilePost } from "../../../integrations/linkedin/getProfilePosts";
 import {
   extractProspectThreadContext,
   MISSING_PROSPECT_SELECTION_MESSAGE,
 } from "./helpers";
+import { getCurrentUTCTimestamp } from "../../../../shared/lib/utils/time/timeUtils";
 
 export type SocialContextMode =
   | "prospect_profile"
@@ -676,7 +677,10 @@ function chooseBestReplyCandidate(
     const reposts = getMetricsCount(post.metrics, "reposts");
     const ageHours =
       post.createdAt > 0
-        ? Math.max(0, (Date.now() - post.createdAt) / (1000 * 60 * 60))
+        ? Math.max(
+            0,
+            (getCurrentUTCTimestamp() - post.createdAt) / (1000 * 60 * 60)
+          )
         : 999;
     const textLength = post.textPreview.trim().length;
     const hasSubstance = textLength >= 40 ? 1 : textLength >= 16 ? 0.5 : 0;
@@ -712,9 +716,8 @@ async function fetchSocialApiJson(
     throw new Error("SOCIALAPI_API_KEY is not set");
   }
 
-  await acquireSocialApiBudget(ctx as any, consumer);
   const url = `https://api.socialapi.me${path}${params ? `?${params.toString()}` : ""}`;
-  const response = await fetch(url, {
+  const response = await fetchSocialApi(ctx as any, consumer, url, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
@@ -1171,7 +1174,7 @@ function buildActivitySummary(
   const hasFreshPost =
     typeof lastPostAt === "number" &&
     lastPostAt > 0 &&
-    Date.now() - lastPostAt < 24 * 60 * 60 * 1000;
+    getCurrentUTCTimestamp() - lastPostAt < 24 * 60 * 60 * 1000;
 
   return {
     lastPostAt,

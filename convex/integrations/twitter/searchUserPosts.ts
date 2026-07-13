@@ -9,7 +9,7 @@ import { internal } from "../../_generated/api";
 import type { ActionCtx } from "../../_generated/server";
 import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
-import { acquireSocialApiBudget } from "../../lib/socialApiBudget";
+import { fetchSocialApi } from "../../lib/socialApiFetch";
 import { type TwitterPost, flattenTweetForStorage } from "./searchPosts";
 const twitterSearchUserPostsLogger = logger.withScope("TwitterSearchUserPosts");
 
@@ -160,14 +160,18 @@ async function fetchSearchPage(
     const url = `https://api.socialapi.me/twitter/search?${params.toString()}`;
 
     try {
-      await acquireSocialApiBudget(ctx, "twitter.searchUserPosts.page");
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${args.apiKey}`,
-          Accept: "application/json",
-        },
-      });
+      const response = await fetchSocialApi(
+        ctx,
+        "twitter.searchUserPosts.page",
+        url,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${args.apiKey}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();

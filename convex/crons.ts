@@ -15,4 +15,10 @@ crons.interval(
   internal.workspaces.pauseInactiveWorkspaces
 );
 
+crons.interval(
+  "retry failed automatic plans after provider recovery",
+  { minutes: 2 },
+  internal.workflows.autoPlanRecovery.retryFailedAutoPlansCron
+);
+
 export default crons;

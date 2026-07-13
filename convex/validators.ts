@@ -1595,10 +1595,36 @@ export const autoPlanFailureCodeValidator = v.union(
   v.literal("reconnect_required"),
   v.literal("writing_style_unavailable"),
   v.literal("grounding_unavailable"),
+  v.literal("provider_balance_unavailable"),
   v.literal("provider_schema_unsupported"),
   v.literal("context_too_large"),
   v.literal("provider_transient"),
   v.literal("generation_failed")
+);
+
+export const providerNameValidator = v.union(
+  v.literal("socialapi"),
+  v.literal("exa")
+);
+
+export const providerCircuitStatusValidator = v.union(
+  v.literal("closed"),
+  v.literal("open"),
+  v.literal("half_open")
+);
+
+export const providerCircuitReasonValidator = v.union(
+  v.literal("credits"),
+  v.literal("authentication"),
+  v.literal("rate_limit"),
+  v.literal("transient"),
+  v.literal("unknown")
+);
+
+export const providerRequestOutcomeValidator = v.union(
+  v.literal("success"),
+  v.literal("error"),
+  v.literal("blocked")
 );
 
 export const autoPlanGenerationClaimResultValidator = v.object({

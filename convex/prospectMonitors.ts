@@ -10,7 +10,7 @@ import {
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { getRetriedActionStatus, runRetriedAction } from "./lib/retrier";
-import { acquireSocialApiBudget } from "./lib/socialApiBudget";
+import { fetchSocialApi } from "./lib/socialApiFetch";
 import { monitorStatusValidator } from "./validators";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { logger } from "../shared/lib/logger";
@@ -181,19 +181,24 @@ export const createUserTweetsMonitorApiCall = internalAction({
       return { success: false, error: "SocialAPI not configured" };
     }
 
-    await acquireSocialApiBudget(ctx, "prospectMonitors.createMonitor");
-    const response = await fetch(`${SOCIALAPI_BASE_URL}/monitors/user-tweets`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+    const response = await fetchSocialApi(
+      ctx,
+      "prospectMonitors.createMonitor",
+      `${SOCIALAPI_BASE_URL}/monitors/user-tweets`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          user_id: args.userId,
+          user_screen_name: args.username,
+        }),
       },
-      body: JSON.stringify({
-        user_id: args.userId,
-        user_screen_name: args.username,
-      }),
-    });
+      { estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }) }
+    );
 
     const data = (await response.json()) as SocialAPICreateMonitorResponse;
 
@@ -216,8 +221,9 @@ export const deleteMonitorApiCall = internalAction({
       return { success: false, error: "SocialAPI not configured" };
     }
 
-    await acquireSocialApiBudget(ctx, "prospectMonitors.deleteMonitor");
-    const response = await fetch(
+    const response = await fetchSocialApi(
+      ctx,
+      "prospectMonitors.deleteMonitor",
       `${SOCIALAPI_BASE_URL}/monitors/${args.monitorId}`,
       {
         method: "DELETE",
@@ -225,7 +231,8 @@ export const deleteMonitorApiCall = internalAction({
           Authorization: `Bearer ${apiKey}`,
           Accept: "application/json",
         },
-      }
+      },
+      { estimateUsage: () => ({ billableUnits: 0, estimatedCostUsd: 0 }) }
     );
 
     // 404 is acceptable (already deleted)

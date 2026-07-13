@@ -10,7 +10,7 @@ import {
   fetchPublicTweetsFromXApi,
   normalizePublicTweetIds,
 } from "./publicThreadXCore";
-import { acquireSocialApiBudget } from "./socialApiBudget";
+import { fetchSocialApi } from "./socialApiFetch";
 import { mapSocialApiTweet } from "./socialApiTwitterMap";
 
 const SOCIALAPI_BASE_URL = "https://api.socialapi.me";
@@ -71,9 +71,8 @@ export async function fetchSocialApiJson(
     throw new Error("SOCIALAPI_API_KEY is not set");
   }
 
-  await acquireSocialApiBudget(ctx, consumer);
   const url = `${SOCIALAPI_BASE_URL}${path}${params ? `?${params.toString()}` : ""}`;
-  const response = await fetch(url, {
+  const response = await fetchSocialApi(ctx, consumer, url, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
@@ -106,9 +105,8 @@ async function postSocialApiJson(
     throw new Error("SOCIALAPI_API_KEY is not set");
   }
 
-  await acquireSocialApiBudget(ctx, consumer);
   const url = `${SOCIALAPI_BASE_URL}${path}`;
-  const response = await fetch(url, {
+  const response = await fetchSocialApi(ctx, consumer, url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
