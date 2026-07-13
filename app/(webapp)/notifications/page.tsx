@@ -78,6 +78,10 @@ export default function NotificationsPage() {
       return;
     }
 
+    if (!notification.actionLabel) {
+      return;
+    }
+
     if (!notification.prospectId) {
       return;
     }

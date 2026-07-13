@@ -6,6 +6,7 @@ import {
   autoPlanDraftSchema,
   autoPlanTransportSchema,
   classifyAutoPlanFailure,
+  isAutoPlanFailureRecoveryEligible,
   validateAutoPlanDraftAgainstGrounding,
   type AutoPlanDraft,
   type AutoPlanGroundingContext,
@@ -172,7 +173,7 @@ test("workpool completion verifies persistence before completed status", () => {
   assert.doesNotMatch(enrichmentSource, /status: "generating"/);
 });
 
-test("automatic generation always requests mandatory fresh context", () => {
+test("automatic generation caches successful grounding stages and isolates agent history", () => {
   const actionSource = readFileSync(
     `${ROOT}/convex/autoPlanActions.ts`,
     "utf8"
@@ -184,6 +185,10 @@ test("automatic generation always requests mandatory fresh context", () => {
   assert.match(actionSource, /assessAutoPlanGrounding/);
   assert.match(actionSource, /generateObject/);
   assert.match(actionSource, /saveMessages: "none"/);
+  assert.match(actionSource, /saveAutoPlanGroundingStageInternal/);
+  assert.match(actionSource, /recentMessages: 0/);
+  assert.match(actionSource, /textSearch: false/);
+  assert.match(actionSource, /vectorSearch: false/);
   assert.match(actionSource, /schema: autoPlanTransportSchema/);
 
   const strictValidationIndex = actionSource.indexOf(
@@ -233,6 +238,59 @@ test("automatic plan failures distinguish terminal setup issues from transient p
     classifyAutoPlanFailure("Unsupported minLength").retryable,
     false
   );
+  assert.deepEqual(classifyAutoPlanFailure("SocialAPI: Insufficient balance"), {
+    code: "provider_balance_unavailable",
+    retryable: false,
+    userMessage: "We’ll try again automatically.",
+  });
+  assert.equal(
+    isAutoPlanFailureRecoveryEligible("provider_balance_unavailable"),
+    true
+  );
+  assert.equal(
+    isAutoPlanFailureRecoveryEligible("grounding_unavailable"),
+    true
+  );
+  assert.equal(isAutoPlanFailureRecoveryEligible("reconnect_required"), false);
+  assert.equal(
+    isAutoPlanFailureRecoveryEligible("writing_style_unavailable"),
+    false
+  );
+});
+
+test("automatic plan reliability prevents repeated paid work and dead notification actions", () => {
+  const actionSource = readFileSync(
+    `${ROOT}/convex/autoPlanActions.ts`,
+    "utf8"
+  );
+  assert.ok(
+    actionSource.indexOf('mode: "platform_profile"') <
+      actionSource.indexOf("readWebPages(")
+  );
+  assert.ok(
+    actionSource.indexOf('mode: "posts"') <
+      actionSource.lastIndexOf("runDeepResearch(")
+  );
+
+  const workflowSource = readFileSync(
+    `${ROOT}/convex/workflows/autoPlan.ts`,
+    "utf8"
+  );
+  assert.match(workflowSource, /Couldn’t create a plan for/);
+  assert.doesNotMatch(workflowSource, /View details/);
+
+  const monitorSource = readFileSync(
+    `${ROOT}/convex/socialapiMonitors.ts`,
+    "utf8"
+  );
+  assert.match(monitorSource, /keywords\.twitterSocialQueries/);
+  assert.doesNotMatch(
+    monitorSource,
+    /for \(const query of keywords\.socialQueries\)/
+  );
+
+  const prospectSource = readFileSync(`${ROOT}/convex/prospects.ts`, "utf8");
+  assert.match(prospectSource, /prospect\.planGenerationStatus !== "idle"/);
 });
 
 test("auto-plan history hides legacy blank threads", () => {

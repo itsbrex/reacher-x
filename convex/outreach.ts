@@ -1025,7 +1025,7 @@ export const createProspectsFoundNotification = internalMutation({
 
     const messageParts: string[] = [];
     if (twitterSaved > 0) {
-      messageParts.push(`${twitterSaved} on X`);
+      messageParts.push(`${twitterSaved} on X/Twitter`);
     }
     if (linkedinSaved > 0) {
       messageParts.push(`${linkedinSaved} on LinkedIn`);

@@ -19,3 +19,23 @@ export type WorkspaceSystemActionKind =
   | "open_setup"
   | "view_plans"
   | "retry";
+
+export type WorkspaceFeatureStatusValue =
+  | "healthy"
+  | "degraded"
+  | "unavailable"
+  | "paused";
+
+export type WorkspaceFeatureStatus = {
+  key:
+    | "discovery"
+    | "qualification"
+    | "enrichment"
+    | "plan_creation"
+    | "x_twitter"
+    | "linkedin"
+    | "outreach";
+  label: string;
+  status: WorkspaceFeatureStatusValue;
+  detail: string;
+};

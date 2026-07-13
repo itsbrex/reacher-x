@@ -36,6 +36,7 @@ import { mapInternalIssueCodeToUserVisibleIssueState } from "./lib/onboardingNav
 import {
   deriveWorkspaceSystemStatus,
   getWorkspaceDiscoveryState,
+  getWorkspaceFeatureStatuses,
 } from "./lib/workspaceSystem";
 import { listWorkspaceProspectSummariesPage } from "./prospectSummaries";
 import { getWorkspaceStatsSnapshot } from "./workspaceStats";
@@ -883,17 +884,19 @@ export const getOnboardingProgress = query({
     const workspace = await getOwnedWorkspace(ctx, args.workspaceId, user._id);
     if (!workspace) return null;
 
-    const [workspaceStats, discoveryState, analyticsRows] = await Promise.all([
-      getWorkspaceStatsSnapshot({
-        db: ctx.db,
-        workspace,
-      }),
-      getWorkspaceDiscoveryState(ctx.db, workspace),
-      listWorkspaceAnalyticsDailyRows({
-        db: ctx.db,
-        workspaceId: workspace._id,
-      }),
-    ]);
+    const [workspaceStats, discoveryState, featureStatuses, analyticsRows] =
+      await Promise.all([
+        getWorkspaceStatsSnapshot({
+          db: ctx.db,
+          workspace,
+        }),
+        getWorkspaceDiscoveryState(ctx.db, workspace),
+        getWorkspaceFeatureStatuses(ctx.db, workspace),
+        listWorkspaceAnalyticsDailyRows({
+          db: ctx.db,
+          workspaceId: workspace._id,
+        }),
+      ]);
 
     const qualified = workspaceStats.qualifiedProspectsCount;
     const readyQualifiedEnrichedCount =
@@ -917,6 +920,7 @@ export const getOnboardingProgress = query({
     );
     const systemStatus = deriveWorkspaceSystemStatus(workspace, {
       discoveryState,
+      featureStatuses,
     });
     const isDone = actionableReadyCount > 0;
 
@@ -3251,6 +3255,8 @@ export const listAutoPlanEligibleProspectsForWorkspace = internalQuery({
       if (
         prospect.origin === "setup_preview" ||
         prospect.status === "archived" ||
+        (prospect.planGenerationStatus != null &&
+          prospect.planGenerationStatus !== "idle") ||
         typeof prospect.qualificationScore !== "number" ||
         prospect.qualificationScore < AUTO_PLAN_GENERATION_THRESHOLD
       ) {

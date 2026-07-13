@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { OnboardingProgressCard } from "@/features/agent/ui/components/OnboardingProgressCard";
 import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
 import type { WorkspaceSystemDiscoveryState } from "@/shared/lib/workspaceSystem";
+import type { WorkspaceFeatureStatus } from "@/shared/lib/workspaceSystem";
 import { getWorkspaceDiscoveryVerb } from "@/shared/lib/workspaceUseCases";
 import { Button } from "@/shared/ui/components/Button";
 import {
@@ -19,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/components/Dialog";
+import { WorkspaceFeatureStatusRow } from "./WorkspaceFeatureStatusRow";
 
 export type WorkspaceSystemStatus = {
   workspaceId: string;
@@ -39,6 +41,7 @@ export type WorkspaceSystemStatus = {
   dialogDescription: string;
   actionLabel: string | null;
   actionKind: "resume" | "open_setup" | "view_plans" | "retry" | null;
+  features: WorkspaceFeatureStatus[];
 };
 
 type WorkspaceStatusDialogView = "progress" | "pauseConfirm";
@@ -187,7 +190,6 @@ export function WorkspaceSystemStatusDialog({
   const [view, setView] = useState<WorkspaceStatusDialogView>("progress");
   const [pendingAction, setPendingAction] =
     useState<WorkspaceStatusDialogPendingAction>(null);
-  const prevOpenRef = useRef(open);
   const canPause = canPauseWorkspace(status);
   const isPauseConfirmOpen = view === "pauseConfirm";
   const isPending = pendingAction !== null;
@@ -195,13 +197,22 @@ export function WorkspaceSystemStatusDialog({
   const primaryActionPendingLabel =
     status.actionKind === "resume" ? "Resuming..." : "Starting...";
 
-  if (open !== prevOpenRef.current) {
-    prevOpenRef.current = open;
-    if (!open) {
-      setView("progress");
-      setPendingAction(null);
-    }
-  }
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        setView("progress");
+        setPendingAction(null);
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange]
+  );
+
+  const resetAndClose = useCallback(() => {
+    setView("progress");
+    setPendingAction(null);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   const handlePrimaryAction = useCallback(async () => {
     if (!status.actionKind) {
@@ -237,7 +248,7 @@ export function WorkspaceSystemStatusDialog({
       return;
     }
 
-    onOpenChange(false);
+    resetAndClose();
     if (status.actionKind === "open_setup") {
       router.push("/agent/setup");
       return;
@@ -246,7 +257,7 @@ export function WorkspaceSystemStatusDialog({
     if (status.actionKind === "view_plans") {
       router.push("/plans");
     }
-  }, [onOpenChange, router, startProspectingWorkflow, status]);
+  }, [resetAndClose, router, startProspectingWorkflow, status]);
 
   const handlePauseRequest = useCallback(() => {
     setView("pauseConfirm");
@@ -271,7 +282,7 @@ export function WorkspaceSystemStatusDialog({
       }
 
       toast.success("△ Agent paused.");
-      onOpenChange(false);
+      resetAndClose();
     } catch (error) {
       toast.error("Could not pause the △ Agent", {
         description:
@@ -280,12 +291,12 @@ export function WorkspaceSystemStatusDialog({
     } finally {
       setPendingAction(null);
     }
-  }, [onOpenChange, status.workspaceId, stopProspectingWorkflow]);
+  }, [resetAndClose, status.workspaceId, stopProspectingWorkflow]);
 
   const footerHasActions = canPause || Boolean(status.actionKind);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {isPauseConfirmOpen ? (
         <DialogContent
           showCloseButton={false}
@@ -343,6 +354,7 @@ export function WorkspaceSystemStatusDialog({
               All-time workspace progress
             </DialogDescription>
           </DialogHeader>
+          <WorkspaceFeatureStatusRow features={status.features} />
           <OnboardingProgressCard
             workspaceId={status.workspaceId}
             className="max-w-none rounded-none border-0 shadow-none"

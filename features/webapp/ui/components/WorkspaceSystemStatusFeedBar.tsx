@@ -9,6 +9,7 @@ import { buttonVariants } from "@/shared/ui/components/Button";
 import { ChangeHistoryIcon } from "@/shared/ui/components/icons";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { cn } from "@/shared/lib/utils";
+import { getWorkspaceSystemStatusDotClassName } from "@/features/webapp/lib/workspaceSystemStatusTone";
 import {
   WorkspaceSystemStatusDialog,
   type WorkspaceSystemStatus,
@@ -78,12 +79,7 @@ export function WorkspaceSystemStatusFeedBar({
           : null;
   const label =
     detailText === null ? statusText : `${statusText} • ${detailText}`;
-  const dotClassName =
-    status.mode === "running"
-      ? "bg-emerald-500"
-      : status.mode === "attention"
-        ? "bg-destructive"
-        : "bg-amber-500";
+  const dotClassName = getWorkspaceSystemStatusDotClassName(status.mode);
 
   return (
     <>

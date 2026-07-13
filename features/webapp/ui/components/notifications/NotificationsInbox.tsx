@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { normalizeNotificationCopy } from "@/features/webapp/lib/notificationCopy";
 import { cn, formatRelativeTime, parseText } from "@/shared/lib/utils";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import {
@@ -302,7 +303,11 @@ function NotificationCard({
       ? "rounded-lg"
       : "rounded-full";
   const parsedMessage =
-    hasThread || !notification.message ? null : parseText(notification.message);
+    hasThread || !notification.message
+      ? null
+      : parseText(
+          normalizeNotificationCopy(notification.message, notification.type)
+        );
   const titleParts = getNotificationTitleParts(notification);
 
   return (
@@ -367,7 +372,9 @@ function NotificationCard({
                   new Date(item._creationTime).toISOString()
                 );
                 const itemMessage = item.message
-                  ? parseText(item.message)
+                  ? parseText(
+                      normalizeNotificationCopy(item.message, item.type)
+                    )
                   : null;
                 const isLastItem = index === threadNotifications.length - 1;
 

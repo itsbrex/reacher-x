@@ -30,6 +30,7 @@ import {
 import {
   deriveWorkspaceSystemStatus,
   getWorkspaceDiscoveryState,
+  getWorkspaceFeatureStatuses,
 } from "./lib/workspaceSystem";
 import {
   preferredShellContextValidator,
@@ -337,15 +338,20 @@ export const getAppShellState = query({
       return { ...getEmptyShellState(), locked: true };
     }
 
-    const [workspaceStats, activeStyleProfileState, discoveryState] =
-      await Promise.all([
-        getWorkspaceStatsSnapshot({
-          db: ctx.db,
-          workspace: defaultWorkspace,
-        }),
-        getWorkspaceActiveStyleProfileState(ctx, defaultWorkspace._id),
-        getWorkspaceDiscoveryState(ctx.db, defaultWorkspace),
-      ]);
+    const [
+      workspaceStats,
+      activeStyleProfileState,
+      discoveryState,
+      featureStatuses,
+    ] = await Promise.all([
+      getWorkspaceStatsSnapshot({
+        db: ctx.db,
+        workspace: defaultWorkspace,
+      }),
+      getWorkspaceActiveStyleProfileState(ctx, defaultWorkspace._id),
+      getWorkspaceDiscoveryState(ctx.db, defaultWorkspace),
+      getWorkspaceFeatureStatuses(ctx.db, defaultWorkspace),
+    ]);
     const actionableReadyCount =
       getWorkspaceStatsActionableReadyCount(workspaceStats);
     const readyQualifiedEnrichedCount =
@@ -384,6 +390,7 @@ export const getAppShellState = query({
       pendingNotificationCount: workspaceStats.pendingNotificationCount,
       workspaceSystemStatus: deriveWorkspaceSystemStatus(defaultWorkspace, {
         discoveryState,
+        featureStatuses,
       }),
       activeSetupSession: null,
       lockedWorkspaceCount: workspaceItems.filter((item) => item.locked).length,

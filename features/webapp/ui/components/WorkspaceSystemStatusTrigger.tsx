@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { getWorkspaceSystemStatusDotClassName } from "@/features/webapp/lib/workspaceSystemStatusTone";
 import { Button } from "@/shared/ui/components/Button";
 import { ChangeHistoryIcon } from "@/shared/ui/components/icons";
 import { cn } from "@/shared/lib/utils";
@@ -26,26 +27,7 @@ export function WorkspaceSystemStatusTrigger({
   const statusCopy = useWorkspaceSystemStatusCopy(status);
   const [open, setOpen] = useState(false);
 
-  const tone = useMemo(() => {
-    if (status.mode === "running") {
-      return {
-        dotClassName: "bg-emerald-500",
-      };
-    }
-    if (status.mode === "degraded") {
-      return {
-        dotClassName: "bg-amber-500",
-      };
-    }
-    if (status.mode === "paused") {
-      return {
-        dotClassName: "bg-amber-500",
-      };
-    }
-    return {
-      dotClassName: "bg-destructive",
-    };
-  }, [status.mode]);
+  const dotClassName = getWorkspaceSystemStatusDotClassName(status.mode);
 
   return (
     <>
@@ -65,10 +47,7 @@ export function WorkspaceSystemStatusTrigger({
               />
               <span className="ring-background absolute top-0 right-0 size-2 translate-x-1/4 -translate-y-1/4 rounded-full ring-2">
                 <span
-                  className={cn(
-                    "block size-full rounded-full",
-                    tone.dotClassName
-                  )}
+                  className={cn("block size-full rounded-full", dotClassName)}
                 />
               </span>
             </Button>

@@ -912,7 +912,9 @@ export async function getHydratedPublicThreadFromAuthorTimeline(
   const conversationId = rootTweet.conversation_id_str ?? rootTweet.id_str;
   const authorId =
     rootTweet.user?.id_str ??
-    asString((rootResponse.data as Record<string, unknown> | undefined)?.author_id);
+    asString(
+      (rootResponse.data as Record<string, unknown> | undefined)?.author_id
+    );
   if (!authorId) {
     return {
       threadId,
@@ -1220,7 +1222,7 @@ export function formatXWriteActionError(error: unknown): Error {
         )
       ) {
         return new Error(
-          "X's public API blocked this reply for this conversation, even though the same reply may still work on x.com. This is an X API policy mismatch, not a fake app error."
+          "The X/Twitter public API blocked this reply for this conversation, even though the same reply may still work on x.com. This is an X/Twitter API policy mismatch, not a fake app error."
         );
       }
       return new Error(

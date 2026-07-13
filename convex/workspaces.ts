@@ -68,6 +68,7 @@ import {
 import {
   deriveWorkspaceSystemStatus,
   getWorkspaceDiscoveryState,
+  getWorkspaceFeatureStatuses,
   isWorkspaceInactive,
 } from "./lib/workspaceSystem";
 import { INACTIVITY_PAUSE_AFTER_MS } from "../shared/lib/workspaceSystem";
@@ -461,14 +462,17 @@ export const getWorkspaceOperationalSnapshotInternal = internalQuery({
       return null;
     }
 
-    const [stats, settingsRow, discoveryState] = await Promise.all([
-      getWorkspaceStatsSnapshot({ db: ctx.db, workspace }),
-      getWorkspaceAgentSettingsRow(ctx, workspaceId),
-      getWorkspaceDiscoveryState(ctx.db, workspace),
-    ]);
+    const [stats, settingsRow, discoveryState, featureStatuses] =
+      await Promise.all([
+        getWorkspaceStatsSnapshot({ db: ctx.db, workspace }),
+        getWorkspaceAgentSettingsRow(ctx, workspaceId),
+        getWorkspaceDiscoveryState(ctx.db, workspace),
+        getWorkspaceFeatureStatuses(ctx.db, workspace),
+      ]);
     const settings = settingsRow ?? getDefaultWorkspaceAgentSettings(workspace);
     const systemStatus = deriveWorkspaceSystemStatus(workspace, {
       discoveryState,
+      featureStatuses,
     });
 
     return {
