@@ -133,8 +133,8 @@ export const searchProspects = createTool({
               workflowId: workspace.prospectingWorkflowId,
               progress: [
                 {
-                  step: `Finding ${entityPluralLower}`,
-                  status: "running",
+                  step: `Search already started for ${entityPluralLower}`,
+                  status: "completed",
                   details: `New ${entityPluralLower} will appear automatically as they are found.`,
                 },
               ],
@@ -143,8 +143,8 @@ export const searchProspects = createTool({
                 message: `Search is already running in the background for this workspace's ${entityPluralLower}.`,
                 progress: [
                   {
-                    step: `Finding ${entityPluralLower}`,
-                    status: "running",
+                    step: `Search already started for ${entityPluralLower}`,
+                    status: "completed",
                     details: `New ${entityPluralLower} will appear automatically as they are found.`,
                   },
                 ],
@@ -174,8 +174,8 @@ export const searchProspects = createTool({
               workflowId: result.workflowId,
               progress: [
                 {
-                  step: `Finding ${entityPluralLower}`,
-                  status: "running",
+                  step: `Search started for ${entityPluralLower}`,
+                  status: "completed",
                   details:
                     "Generating keywords, searching platforms, and saving matches.",
                 },
@@ -185,8 +185,8 @@ export const searchProspects = createTool({
                 message: `Search has started in the background. New ${entityPluralLower} will appear in your dashboard.`,
                 progress: [
                   {
-                    step: `Finding ${entityPluralLower}`,
-                    status: "running",
+                    step: `Search started for ${entityPluralLower}`,
+                    status: "completed",
                     details:
                       "Generating keywords, searching platforms, and saving matches.",
                   },

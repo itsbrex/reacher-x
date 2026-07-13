@@ -41,6 +41,48 @@ export interface ResearchQueryOutcome {
   error?: string;
 }
 
+export interface WebPageReadOutcome {
+  url: string;
+  title: string;
+  snippet: string;
+  error?: string;
+}
+
+/** Read clean page text directly from known URLs already stored on a profile. */
+export async function readWebPages(
+  urls: string[]
+): Promise<WebPageReadOutcome[]> {
+  const exa = getExaClient();
+  const limitedUrls = [
+    ...new Set(urls.map((url) => url.trim()).filter(Boolean)),
+  ].slice(0, 2);
+
+  if (limitedUrls.length === 0) {
+    return [];
+  }
+
+  try {
+    const response = await exa.getContents(limitedUrls, {
+      text: { maxCharacters: SNIPPET_MAX_CHARS },
+    });
+
+    return (response.results ?? []).map((result) => ({
+      url: result.url,
+      title: result.title?.trim() || result.url,
+      snippet: (result.text ?? "").replace(/\s+/g, " ").trim(),
+    }));
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Website read failed";
+    return limitedUrls.map((url) => ({
+      url,
+      title: url,
+      snippet: "",
+      error: errorMessage,
+    }));
+  }
+}
+
 /**
  * Run up to MAX_QUERIES Exa searches in parallel, each returning extracted
  * page text. A failing query degrades to an error entry instead of failing

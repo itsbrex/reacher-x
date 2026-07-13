@@ -50,6 +50,7 @@ import {
 } from "./tools/xPostLimitHelpers";
 import { logger } from "../../../shared/lib/logger";
 import { getStyleMemoryCategory } from "../../lib/styleSourceCore";
+import { loadAgentProspectProfileContext } from "../../lib/prospectProfileContextHelpers";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -176,14 +177,6 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
       }
     );
 
-    // Build pain points summary
-    const painPointsSummary =
-      prospect.painPoints && prospect.painPoints.length > 0
-        ? prospect.painPoints
-            .map((p: { pain: string }) => `• ${p.pain}`)
-            .join("\n")
-        : "None identified yet";
-
     // Inject prospect context as system message
     // NOTE: Do NOT include IDs in the prompt - the LLM tends to modify them.
     // Tools extract IDs from thread context automatically.
@@ -201,21 +194,12 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
 Use this vocabulary in user-facing responses. Internal tool names still refer to prospects.`,
     };
 
+    const profileContext = await loadAgentProspectProfileContext(ctx, prospect);
     const contextMessage = {
       role: "system" as const,
-      content: `## Current Prospect Context
+      content: `${profileContext}
 
-**Name:** ${prospect.displayName || "Unknown"}
-**Title:** ${prospect.title || "Not specified"}
-**Platform:** ${prospect.platform}
-**Status:** ${prospect.status}
-**Brief Intro:** ${prospect.briefIntro || "Not available"}
-
-**Pain Points:**
-${painPointsSummary}
-
----
-You are chatting about this specific prospect. You already have their context.
+You are chatting about this specific prospect and already have the complete profile-panel context above.
 - Do NOT ask for IDs - the tools will extract them automatically from the thread context.
 - Always refer to the prospect by name ("${prospect.displayName || "the prospect"}"), never by ID.
 - When calling tools, you don't need to provide prospectId or workspaceId - they are automatically available.`,

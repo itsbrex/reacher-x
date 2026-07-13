@@ -127,6 +127,8 @@ import type * as lib_previewQualificationPool from "../lib/previewQualificationP
 import type * as lib_prospectAnalyticsCore from "../lib/prospectAnalyticsCore.js";
 import type * as lib_prospectInteractionHistoryCore from "../lib/prospectInteractionHistoryCore.js";
 import type * as lib_prospectListFeedUtils from "../lib/prospectListFeedUtils.js";
+import type * as lib_prospectProfileContextCore from "../lib/prospectProfileContextCore.js";
+import type * as lib_prospectProfileContextHelpers from "../lib/prospectProfileContextHelpers.js";
 import type * as lib_prospectSearchMerge from "../lib/prospectSearchMerge.js";
 import type * as lib_prospectSearchText from "../lib/prospectSearchText.js";
 import type * as lib_prospectingHelpers from "../lib/prospectingHelpers.js";
@@ -377,6 +379,8 @@ declare const fullApi: ApiFromModules<{
   "lib/prospectAnalyticsCore": typeof lib_prospectAnalyticsCore;
   "lib/prospectInteractionHistoryCore": typeof lib_prospectInteractionHistoryCore;
   "lib/prospectListFeedUtils": typeof lib_prospectListFeedUtils;
+  "lib/prospectProfileContextCore": typeof lib_prospectProfileContextCore;
+  "lib/prospectProfileContextHelpers": typeof lib_prospectProfileContextHelpers;
   "lib/prospectSearchMerge": typeof lib_prospectSearchMerge;
   "lib/prospectSearchText": typeof lib_prospectSearchText;
   "lib/prospectingHelpers": typeof lib_prospectingHelpers;

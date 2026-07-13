@@ -8,13 +8,17 @@ import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "../../../_generated/api";
 import {
+  readWebPages,
   runDeepResearch,
   type ResearchQueryOutcome,
+  type WebPageReadOutcome,
 } from "../../../lib/researchCore";
 import { extractProspectIdFromThread } from "./helpers";
+import { selectProfileWebsiteHref } from "../../../../shared/lib/twitter/profileLinks";
 
 export interface ResearchProspectResult {
   success: boolean;
+  website?: WebPageReadOutcome[];
   research?: ResearchQueryOutcome[];
   error?: string;
 }
@@ -25,7 +29,7 @@ export interface ResearchProspectResult {
  */
 export const researchProspect = createTool({
   description:
-    "Research the current prospect and their company on the web (recent activity, company news, product launches, funding, public opinions). Use BEFORE generating a plan when prospect context is thin, or when the user asks for deeper research. Optionally pass a focus (e.g. 'recent funding', 'their product pricing') and/or extra search queries.",
+    "Visit the current prospect's saved website when available, then research the prospect and company on the web (recent activity, company news, product launches, funding, public opinions). The saved URL is resolved automatically from profile context; never ask the user to provide it. Use when the user asks to visit the website or requests deeper research.",
   inputSchema: z.object({
     focus: z
       .string()
@@ -79,8 +83,15 @@ export const researchProspect = createTool({
         queries.push(extra);
       }
 
-      const research = await runDeepResearch(queries);
-      return { success: true, research };
+      const websiteUrl = selectProfileWebsiteHref(
+        prospect.websiteHref,
+        prospect.websiteUrl
+      );
+      const [website, research] = await Promise.all([
+        websiteUrl ? readWebPages([websiteUrl]) : Promise.resolve([]),
+        runDeepResearch(queries),
+      ]);
+      return { success: true, website, research };
     } catch (error) {
       return {
         success: false,

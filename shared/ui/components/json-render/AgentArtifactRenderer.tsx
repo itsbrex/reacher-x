@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { JSONUIProvider, Renderer, defineRegistry } from "@json-render/react";
-import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import type { InlinePanelOpenPayload } from "@/features/agent/lib";
@@ -58,6 +58,23 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function getArtifactProgressStatusIcon(
+  status: AgentArtifactProgressStep["status"]
+) {
+  switch (status) {
+    case "completed":
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case "failed":
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    case "running":
+      // Artifacts are persisted launch-time snapshots. A live spinner here
+      // would incorrectly claim the workflow is still active on old turns.
+      return <Circle className="h-4 w-4 text-blue-500" />;
+    default:
+      return <Circle className="text-muted-foreground h-4 w-4" />;
+  }
+}
+
 function ProgressStatusCard({
   props,
 }: {
@@ -68,32 +85,19 @@ function ProgressStatusCard({
     totalProspects?: number | null;
   };
 }) {
-  const getStatusIcon = (status: AgentArtifactProgressStep["status"]) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
-      default:
-        return <Circle className="text-muted-foreground h-4 w-4" />;
-    }
-  };
-
   return (
     <div className="bg-muted/30 space-y-3 rounded-lg border p-3">
       {props.title && <p className="text-sm font-medium">{props.title}</p>}
 
       {props.progress.length > 0 && (
         <div className="space-y-2">
-          {props.progress.map((step, index) => (
+          {props.progress.map((step) => (
             <div
-              key={`${step.step}-${index}`}
+              key={`${step.step}-${step.status}-${step.count ?? "none"}-${step.details ?? "none"}`}
               className="flex items-start gap-2"
             >
               <div className="mt-0.5 shrink-0">
-                {getStatusIcon(step.status)}
+                {getArtifactProgressStatusIcon(step.status)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

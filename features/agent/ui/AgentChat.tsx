@@ -290,7 +290,10 @@ function getProgressStatusIcon(status: ProgressStep["status"]) {
     case "failed":
       return <XCircle className="h-4 w-4 text-red-500" />;
     case "running":
-      return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      // Persisted tool results are historical snapshots, not a live workflow
+      // subscription. Keep this static so old chat cards never imply work is
+      // currently running.
+      return <Circle className="h-4 w-4 text-blue-500" />;
     default:
       return <Circle className="text-muted-foreground h-4 w-4" />;
   }

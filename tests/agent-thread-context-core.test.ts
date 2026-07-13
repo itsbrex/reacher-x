@@ -140,6 +140,40 @@ test("prospect threads fall back to the canonical thread scope when nothing is t
   });
 });
 
+test("an untagged current workspace turn clears an older tagged prospect", () => {
+  const selection = resolveAgentThreadSelection({
+    routeScope: {
+      kind: "workspace",
+      workspaceId: "workspace_1",
+      prospectId: null,
+    },
+    contextRows: [
+      { taggedEntities: [] },
+      {
+        taggedEntities: [
+          createEntity({
+            kind: "prospect",
+            workspaceId: "workspace_1",
+            prospectId: "prospect_1",
+          }),
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(selection, {
+    workspaceId: "workspace_1",
+    prospectId: null,
+    planId: null,
+    taskId: null,
+    postId: null,
+    postPlatform: null,
+    postUrl: null,
+    source: "thread",
+    ambiguousProspectIds: [],
+  });
+});
+
 test("task and plan tags preserve their ids for the selected prospect", () => {
   const selection = resolveAgentThreadSelection({
     routeScope: {

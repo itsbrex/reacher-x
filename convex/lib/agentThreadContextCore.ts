@@ -149,13 +149,18 @@ export function resolveAgentThreadSelection(args: {
   routeScope: AgentThreadRouteScope;
   contextRows: AgentThreadContextRow[];
 }): AgentThreadSelection {
-  for (const row of args.contextRows) {
+  for (const [rowIndex, row] of args.contextRows.entries()) {
     const scopedEntities = row.taggedEntities
       .map(normalizeMentionEntitySearchResult)
       .filter((entity): entity is MentionEntitySearchResult => entity !== null)
       .filter((entity) => entityMatchesRouteScope(entity, args.routeScope));
 
     if (scopedEntities.length === 0) {
+      // Context rows are newest-first. An explicit row for the current turn
+      // with no selected entity clears an older workspace-thread selection.
+      if (rowIndex === 0) {
+        return buildThreadSelectionFallback(args.routeScope);
+      }
       continue;
     }
 

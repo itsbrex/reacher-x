@@ -2272,6 +2272,19 @@ export const getProspectActivePlanInternal = internalQuery({
   },
 });
 
+export const getProspectActivityLogInternal = internalQuery({
+  args: {
+    prospectId: v.id("prospects"),
+    limit: v.number(),
+  },
+  handler: async (ctx, { prospectId, limit }) => {
+    const boundedLimit = Math.min(50, Math.max(1, Math.floor(limit)));
+    return await getProspectActivityLog(ctx, prospectId, {
+      limit: boundedLimit,
+    });
+  },
+});
+
 /**
  * Update plan status (internal, for workflow).
  */

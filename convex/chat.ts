@@ -54,6 +54,7 @@ import {
 } from "./lib/errorHelpers";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import { getProspectDisplayFields } from "./lib/notificationHelpers";
+import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
 import {
   ensureProspectThreadLink,
@@ -419,20 +420,22 @@ async function persistAgentMessageContext(
     metadata: AgentMessageContextMetadata | null;
   }
 ) {
-  if (!args.metadata) {
-    return;
-  }
-
   const scope = await resolveAgentThreadScopeContext(ctx, args.threadId);
+  const metadata = args.metadata ?? {
+    version: 1 as const,
+    promptTextSource: "user" as const,
+    taggedEntities: [],
+    attachments: [],
+  };
   await ctx.db.insert("agentMessageContexts", {
     threadId: args.threadId,
     messageId: args.messageId,
     userId: args.userId,
     workspaceId: scope.workspaceId ?? undefined,
     prospectId: scope.prospectId ?? undefined,
-    promptTextSource: args.metadata.promptTextSource,
-    taggedEntities: args.metadata.taggedEntities,
-    attachments: args.metadata.attachments,
+    promptTextSource: metadata.promptTextSource,
+    taggedEntities: metadata.taggedEntities,
+    attachments: metadata.attachments,
     createdAt: getCurrentUTCTimestamp(),
   });
 }
@@ -531,15 +534,19 @@ async function buildResolvedTaggedEntityLine(
         return null;
       }
 
-      const { prospectDisplayName, prospectScreenName } =
-        getProspectDisplayFields(prospect);
+      const { prospectDisplayName } = getProspectDisplayFields(prospect);
       const label =
         prospectDisplayName ??
         prospect.displayName ??
         prospect.title ??
         prospect.externalId;
 
-      return `Prospect: ${label} (prospectId: ${String(prospect._id)}; workspaceId: ${String(prospect.workspaceId)}${prospectScreenName ? `; handle: @${prospectScreenName}` : ""})`;
+      const profileContext = await loadAgentProspectProfileContext(
+        ctx,
+        prospect
+      );
+
+      return `Prospect selected in the UI: ${label}\n${profileContext}`;
     }
     case "plan": {
       const planId = entity.planId ?? entity.entityId;

@@ -110,10 +110,9 @@ export const workspaceVisionLanguageModel = createWorkspaceLanguageModel(
 );
 
 const mainAgentBaseTools = {
-  // Workspace context + discovery
+  // Workspace context. Global discovery is intentionally setup-only.
   inspectWorkspace,
   queryWorkspace,
-  searchProspects,
   listProspectPlans,
   updatePlansBatch,
   // Selected prospect context
