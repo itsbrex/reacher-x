@@ -8,6 +8,7 @@ import {
   getOwnedWorkspace,
   getUserByIdentity,
 } from "./lib/accessHelpers";
+import { isProspectReadyQualifiedEnriched } from "./lib/prospectAnalyticsCore";
 import { getNestedRecord, getStringProperty } from "./lib/typeGuards";
 import {
   buildLinkedInCommentMentionEntity,
@@ -34,12 +35,14 @@ const MIN_PROSPECT_CANDIDATE_LIMIT = 48;
 type MentionableProspectSnapshot = {
   prospectId: Id<"prospects">;
   workspaceId: Id<"workspaces">;
+  origin: Doc<"prospects">["origin"];
   label: string;
   secondaryLabel: string;
   mentionText: string;
   avatarUrl: string | null;
   verified: boolean;
   handle: string | null;
+  readyQualifiedEnriched: boolean;
 };
 
 function getProspectAvatarUrl(prospect: { data?: unknown }) {
@@ -122,6 +125,7 @@ function buildProspectSnapshotFromSummary(
   return {
     prospectId: summary.prospectId,
     workspaceId: summary.workspaceId,
+    origin: summary.origin,
     label: summary.displayName,
     secondaryLabel: getProspectSummarySecondaryLabel(summary),
     mentionText: summary.displayName,
@@ -131,6 +135,7 @@ function buildProspectSnapshotFromSummary(
       summary.twitterUsername?.trim() ??
       summary.linkedInUsername?.trim() ??
       null,
+    readyQualifiedEnriched: summary.readyQualifiedEnriched,
   };
 }
 
@@ -139,11 +144,14 @@ function buildProspectSnapshotFromProspect(
     Doc<"prospects">,
     | "_id"
     | "workspaceId"
+    | "origin"
     | "displayName"
     | "title"
     | "data"
     | "externalId"
     | "socialProfiles"
+    | "qualificationStatus"
+    | "enrichmentStatus"
   >
 ): MentionableProspectSnapshot {
   const label = getProspectLabel(prospect);
@@ -153,12 +161,14 @@ function buildProspectSnapshotFromProspect(
   return {
     prospectId: prospect._id,
     workspaceId: prospect.workspaceId,
+    origin: prospect.origin,
     label,
     secondaryLabel: formatProspectSecondaryLabel(handle),
     mentionText: label,
     avatarUrl: getProspectAvatarUrl(prospect),
     verified: user?.verified === true,
     handle,
+    readyQualifiedEnriched: isProspectReadyQualifiedEnriched(prospect),
   };
 }
 
@@ -396,7 +406,11 @@ export const searchMentionEntities = query({
         prospectId: scopedProspect._id,
         workspaceId: workspace._id,
       });
-      prospects = scopedSnapshot ? [scopedSnapshot] : [];
+      prospects =
+        scopedSnapshot?.origin !== "setup_preview" &&
+        scopedSnapshot?.readyQualifiedEnriched
+          ? [scopedSnapshot]
+          : [];
     } else if (normalizedQuery) {
       const summaryRows = await ctx.db
         .query("prospectSummaries")
@@ -404,6 +418,7 @@ export const searchMentionEntities = query({
           q
             .search("searchText", normalizedQuery)
             .eq("workspaceId", workspace._id)
+            .eq("readyQualifiedEnriched", true)
         )
         .take(prospectCandidateLimit * 2);
 
@@ -414,8 +429,8 @@ export const searchMentionEntities = query({
     } else {
       const summaryRows = await ctx.db
         .query("prospectSummaries")
-        .withIndex("by_workspace_created", (q) =>
-          q.eq("workspaceId", workspace._id)
+        .withIndex("by_workspace_ready_score", (q) =>
+          q.eq("workspaceId", workspace._id).eq("readyQualifiedEnriched", true)
         )
         .order("desc")
         .take(prospectCandidateLimit * 2);

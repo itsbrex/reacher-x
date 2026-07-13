@@ -1253,7 +1253,7 @@ export default defineSchema({
   })
     .searchIndex("search_prospect_summaries", {
       searchField: "searchText",
-      filterFields: ["workspaceId", "status"],
+      filterFields: ["workspaceId", "status", "readyQualifiedEnriched"],
     })
     .index("by_prospect", ["prospectId"])
     .index("by_user_qualification", ["userId", "qualificationStatus"])
