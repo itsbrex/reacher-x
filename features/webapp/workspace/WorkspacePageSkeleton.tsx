@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/components/Tabs";
+import { PageContent, PageScrollArea } from "@/features/webapp/ui/components";
 
 function WorkspaceFieldSkeleton({
   label,
@@ -23,9 +24,16 @@ function WorkspaceFieldSkeleton({
   );
 }
 
-export function WorkspacePageSkeleton() {
+export function WorkspacePageSkeleton({
+  bodyColumnClassName,
+}: {
+  bodyColumnClassName: string;
+}) {
   return (
-    <Tabs value="details" className="flex min-h-0 flex-1 flex-col">
+    <Tabs
+      value="details"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
       <div className="border-border shrink-0 border-b">
         <div className="scroll-fade-x scrollbar-none overflow-x-auto [overflow-y:clip] px-4 [&::-webkit-scrollbar]:hidden">
           <TabsList variant="underline">
@@ -42,36 +50,40 @@ export function WorkspacePageSkeleton() {
         </div>
       </div>
 
-      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24">
-        <div
-          className="space-y-4"
-          aria-busy="true"
-          aria-live="polite"
-          aria-label="Loading workspace"
-        >
-          <WorkspaceFieldSkeleton
-            label="Who to find/reach"
-            inputClassName="h-10 w-full rounded-md"
-          />
+      <PageScrollArea className="pt-4 pb-24">
+        <PageContent className={bodyColumnClassName}>
+          <div className="px-4">
+            <div
+              className="space-y-4"
+              aria-busy="true"
+              aria-live="polite"
+              aria-label="Loading workspace"
+            >
+              <WorkspaceFieldSkeleton
+                label="Who to find/reach"
+                inputClassName="h-10 w-full rounded-md"
+              />
 
-          <WorkspaceFieldSkeleton
-            label="Name"
-            inputClassName="h-10 w-full rounded-md"
-          />
+              <WorkspaceFieldSkeleton
+                label="Name"
+                inputClassName="h-10 w-full rounded-md"
+              />
 
-          <WorkspaceFieldSkeleton
-            label="Description"
-            inputClassName="h-40 w-full rounded-md"
-            helperWidthClassName="w-44"
-          />
+              <WorkspaceFieldSkeleton
+                label="Description"
+                inputClassName="h-40 w-full rounded-md"
+                helperWidthClassName="w-44"
+              />
 
-          <WorkspaceFieldSkeleton
-            label="Agent-generated description"
-            inputClassName="h-48 w-full rounded-md"
-            helperWidthClassName="w-40"
-          />
-        </div>
-      </div>
+              <WorkspaceFieldSkeleton
+                label="Agent-generated description"
+                inputClassName="h-48 w-full rounded-md"
+                helperWidthClassName="w-40"
+              />
+            </div>
+          </div>
+        </PageContent>
+      </PageScrollArea>
     </Tabs>
   );
 }

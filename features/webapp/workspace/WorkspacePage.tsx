@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -24,6 +25,7 @@ import {
   PageHeader,
   PageLayout,
   PageContent,
+  PageScrollArea,
 } from "@/features/webapp/ui/components";
 import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { Button } from "@/shared/ui/components/Button";
@@ -101,6 +103,13 @@ import {
   type WorkspaceUseCaseKey,
 } from "@/shared/lib/workspaceUseCases";
 import { WorkspacePageSkeleton } from "./WorkspacePageSkeleton";
+
+const workspacePageShellClassName =
+  "flex h-full min-h-0 w-full flex-1 flex-col md:flex-row md:items-stretch";
+const workspaceMainColumnClassName =
+  "max-w-none border-r-0 md:min-w-0 md:flex-1 md:basis-0 md:border-r-0 flex min-h-0 flex-col overflow-hidden";
+const workspaceBodyColumnClassName =
+  "w-full min-w-0 md:w-[min(32rem,100%)] md:max-w-lg";
 
 function createEmptyWorkspaceFormValues(): WorkspacePageFormValues {
   return {
@@ -233,8 +242,6 @@ export default function WorkspacePage() {
   const formLabelClassName = "mb-2.5 block";
   const formDescriptionClassName = "mt-1.5 text-xs";
   const formMessageClassName = "mt-1.5";
-  const workspaceBodyColumnClassName =
-    "flex min-h-0 flex-1 flex-col self-stretch overflow-hidden md:w-[min(32rem,100%)] md:max-w-lg md:flex-none md:self-start";
   const workspaceFormId = "workspace-settings-form";
 
   const form = useForm<WorkspacePageFormValues>({
@@ -416,9 +423,13 @@ export default function WorkspacePage() {
     setAgentAutonomyMode(checked ? "review_required" : "autonomous");
   };
 
-  function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleFormSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     void form.handleSubmit(handleSave)(event);
+  }
+
+  function handleDone() {
+    void form.handleSubmit(handleSave)();
   }
 
   const handleStartEditing = () => {
@@ -531,14 +542,14 @@ export default function WorkspacePage() {
   const isHydrating = isAuthenticated && workspace === undefined;
   if (authLoading || isHydrating) {
     return (
-      <PageLayout className="max-w-none border-r-0 md:border-r-0">
-        <PageHeader className="border-b-0" title="Workspace" />
-        <div className={workspaceBodyColumnClassName}>
-          <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <WorkspacePageSkeleton />
-          </PageContent>
-        </div>
-      </PageLayout>
+      <div className={workspacePageShellClassName}>
+        <PageLayout className={workspaceMainColumnClassName}>
+          <PageHeader className="border-b-0" title="Workspace" />
+          <WorkspacePageSkeleton
+            bodyColumnClassName={workspaceBodyColumnClassName}
+          />
+        </PageLayout>
+      </div>
     );
   }
 
@@ -548,15 +559,14 @@ export default function WorkspacePage() {
     <>
       <div
         className={cn(
-          "flex h-full min-h-0 w-full flex-1 flex-col md:flex-row md:items-stretch",
+          workspacePageShellClassName,
           refineOpen && !isMobile && "h-full min-h-0 overflow-hidden"
         )}
       >
         {showMainColumn ? (
           <PageLayout
             className={cn(
-              "max-w-none border-r-0 md:min-w-0 md:flex-1 md:basis-0 md:border-r-0",
-              "flex min-h-0 flex-col overflow-hidden",
+              workspaceMainColumnClassName,
               refineOpen && !isMobile && "h-full overflow-hidden"
             )}
           >
@@ -579,8 +589,8 @@ export default function WorkspacePage() {
                       </Button>
                       <Button
                         size="xs"
-                        form={workspaceFormId}
-                        type="submit"
+                        type="button"
+                        onClick={handleDone}
                         disabled={
                           !hasWorkspacePageChanges ||
                           form.formState.isSubmitting ||
@@ -685,10 +695,15 @@ export default function WorkspacePage() {
                   </div>
                 </div>
 
-                <div className={workspaceBodyColumnClassName}>
-                  <PageContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <PageScrollArea
+                  className={cn(
+                    "pb-24",
+                    activeTab === "agent" ? "pt-0" : "pt-4"
+                  )}
+                >
+                  <PageContent className={workspaceBodyColumnClassName}>
                     {authError && (
-                      <div className="px-4 pt-4">
+                      <div className="px-4">
                         <Alert variant="destructive" className="mb-6">
                           <AlertTitle>Could not load workspace</AlertTitle>
                           <AlertDescription>
@@ -698,12 +713,7 @@ export default function WorkspacePage() {
                       </div>
                     )}
 
-                    <div
-                      className={cn(
-                        "scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-24",
-                        activeTab === "agent" ? "pt-0" : "pt-4"
-                      )}
-                    >
+                    <div className="px-4">
                       <WorkspacePlanLimitAlert className="mb-4" />
                       <TabsContent value="details" className="mt-0">
                         {isEditing ? (
@@ -1107,7 +1117,7 @@ export default function WorkspacePage() {
                       </TabsContent>
                     </div>
                   </PageContent>
-                </div>
+                </PageScrollArea>
               </Tabs>
             ) : (
               <div className={workspaceBodyColumnClassName}>
