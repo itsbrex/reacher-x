@@ -1,87 +1,27 @@
-import { v } from "convex/values";
-import { vWorkflowId } from "@convex-dev/workflow";
-import { vResultValidator } from "@convex-dev/workpool";
-import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import { vOnCompleteArgs } from "@convex-dev/workpool";
 import { internalMutation } from "../lib/functionBuilders";
 import { getProspectActivePlan } from "../lib/outreachCore";
-import type { AutoPlanGenerationResult } from "../lib/autoPlanCore";
-import { workflow } from "../lib/workflow";
 import {
-  autoPlanGenerationResultValidator,
-  autoPlanWorkflowCompletionContextValidator,
-} from "../validators";
+  dismissNotificationsByKey,
+  getProspectDisplayFields,
+  upsertNotificationByKey,
+} from "../lib/notificationHelpers";
+import { classifyAutoPlanFailure } from "../lib/autoPlanCore";
+import { autoPlanWorkCompletionContextValidator } from "../validators";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 
-const AUTO_PLAN_STEP_RETRY = {
-  maxAttempts: 3,
-  initialBackoffMs: 2_000,
-  base: 2,
-} as const;
+function buildAutoPlanFailureNotificationKey(prospectId: string) {
+  return `auto-plan-failed:${prospectId}`;
+}
 
-export const autoPlanGenerationWorkflow = workflow.define({
-  args: {
-    prospectId: v.id("prospects"),
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-  },
-  returns: autoPlanGenerationResultValidator,
-  handler: async (
-    step,
-    args
-  ): Promise<AutoPlanGenerationResult<Id<"outreachPlans">>> => {
-    const thread: { threadId: string; created: boolean } =
-      await step.runMutation(
-        internal.prospectThreads.ensureActiveThreadForProspectInternal,
-        {
-          prospectId: args.prospectId,
-          threadSummary: "Auto-generated, research-grounded outreach plan",
-        }
-      );
-
-    const result: AutoPlanGenerationResult<Id<"outreachPlans">> =
-      await step.runAction(
-        internal.autoPlanActions.generateGroundedAutoPlanDraft,
-        {
-          ...args,
-          threadId: thread.threadId,
-        },
-        { retry: AUTO_PLAN_STEP_RETRY }
-      );
-
-    const persistedPlan = await step.runQuery(
-      internal.outreach.getProspectActivePlanInternal,
-      { prospectId: args.prospectId }
-    );
-    if (
-      !persistedPlan ||
-      persistedPlan.plan._id !== result.planId ||
-      persistedPlan.tasks.length === 0
-    ) {
-      throw new Error(
-        "Automatic plan generation finished without a persisted plan and tasks"
-      );
-    }
-
-    await step.runMutation(internal.prospects.updatePlanGenerationStatus, {
-      prospectId: args.prospectId,
-      status: "completed",
-    });
-
-    return result;
-  },
-});
-
-export const handleAutoPlanWorkflowComplete = internalMutation({
-  args: {
-    workflowId: vWorkflowId,
-    result: vResultValidator,
-    context: autoPlanWorkflowCompletionContextValidator,
-  },
-  returns: v.null(),
+export const handleAutoPlanWorkComplete = internalMutation({
+  args: vOnCompleteArgs(autoPlanWorkCompletionContextValidator),
   handler: async (ctx, args) => {
-    const prospect = await ctx.db.get(args.context.prospectId);
-    if (!prospect) {
+    const [prospect, run] = await Promise.all([
+      ctx.db.get(args.context.prospectId),
+      ctx.db.get(args.context.runId),
+    ]);
+    if (!prospect || !run || run.status === "completed") {
       return null;
     }
 
@@ -89,31 +29,82 @@ export const handleAutoPlanWorkflowComplete = internalMutation({
     const hasPersistedPlan = Boolean(
       persistedPlan && persistedPlan.tasks.length > 0
     );
-    const status =
-      args.result.kind === "success" && hasPersistedPlan
-        ? "completed"
-        : prospect.status === "archived"
-          ? "idle"
-          : "failed";
+    const completed = args.result.kind === "success" && hasPersistedPlan;
+    const now = getCurrentUTCTimestamp();
+    const notificationKey = buildAutoPlanFailureNotificationKey(prospect._id);
 
-    await ctx.db.patch(prospect._id, {
-      planGenerationStatus: status,
-      updatedAt: getCurrentUTCTimestamp(),
-    });
-
-    if (status === "failed") {
-      const error =
-        args.result.kind === "failed"
-          ? args.result.error
-          : args.result.kind === "canceled"
-            ? "Workflow canceled"
-            : "Workflow completed without a persisted plan and tasks";
-      console.error("[AutoPlanWorkflow] Automatic plan generation failed", {
-        workflowId: String(args.workflowId),
-        prospectId: String(prospect._id),
-        error,
-      });
+    if (completed && persistedPlan) {
+      await Promise.all([
+        ctx.db.patch(run._id, {
+          status: "completed",
+          planId: persistedPlan.plan._id,
+          threadId: persistedPlan.plan.threadId,
+          errorCode: undefined,
+          errorMessage: undefined,
+          retryable: undefined,
+          completedAt: now,
+          updatedAt: now,
+        }),
+        ctx.db.patch(prospect._id, {
+          planGenerationStatus: "completed",
+          updatedAt: now,
+        }),
+        dismissNotificationsByKey(ctx, {
+          userId: prospect.userId,
+          workspaceId: prospect.workspaceId,
+          notificationKey,
+        }),
+      ]);
+      return null;
     }
+
+    const errorMessage =
+      args.result.kind === "failed"
+        ? args.result.error
+        : args.result.kind === "canceled"
+          ? "Automatic planning was canceled"
+          : "Automatic planning completed without a persisted plan and tasks";
+    const failure = classifyAutoPlanFailure(errorMessage);
+    const displayFields = getProspectDisplayFields(prospect);
+    const prospectName =
+      displayFields.prospectDisplayName || prospect.externalId;
+
+    await Promise.all([
+      ctx.db.patch(run._id, {
+        status: "failed",
+        errorCode: failure.code,
+        errorMessage,
+        retryable: failure.retryable,
+        completedAt: now,
+        updatedAt: now,
+      }),
+      ctx.db.patch(prospect._id, {
+        planGenerationStatus:
+          prospect.status === "archived" ? "idle" : "failed",
+        updatedAt: now,
+      }),
+      upsertNotificationByKey(ctx, {
+        userId: prospect.userId,
+        workspaceId: prospect.workspaceId,
+        type: "error",
+        title: `Plan needs attention — ${prospectName}`,
+        message: failure.userMessage,
+        notificationKey,
+        targetHref:
+          failure.targetHref ?? `/agent?prospectId=${String(prospect._id)}`,
+        actionLabel: failure.actionLabel,
+        prospectId: prospect._id,
+        ...displayFields,
+      }),
+    ]);
+
+    console.error("[AutoPlanWorkpool] Automatic plan generation failed", {
+      workId: String(args.workId),
+      runId: String(run._id),
+      prospectId: String(prospect._id),
+      errorCode: failure.code,
+      error: errorMessage,
+    });
 
     return null;
   },

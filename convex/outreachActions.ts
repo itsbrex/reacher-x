@@ -10,7 +10,7 @@ import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./lib/functionBuilders";
 import { internal, api } from "./_generated/api";
-import { workflow } from "./lib/workflow";
+import { outreachPlanPool } from "./lib/outreachPlanPool";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   getXConnectionStatusForUser,
@@ -797,7 +797,7 @@ export const fetchConversationReplies = action({
 // Auto Outreach Plan Generation (for >= 80 score prospects)
 // ============================================================================
 
-async function startAutoPlanWorkflow(
+async function enqueueAutoPlanGeneration(
   ctx: ActionCtx,
   args: {
     prospectId: Id<"prospects">;
@@ -812,22 +812,30 @@ async function startAutoPlanWorkflow(
   if (!claim.claimed) {
     return "";
   }
+  if (!claim.runId) {
+    throw new Error("Auto plan claim did not create a durable run");
+  }
 
   try {
-    const workflowId = await workflow.start(
+    const workId = await outreachPlanPool.enqueueAction(
       ctx,
-      internal.workflows.autoPlan.autoPlanGenerationWorkflow,
-      args,
+      internal.autoPlanActions.generateGroundedAutoPlanDraft,
+      { ...args, runId: claim.runId },
       {
-        onComplete: internal.workflows.autoPlan.handleAutoPlanWorkflowComplete,
-        context: { prospectId: args.prospectId },
+        onComplete: internal.workflows.autoPlan.handleAutoPlanWorkComplete,
+        context: { prospectId: args.prospectId, runId: claim.runId },
+        retry: true,
       }
     );
-    return workflowId.toString();
+    await ctx.runMutation(internal.autoPlanRuns.attachAutoPlanWorkId, {
+      runId: claim.runId,
+      workId: String(workId),
+    });
+    return String(workId);
   } catch (error) {
-    await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-      prospectId: args.prospectId,
-      status: "failed",
+    await ctx.runMutation(internal.autoPlanRuns.failAutoPlanRunToStart, {
+      runId: claim.runId,
+      errorMessage: error instanceof Error ? error.message : String(error),
     });
     throw error;
   }
@@ -857,7 +865,7 @@ export const startAutoPlanGeneration = internalAction({
       return { workId: "" };
     }
 
-    return { workId: await startAutoPlanWorkflow(ctx, args) };
+    return { workId: await enqueueAutoPlanGeneration(ctx, args) };
   },
 });
 
@@ -890,27 +898,44 @@ export const enqueueEligibleAutoPlansForWorkspace = internalAction({
       return { enqueuedCount: 0 };
     }
 
-    const prospects = await ctx.runQuery(
-      internal.prospects.listAutoPlanEligibleProspectsForWorkspace,
-      {
-        workspaceId: args.workspaceId,
-      }
-    );
-
     let enqueuedCount = 0;
-    for (const prospect of prospects) {
-      if (prospect.userId !== args.userId) {
-        continue;
+    let cursor: string | null = null;
+    while (true) {
+      const prospectsPage: {
+        page: Array<{
+          _id: Id<"prospects">;
+          userId: Id<"users">;
+          planGenerationStatus?: "idle" | "generating" | "completed" | "failed";
+        }>;
+        continueCursor: string;
+        isDone: boolean;
+      } = await ctx.runQuery(
+        internal.prospects.listAutoPlanEligibleProspectsForWorkspace,
+        {
+          workspaceId: args.workspaceId,
+          paginationOpts: { cursor, numItems: 100 },
+        }
+      );
+
+      for (const prospect of prospectsPage.page) {
+        if (prospect.userId !== args.userId) {
+          continue;
+        }
+
+        const workId = await enqueueAutoPlanGeneration(ctx, {
+          prospectId: prospect._id,
+          workspaceId: args.workspaceId,
+          userId: args.userId,
+        });
+        if (workId) {
+          enqueuedCount++;
+        }
       }
 
-      const workflowId = await startAutoPlanWorkflow(ctx, {
-        prospectId: prospect._id,
-        workspaceId: args.workspaceId,
-        userId: args.userId,
-      });
-      if (workflowId) {
-        enqueuedCount++;
+      if (prospectsPage.isDone) {
+        break;
       }
+      cursor = prospectsPage.continueCursor;
     }
 
     return { enqueuedCount };

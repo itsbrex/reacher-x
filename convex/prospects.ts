@@ -3203,12 +3203,22 @@ export const claimAutoPlanGeneration = internalMutation({
       return { claimed: false, reason: "already_generating" as const };
     }
 
+    const now = getCurrentUTCTimestamp();
     await ctx.db.patch(prospect._id, {
       planGenerationStatus: "generating",
-      updatedAt: getCurrentUTCTimestamp(),
+      updatedAt: now,
     });
 
-    return { claimed: true, reason: "claimed" as const };
+    const runId = await ctx.db.insert("autoPlanRuns", {
+      prospectId: prospect._id,
+      workspaceId: prospect.workspaceId,
+      userId: prospect.userId,
+      status: "queued",
+      attemptCount: 0,
+      updatedAt: now,
+    });
+
+    return { claimed: true, reason: "claimed" as const, runId };
   },
 });
 
@@ -3219,6 +3229,7 @@ export const claimAutoPlanGeneration = internalMutation({
 export const listAutoPlanEligibleProspectsForWorkspace = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
     const prospects = await ctx.db
@@ -3229,23 +3240,33 @@ export const listAutoPlanEligibleProspectsForWorkspace = internalQuery({
           .gte("sortQualificationScore", AUTO_PLAN_GENERATION_THRESHOLD)
       )
       .order("desc")
-      .collect();
+      .paginate(args.paginationOpts);
 
-    const eligibleProspects = prospects
-      .filter(
-        (prospect) =>
-          prospect.origin !== "setup_preview" &&
-          prospect.status !== "archived" &&
-          typeof prospect.qualificationScore === "number" &&
-          prospect.qualificationScore >= AUTO_PLAN_GENERATION_THRESHOLD
-      )
-      .map((prospect) => ({
+    const eligibleProspects: Array<{
+      _id: Id<"prospects">;
+      userId: Id<"users">;
+      planGenerationStatus: Doc<"prospects">["planGenerationStatus"];
+    }> = [];
+    for (const prospect of prospects.page) {
+      if (
+        prospect.origin === "setup_preview" ||
+        prospect.status === "archived" ||
+        typeof prospect.qualificationScore !== "number" ||
+        prospect.qualificationScore < AUTO_PLAN_GENERATION_THRESHOLD
+      ) {
+        continue;
+      }
+      eligibleProspects.push({
         _id: prospect.prospectId,
         userId: prospect.userId,
         planGenerationStatus: prospect.planGenerationStatus,
-      }));
+      });
+    }
 
-    return eligibleProspects;
+    return {
+      ...prospects,
+      page: eligibleProspects,
+    };
   },
 });
 

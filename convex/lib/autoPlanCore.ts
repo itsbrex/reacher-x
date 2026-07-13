@@ -17,6 +17,32 @@ const autoPlanTaskSchema = z.object({
   content: z.string().max(X_LONG_FORM_POST_MAX_CHARS).optional(),
 });
 
+/**
+ * Provider-bound schema intentionally avoids JSON Schema length/array bounds.
+ * Some structured-output providers reject minLength/maxLength/minItems/maxItems.
+ * The strict app schema below remains the authoritative validation boundary.
+ */
+const autoPlanTransportTaskSchema = z.object({
+  type: z.enum(["comment", "dm", "wait", "ask_human"]),
+  description: z.string(),
+  timing: z.object({
+    type: z.enum(["immediate", "delay", "event", "best_time"]),
+    value: z.string().optional(),
+  }),
+  targetTweetId: z.string().optional(),
+  content: z.string().optional(),
+});
+
+export const autoPlanTransportSchema = z.object({
+  strategy: z.object({
+    rationale: z.string(),
+    targetTweetId: z.string().optional(),
+    valueProposition: z.string(),
+    tone: z.string(),
+  }),
+  tasks: z.array(autoPlanTransportTaskSchema),
+});
+
 export const autoPlanDraftSchema = z.object({
   strategy: z.object({
     rationale: z.string().min(1),
@@ -35,6 +61,138 @@ export type AutoPlanGenerationResult<PlanId extends string = string> = {
   threadId: string;
   existing: boolean;
 };
+
+export type AutoPlanFailureCode =
+  | "reconnect_required"
+  | "writing_style_unavailable"
+  | "grounding_unavailable"
+  | "provider_schema_unsupported"
+  | "context_too_large"
+  | "provider_transient"
+  | "generation_failed";
+
+export type AutoPlanFailure = {
+  code: AutoPlanFailureCode;
+  retryable: boolean;
+  userMessage: string;
+  actionLabel: "Reconnect" | "View details";
+  targetHref?: string;
+};
+
+function stringifyAutoPlanError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
+  const message = stringifyAutoPlanError(error).toLowerCase();
+
+  if (
+    message.includes("reconnect") ||
+    message.includes("refresh token") ||
+    message.includes("not connected") ||
+    message.includes("unauthorized") ||
+    message.includes("authentication expired") ||
+    message.includes("missing scope") ||
+    /\b(401|403)\b/.test(message)
+  ) {
+    return {
+      code: "reconnect_required",
+      retryable: false,
+      userMessage:
+        "A connected account needs attention before planning can continue.",
+      actionLabel: "Reconnect",
+      targetHref: "/settings/connected-accounts",
+    };
+  }
+
+  if (
+    message.includes("writing style") ||
+    message.includes("style profile") ||
+    message.includes("style memory")
+  ) {
+    return {
+      code: "writing_style_unavailable",
+      retryable: false,
+      userMessage:
+        "Writing style is unavailable. Refresh it from Connected accounts.",
+      actionLabel: "Reconnect",
+      targetHref: "/settings/connected-accounts",
+    };
+  }
+
+  if (
+    message.includes("minlength") ||
+    message.includes("maxlength") ||
+    message.includes("minitems") ||
+    message.includes("maxitems") ||
+    message.includes("unsupported schema") ||
+    message.includes("invalid json schema")
+  ) {
+    return {
+      code: "provider_schema_unsupported",
+      retryable: false,
+      userMessage: "The model provider rejected the plan format.",
+      actionLabel: "View details",
+    };
+  }
+
+  if (
+    message.includes("maximum context") ||
+    message.includes("context length") ||
+    message.includes("context window") ||
+    message.includes("max input") ||
+    message.includes("too many tokens") ||
+    message.includes("8192")
+  ) {
+    return {
+      code: "context_too_large",
+      retryable: false,
+      userMessage: "The provider could not process the planning context.",
+      actionLabel: "View details",
+    };
+  }
+
+  if (
+    message.includes("grounding incomplete") ||
+    message.includes("profile could not be loaded") ||
+    message.includes("no usable findings") ||
+    message.includes("prospect has no stored")
+  ) {
+    return {
+      code: "grounding_unavailable",
+      retryable: false,
+      userMessage:
+        "Required prospect research is unavailable. Open the prospect for details.",
+      actionLabel: "View details",
+    };
+  }
+
+  if (
+    message.includes("429") ||
+    /\b5\d\d\b/.test(message) ||
+    message.includes("rate limit") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("temporarily unavailable") ||
+    message.includes("service unavailable") ||
+    message.includes("fetch failed") ||
+    message.includes("network")
+  ) {
+    return {
+      code: "provider_transient",
+      retryable: true,
+      userMessage: "The provider stayed unavailable after automatic retries.",
+      actionLabel: "View details",
+    };
+  }
+
+  return {
+    code: "generation_failed",
+    retryable: true,
+    userMessage: "The plan could not be created after automatic retries.",
+    actionLabel: "View details",
+  };
+}
 
 export type AutoPlanSocialPost = {
   id: string;

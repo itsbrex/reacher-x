@@ -1355,7 +1355,7 @@ async function finalizePendingAssistantMessageForOrder(
 type ThreadHistoryLinkRow = Pick<
   Doc<"prospectThreads"> | Doc<"workspaceAgentThreads">,
   "_creationTime" | "threadId" | "threadStatus" | "threadSummary"
->;
+> & { hasVisibleMessages?: boolean };
 
 type ThreadHistoryEntry = {
   _id: string;
@@ -1386,6 +1386,14 @@ function shouldFetchThreadHistoryFallback(
   );
 }
 
+function isAutoPlanHistoryRow(row: ThreadHistoryLinkRow) {
+  const summary = row.threadSummary?.toLowerCase() ?? "";
+  return (
+    summary.includes("auto-generated, research-grounded outreach plan") ||
+    summary.startsWith("outreach plan created for ")
+  );
+}
+
 async function buildThreadHistoryEntries(
   ctx: ReadableCtx,
   rows: ThreadHistoryLinkRow[],
@@ -1411,10 +1419,36 @@ async function buildThreadHistoryEntries(
       fallbackThreads[index],
     ])
   );
+  const rowsNeedingMessageCheck = options.includeFirstMessage
+    ? dedupedRows.filter(
+        (row) => isAutoPlanHistoryRow(row) && row.hasVisibleMessages !== true
+      )
+    : [];
+  const messageChecks = await Promise.all(
+    rowsNeedingMessageCheck.map((row) =>
+      ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
+        threadId: row.threadId,
+        order: "desc",
+        paginationOpts: { numItems: 10, cursor: null },
+      })
+    )
+  );
+  const hasVisibleMessagesByThreadId = new Map(
+    rowsNeedingMessageCheck.map((row, index) => [
+      row.threadId,
+      messageChecks[index].page.some((message) => {
+        const role = message.message?.role;
+        return role === "user" || role === "assistant";
+      }),
+    ])
+  );
 
   const entries: ThreadHistoryEntry[] = [];
 
   for (const row of dedupedRows) {
+    if (hasVisibleMessagesByThreadId.get(row.threadId) === false) {
+      continue;
+    }
     const fallbackThread = fallbackByThreadId.get(row.threadId);
     if (
       shouldFetchThreadHistoryFallback(row, options) &&

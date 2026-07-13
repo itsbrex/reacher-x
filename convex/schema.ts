@@ -38,6 +38,8 @@ import {
   pipelineStageValidator,
   prospectStageTimestampsValidator,
   planGenerationStatusValidator,
+  autoPlanRunStatusValidator,
+  autoPlanFailureCodeValidator,
   outreachPlanArchiveHoldValidator,
   hourlyAnalyticsCountsValidator,
   readModelRolloutScopeValidator,
@@ -1157,6 +1159,7 @@ export default defineSchema({
     userId: v.id("users"),
     threadStatus: v.optional(agentComponentThreadStatusValidator),
     threadSummary: v.optional(v.string()),
+    hasVisibleMessages: v.optional(v.boolean()),
   })
     .index("by_prospect", ["prospectId"])
     .index("by_thread", ["threadId"])
@@ -1950,6 +1953,26 @@ export default defineSchema({
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_user", ["userId"]),
 
+  /** Durable, inspectable state for each automatic plan-generation attempt. */
+  autoPlanRuns: defineTable({
+    prospectId: v.id("prospects"),
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    status: autoPlanRunStatusValidator,
+    attemptCount: v.number(),
+    workId: v.optional(v.string()),
+    planId: v.optional(v.id("outreachPlans")),
+    threadId: v.optional(v.string()),
+    errorCode: v.optional(autoPlanFailureCodeValidator),
+    errorMessage: v.optional(v.string()),
+    retryable: v.optional(v.boolean()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_prospect", ["prospectId"])
+    .index("by_workspace_and_status", ["workspaceId", "status"]),
+
   /**
    * Individual tasks within an outreach plan.
    */
@@ -2191,6 +2214,7 @@ export default defineSchema({
     message: v.string(),
     status: notificationStatusValidator,
     targetHref: v.optional(v.string()),
+    actionLabel: v.optional(v.string()),
     notificationKey: v.optional(v.string()),
     contextPlatform: v.optional(prospectPlatformValidator),
     // Optional references

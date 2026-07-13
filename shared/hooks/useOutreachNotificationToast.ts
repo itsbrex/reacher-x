@@ -23,6 +23,7 @@ type OutreachNotificationSummary = {
   title: string;
   message?: string;
   targetHref?: string;
+  actionLabel?: string;
   prospectId?: string;
   threadId?: string;
   taskId?: string;
@@ -113,7 +114,7 @@ export function useOutreachNotificationToast() {
 
       const toastAction = targetHref
         ? {
-            label: "View",
+            label: notification.actionLabel ?? "View",
             onClick: async () => {
               const resolvedTargetHref = await convex.query(
                 api.outreach.resolveNotificationTarget,

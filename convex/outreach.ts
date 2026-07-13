@@ -1103,6 +1103,7 @@ export const syncAccountHealthNotification = internalMutation({
       title: args.title,
       message: args.message,
       targetHref: "/settings/connected-accounts",
+      actionLabel: "Reconnect",
       contextPlatform: args.platform,
     });
   },
@@ -1551,6 +1552,30 @@ export const createPlan = internalMutation({
     };
 
     return await createOutreachPlan(ctx, input);
+  },
+});
+
+export const attachPlanThreadInternal = internalMutation({
+  args: {
+    planId: v.id("outreachPlans"),
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { planId, threadId }) => {
+    const plan = await ctx.db.get(planId);
+    if (!plan) {
+      throw new Error("Plan not found");
+    }
+    if (plan.threadId && plan.threadId !== threadId) {
+      throw new Error("Plan is already attached to a different thread");
+    }
+    if (!plan.threadId) {
+      await ctx.db.patch(planId, {
+        threadId,
+        updatedAt: getCurrentUTCTimestamp(),
+      });
+    }
+    return null;
   },
 });
 
@@ -2790,6 +2815,7 @@ export const updateTaskResult = internalMutation({
         planId: plan._id,
         taskId: task._id,
         targetHref: "/settings/connected-accounts",
+        actionLabel: "Reconnect",
         prospectAvatarUrl: extractAvatarUrl(prospect?.data),
         prospectDisplayName:
           prospect?.displayName || extractDisplayName(prospect?.data),

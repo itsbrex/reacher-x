@@ -83,6 +83,23 @@ export const ensureThreadLink = internalMutation({
   },
 });
 
+export const markThreadHasVisibleMessages = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { threadId }) => {
+    const links = await ctx.db
+      .query("prospectThreads")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .collect();
+    await Promise.all(
+      links
+        .filter((link) => link.hasVisibleMessages !== true)
+        .map((link) => ctx.db.patch(link._id, { hasVisibleMessages: true }))
+    );
+    return null;
+  },
+});
+
 export const ensureActiveThreadForProspectInternal = internalMutation({
   args: {
     prospectId: v.id("prospects"),

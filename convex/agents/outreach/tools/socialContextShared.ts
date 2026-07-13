@@ -228,6 +228,8 @@ type ResolveSocialContextArgs = {
   includeReplies?: boolean;
   postId?: string;
   query?: string;
+  /** App-internal trusted context; never exposed in the LLM tool schema. */
+  trustedProspectId?: Id<"prospects">;
 };
 
 type ProspectDoc = Record<string, unknown> & {
@@ -1229,10 +1231,9 @@ export async function resolveSocialContext(
   ctx: ToolContext,
   args: ResolveSocialContextArgs
 ): Promise<ResolvedSocialContext> {
-  const threadContext = await extractProspectThreadContext(
-    ctx,
-    "resolveSocialContext"
-  );
+  const threadContext = args.trustedProspectId
+    ? { prospectId: args.trustedProspectId, workspaceId: null }
+    : await extractProspectThreadContext(ctx, "resolveSocialContext");
 
   if (!threadContext.prospectId) {
     throw new Error(MISSING_PROSPECT_SELECTION_MESSAGE);

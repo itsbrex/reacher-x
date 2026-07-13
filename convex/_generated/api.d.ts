@@ -56,6 +56,7 @@ import type * as agents_tools_workspaceSetupContext from "../agents/tools/worksp
 import type * as analytics from "../analytics.js";
 import type * as archivedProspectPause from "../archivedProspectPause.js";
 import type * as autoPlanActions from "../autoPlanActions.js";
+import type * as autoPlanRuns from "../autoPlanRuns.js";
 import type * as autocomplete from "../autocomplete.js";
 import type * as autocompleteControl from "../autocompleteControl.js";
 import type * as billing from "../billing.js";
@@ -311,6 +312,7 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   archivedProspectPause: typeof archivedProspectPause;
   autoPlanActions: typeof autoPlanActions;
+  autoPlanRuns: typeof autoPlanRuns;
   autocomplete: typeof autocomplete;
   autocompleteControl: typeof autocompleteControl;
   billing: typeof billing;

@@ -125,6 +125,7 @@ export type NotificationCreateInput = {
   title: string;
   message: string;
   targetHref?: string;
+  actionLabel?: string;
   notificationKey?: string;
   contextPlatform?: Doc<"prospects">["platform"];
   prospectId?: Id<"prospects">;

@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   assessAutoPlanGrounding,
+  autoPlanDraftSchema,
+  autoPlanTransportSchema,
+  classifyAutoPlanFailure,
   validateAutoPlanDraftAgainstGrounding,
   type AutoPlanDraft,
   type AutoPlanGroundingContext,
@@ -142,18 +145,25 @@ test("plan validation rejects invented post IDs and empty outreach", () => {
   );
 });
 
-test("durable workflow verifies persistence before completed status", () => {
+test("workpool completion verifies persistence before completed status", () => {
   const workflowSource = readFileSync(
     `${ROOT}/convex/workflows/autoPlan.ts`,
     "utf8"
   );
   const completionIndex = workflowSource.indexOf('status: "completed"');
-  assert.match(workflowSource, /persistedPlan\.tasks\.length === 0/);
+  assert.match(workflowSource, /persistedPlan\.tasks\.length > 0/);
   assert.ok(
     workflowSource.indexOf("persistedPlan.tasks.length") < completionIndex
   );
-  assert.match(workflowSource, /handleAutoPlanWorkflowComplete/);
-  assert.match(workflowSource, /status === "failed"/);
+  assert.match(workflowSource, /handleAutoPlanWorkComplete/);
+  assert.match(workflowSource, /upsertNotificationByKey/);
+
+  const actionSource = readFileSync(
+    `${ROOT}/convex/outreachActions.ts`,
+    "utf8"
+  );
+  assert.match(actionSource, /outreachPlanPool\.enqueueAction/);
+  assert.match(actionSource, /retry: true/);
 
   const enrichmentSource = readFileSync(
     `${ROOT}/convex/workflows/enrichment.ts`,
@@ -173,4 +183,61 @@ test("automatic generation always requests mandatory fresh context", () => {
   assert.match(actionSource, /runDeepResearch/);
   assert.match(actionSource, /assessAutoPlanGrounding/);
   assert.match(actionSource, /generateObject/);
+  assert.match(actionSource, /saveMessages: "none"/);
+  assert.match(actionSource, /schema: autoPlanTransportSchema/);
+
+  const strictValidationIndex = actionSource.indexOf(
+    "autoPlanDraftSchema.parse(generated.object)"
+  );
+  const planCreationIndex = actionSource.lastIndexOf(
+    "internal.outreach.createPlan"
+  );
+  const visibleThreadIndex = actionSource.lastIndexOf(
+    "ensureVisibleAutoPlanThread"
+  );
+  assert.ok(strictValidationIndex < planCreationIndex);
+  assert.ok(planCreationIndex < visibleThreadIndex);
+});
+
+test("provider transport schema stays compatible while app validation remains strict", () => {
+  const invalidDraft = {
+    strategy: {
+      rationale: "",
+      valueProposition: "",
+      tone: "",
+    },
+    tasks: [],
+  };
+
+  assert.equal(autoPlanTransportSchema.safeParse(invalidDraft).success, true);
+  assert.equal(autoPlanDraftSchema.safeParse(invalidDraft).success, false);
+});
+
+test("automatic plan failures distinguish terminal setup issues from transient providers", () => {
+  assert.deepEqual(
+    classifyAutoPlanFailure("Workspace writing style is not ready"),
+    {
+      code: "writing_style_unavailable",
+      retryable: false,
+      userMessage:
+        "Writing style is unavailable. Refresh it from Connected accounts.",
+      actionLabel: "Reconnect",
+      targetHref: "/settings/connected-accounts",
+    }
+  );
+  assert.equal(
+    classifyAutoPlanFailure("Provider returned 503").retryable,
+    true
+  );
+  assert.equal(
+    classifyAutoPlanFailure("Unsupported minLength").retryable,
+    false
+  );
+});
+
+test("auto-plan history hides legacy blank threads", () => {
+  const chatSource = readFileSync(`${ROOT}/convex/chat.ts`, "utf8");
+  assert.match(chatSource, /isAutoPlanHistoryRow/);
+  assert.match(chatSource, /hasVisibleMessagesByThreadId/);
+  assert.match(chatSource, /role === "user" \|\| role === "assistant"/);
 });

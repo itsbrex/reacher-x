@@ -31,6 +31,7 @@ export type NotificationItem = Omit<
   Pick<
     Doc<"outreachNotifications">,
     | "_creationTime"
+    | "actionLabel"
     | "actionRequestId"
     | "message"
     | "prospectAvatarUrl"
@@ -465,6 +466,19 @@ function NotificationCard({
         )}
       </div>
       <div className="flex shrink-0 items-start gap-2 pt-0.5">
+        {notification.actionLabel ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect();
+            }}
+          >
+            {notification.actionLabel}
+          </Button>
+        ) : null}
         {isPending ? (
           <span
             className="bg-foreground mt-2 size-2 rounded-full"
