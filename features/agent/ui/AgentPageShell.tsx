@@ -30,6 +30,7 @@ import { PageLayout, PageContent } from "@/features/webapp/ui/components";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
 import { useSetupThreadDraft } from "@/shared/hooks/useSetupThreadDraft";
+import { shouldSyncAgentThreadToRoute } from "../lib/agentThreadInitialization";
 
 const AGENT_PANEL_LAYOUT_CLASS_NAME =
   "md:[&>div]:border-l md:[&>div]:border-r-0";
@@ -92,6 +93,8 @@ export function AgentPageShell() {
     panelState: parseAsString,
     targetTweetId: parseAsString,
   });
+  const previousRouteThreadIdRef = useRef<string | null>(threadId);
+  const staleEffectiveThreadIdRef = useRef<string | null>(null);
   const threadRouteContext = useQuery(
     api.chat.getThreadRouteContext,
     threadId ? { threadId } : "skip"
@@ -277,10 +280,29 @@ export function AgentPageShell() {
   const canUseThreadHistory = !isSetupRoute && (!!prospectId || !!workspaceId);
 
   useEffect(() => {
-    if (isSetupRoute || !effectiveThreadId || threadId) {
+    const previousRouteThreadId = previousRouteThreadIdRef.current;
+    previousRouteThreadIdRef.current = threadId;
+
+    if (previousRouteThreadId && !threadId) {
+      staleEffectiveThreadIdRef.current = previousRouteThreadId;
+    } else if (threadId) {
+      staleEffectiveThreadIdRef.current = null;
+    }
+  }, [threadId]);
+
+  useEffect(() => {
+    if (
+      !shouldSyncAgentThreadToRoute({
+        effectiveThreadId,
+        routeThreadId: threadId,
+        staleThreadId: staleEffectiveThreadIdRef.current,
+        isSetupRoute,
+      })
+    ) {
       return;
     }
 
+    staleEffectiveThreadIdRef.current = null;
     setParams({
       threadId: effectiveThreadId,
       action: null,

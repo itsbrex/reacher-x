@@ -6,6 +6,7 @@
 
 import * as React from "react";
 import { useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import {
   DropdownMenu,
@@ -61,6 +62,7 @@ export function ProspectCardMenu({
   onViewProfile,
   onStatusChange,
 }: ProspectCardMenuProps) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const { openProfile } = useProfile();
   const { pushPanel } = usePanelStack();
@@ -214,10 +216,7 @@ export function ProspectCardMenu({
 
   const handleOpenAgentPanel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    openProspect(prospectId);
-    pushPanel("prospect-agent", {
-      prospectId: String(prospectId),
-    });
+    router.push(`/agent?prospectId=${prospectId}`);
   };
 
   return (
