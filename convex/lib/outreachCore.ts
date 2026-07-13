@@ -38,8 +38,8 @@ const LINKEDIN_DM_TEXT_MAX = 8_000;
 // Constants
 // ============================================================================
 
-/** Threshold for automatic plan generation (>= 90 score) */
-export const AUTO_PLAN_GENERATION_THRESHOLD = 90;
+/** Threshold for automatic plan generation (>= 80 score) */
+export const AUTO_PLAN_GENERATION_THRESHOLD = 80;
 
 const PLAN_DELETE_ACTION_REQUEST_STATUSES: Array<
   Infer<typeof twitterActionRequestStatusValidator>

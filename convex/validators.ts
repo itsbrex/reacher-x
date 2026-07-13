@@ -1584,6 +1584,28 @@ export const planGenerationStatusValidator = v.union(
   v.literal("failed")
 );
 
+export const autoPlanGenerationClaimResultValidator = v.object({
+  claimed: v.boolean(),
+  reason: v.union(
+    v.literal("claimed"),
+    v.literal("already_generating"),
+    v.literal("existing_plan"),
+    v.literal("ineligible")
+  ),
+  planId: v.optional(v.id("outreachPlans")),
+});
+
+export const autoPlanGenerationResultValidator = v.object({
+  success: v.boolean(),
+  planId: v.id("outreachPlans"),
+  threadId: v.string(),
+  existing: v.boolean(),
+});
+
+export const autoPlanWorkflowCompletionContextValidator = v.object({
+  prospectId: v.id("prospects"),
+});
+
 // Read-model rollout scope (single workspace vs all owned workspaces)
 export const readModelRolloutScopeValidator = v.union(
   v.literal("workspace"),

@@ -653,7 +653,7 @@ export default defineSchema({
     // When the prospect most recently became actionable-ready for outreach
     readyAt: v.optional(v.number()),
 
-    // Auto outreach plan generation status (for >= 90 score prospects)
+    // Auto outreach plan generation status (for >= 80 score prospects)
     planGenerationStatus: v.optional(planGenerationStatusValidator),
 
     // Durable workflow IDs for cancel-on-archive (mirrors outreachPlans.workflowId pattern)

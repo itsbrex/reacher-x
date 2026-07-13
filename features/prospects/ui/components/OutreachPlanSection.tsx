@@ -87,7 +87,7 @@ export function OutreachPlanSection({
           Generating outreach plan&hellip;
         </p>
         <p className="text-muted-foreground mt-1 text-xs">
-          This high-match {entitySingularLower} (90+) is getting a personalized
+          This high-match {entitySingularLower} (80+) is getting a personalized
           plan automatically.
         </p>
       </div>

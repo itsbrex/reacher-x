@@ -156,9 +156,14 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
     }
 
     const prospect = threadContext.prospect;
-    const workspace = await ctx.runQuery(internal.workspaces.getById, {
-      workspaceId: prospect.workspaceId,
-    });
+    const [workspace, workspaceInspection] = await Promise.all([
+      ctx.runQuery(internal.workspaces.getById, {
+        workspaceId: prospect.workspaceId,
+      }),
+      ctx.runQuery(internal.workspaces.getWorkspaceInspectionInternal, {
+        workspaceId: prospect.workspaceId,
+      }),
+    ]);
     const useCase = getWorkspaceUseCase(workspace?.useCaseKey);
     const outreachLearningContext = await ctx.runAction(
       internal.memory.getOutreachLearningContextInternal,
@@ -182,8 +187,10 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
     // Tools extract IDs from thread context automatically.
     const useCaseMessage = {
       role: "system" as const,
-      content: `## Current Workspace Use Case
+      content: `## Current Workspace Context
 
+**Workspace:** ${workspaceInspection?.name || workspace?.name || "Unknown"}
+**Offering:** ${workspaceInspection?.description || "No workspace description stored"}
 **Use Case:** ${useCase.displayName}
 **Target Label:** ${useCase.entityPlural}
 **Success Label:** ${useCase.pageLabels.converts}
@@ -191,7 +198,28 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
 **Outreach Goal:** ${useCase.promptContext.outreachGoal}
 **Success Definition:** ${useCase.promptContext.successDefinition}
 
-Use this vocabulary in user-facing responses. Internal tool names still refer to prospects.`,
+**Ideal Customer Profiles (ICPs):**
+${
+  workspaceInspection?.icps.length
+    ? workspaceInspection.icps
+        .map(
+          (
+            icp: {
+              title: string;
+              description: string;
+              painPoints: string[];
+              channels: string[];
+            },
+            index: number
+          ) => `${index + 1}. ${icp.title}: ${icp.description}
+   Pain points: ${icp.painPoints.join(", ") || "None stored"}
+   Channels: ${icp.channels.join(", ") || "None stored"}`
+        )
+        .join("\n")
+    : "No ICPs stored"
+}
+
+Treat the offering and ICPs above as required grounding for every plan. Use this vocabulary in user-facing responses. Internal tool names still refer to prospects.`,
     };
 
     const profileContext = await loadAgentProspectProfileContext(ctx, prospect);

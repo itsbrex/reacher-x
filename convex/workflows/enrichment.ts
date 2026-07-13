@@ -46,6 +46,7 @@ import {
   normalizeLinkedInProfileQueryUrn,
   resolveLinkedInProspectProfileIdentifiers,
 } from "../integrations/linkedin/profileIdentity";
+import { AUTO_PLAN_GENERATION_THRESHOLD } from "../lib/outreachCore";
 
 // ============================================================================
 // Constants
@@ -580,14 +581,13 @@ export const enrichmentWorkflow = workflow.define({
       eventKey: `enrichment:${String(step.workflowId)}:completed`,
     });
 
-    // Step 6: Auto-generate outreach plan for high-match prospects (>= 90 score)
-    // Uses Workpool for parallel processing (same pattern as qualification/enrichment)
-    const AUTO_PLAN_THRESHOLD = 90;
+    // Step 6: Auto-generate outreach plan for high-match prospects (>= 80 score)
+    // Starts a durable, idempotent plan-generation workflow.
     if (
       !isSetupPreview &&
       enrichmentResult.enrichmentStatus !== "failed" &&
       prospect.qualificationScore !== undefined &&
-      prospect.qualificationScore >= AUTO_PLAN_THRESHOLD
+      prospect.qualificationScore >= AUTO_PLAN_GENERATION_THRESHOLD
     ) {
       const styleReady =
         workspace?.styleProfileStatus === "ready" &&
@@ -607,16 +607,6 @@ export const enrichmentWorkflow = workflow.define({
         );
 
         if (!existingPlan) {
-          // Set status to generating (for UI loading indicator)
-          await step.runMutation(
-            internal.prospects.updatePlanGenerationStatus,
-            {
-              prospectId: args.prospectId,
-              status: "generating",
-            }
-          );
-
-          // Enqueue to Workpool for parallel processing
           await step
             .runAction(internal.outreachActions.startAutoPlanGeneration, {
               prospectId: args.prospectId,

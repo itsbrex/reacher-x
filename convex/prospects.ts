@@ -29,6 +29,7 @@ import {
   setupProspectOriginValidator,
   prospectContactSourceValidator,
   twitterUrlEntityValidator,
+  autoPlanGenerationClaimResultValidator,
 } from "./validators";
 import { internal } from "./_generated/api";
 import { mapInternalIssueCodeToUserVisibleIssueState } from "./lib/onboardingNavigation";
@@ -52,6 +53,7 @@ import { recordMemoryWorkflowEvent } from "./lib/memoryCore";
 import { resumeOutreachPlansAfterUnarchiveCore } from "./lib/resumeOutreachAfterUnarchive";
 import {
   AUTO_PLAN_GENERATION_THRESHOLD,
+  getProspectActivePlan,
   replaceProspectActivityOfType,
 } from "./lib/outreachCore";
 import { buildChangedPatchWithUpdatedAt } from "./lib/patchHelpers";
@@ -3152,6 +3154,61 @@ export const updatePlanGenerationStatus = internalMutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Atomically claims an eligible prospect for automatic plan generation.
+ * This is the idempotency boundary used before starting the durable workflow.
+ */
+export const claimAutoPlanGeneration = internalMutation({
+  args: {
+    prospectId: v.id("prospects"),
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+  },
+  returns: autoPlanGenerationClaimResultValidator,
+  handler: async (ctx, args) => {
+    const prospect = await ctx.db.get(args.prospectId);
+    if (
+      !prospect ||
+      prospect.workspaceId !== args.workspaceId ||
+      prospect.userId !== args.userId ||
+      prospect.origin === "setup_preview" ||
+      prospect.status === "archived" ||
+      (prospect.enrichmentStatus !== "enriched" &&
+        prospect.enrichmentStatus !== "partial") ||
+      typeof prospect.qualificationScore !== "number" ||
+      prospect.qualificationScore < AUTO_PLAN_GENERATION_THRESHOLD
+    ) {
+      return { claimed: false, reason: "ineligible" as const };
+    }
+
+    const existingPlan = await getProspectActivePlan(ctx, prospect._id);
+    if (existingPlan) {
+      if (prospect.planGenerationStatus !== "completed") {
+        await ctx.db.patch(prospect._id, {
+          planGenerationStatus: "completed",
+          updatedAt: getCurrentUTCTimestamp(),
+        });
+      }
+      return {
+        claimed: false,
+        reason: "existing_plan" as const,
+        planId: existingPlan.plan._id,
+      };
+    }
+
+    if (prospect.planGenerationStatus === "generating") {
+      return { claimed: false, reason: "already_generating" as const };
+    }
+
+    await ctx.db.patch(prospect._id, {
+      planGenerationStatus: "generating",
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+
+    return { claimed: true, reason: "claimed" as const };
   },
 });
 

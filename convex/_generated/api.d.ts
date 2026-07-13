@@ -55,6 +55,7 @@ import type * as agents_tools_workspaceMemoryHelpers from "../agents/tools/works
 import type * as agents_tools_workspaceSetupContext from "../agents/tools/workspaceSetupContext.js";
 import type * as analytics from "../analytics.js";
 import type * as archivedProspectPause from "../archivedProspectPause.js";
+import type * as autoPlanActions from "../autoPlanActions.js";
 import type * as autocomplete from "../autocomplete.js";
 import type * as autocompleteControl from "../autocompleteControl.js";
 import type * as billing from "../billing.js";
@@ -90,6 +91,7 @@ import type * as lib_agentOpsReadModelHelpers from "../lib/agentOpsReadModelHelp
 import type * as lib_agentThreadContextCore from "../lib/agentThreadContextCore.js";
 import type * as lib_ai from "../lib/ai.js";
 import type * as lib_analyticsCore from "../lib/analyticsCore.js";
+import type * as lib_autoPlanCore from "../lib/autoPlanCore.js";
 import type * as lib_contactDiscoveryCore from "../lib/contactDiscoveryCore.js";
 import type * as lib_deleteWorkspaceCascade from "../lib/deleteWorkspaceCascade.js";
 import type * as lib_discoveryEdgesCore from "../lib/discoveryEdgesCore.js";
@@ -229,6 +231,7 @@ import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as validators from "../validators.js";
 import type * as waitlist from "../waitlist.js";
+import type * as workflows_autoPlan from "../workflows/autoPlan.js";
 import type * as workflows_enrichment from "../workflows/enrichment.js";
 import type * as workflows_memory from "../workflows/memory.js";
 import type * as workflows_outreach from "../workflows/outreach.js";
@@ -307,6 +310,7 @@ declare const fullApi: ApiFromModules<{
   "agents/tools/workspaceSetupContext": typeof agents_tools_workspaceSetupContext;
   analytics: typeof analytics;
   archivedProspectPause: typeof archivedProspectPause;
+  autoPlanActions: typeof autoPlanActions;
   autocomplete: typeof autocomplete;
   autocompleteControl: typeof autocompleteControl;
   billing: typeof billing;
@@ -342,6 +346,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agentThreadContextCore": typeof lib_agentThreadContextCore;
   "lib/ai": typeof lib_ai;
   "lib/analyticsCore": typeof lib_analyticsCore;
+  "lib/autoPlanCore": typeof lib_autoPlanCore;
   "lib/contactDiscoveryCore": typeof lib_contactDiscoveryCore;
   "lib/deleteWorkspaceCascade": typeof lib_deleteWorkspaceCascade;
   "lib/discoveryEdgesCore": typeof lib_discoveryEdgesCore;
@@ -481,6 +486,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   validators: typeof validators;
   waitlist: typeof waitlist;
+  "workflows/autoPlan": typeof workflows_autoPlan;
   "workflows/enrichment": typeof workflows_enrichment;
   "workflows/memory": typeof workflows_memory;
   "workflows/outreach": typeof workflows_outreach;

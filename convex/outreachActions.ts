@@ -3,23 +3,15 @@
 // convex/outreachActions.ts
 // Node.js runtime actions for outreach system
 // Contains Composio-backed task execution for outreach actions
-// Contains auto plan generation for high-score prospects (>= 90)
+// Contains auto plan generation for high-score prospects (>= 80)
 
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./lib/functionBuilders";
-import { internal, api, components } from "./_generated/api";
-import { createThread } from "@convex-dev/agent";
-import { outreachAgent } from "./agents/outreach";
-import { buildOutreachAgentPrompt } from "./agents/prompts";
-import {
-  normalizeUnknownError,
-  stringifyUnknownError,
-} from "./lib/errorHelpers";
-import { persistRawModelResponse } from "./lib/modelTelemetry";
-import { outreachPlanPool } from "./lib/outreachPlanPool";
-import { AUTO_PLAN_GENERATION_THRESHOLD } from "./lib/outreachCore";
+import { internal, api } from "./_generated/api";
+import { workflow } from "./lib/workflow";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
-import { getWorkspaceUseCase } from "../shared/lib/workspaceUseCases";
 import {
   getXConnectionStatusForUser,
   getXProviderContextForUser,
@@ -802,16 +794,46 @@ export const fetchConversationReplies = action({
 });
 
 // ============================================================================
-// Auto Outreach Plan Generation (for >= 90 score prospects)
+// Auto Outreach Plan Generation (for >= 80 score prospects)
 // ============================================================================
 
-/**
- * Enqueue auto plan generation via Workpool.
- * Called by enrichment workflow for >= 90 score prospects.
- * This is the entry point - follows startQualification/startEnrichment pattern.
- *
- * Per AGENT_CONTEXT.txt lines 140-148: Uses *Pool.ts naming convention
- */
+async function startAutoPlanWorkflow(
+  ctx: ActionCtx,
+  args: {
+    prospectId: Id<"prospects">;
+    workspaceId: Id<"workspaces">;
+    userId: Id<"users">;
+  }
+): Promise<string> {
+  const claim = await ctx.runMutation(
+    internal.prospects.claimAutoPlanGeneration,
+    args
+  );
+  if (!claim.claimed) {
+    return "";
+  }
+
+  try {
+    const workflowId = await workflow.start(
+      ctx,
+      internal.workflows.autoPlan.autoPlanGenerationWorkflow,
+      args,
+      {
+        onComplete: internal.workflows.autoPlan.handleAutoPlanWorkflowComplete,
+        context: { prospectId: args.prospectId },
+      }
+    );
+    return workflowId.toString();
+  } catch (error) {
+    await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
+      prospectId: args.prospectId,
+      status: "failed",
+    });
+    throw error;
+  }
+}
+
+/** Start durable, idempotent automatic plan generation for one prospect. */
 export const startAutoPlanGeneration = internalAction({
   args: {
     prospectId: v.id("prospects"),
@@ -835,13 +857,7 @@ export const startAutoPlanGeneration = internalAction({
       return { workId: "" };
     }
 
-    const workId = await outreachPlanPool.enqueueAction(
-      ctx,
-      internal.outreachActions.runAutoPlanGeneration,
-      args
-    );
-
-    return { workId: workId.toString() };
+    return { workId: await startAutoPlanWorkflow(ctx, args) };
   },
 });
 
@@ -887,240 +903,16 @@ export const enqueueEligibleAutoPlansForWorkspace = internalAction({
         continue;
       }
 
-      const existingPlan = await ctx.runQuery(
-        internal.outreach.getProspectActivePlanInternal,
-        { prospectId: prospect._id }
-      );
-
-      if (existingPlan || prospect.planGenerationStatus === "generating") {
-        continue;
-      }
-
-      await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
+      const workflowId = await startAutoPlanWorkflow(ctx, {
         prospectId: prospect._id,
-        status: "generating",
+        workspaceId: args.workspaceId,
+        userId: args.userId,
       });
-
-      await outreachPlanPool.enqueueAction(
-        ctx,
-        internal.outreachActions.runAutoPlanGeneration,
-        {
-          prospectId: prospect._id,
-          workspaceId: args.workspaceId,
-          userId: args.userId,
-        }
-      );
-      enqueuedCount++;
+      if (workflowId) {
+        enqueuedCount++;
+      }
     }
 
     return { enqueuedCount };
-  },
-});
-
-/** Return type for runAutoPlanGeneration */
-type AutoPlanGenerationResult =
-  | { success: false; reason: string }
-  | {
-      success: true;
-      planId?: string;
-      threadId?: string;
-      finishReason?: string;
-    };
-
-/**
- * Execute auto plan generation for a single prospect.
- * Called by Workpool - runs in parallel with other plan generations.
- *
- * Flow:
- * 1. Create thread for prospect (title: "outreach:{prospectId}")
- * 2. Generate plan using outreach agent
- * 3. Update status to completed/failed
- */
-export const runAutoPlanGeneration = internalAction({
-  args: {
-    prospectId: v.id("prospects"),
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args): Promise<AutoPlanGenerationResult> => {
-    const startTime = getCurrentUTCTimestamp();
-
-    try {
-      const limitState = await ctx.runQuery(
-        internal.workflows.prospecting.checkProspectLimitInternal,
-        {
-          workspaceId: args.workspaceId,
-        }
-      );
-      if (limitState.limitReached) {
-        await ctx.runAction(
-          internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-          {
-            workspaceId: args.workspaceId,
-          }
-        );
-        return {
-          success: false,
-          reason:
-            "Qualified prospect limit reached for this workspace in the current cycle.",
-        };
-      }
-
-      // 1. Verify prospect still qualifies for auto plan generation
-      const prospect = await ctx.runQuery(
-        internal.prospects.getProspectInternal,
-        { prospectId: args.prospectId }
-      );
-
-      if (!prospect) {
-        throw new Error("Prospect not found");
-      }
-
-      if (prospect.status === "archived") {
-        await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-          prospectId: args.prospectId,
-          status: "idle",
-        });
-        return { success: false, reason: "Prospect archived" };
-      }
-
-      // Skip if score is below threshold (could have been updated)
-      if (
-        prospect.qualificationScore === undefined ||
-        prospect.qualificationScore < AUTO_PLAN_GENERATION_THRESHOLD
-      ) {
-        await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-          prospectId: args.prospectId,
-          status: "idle",
-        });
-        return { success: false, reason: "Score below threshold" };
-      }
-
-      // 2. Check if plan already exists
-      const existingPlan = await ctx.runQuery(
-        internal.outreach.getProspectActivePlanInternal,
-        { prospectId: args.prospectId }
-      );
-
-      if (existingPlan) {
-        await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-          prospectId: args.prospectId,
-          status: "completed",
-        });
-        return { success: true, planId: existingPlan.plan._id };
-      }
-
-      const workspace = await ctx.runQuery(internal.workspaces.getById, {
-        workspaceId: args.workspaceId,
-      });
-      if (
-        !workspace ||
-        workspace.styleProfileStatus !== "ready" ||
-        typeof workspace.styleProfileVersion !== "number" ||
-        workspace.styleProfileVersion <= 0
-      ) {
-        await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-          prospectId: args.prospectId,
-          status: "idle",
-        });
-        return { success: false, reason: "Writing style not ready" };
-      }
-
-      const useCase = getWorkspaceUseCase(workspace?.useCaseKey);
-      const entitySingularLower = useCase.entitySingular.toLowerCase();
-
-      // 3. Create thread for prospect
-      const threadId = await createThread(ctx, components.agent, {
-        userId: args.userId,
-        title: `outreach:${args.prospectId}`,
-        summary: `Auto-generated outreach plan for high-match ${entitySingularLower}`,
-      });
-
-      await ctx.runMutation(internal.prospectThreads.ensureThreadLink, {
-        prospectId: args.prospectId,
-        threadId,
-        userId: args.userId,
-        threadStatus: "active",
-        threadSummary: `Auto-generated outreach plan for high-match ${entitySingularLower}`,
-      });
-
-      // 4. Generate plan using outreach agent
-      const prospectName = prospect.displayName || "this prospect";
-      const prospectTitle = prospect.title || "prospect";
-
-      const prompt = `Generate an outreach plan for ${prospectName} (${prospectTitle}).
-
-This is a high-match ${entitySingularLower} with a ${prospect.qualificationScore}% fit score. Create a personalized, non-spammy engagement strategy for the "${useCase.displayName}" workspace.
-
-Please:
-1. First use getProspectPlan to check whether an active plan already exists
-2. Then use getSocialContext with mode:"prospect_profile" to understand their background and pain points
-3. Only if a reply target is actually needed, use getSocialContext with mode:"posts" and selection:"best_for_reply"
-4. Finally use generatePlan to create a tailored outreach plan with specific, personalized content, or refinePlan if an active plan already exists
-
-Remember: Quality over quantity. The goal is genuine connection, not spam, and success in this workspace means ${useCase.promptContext.successDefinition}.`;
-
-      let finishReason: string | undefined;
-      const result = await outreachAgent.streamText(
-        ctx,
-        { threadId },
-        {
-          prompt,
-          system: buildOutreachAgentPrompt(useCase),
-        },
-        {
-          saveStreamDeltas: {
-            chunking: "word",
-            throttleMs: 100,
-          },
-        }
-      );
-      await result.consumeStream();
-      await persistRawModelResponse(ctx, {
-        userId: prospect.userId,
-        threadId,
-        agentName: "Outreach Agent",
-        request: result.request,
-        response: result.response,
-        providerMetadata: result.providerMetadata,
-      });
-      finishReason = await result.finishReason;
-
-      // 5. Update status to completed
-      await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-        prospectId: args.prospectId,
-        status: "completed",
-      });
-
-      return {
-        success: true,
-        threadId,
-        finishReason,
-      };
-    } catch (error) {
-      // Update status to failed
-      await ctx.runMutation(internal.prospects.updatePlanGenerationStatus, {
-        prospectId: args.prospectId,
-        status: "failed",
-      });
-
-      const duration = getCurrentUTCTimestamp() - startTime;
-      const normalizedError = normalizeUnknownError(error);
-      const errorMessage = stringifyUnknownError(error);
-
-      outreachActionsLogger.error(
-        "Auto plan generation failed",
-        {
-          prospectId: String(args.prospectId),
-          workspaceId: String(args.workspaceId),
-          durationMs: duration,
-          errorMessage,
-        },
-        normalizedError
-      );
-
-      // Re-throw for Workpool retry
-      throw normalizedError;
-    }
   },
 });
