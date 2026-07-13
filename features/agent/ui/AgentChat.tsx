@@ -178,6 +178,7 @@ import {
 import { getCurrentUTCTimestamp } from "@/shared/lib/utils/time/timeUtils";
 import { getSetupPanelStepTitle } from "@/features/agent/lib/setupOnboardingStepTitles";
 import { buildAgentComposerSubmission } from "@/features/agent/lib/buildAgentComposerMessage";
+import { getLatestUserMessageScrollAnchorKey } from "@/features/agent/lib/agentMessageScrollHelpers";
 import {
   buildAgentMentionReplacementText,
   filterSelectedMentionEntitiesByInput,
@@ -2194,6 +2195,13 @@ export function AgentChat({
       }),
     [currentPendingTurnOrder, displayMessages, shouldShowPendingAssistantRow]
   );
+  const currentUserMessageScrollAnchorKey = useMemo(
+    () =>
+      shouldShowPendingUserMessage
+        ? null
+        : getLatestUserMessageScrollAnchorKey(renderedDisplayMessages),
+    [renderedDisplayMessages, shouldShowPendingUserMessage]
+  );
   const shouldShowPendingError = pendingTurn?.phase === "failed";
   const shouldShowHydrationSkeleton =
     Boolean(effectiveThreadId) &&
@@ -2983,7 +2991,9 @@ export function AgentChat({
                       key={message.key}
                       messageId={message.key}
                       className="mb-6"
-                      scrollAnchor={message.role === "user"}
+                      scrollAnchor={
+                        message.key === currentUserMessageScrollAnchorKey
+                      }
                     >
                       <motion.div
                         initial={{ opacity: 0, y: 6 }}
