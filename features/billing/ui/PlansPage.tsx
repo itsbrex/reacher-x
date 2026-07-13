@@ -207,7 +207,7 @@ export function PlansPage() {
     <>
       {!isMobile ? (
         <aside
-          className="bg-background flex h-full min-h-0 w-full flex-col overflow-hidden md:max-w-lg md:min-w-0 md:flex-1 md:basis-0 md:border-r"
+          className="bg-background flex h-full min-h-0 w-full flex-col overflow-hidden md:max-w-lg md:min-w-0 md:flex-1 md:basis-0 md:border-l"
           aria-label="Upgrade plans"
         >
           <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">

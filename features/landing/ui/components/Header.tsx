@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
 import { useMutation } from "convex/react";
-import { useStore } from "@nanostores/react";
 import { toast } from "sonner";
 
 import { cn } from "@/shared/lib/utils";
@@ -82,7 +81,6 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth as useAppAuth } from "@/shared/hooks/useAuth";
 import { usePreferredShellQueryArgs, useQueryWithStatus } from "@/shared/hooks";
-import { $onboardingLock } from "@/shared/stores/onboarding";
 import {
   setPreferredShellContext,
   usePreferredShellContext,
@@ -186,13 +184,9 @@ function AvatarDropdown({
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { workspace } = useAppAuth();
-  const locked = useStore($onboardingLock);
   const preferredShellContext = usePreferredShellContext();
   const preferredShellQueryArgs = usePreferredShellQueryArgs();
   const setDefaultWorkspace = useMutation(api.workspaces.setDefaultWorkspace);
-  const { modal, requestNewWorkspace } = useNewWorkspaceDraftFlow({
-    enabled: Boolean(user) && !locked,
-  });
 
   const planQuery = useQueryWithStatus(
     api.plans.getCurrentPlan,
@@ -210,6 +204,13 @@ function AvatarDropdown({
   const plan = planQuery.data;
   const workspaceCreationEligibility = workspaceCreationEligibilityQuery.data;
   const shellState = shellStateQuery.data;
+  // Unlike the web app, the landing layout does not mount the lock provider.
+  // Read the authoritative shell state directly so onboarding restrictions are
+  // consistent in both avatar menus. Keep navigation locked while it loads.
+  const locked = shellState?.locked ?? shellStateQuery.isPending;
+  const { modal, requestNewWorkspace } = useNewWorkspaceDraftFlow({
+    enabled: Boolean(user) && !locked,
+  });
 
   const displayName = user.firstName || user.email || "User";
   const displayImage = user.profilePictureUrl;

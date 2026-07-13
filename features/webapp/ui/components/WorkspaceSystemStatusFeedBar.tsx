@@ -7,6 +7,7 @@ import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { buttonVariants } from "@/shared/ui/components/Button";
 import { ChangeHistoryIcon } from "@/shared/ui/components/icons";
+import { useActiveUseCaseLabels } from "@/shared/hooks";
 import { cn } from "@/shared/lib/utils";
 import {
   WorkspaceSystemStatusDialog,
@@ -22,8 +23,12 @@ type OnboardingProgressLike = {
   pausedAt?: number | null;
 };
 
-function formatProspectLabel(count: number, state: "pending" | "not ready") {
-  return `${count} prospect${count === 1 ? "" : "s"} ${state}`;
+function formatEntityLabel(
+  count: number,
+  entitySingularLower: string,
+  entityPluralLower: string
+) {
+  return count === 1 ? entitySingularLower : entityPluralLower;
 }
 
 interface WorkspaceSystemStatusFeedBarProps {
@@ -38,6 +43,7 @@ export function WorkspaceSystemStatusFeedBar({
   className,
 }: WorkspaceSystemStatusFeedBarProps) {
   const [open, setOpen] = useState(false);
+  const { entitySingular, entityPlural } = useActiveUseCaseLabels();
 
   const isPaused = status.mode === "paused";
   const statusText =
@@ -50,13 +56,25 @@ export function WorkspaceSystemStatusFeedBar({
           : "Agent working";
   const pendingCount = Math.max(progress.pendingCount ?? 0, 0);
   const notReadyCount = Math.max(progress.notReadyCount ?? 0, 0);
+  const entitySingularLower = entitySingular.toLowerCase();
+  const entityPluralLower = entityPlural.toLowerCase();
+  const pendingEntityLabel = formatEntityLabel(
+    pendingCount,
+    entitySingularLower,
+    entityPluralLower
+  );
+  const notReadyEntityLabel = formatEntityLabel(
+    notReadyCount,
+    entitySingularLower,
+    entityPluralLower
+  );
   const detailText =
     pendingCount > 0 && notReadyCount > 0
-      ? `${pendingCount} pending · ${notReadyCount} not ready`
+      ? `${pendingCount} ${pendingEntityLabel} pending · ${notReadyCount} ${notReadyEntityLabel} not ready`
       : pendingCount > 0
-        ? formatProspectLabel(pendingCount, "pending")
+        ? `${pendingCount} ${pendingEntityLabel} pending`
         : notReadyCount > 0
-          ? formatProspectLabel(notReadyCount, "not ready")
+          ? `${notReadyCount} ${notReadyEntityLabel} not ready`
           : null;
   const label =
     detailText === null ? statusText : `${statusText} • ${detailText}`;
@@ -99,12 +117,12 @@ export function WorkspaceSystemStatusFeedBar({
                         value={pendingCount}
                         className="align-baseline text-sm"
                       />
-                      {" pending · "}
+                      {` ${pendingEntityLabel} pending · `}
                       <AnimatedNumber
                         value={notReadyCount}
                         className="align-baseline text-sm"
                       />
-                      {" not ready"}
+                      {` ${notReadyEntityLabel} not ready`}
                     </>
                   ) : pendingCount > 0 ? (
                     <>
@@ -112,9 +130,7 @@ export function WorkspaceSystemStatusFeedBar({
                         value={pendingCount}
                         className="align-baseline text-sm"
                       />
-                      {pendingCount === 1
-                        ? " prospect pending"
-                        : " prospects pending"}
+                      {` ${pendingEntityLabel} pending`}
                     </>
                   ) : (
                     <>
@@ -122,9 +138,7 @@ export function WorkspaceSystemStatusFeedBar({
                         value={notReadyCount}
                         className="align-baseline text-sm"
                       />
-                      {notReadyCount === 1
-                        ? " prospect not ready"
-                        : " prospects not ready"}
+                      {` ${notReadyEntityLabel} not ready`}
                     </>
                   )}
                 </span>
