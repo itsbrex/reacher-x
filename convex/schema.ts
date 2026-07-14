@@ -7,6 +7,16 @@ import {
   planTierValidator,
   prospectListSortValidator,
   prospectPlatformValidator,
+  qualificationSourceValidator,
+  qualificationVerificationValidator,
+  qualificationAuditRunStatusValidator,
+  qualificationAuditOutcomeValidator,
+  qualificationAuditEvidenceOriginValidator,
+  qualificationAuditApplicationStatusValidator,
+  qualificationAuditItemApplicationOutcomeValidator,
+  qualificationAuthenticityValidator,
+  qualificationScoreBreakdownValidator,
+  qualificationFailureValidator,
   prospectStatusValidator,
   outreachPlanStatusValidator,
   outreachProgressSummaryValidator,
@@ -556,6 +566,10 @@ export default defineSchema({
     qualificationStatus: v.optional(qualificationStatusValidator),
     // Qualification score (0-100, threshold ≥80 for qualified)
     qualificationScore: v.optional(v.number()),
+    qualificationScoreBreakdown: v.optional(
+      qualificationScoreBreakdownValidator
+    ),
+    qualificationLastFailure: v.optional(qualificationFailureValidator),
     // When the prospect was qualified
     qualifiedAt: v.optional(v.number()),
     // When the prospect most recently entered the disqualified state
@@ -563,6 +577,10 @@ export default defineSchema({
     // Evidence posts used for qualification (max 20)
     // NOTE: v.any() is intentional - stores raw external API post data
     evidencePosts: v.optional(v.array(v.any())),
+    // Prospect-authored sources that passed authorship, URL, semantic-support,
+    // exact-quote, and score-threshold validation.
+    qualificationSources: v.optional(v.array(qualificationSourceValidator)),
+    qualificationVerification: v.optional(qualificationVerificationValidator),
     // Which searchKeywords matched in evidence
     qualificationKeywords: v.optional(v.array(v.string())),
     // Authenticity analysis for bot detection
@@ -696,6 +714,86 @@ export default defineSchema({
     .index("by_setup_session_revision", ["setupSessionId", "setupRevision"])
     .index("by_workspace_qualification", ["workspaceId", "qualificationStatus"])
     .index("by_workspace_enrichment", ["workspaceId", "enrichmentStatus"]),
+
+  /**
+   * Qualification audit metadata. Evaluation is always read-only; an explicit,
+   * separately tracked application workflow may later apply a completed run.
+   */
+  qualificationAuditRuns: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    mode: v.literal("dry_run"),
+    selection: v.optional(
+      v.union(v.literal("full_snapshot"), v.literal("unresolved_retry"))
+    ),
+    sourceRunId: v.optional(v.id("qualificationAuditRuns")),
+    status: qualificationAuditRunStatusValidator,
+    snapshotAt: v.number(),
+    totalProspects: v.number(),
+    processedProspects: v.number(),
+    keptQualified: v.number(),
+    wouldDisqualify: v.number(),
+    errored: v.number(),
+    noVerifiedEvidence: v.number(),
+    refetched: v.number(),
+    qualificationThreshold: v.number(),
+    verificationVersion: v.literal(1),
+    workflowId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    failure: v.optional(qualificationFailureValidator),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    applicationStatus: v.optional(qualificationAuditApplicationStatusValidator),
+    applicationWorkflowId: v.optional(v.string()),
+    applicationStartedAt: v.optional(v.number()),
+    applicationCompletedAt: v.optional(v.number()),
+    appliedProspects: v.optional(v.number()),
+    refreshedQualifiedProspects: v.optional(v.number()),
+    disqualifiedProspects: v.optional(v.number()),
+    skippedProspects: v.optional(v.number()),
+    quarantinedMemories: v.optional(v.number()),
+    correctedQueryPerformanceRows: v.optional(v.number()),
+    applicationError: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_and_status", ["workspaceId", "status"])
+    .index("by_workspace_and_started_at", ["workspaceId", "startedAt"]),
+
+  /** One dry-run proposal per audited prospect. */
+  qualificationAuditItems: defineTable({
+    runId: v.id("qualificationAuditRuns"),
+    workspaceId: v.id("workspaces"),
+    prospectId: v.id("prospects"),
+    platform: prospectPlatformValidator,
+    displayName: v.string(),
+    previousStatus: v.literal("qualified"),
+    previousScore: v.optional(v.number()),
+    proposedStatus: v.optional(
+      v.union(v.literal("qualified"), v.literal("disqualified"))
+    ),
+    proposedScore: v.optional(v.number()),
+    outcome: qualificationAuditOutcomeValidator,
+    evidenceOrigin: qualificationAuditEvidenceOriginValidator,
+    existingEvidenceCount: v.number(),
+    evaluatedEvidenceCount: v.number(),
+    verifiedSourceCount: v.number(),
+    reasoning: v.string(),
+    error: v.optional(v.string()),
+    qualificationSources: v.array(qualificationSourceValidator),
+    qualificationVerification: v.optional(qualificationVerificationValidator),
+    authenticity: v.optional(qualificationAuthenticityValidator),
+    scoreBreakdown: v.optional(qualificationScoreBreakdownValidator),
+    applicationOutcome: v.optional(
+      qualificationAuditItemApplicationOutcomeValidator
+    ),
+    applicationReason: v.optional(v.string()),
+    appliedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_run", ["runId"])
+    .index("by_run_and_outcome", ["runId", "outcome"])
+    .index("by_run_and_prospect", ["runId", "prospectId"]),
 
   // ============================================================================
   // User Plans & Limits
@@ -1666,6 +1764,10 @@ export default defineSchema({
     impactScore: v.number(),
     relatedQueriesCount: v.number(),
     evidenceCount: v.number(),
+    prospectId: v.optional(v.id("prospects")),
+    quarantinedAt: v.optional(v.number()),
+    quarantineReason: v.optional(v.string()),
+    qualificationAuditRunId: v.optional(v.id("qualificationAuditRuns")),
   })
     .index("by_workspace_created_at", ["workspaceId", "createdAt"])
     .index("by_workspace_category_and_created_at", [
@@ -1701,6 +1803,23 @@ export default defineSchema({
       "createdAt",
     ])
     .index("by_workspace_memory_id", ["workspaceId", "memoryId"])
+    .index("by_workspace_quarantined_at_and_created_at", [
+      "workspaceId",
+      "quarantinedAt",
+      "createdAt",
+    ])
+    .index("by_workspace_category_quarantined_at_and_created_at", [
+      "workspaceId",
+      "category",
+      "quarantinedAt",
+      "createdAt",
+    ])
+    .index("by_workspace_source_quarantined_at_and_created_at", [
+      "workspaceId",
+      "source",
+      "quarantinedAt",
+      "createdAt",
+    ])
     .index("by_memory_id", ["memoryId"]),
 
   /**
@@ -1787,6 +1906,9 @@ export default defineSchema({
     qualificationRate: v.number(),
     lastUsedAt: v.optional(v.number()),
     retiredAt: v.optional(v.number()),
+    qualificationAuditAdjustedAt: v.optional(v.number()),
+    qualificationAuditRunId: v.optional(v.id("qualificationAuditRuns")),
+    preAuditQualifiedCount: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_workspace_query_id", ["workspaceId", "queryId"])
@@ -2114,6 +2236,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   })
     .index("by_task_and_kind", ["taskId", "kind"])
+    .index("by_plan", ["planId"])
     .index("by_prospect_and_status", ["prospectId", "status"])
     .index("by_status_and_next_check", ["status", "nextCheckAt"]),
 
@@ -2179,7 +2302,8 @@ export default defineSchema({
   })
     .index("by_user_status", ["userId", "status"])
     .index("by_thread_status", ["threadId", "status"])
-    .index("by_prospect_status", ["prospectId", "status"]),
+    .index("by_prospect_status", ["prospectId", "status"])
+    .index("by_plan", ["planId"]),
 
   prospectInteractions: defineTable({
     userId: v.id("users"),
@@ -2307,5 +2431,8 @@ export default defineSchema({
     dismissedAt: v.optional(v.number()),
   })
     .index("by_user_status", ["userId", "status"])
-    .index("by_workspace", ["workspaceId"]),
+    .index("by_workspace", ["workspaceId"])
+    .index("by_plan", ["planId"])
+    .index("by_task", ["taskId"])
+    .index("by_action_request", ["actionRequestId"]),
 });

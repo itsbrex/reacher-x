@@ -1008,6 +1008,14 @@ export const searchTwitterInternal = internalAction({
       matchedKeywords:
         result.matchedQueriesByPostId[post.id_str]?.slice(0, 5) ??
         args.queries.slice(0, 5),
+      discoverySource: "search_post" as const,
+      discoveryContext: {
+        matchedQueries:
+          result.matchedQueriesByPostId[post.id_str]?.slice(0, 5) ??
+          args.queries.slice(0, 5),
+        matchedReason: "Matched on X post",
+        discoverySnippet: getTwitterPostText(post).slice(0, 240),
+      },
     }));
 
     const saveResult = await ctx.runMutation(

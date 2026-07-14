@@ -150,6 +150,15 @@ export function requireProspectNotArchived(prospect: Doc<"prospects">) {
   }
 }
 
+export function requireProspectEligibleForOutreach(prospect: Doc<"prospects">) {
+  requireProspectNotArchived(prospect);
+  if (prospect.qualificationStatus !== "qualified") {
+    throw new Error(
+      "This prospect is not qualified. Requalify before creating or continuing outreach."
+    );
+  }
+}
+
 export async function requireOwnedWorkspace(
   ctx: AccessCtx,
   workspaceId: Id<"workspaces">,

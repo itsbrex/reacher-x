@@ -70,6 +70,9 @@ export function normalizeProspectProfileData(
   const rawFinance = prospect.finance as
     | { displayValue: string; evidencePosts?: unknown[] }
     | undefined;
+  const rawQualificationSources = Array.isArray(prospect.qualificationSources)
+    ? (prospect.qualificationSources as Array<Record<string, unknown>>)
+    : [];
 
   const evidencePostsById = new Map<string, unknown>();
   for (const post of rawEvidencePosts) {
@@ -98,6 +101,24 @@ export function normalizeProspectProfileData(
           : [],
       }
     : undefined;
+
+  const qualificationSources = [
+    ...new Map(
+      rawQualificationSources.map((source, index) => {
+        const sourceId =
+          typeof source.sourceId === "string" ? source.sourceId : undefined;
+        return [
+          sourceId ?? `qualification-source-${index}`,
+          {
+            sourceId,
+            sourcePost:
+              (sourceId ? evidencePostsById.get(sourceId) : undefined) ??
+              resolveEvidencePost(source.sourcePost),
+          },
+        ] as const;
+      })
+    ).values(),
+  ];
 
   const bioUrlEntities = normalizeTwitterUrlEntities(prospect.bioUrlEntities);
   const emailSource = prospect.emailSource as ProspectContactSource | undefined;
@@ -184,6 +205,7 @@ export function normalizeProspectProfileData(
     phone: prospect.phone as string | undefined,
     phoneSource,
     finance,
+    qualificationSources,
     location: prospect.location as string | undefined,
     painPoints,
     evidencePosts: rawEvidencePosts.map(resolveEvidencePost),

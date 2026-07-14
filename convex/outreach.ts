@@ -78,7 +78,7 @@ import {
   requireOwnedWorkspace,
   getUserByIdentity,
   requireUser,
-  requireProspectNotArchived,
+  requireProspectEligibleForOutreach,
 } from "./lib/accessHelpers";
 import { getWorkspaceUseCase } from "../shared/lib/workspaceUseCases";
 import {
@@ -1627,7 +1627,7 @@ export const approvePlanMutation = internalMutation({
     if (!prospectApproveInternal) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectApproveInternal);
+    requireProspectEligibleForOutreach(prospectApproveInternal);
 
     await approvePlanCore(ctx, planId);
     await recordMemoryWorkflowEvent(ctx, {
@@ -1672,7 +1672,7 @@ export const approvePlan = mutation({
     if (!prospectForPlan) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectForPlan);
+    requireProspectEligibleForOutreach(prospectForPlan);
 
     await approvePlanCore(ctx, planId);
     await recordMemoryWorkflowEvent(ctx, {
@@ -1739,7 +1739,7 @@ export const resumePlan = mutation({
     if (!prospectResume) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectResume);
+    requireProspectEligibleForOutreach(prospectResume);
 
     await ctx.db.patch(planId, {
       status: "approved",
@@ -1774,7 +1774,7 @@ export const pausePlan = mutation({
     if (!prospectPause) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectPause);
+    requireProspectEligibleForOutreach(prospectPause);
 
     await ctx.db.patch(planId, {
       status: "paused",
@@ -3696,7 +3696,7 @@ export const approveTask = mutation({
     if (!prospectApprove) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectApprove);
+    requireProspectEligibleForOutreach(prospectApprove);
 
     const mediaUrls =
       task.mediaUrls?.filter(
@@ -3773,7 +3773,7 @@ export const approveTaskInternal = internalMutation({
     if (!prospectInternalApprove) {
       throw new Error("Prospect not found");
     }
-    requireProspectNotArchived(prospectInternalApprove);
+    requireProspectEligibleForOutreach(prospectInternalApprove);
 
     await ctx.db.patch(taskId, {
       approvedAt: getCurrentUTCTimestamp(),

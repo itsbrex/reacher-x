@@ -713,33 +713,28 @@ export const getQualificationLearningContextInternal = internalAction({
       };
     }
 
-    const [relevantMemories, similarQualifiedCases, similarDisqualifiedCases] =
-      await Promise.all([
-        ctx.runQuery(internal.memory.findRelevantBuiltInAgentMemoriesInternal, {
-          userId: args.userId,
-          workspaceId: args.workspaceId,
-          query: queryText,
-          limit: 5,
-        }),
+    const [similarQualifiedCases, similarDisqualifiedCases] = await Promise.all(
+      [
         ctx.runAction(internal.memory.searchWorkspaceMemoryNamespaceInternal, {
           workspaceId: args.workspaceId,
-          namespace: "wins",
+          namespace: "verified_wins",
           query: queryText,
           limit: 3,
         }),
         ctx.runAction(internal.memory.searchWorkspaceMemoryNamespaceInternal, {
           workspaceId: args.workspaceId,
-          namespace: "losses",
+          namespace: "verified_losses",
           query: queryText,
           limit: 3,
         }),
-      ]);
+      ]
+    );
 
     return {
       queryText,
-      relevantMemories: relevantMemories.map(
-        (memory: { promptLine: string }) => memory.promptLine
-      ),
+      // Historical built-in qualification memories were created before source
+      // validation existed, so they are intentionally excluded from decisions.
+      relevantMemories: [],
       similarQualifiedCases: similarQualifiedCases.matches.map(
         (match: WorkspaceSemanticMatch) => match.promptLine
       ),

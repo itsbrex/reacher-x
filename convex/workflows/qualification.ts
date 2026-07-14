@@ -1,13 +1,13 @@
 import { v } from "convex/values";
+import { vWorkflowId } from "@convex-dev/workflow";
+import { vResultValidator } from "@convex-dev/workpool";
 import { workflow } from "../lib/workflow";
 import { internal } from "../_generated/api";
-import { internalAction } from "../lib/functionBuilders";
+import { internalAction, internalMutation } from "../lib/functionBuilders";
 import { qualificationPool } from "../lib/qualificationPool";
 import { previewQualificationPool } from "../lib/previewQualificationPool";
-import {
-  qualifyProspectCore,
-  QUALIFICATION_THRESHOLD,
-} from "../lib/qualificationCore";
+import { QUALIFICATION_THRESHOLD } from "../lib/qualificationCore";
+import { evaluateQualificationWithExternalArticles } from "../lib/qualificationEvaluationCore";
 import { indexEvidencePosts, type EvidencePost } from "../lib/ragIndexing";
 import {
   prospectPlatformValidator,
@@ -15,16 +15,13 @@ import {
 } from "../validators";
 import { isRecord, getNestedRecord } from "../lib/typeGuards";
 import { logger } from "../../shared/lib/logger";
-import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { resolveWorkspaceUseCaseKey } from "../../shared/lib/workspaceUseCases";
-import {
-  getWorkflowEvidencePostId,
-  getWorkflowEvidencePostText,
-  getWorkflowEvidencePostUrl,
-} from "../lib/workflowSafeProspect";
+import { getWorkflowEvidencePostText } from "../lib/workflowSafeProspect";
 import { isValidatedSetupPreviewProspect } from "../lib/setupSessionCore";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
+import { parseQualificationModelFailure } from "../lib/qualificationFailureCore";
 const qualificationWorkflowLogger = logger.withScope("QualificationWorkflow");
 
 async function hasValidatedSetupPreviewContext(
@@ -68,9 +65,12 @@ async function hasValidatedSetupPreviewContext(
 export const runQualificationCore = internalAction({
   args: {
     evidencePosts: v.array(v.any()),
-    matchedKeywords: v.array(v.string()),
+    platform: prospectPlatformValidator,
+    discoveryQueries: v.array(v.string()),
     totalKeywords: v.number(),
     profileData: v.any(),
+    workspaceId: v.id("workspaces"),
+    prospectId: v.id("prospects"),
     icpDescription: v.optional(v.string()),
     icpPainPoints: v.optional(v.array(v.string())),
     useCaseKey: v.optional(workspaceUseCaseKeyValidator),
@@ -79,12 +79,15 @@ export const runQualificationCore = internalAction({
     similarDisqualifiedCases: v.optional(v.array(v.string())),
     routing: v.optional(v.union(v.literal("fast"), v.literal("reasoning"))),
   },
-  handler: async (_ctx, args) => {
-    const result = await qualifyProspectCore({
+  handler: async (ctx, args) => {
+    return await evaluateQualificationWithExternalArticles(ctx, {
       evidencePosts: args.evidencePosts as Array<Record<string, unknown>>,
-      matchedKeywords: args.matchedKeywords,
+      platform: args.platform,
+      discoveryQueries: args.discoveryQueries,
       totalKeywords: args.totalKeywords,
       profileData: args.profileData as Record<string, unknown>,
+      workspaceId: args.workspaceId,
+      prospectId: args.prospectId,
       icpDescription: args.icpDescription,
       icpPainPoints: args.icpPainPoints,
       useCaseKey: resolveWorkspaceUseCaseKey(args.useCaseKey),
@@ -93,8 +96,6 @@ export const runQualificationCore = internalAction({
       similarDisqualifiedCases: args.similarDisqualifiedCases,
       routing: args.routing,
     });
-
-    return result;
   },
 });
 
@@ -263,8 +264,10 @@ export const qualificationWorkflow = workflow.define({
     const rawEvidencePosts = Array.isArray(prospect.evidencePosts)
       ? (prospect.evidencePosts as Array<Record<string, unknown>>)
       : [];
-    const matchedKeywords = Array.isArray(prospect.matchedKeywords)
-      ? (prospect.matchedKeywords as string[])
+    const discoveryQueries = Array.isArray(
+      prospect.discoveryContext?.matchedQueries
+    )
+      ? prospect.discoveryContext.matchedQueries
       : [];
 
     // Extract profile data for authenticity analysis
@@ -282,10 +285,12 @@ export const qualificationWorkflow = workflow.define({
           (prospect.title as string | undefined) ||
           ((profileData.name as string | undefined) ?? undefined),
         briefIntro: prospect.briefIntro,
-        matchedKeywords,
+        matchedKeywords: discoveryQueries,
         evidenceHighlights: rawEvidencePosts
-          .map((post) => getWorkflowEvidencePostText(post).trim())
-          .filter((text) => text.length > 0)
+          .flatMap((post) => {
+            const text = getWorkflowEvidencePostText(post).trim();
+            return text ? [text] : [];
+          })
           .slice(0, 5),
       }
     );
@@ -295,9 +300,12 @@ export const qualificationWorkflow = workflow.define({
       internal.workflows.qualification.runQualificationCore,
       {
         evidencePosts: rawEvidencePosts,
-        matchedKeywords,
+        platform: prospect.platform,
+        discoveryQueries,
         totalKeywords: allKeywords.length || 1, // Avoid division by zero
         profileData,
+        workspaceId: args.workspaceId,
+        prospectId: args.prospectId,
         icpDescription: workspace.description,
         icpPainPoints: allKeywords,
         useCaseKey: workspace.useCaseKey,
@@ -315,8 +323,11 @@ export const qualificationWorkflow = workflow.define({
         prospectId: args.prospectId,
         qualificationStatus: result.status,
         qualificationScore: result.score,
+        qualificationScoreBreakdown: result.scoreBreakdown,
         qualifiedAt: result.qualifiedAt,
         qualificationKeywords: result.matchedKeywords,
+        qualificationSources: result.qualificationSources,
+        qualificationVerification: result.qualificationVerification,
         authenticity: result.authenticity,
       }
     );
@@ -375,18 +386,26 @@ export const qualificationWorkflow = workflow.define({
         qualified: result.qualified,
         status: result.status,
         score: result.score,
-        matchedKeywords: result.matchedKeywords,
+        discoveryQueries: result.qualificationVerification.discoveryQueries,
+        evidenceValidated:
+          result.qualificationVerification.status === "validated" &&
+          result.qualificationVerification.candidateSourceCount > 0,
+        qualificationSourceCount: result.qualificationSources.length,
         reasoning: result.reasoning,
       },
       eventKey: `qualification:${String(step.workflowId)}:completed`,
     });
 
-    if (!isStillSetupPreview) {
+    const evidenceValidationCompleted =
+      result.qualificationVerification.status === "validated" &&
+      result.qualificationVerification.candidateSourceCount > 0;
+
+    if (!isStillSetupPreview && evidenceValidationCompleted) {
       await step
         .runAction(internal.memory.indexWorkspaceProspectSummaryInternal, {
           workspaceId: String(args.workspaceId),
           prospectId: String(args.prospectId),
-          namespace: result.qualified ? "wins" : "losses",
+          namespace: result.qualified ? "verified_wins" : "verified_losses",
           displayName:
             currentProspect.displayName ||
             currentProspect.title ||
@@ -395,7 +414,7 @@ export const qualificationWorkflow = workflow.define({
           briefIntro: currentProspect.briefIntro,
           qualificationStatus: result.status,
           qualificationScore: result.score,
-          matchedKeywords,
+          matchedKeywords: result.matchedKeywords,
           finance: currentProspect.finance?.displayValue,
           reasoning: result.reasoning,
           importance: result.qualified ? 0.8 : 0.65,
@@ -411,7 +430,9 @@ export const qualificationWorkflow = workflow.define({
             error instanceof Error ? error : new Error(String(error))
           );
         });
+    }
 
+    if (!isStillSetupPreview) {
       await step
         .runAction(internal.memory.indexProspectSearchListInternal, {
           prospectId: args.prospectId,
@@ -435,12 +456,10 @@ export const qualificationWorkflow = workflow.define({
       const platform = (currentProspect.platform || "twitter") as
         | "twitter"
         | "linkedin";
-      const evidenceForRag = rawEvidencePosts.map((p) => ({
-        id:
-          getWorkflowEvidencePostId(p) ||
-          `${String(args.prospectId)}:${getCurrentUTCTimestamp()}`,
-        text: getWorkflowEvidencePostText(p),
-        url: getWorkflowEvidencePostUrl(p),
+      const evidenceForRag = result.qualificationSources.map((source) => ({
+        id: source.sourceId,
+        text: source.text,
+        url: source.evidenceUrl ?? source.sourceUrl,
         platform,
       }));
 
@@ -558,10 +577,72 @@ export const runQualificationWorkflow = internalAction({
       {
         prospectId: args.prospectId,
         workspaceId: args.workspaceId,
+      },
+      {
+        onComplete:
+          internal.workflows.qualification.handleQualificationComplete,
+        context: { prospectId: args.prospectId },
       }
     );
 
     return { workflowId: wfId.toString() };
+  },
+});
+
+/**
+ * Clears a failed workflow lease without changing qualification state. The
+ * model helper already exhausts its bounded structured-output retries before
+ * surfacing a model evaluation failure.
+ */
+export const handleQualificationComplete = internalMutation({
+  args: {
+    workflowId: vWorkflowId,
+    result: vResultValidator,
+    context: v.any(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.result.kind === "success") return null;
+
+    const prospectId = (args.context as { prospectId: Id<"prospects"> })
+      .prospectId;
+    const prospect = await ctx.db.get(prospectId);
+    if (!prospect) return null;
+
+    const workflowId = String(args.workflowId);
+    if (
+      prospect.qualificationWorkflowId &&
+      prospect.qualificationWorkflowId !== workflowId
+    ) {
+      return null;
+    }
+
+    const now = getCurrentUTCTimestamp();
+    if (args.result.kind === "failed") {
+      const modelFailure = parseQualificationModelFailure(args.result.error);
+      await ctx.db.patch(prospect._id, {
+        qualificationWorkflowId: undefined,
+        qualificationLastFailure: {
+          stage: modelFailure ? "model_evaluation" : "workflow",
+          provider: modelFailure?.provider ?? "convex_workflow",
+          model: modelFailure?.model,
+          code: modelFailure
+            ? "qualification_model_evaluation_failed"
+            : "qualification_workflow_failed",
+          message: modelFailure?.message ?? args.result.error,
+          attemptCount: modelFailure?.attemptCount,
+          failedAt: now,
+        },
+        updatedAt: now,
+      });
+      return null;
+    }
+
+    await ctx.db.patch(prospect._id, {
+      qualificationWorkflowId: undefined,
+      updatedAt: now,
+    });
+    return null;
   },
 });
 

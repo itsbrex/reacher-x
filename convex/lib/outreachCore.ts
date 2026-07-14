@@ -31,6 +31,7 @@ import {
   hasDmBody,
 } from "../../shared/lib/twitter/xPostTextLimit";
 import { getEffectivePostTextLimitForUser } from "./xPostLimits";
+import { requireProspectEligibleForOutreach } from "./accessHelpers";
 
 const LINKEDIN_DM_TEXT_MAX = 8_000;
 
@@ -310,6 +311,15 @@ export async function createOutreachPlan(
   input: OutreachPlanInput
 ): Promise<Id<"outreachPlans">> {
   const now = getCurrentUTCTimestamp();
+  const prospect = await ctx.db.get("prospects", input.prospectId);
+  if (
+    !prospect ||
+    prospect.workspaceId !== input.workspaceId ||
+    prospect.userId !== input.userId
+  ) {
+    throw new Error("Prospect does not belong to this outreach workspace");
+  }
+  requireProspectEligibleForOutreach(prospect);
 
   // Check for existing active plan
   const existingPlan = await ctx.db
@@ -419,6 +429,9 @@ export async function refinePlan(
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new Error("Plan not found");
+  const prospect = await ctx.db.get("prospects", plan.prospectId);
+  if (!prospect) throw new Error("Prospect not found");
+  requireProspectEligibleForOutreach(prospect);
   if (
     plan.status !== "draft" &&
     plan.status !== "paused" &&
@@ -506,6 +519,9 @@ export async function approvePlan(
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new Error("Plan not found");
+  const prospect = await ctx.db.get("prospects", plan.prospectId);
+  if (!prospect) throw new Error("Prospect not found");
+  requireProspectEligibleForOutreach(prospect);
   if (plan.status !== "draft") {
     throw new Error("Can only approve draft plans");
   }

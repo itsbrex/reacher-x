@@ -159,6 +159,12 @@ function toWorkspaceAgentMemoryInventoryRecord(
     impactScore: row.impactScore,
     relatedQueriesCount: row.relatedQueriesCount,
     evidenceCount: row.evidenceCount,
+    prospectId: row.prospectId ? String(row.prospectId) : undefined,
+    quarantinedAt: row.quarantinedAt,
+    quarantineReason: row.quarantineReason,
+    qualificationAuditRunId: row.qualificationAuditRunId
+      ? String(row.qualificationAuditRunId)
+      : undefined,
   };
 }
 

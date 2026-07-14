@@ -5,6 +5,7 @@ export type DescribeUrlResult =
       success: true;
       content: string;
       title?: string;
+      author?: string;
       source: "exa" | "html-fallback";
     }
   | {
@@ -149,6 +150,7 @@ async function tryDescribeWithExa(
       success: true,
       content: truncateContent(text),
       title: page?.title?.trim() || undefined,
+      author: page?.author?.trim() || undefined,
       source: "exa",
     };
   } catch {
@@ -204,6 +206,10 @@ async function tryDescribeWithHtmlFetch(
       extractMetaContent(raw, "description") ??
       extractMetaContent(raw, "og:description") ??
       extractMetaContent(raw, "twitter:description");
+    const author =
+      extractMetaContent(raw, "author") ??
+      extractMetaContent(raw, "article:author") ??
+      extractMetaContent(raw, "parsely-author");
     const bodyText = htmlToPlainText(raw);
     const combined = collapseWhitespace(
       [title, description, bodyText].filter(Boolean).join("\n\n")
@@ -220,6 +226,7 @@ async function tryDescribeWithHtmlFetch(
       success: true,
       content: truncateContent(combined),
       title,
+      author,
       source: "html-fallback",
     };
   } catch (error) {
@@ -275,6 +282,18 @@ export async function describeUrl(url: string): Promise<DescribeUrlResult> {
   const exaResult = await tryDescribeWithExa(validation.url);
   if (exaResult?.success) {
     return exaResult;
+  }
+
+  return tryDescribeWithHtmlFetch(validation.url);
+}
+
+/** Direct HTML reader used only after a tracked primary provider attempt. */
+export async function describeUrlWithHtmlFallback(
+  url: string
+): Promise<DescribeUrlResult> {
+  const validation = validateDescribeUrlInput(url);
+  if (!validation.ok) {
+    return { success: false, error: validation.error };
   }
 
   return tryDescribeWithHtmlFetch(validation.url);

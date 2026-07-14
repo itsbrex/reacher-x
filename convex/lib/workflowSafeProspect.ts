@@ -62,6 +62,66 @@ function compactArray<T>(value: Array<T | null | undefined>): T[] {
   );
 }
 
+function isExternalArticleUrl(
+  value: string,
+  platform: ProspectPlatform
+): boolean {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (platform === "twitter") {
+      return hostname !== "x.com" && hostname !== "twitter.com";
+    }
+    return hostname !== "linkedin.com" && !hostname.endsWith(".linkedin.com");
+  } catch {
+    return false;
+  }
+}
+
+function getExternalArticleUrls(
+  value: Record<string, unknown>,
+  platform: ProspectPlatform
+): string[] {
+  const entities = isRecord(value.entities) ? value.entities : undefined;
+  const entityUrls = Array.isArray(entities?.urls) ? entities.urls : [];
+  const media = Array.isArray(value.mediaContent)
+    ? value.mediaContent
+    : Array.isArray(value.media)
+      ? value.media
+      : [];
+  const existingUrls = Array.isArray(value.externalUrls)
+    ? value.externalUrls
+    : [];
+
+  const urls = [
+    ...existingUrls.map((item) => asString(item)),
+    ...entityUrls.map((item) => {
+      const record = isRecord(item) ? item : undefined;
+      return (
+        asString(record?.expanded_url) ??
+        asString(record?.unwound_url) ??
+        asString(record?.url)
+      );
+    }),
+    ...media.map((item) => {
+      const record = isRecord(item) ? item : undefined;
+      const mediaType = normalizeLinkedInMediaType(
+        asString(record?.type),
+        asString(record?.url)
+      );
+      return mediaType === "link" ? asString(record?.url) : undefined;
+    }),
+  ].filter(
+    (url): url is string =>
+      typeof url === "string" && isExternalArticleUrl(url, platform)
+  );
+
+  return [...new Set(urls)].slice(0, 2);
+}
+
 function sanitizeTwitterUserForWorkflow(
   value: unknown
 ): Record<string, unknown> | undefined {
@@ -161,6 +221,10 @@ function sanitizeTwitterPostForWorkflow(
     quotePostId: summary.quotePostId,
     lang: summary.lang,
     source: summary.source,
+    externalUrls: getExternalArticleUrls(
+      value as Record<string, unknown>,
+      "twitter"
+    ),
   });
 }
 
@@ -239,6 +303,7 @@ function sanitizeLinkedInPostForWorkflow(
       profileUrl: asString(author?.profileUrl) ?? asString(author?.url),
       headline: asString(author?.headline),
       id: asString(author?.id),
+      urn: asString(author?.urn),
     }),
     text,
     createdAt,
@@ -253,6 +318,7 @@ function sanitizeLinkedInPostForWorkflow(
       views: asNumber(metrics?.views),
     }),
     media: media.length > 0 ? media : undefined,
+    externalUrls: getExternalArticleUrls(record, "linkedin"),
   });
 }
 

@@ -272,6 +272,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
     if (
       prospect.origin === "setup_preview" ||
       prospect.status === "archived" ||
+      prospect.qualificationStatus !== "qualified" ||
       (prospect.enrichmentStatus !== "enriched" &&
         prospect.enrichmentStatus !== "partial") ||
       typeof prospect.qualificationScore !== "number" ||

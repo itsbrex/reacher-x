@@ -81,6 +81,10 @@ export interface ProspectProfileData {
     displayValue: string;
     evidencePosts?: unknown[];
   };
+  qualificationSources?: Array<{
+    sourceId?: string;
+    sourcePost: unknown;
+  }>;
   location?: string;
   evidencePosts?: unknown[];
   painPoints?: PainPoint[];
@@ -195,6 +199,32 @@ export function ProspectProfilePanel({
     }
   };
 
+  const handleQualificationSourcesClick = () => {
+    if (!prospect) {
+      return;
+    }
+
+    const posts = (prospect.qualificationSources ?? []).flatMap((source) =>
+      source.sourcePost ? [source.sourcePost] : []
+    );
+    if (posts.length === 0) {
+      return;
+    }
+
+    const payload = {
+      title: "Qualification sources",
+      posts,
+      platform: prospect.platform || "twitter",
+    } as const;
+
+    if (onOpenEvidencePosts) {
+      onOpenEvidencePosts(payload);
+      return;
+    }
+
+    pushPanel("evidence-posts", payload);
+  };
+
   // Handle Twitter button - push Twitter profile panel
   const handleTwitterClick = React.useCallback(
     (username: string) => {
@@ -287,6 +317,8 @@ export function ProspectProfilePanel({
       ...(prospect.evidencePosts || []),
       ...(prospect.painPoints?.flatMap((pp) => pp.evidencePosts || []) || []),
       ...(prospect.finance?.evidencePosts || []),
+      ...(prospect.qualificationSources?.map((source) => source.sourcePost) ||
+        []),
     ]);
   }, [prospect]);
 
@@ -429,6 +461,9 @@ export function ProspectProfilePanel({
                       <ProspectDetailsCard
                         qualificationStatus={prospect.qualificationStatus}
                         qualificationScore={prospect.qualificationScore}
+                        qualificationSourceCount={
+                          prospect.qualificationSources?.length
+                        }
                         status={prospect.status}
                         company={prospect.company}
                         websiteUrl={prospect.websiteUrl}
@@ -448,6 +483,9 @@ export function ProspectProfilePanel({
                             : undefined
                         }
                         onFinanceClick={handleFinanceClick}
+                        onQualificationSourcesClick={
+                          handleQualificationSourcesClick
+                        }
                       />
                     </section>
 

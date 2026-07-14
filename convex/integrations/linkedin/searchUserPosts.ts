@@ -14,6 +14,11 @@ import {
   normalizeLinkedInProfileQueryUrn,
   requireLinkedInProfileQueryUrn,
 } from "./profileIdentity";
+import {
+  getUserPostSearchOutcome,
+  isUserPostSearchSuccessful,
+  type UserPostSearchOutcome,
+} from "../../lib/userPostSearchCore";
 const linkedInSearchUserPostsLogger = logger.withScope(
   "LinkedInSearchUserPosts"
 );
@@ -57,6 +62,7 @@ export interface LinkedInPost {
 
 export interface UserPostsSearchResult {
   success: boolean;
+  outcome: UserPostSearchOutcome;
   posts: LinkedInPost[];
   matchedKeywords: string[];
   error?: string;
@@ -185,6 +191,7 @@ export const searchUserPosts = action({
     if (!args.urn || args.urn.trim().length === 0) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error: "URN is required",
@@ -201,6 +208,7 @@ export const searchUserPosts = action({
     if (!profileUrn) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error:
@@ -218,6 +226,7 @@ export const searchUserPosts = action({
     if (args.keywords.length === 0) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error: "At least one keyword is required",
@@ -233,6 +242,7 @@ export const searchUserPosts = action({
 
     const allPosts: LinkedInPost[] = [];
     const matchedKeywords: string[] = [];
+    const searchErrors: string[] = [];
 
     // Search each keyword (with staggering)
     for (let i = 0; i < args.keywords.length; i++) {
@@ -279,6 +289,8 @@ export const searchUserPosts = action({
           }
           if (status.type === "completed" && status.result.type === "success") {
             result = status.result.returnValue as InternalSearchResult;
+          } else {
+            searchErrors.push(`Recent-post search failed for ${keyword}`);
           }
           break;
         }
@@ -312,8 +324,14 @@ export const searchUserPosts = action({
               if (result?.success) {
                 posts = result.posts;
               }
+            } else {
+              searchErrors.push(`Full-history search failed for ${keyword}`);
             }
             break;
+          }
+
+          if (attempts >= maxAttempts) {
+            searchErrors.push(`Full-history search timed out for ${keyword}`);
           }
         }
 
@@ -322,6 +340,9 @@ export const searchUserPosts = action({
           matchedKeywords.push(keyword);
         }
       } catch (error) {
+        searchErrors.push(
+          error instanceof Error ? error.message : "LinkedIn search failed"
+        );
         linkedInSearchUserPostsLogger.warn(
           "Failed to search keyword",
           { urn: profileUrn, keyword },
@@ -333,11 +354,21 @@ export const searchUserPosts = action({
 
     const uniquePosts = deduplicatePosts(allPosts).slice(0, maxPosts);
     const durationMs = getCurrentUTCTimestamp() - startTime;
+    const error =
+      uniquePosts.length === 0 && searchErrors.length > 0
+        ? [...new Set(searchErrors)].join(" | ")
+        : undefined;
 
+    const outcome = getUserPostSearchOutcome({
+      postCount: uniquePosts.length,
+      error,
+    });
     return {
-      success: uniquePosts.length > 0,
+      success: isUserPostSearchSuccessful(outcome),
+      outcome,
       posts: uniquePosts,
       matchedKeywords,
+      error,
       stats: {
         urn: profileUrn,
         keywordsSearched: args.keywords.length,

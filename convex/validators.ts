@@ -831,6 +831,142 @@ export const prospectPlatformValidator = v.union(
   v.literal("linkedin")
 );
 
+export const qualificationSourceContentTypeValidator = v.union(
+  v.literal("post"),
+  v.literal("reply"),
+  v.literal("quote_post")
+);
+
+/**
+ * A prospect-authored social source that passed deterministic authorship and
+ * quote validation after the semantic qualification check.
+ */
+export const qualificationSourceValidator = v.object({
+  verificationVersion: v.literal(1),
+  evidenceKind: v.union(
+    v.literal("social_content"),
+    v.literal("external_article")
+  ),
+  platform: prospectPlatformValidator,
+  contentType: qualificationSourceContentTypeValidator,
+  sourceId: v.string(),
+  sourceUrl: v.string(),
+  evidenceUrl: v.optional(v.string()),
+  authorId: v.string(),
+  text: v.string(),
+  publishedAt: v.optional(v.string()),
+  discoveryQueries: v.array(v.string()),
+  supportingQuote: v.string(),
+  verifiedAt: v.number(),
+  // Raw provider-shaped post data is intentional so existing native post
+  // renderers can display the original X or LinkedIn source.
+  sourcePost: v.any(),
+});
+
+export const qualificationVerificationValidator = v.object({
+  version: v.literal(1),
+  status: v.union(v.literal("validated"), v.literal("failed")),
+  validatedAt: v.number(),
+  candidateSourceCount: v.number(),
+  supportedSourceCount: v.number(),
+  discoveryQueries: v.array(v.string()),
+});
+
+export const qualificationAuditRunStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("failed")
+);
+
+export const qualificationAuditOutcomeValidator = v.union(
+  v.literal("kept_qualified"),
+  v.literal("would_disqualify"),
+  v.literal("error")
+);
+
+export const qualificationAuditEvidenceOriginValidator = v.union(
+  v.literal("existing"),
+  v.literal("refetched"),
+  v.literal("mixed")
+);
+
+export const qualificationAuditApplicationStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("failed")
+);
+
+export const qualificationAuditItemApplicationOutcomeValidator = v.union(
+  v.literal("applied"),
+  v.literal("skipped_stale"),
+  v.literal("skipped_missing")
+);
+
+export const qualificationAuditApplicationItemResultValidator = v.object({
+  prospectId: v.id("prospects"),
+  outcome: qualificationAuditItemApplicationOutcomeValidator,
+  proposedStatus: v.optional(
+    v.union(v.literal("qualified"), v.literal("disqualified"))
+  ),
+  reason: v.optional(v.string()),
+});
+
+export const qualificationAuthenticityValidator = v.object({
+  isLikelyBot: v.boolean(),
+  accountAge: v.optional(v.number()),
+  followersCount: v.optional(v.number()),
+  followingCount: v.optional(v.number()),
+  engagementRate: v.optional(v.number()),
+  flags: v.array(v.string()),
+});
+
+export const qualificationScoreBreakdownValidator = v.object({
+  profileFit: v.number(),
+  signalQuality: v.number(),
+  intentStrength: v.number(),
+  recency: v.number(),
+  total: v.number(),
+});
+
+export const qualificationFailureValidator = v.object({
+  stage: v.union(
+    v.literal("evidence_fetch"),
+    v.literal("model_evaluation"),
+    v.literal("workflow")
+  ),
+  provider: v.string(),
+  model: v.optional(v.string()),
+  code: v.string(),
+  message: v.string(),
+  attemptCount: v.optional(v.number()),
+  failedAt: v.number(),
+});
+
+export const qualificationAuditItemResultValidator = v.object({
+  prospectId: v.id("prospects"),
+  platform: prospectPlatformValidator,
+  displayName: v.string(),
+  previousScore: v.optional(v.number()),
+  proposedScore: v.optional(v.number()),
+  proposedStatus: v.optional(
+    v.union(v.literal("qualified"), v.literal("disqualified"))
+  ),
+  outcome: qualificationAuditOutcomeValidator,
+  evidenceOrigin: qualificationAuditEvidenceOriginValidator,
+  existingEvidenceCount: v.number(),
+  evaluatedEvidenceCount: v.number(),
+  verifiedSourceCount: v.number(),
+  reasoning: v.string(),
+  error: v.optional(v.string()),
+  failure: v.optional(qualificationFailureValidator),
+  qualificationSources: v.array(qualificationSourceValidator),
+  qualificationVerification: v.optional(qualificationVerificationValidator),
+  authenticity: v.optional(qualificationAuthenticityValidator),
+  scoreBreakdown: v.optional(qualificationScoreBreakdownValidator),
+});
+
 export const prospectStatusValidator = v.union(
   v.literal("new"),
   v.literal("contacted"),
@@ -1071,6 +1207,40 @@ export const outreachPlanArchiveHoldPreviousStatusValidator = v.union(
 
 export const outreachPlanArchiveHoldValidator = v.object({
   previousStatus: outreachPlanArchiveHoldPreviousStatusValidator,
+});
+
+export const disqualificationOutreachCleanupSummaryValidator = v.object({
+  plans: v.number(),
+  tasks: v.number(),
+  workflows: v.number(),
+  prospectMonitors: v.number(),
+  recoveryMonitors: v.number(),
+  actionRequests: v.number(),
+  notifications: v.number(),
+});
+
+export const disqualificationOutreachCleanupPreviewValidator = v.object({
+  planIds: v.array(v.id("outreachPlans")),
+  summary: disqualificationOutreachCleanupSummaryValidator,
+});
+
+export const disqualificationOutreachPlanCleanupPreviewValidator = v.union(
+  v.null(),
+  v.object({
+    planId: v.id("outreachPlans"),
+    summary: disqualificationOutreachCleanupSummaryValidator,
+  })
+);
+
+export const disqualificationOutreachCleanupWorkflowResultValidator = v.object({
+  summary: disqualificationOutreachCleanupSummaryValidator,
+  analyticsRowsRebuilt: v.number(),
+});
+
+export const disqualificationOutreachCleanupStartResultValidator = v.object({
+  started: v.boolean(),
+  workflowId: v.optional(v.string()),
+  preview: disqualificationOutreachCleanupPreviewValidator,
 });
 
 export const outreachFailureClassValidator = v.union(

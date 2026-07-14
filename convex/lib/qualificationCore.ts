@@ -1,69 +1,72 @@
 "use node";
 
-// convex/lib/qualificationCore.ts
 // Core qualification logic - single source of truth
 // Used by: workflows/qualification.ts, agents/tools/qualifyProspect.ts
-//
-// v2: LLM-based qualification replaces hardcoded scoring.
-// The LLM evaluates ICP fit, engagement, authenticity holistically.
 
 import { z } from "zod";
-import { robustGenerateObject, type ModelRouting } from "./ai";
+import {
+  getRoutingTelemetry,
+  robustGenerateObject,
+  type ModelRouting,
+} from "./ai";
 import { logger } from "../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import type { WorkspaceUseCaseKey } from "../../shared/lib/workspaceUseCases";
 import { QUALIFICATION_THRESHOLD as SHARED_QUALIFICATION_THRESHOLD } from "../../shared/lib/qualificationConstants";
 import {
-  getWorkflowEvidencePostCreatedAt,
   getWorkflowEvidencePostLikeCount,
   getWorkflowEvidencePostRepostCount,
-  getWorkflowEvidencePostText,
 } from "./workflowSafeProspect";
+import {
+  buildQualificationVerification,
+  buildVerifiedQualificationSources,
+  prepareQualificationCandidates,
+  passesQualificationGate,
+  type QualificationSource,
+  type QualificationExternalArticle,
+  type QualificationVerification,
+} from "./qualificationEvidenceCore";
+import { buildQualificationPrompt } from "../agents/prompts";
+import {
+  calculateQualificationScore,
+  createEmptyQualificationScoreBreakdown,
+  QUALIFICATION_SCORE_MAXIMUMS,
+  type QualificationScoreBreakdown,
+} from "./qualificationScoringCore";
+import { formatQualificationModelFailure } from "./qualificationFailureCore";
 
 const qualificationLogger = logger.withScope("QualificationCore");
-
-// ============================================================================
-// Constants
-// ============================================================================
 
 export const QUALIFICATION_THRESHOLD = SHARED_QUALIFICATION_THRESHOLD;
 export const MAX_EVIDENCE_POSTS = 20;
 export const MAX_KEYWORDS_TO_SEARCH = 10;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-// ============================================================================
-// Schemas
-// ============================================================================
-
-/**
- * Schema for LLM qualification response.
- * The LLM evaluates everything in one call: ICP fit, engagement, authenticity.
- */
 const llmQualificationSchema = z.object({
-  score: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe("Overall qualification score 0-100"),
-  qualified: z
-    .boolean()
-    .describe("True if prospect is a strong ICP fit worth pursuing"),
-  reasoning: z
-    .string()
-    .describe("Brief 1-2 sentence explanation of the qualification decision"),
-  isLikelyBot: z
-    .boolean()
-    .describe("True if account shows bot/fake indicators"),
-  botFlags: z
-    .array(z.string())
-    .describe(
-      "Specific bot indicators: 'new_account', 'no_bio', 'spam_patterns', 'engagement_farming', etc."
-    ),
+  scoreBreakdown: z.object({
+    profileFit: z.number().min(0).max(QUALIFICATION_SCORE_MAXIMUMS.profileFit),
+    signalQuality: z
+      .number()
+      .min(0)
+      .max(QUALIFICATION_SCORE_MAXIMUMS.signalQuality),
+    intentStrength: z
+      .number()
+      .min(0)
+      .max(QUALIFICATION_SCORE_MAXIMUMS.intentStrength),
+    recency: z.number().min(0).max(QUALIFICATION_SCORE_MAXIMUMS.recency),
+  }),
+  qualified: z.boolean(),
+  reasoning: z.string(),
+  isLikelyBot: z.boolean(),
+  botFlags: z.array(z.string()),
+  evidenceDecisions: z.array(
+    z.object({
+      candidateId: z.string(),
+      supportsQualification: z.boolean(),
+      supportingQuote: z.string(),
+    })
+  ),
 });
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface AuthenticityResult {
   isLikelyBot: boolean;
@@ -77,66 +80,113 @@ export interface AuthenticityResult {
 export interface QualificationResult {
   qualified: boolean;
   score: number;
+  scoreBreakdown: QualificationScoreBreakdown;
   status: "qualified" | "disqualified";
+  /** Discovery queries attached only to sources that became verified proof. */
   matchedKeywords: string[];
   evidenceCount: number;
+  qualificationSources: QualificationSource[];
+  qualificationVerification: QualificationVerification;
   authenticity: AuthenticityResult;
   reasoning: string;
   qualifiedAt?: number;
 }
 
-// Import prompt builder from central location (per AGENT_CONTEXT.txt standards)
-import { buildQualificationPrompt } from "../agents/prompts";
+export class QualificationEvaluationError extends Error {
+  readonly code = "qualification_model_evaluation_failed";
+  readonly stage = "model_evaluation" as const;
+  readonly provider: string;
+  readonly model: string;
+  readonly attemptCount = 2;
+  readonly originalMessage: string;
+
+  constructor(args: { message: string; provider: string; model: string }) {
+    super(
+      formatQualificationModelFailure({
+        provider: args.provider,
+        model: args.model,
+        attemptCount: 2,
+        message: args.message,
+      })
+    );
+    this.name = "QualificationEvaluationError";
+    this.originalMessage = args.message;
+    this.provider = args.provider;
+    this.model = args.model;
+  }
+}
 
 function formatUtcDate(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
 }
 
-function buildMatchedEvidenceRecencySummary(args: {
-  evidencePosts: Array<Record<string, unknown>>;
+function buildEvidenceRecencySummary(args: {
+  createdDates: Array<string | undefined>;
   now: number;
 }): string {
-  const recencyDays = args.evidencePosts
-    .map((post) => {
-      const createdAt = getWorkflowEvidencePostCreatedAt(post);
+  const recencyDays = args.createdDates
+    .map((createdAt) => {
       if (!createdAt) return null;
-
       const timestamp = Date.parse(createdAt);
       if (!Number.isFinite(timestamp)) return null;
-
       return Math.max(0, Math.floor((args.now - timestamp) / MS_PER_DAY));
     })
     .filter((value): value is number => value !== null)
     .sort((left, right) => left - right);
 
   if (recencyDays.length === 0) {
-    return "No valid matched-post dates available.";
+    return "No valid candidate-source dates available.";
   }
 
-  const newest = recencyDays[0];
-  const oldest = recencyDays[recencyDays.length - 1];
-
   return [
-    `Most recent matched post: ${newest} day(s) ago`,
-    `Oldest matched post: ${oldest} day(s) ago`,
-    `Matched posts with valid dates: ${recencyDays.length}`,
+    `Most recent candidate source: ${recencyDays[0]} day(s) ago`,
+    `Oldest candidate source: ${recencyDays[recencyDays.length - 1]} day(s) ago`,
+    `Candidate sources with valid dates: ${recencyDays.length}`,
   ].join("\n");
 }
 
-// ============================================================================
-// Main Qualification Function
-// ============================================================================
+function getVerifiedDiscoveryQueries(sources: QualificationSource[]): string[] {
+  return [
+    ...new Set(
+      sources.flatMap((source) =>
+        source.discoveryQueries.map((query) => query.trim())
+      )
+    ),
+  ].filter(Boolean);
+}
 
-/**
- * Calculate complete qualification result for a prospect using LLM.
- * This is the single source of truth for qualification logic.
- *
- * The LLM evaluates ICP fit, engagement, recency, and authenticity
- * in a single holistic call, replacing the previous hardcoded scoring.
- */
-export async function qualifyProspectCore(params: {
+function buildAuthenticityResult(args: {
+  profileData: Record<string, unknown>;
+  isLikelyBot: boolean;
+  flags: string[];
+  now: number;
+}): AuthenticityResult {
+  const result: AuthenticityResult = {
+    isLikelyBot: args.isLikelyBot,
+    flags: args.flags,
+  };
+
+  if (typeof args.profileData.followers_count === "number") {
+    result.followersCount = args.profileData.followers_count;
+  }
+  if (typeof args.profileData.friends_count === "number") {
+    result.followingCount = args.profileData.friends_count;
+  }
+  if (typeof args.profileData.created_at === "string") {
+    const createdAt = Date.parse(args.profileData.created_at);
+    if (Number.isFinite(createdAt)) {
+      result.accountAge = Math.floor((args.now - createdAt) / MS_PER_DAY);
+    }
+  }
+
+  return result;
+}
+
+export interface QualificationCoreParams {
+  platform: "twitter" | "linkedin";
   evidencePosts: Array<Record<string, unknown>>;
-  matchedKeywords: string[];
+  externalArticles?: QualificationExternalArticle[];
+  discoveryQueries: string[];
   totalKeywords: number;
   profileData: Record<string, unknown>;
   icpDescription?: string;
@@ -146,10 +196,16 @@ export async function qualifyProspectCore(params: {
   similarQualifiedCases?: string[];
   similarDisqualifiedCases?: string[];
   routing?: ModelRouting;
-}): Promise<QualificationResult> {
+}
+
+export async function qualifyProspectCore(
+  params: QualificationCoreParams
+): Promise<QualificationResult> {
   const {
+    platform,
     evidencePosts,
-    matchedKeywords,
+    externalArticles,
+    discoveryQueries,
     profileData,
     icpDescription,
     icpPainPoints,
@@ -160,49 +216,88 @@ export async function qualifyProspectCore(params: {
     routing = "reasoning",
   } = params;
   const now = getCurrentUTCTimestamp();
-  const currentUtcDate = formatUtcDate(now);
-
-  // Build posts context with engagement metrics
-  const postsContext = evidencePosts
-    .slice(0, MAX_EVIDENCE_POSTS)
-    .map((p) => {
-      const text = getWorkflowEvidencePostText(p).trim();
-      const likes = getWorkflowEvidencePostLikeCount(p);
-      const rts = getWorkflowEvidencePostRepostCount(p);
-      const createdAt = getWorkflowEvidencePostCreatedAt(p) || "";
-      if (!text) return null;
-      return `"${text}" (${likes} likes, ${rts} RTs${createdAt ? `, ${createdAt}` : ""})`;
-    })
-    .filter(Boolean)
-    .join("\n\n");
-  const matchedEvidenceRecencySummary = buildMatchedEvidenceRecencySummary({
-    evidencePosts,
-    now,
+  const candidates = prepareQualificationCandidates({
+    platform,
+    evidencePosts: evidencePosts.slice(0, MAX_EVIDENCE_POSTS),
+    profileData,
+    discoveryQueries,
+    externalArticles,
   });
 
-  // Build prompt with all context
+  if (candidates.length === 0) {
+    return {
+      qualified: false,
+      score: 0,
+      scoreBreakdown: createEmptyQualificationScoreBreakdown(),
+      status: "disqualified",
+      matchedKeywords: [],
+      evidenceCount: 0,
+      qualificationSources: [],
+      qualificationVerification: buildQualificationVerification({
+        status: "validated",
+        candidates,
+        sources: [],
+        discoveryQueries,
+        validatedAt: now,
+      }),
+      authenticity: { isLikelyBot: false, flags: [] },
+      reasoning:
+        "No persisted, prospect-authored source with text, a stable ID, and a URL was available.",
+    };
+  }
+
+  const sourcesContext = candidates
+    .map((candidate) => {
+      const likes = getWorkflowEvidencePostLikeCount(candidate.sourcePost);
+      const reposts = getWorkflowEvidencePostRepostCount(candidate.sourcePost);
+      return [
+        `Candidate ID: ${candidate.candidateId}`,
+        `Source post ID: ${candidate.sourceId}`,
+        `Source type: ${candidate.contentType}`,
+        `Source URL: ${candidate.sourceUrl}`,
+        `Evidence kind: ${candidate.evidenceKind}`,
+        candidate.evidenceUrl
+          ? `Linked article URL: ${candidate.evidenceUrl}`
+          : null,
+        `Published: ${candidate.publishedAt ?? "unknown"}`,
+        `Engagement: ${likes} likes/reactions, ${reposts} reposts`,
+        `Persisted text: ${JSON.stringify(candidate.text)}`,
+      ]
+        .filter((line): line is string => typeof line === "string")
+        .join("\n");
+    })
+    .join("\n\n");
+
   const prompt = `## ICP (Ideal Customer Profile)
 ${icpDescription || "No description provided - use general B2B prospect criteria"}
 
 ## Target Pain Points
-${(icpPainPoints || matchedKeywords).join(", ") || "None specified"}
+${(icpPainPoints || []).join(", ") || "None specified"}
 
-## Matched Keywords in Their Content
-${matchedKeywords.join(", ") || "None"}
+## Discovery Queries (routing metadata only; never proof)
+${discoveryQueries.join(", ") || "None"}
 
 ## Prospect Profile Data
 \`\`\`json
 ${JSON.stringify(profileData, null, 2)}
 \`\`\`
 
-## Their Posts (Evidence of Pain Points)
-${postsContext || "NO POSTS AVAILABLE - Be conservative in scoring without evidence"}
+## Persisted Prospect-Authored Candidate Sources
+${sourcesContext}
+
+For every candidate source, return one evidenceDecisions entry using its exact Candidate ID.
+Set supportsQualification=true only when that source's own persisted text supports ICP fit.
+When true, supportingQuote must be an exact verbatim substring of Persisted text.
+When false, supportingQuote must be an empty string.
 
 ## Current Date Context
-Today (UTC): ${currentUtcDate}
+Today (UTC): ${formatUtcDate(now)}
 
-## Matched Evidence Recency
-${matchedEvidenceRecencySummary}
+## Candidate Evidence Recency
+${buildEvidenceRecencySummary({
+  createdDates: candidates.map((candidate) => candidate.publishedAt),
+  now,
+})}
 
 ## Prior Reusable Lessons
 ${relevantMemories?.join("\n") || "None"}
@@ -223,58 +318,57 @@ Evaluate this prospect against the ICP.`;
       prompt,
       routing,
     });
-
-    // Final qualification: LLM qualified AND not a bot
-    const finalQualified = object.qualified && !object.isLikelyBot;
-
-    // Extract profile metadata for authenticity result
-    const authenticity: AuthenticityResult = {
+    const qualificationSources = buildVerifiedQualificationSources({
+      candidates,
+      decisions: object.evidenceDecisions,
+      verifiedAt: now,
+    });
+    const scoreBreakdown = calculateQualificationScore(object.scoreBreakdown);
+    const finalQualified = passesQualificationGate({
+      modelQualified: object.qualified,
       isLikelyBot: object.isLikelyBot,
-      flags: object.botFlags,
-    };
-
-    // Add profile metrics if available
-    if (profileData.followers_count) {
-      authenticity.followersCount = profileData.followers_count as number;
-    }
-    if (profileData.friends_count) {
-      authenticity.followingCount = profileData.friends_count as number;
-    }
-    if (profileData.created_at) {
-      const createdAt = new Date(profileData.created_at as string).getTime();
-      authenticity.accountAge = Math.floor(
-        (getCurrentUTCTimestamp() - createdAt) / (1000 * 60 * 60 * 24)
-      );
-    }
+      score: scoreBreakdown.total,
+      threshold: QUALIFICATION_THRESHOLD,
+      verifiedSourceCount: qualificationSources.length,
+    });
 
     return {
       qualified: finalQualified,
-      score: object.score,
+      score: scoreBreakdown.total,
+      scoreBreakdown,
       status: finalQualified ? "qualified" : "disqualified",
-      matchedKeywords,
-      evidenceCount: evidencePosts.length,
-      authenticity,
+      matchedKeywords: getVerifiedDiscoveryQueries(qualificationSources),
+      evidenceCount: qualificationSources.length,
+      qualificationSources,
+      qualificationVerification: buildQualificationVerification({
+        status: "validated",
+        candidates,
+        sources: qualificationSources,
+        discoveryQueries,
+        validatedAt: now,
+      }),
+      authenticity: buildAuthenticityResult({
+        profileData,
+        isLikelyBot: object.isLikelyBot,
+        flags: object.botFlags,
+        now,
+      }),
       reasoning: object.reasoning,
-      qualifiedAt: finalQualified ? getCurrentUTCTimestamp() : undefined,
+      qualifiedAt: finalQualified ? now : undefined,
     };
   } catch (error) {
+    const routingTelemetry = getRoutingTelemetry(routing);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown model evaluation error";
     qualificationLogger.error("LLM qualification failed", {
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
+      model: routingTelemetry.model,
+      provider: routingTelemetry.providerLabel,
     });
-
-    // Fallback: conservative disqualification on LLM failure
-    return {
-      qualified: false,
-      score: 0,
-      status: "disqualified",
-      matchedKeywords,
-      evidenceCount: evidencePosts.length,
-      authenticity: {
-        isLikelyBot: false,
-        flags: ["llm_qualification_failed"],
-      },
-      reasoning:
-        "Qualification failed because the model call did not complete.",
-    };
+    throw new QualificationEvaluationError({
+      message: errorMessage,
+      model: routingTelemetry.model,
+      provider: routingTelemetry.providerLabel,
+    });
   }
 }

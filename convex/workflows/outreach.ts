@@ -70,6 +70,18 @@ export const outreachPlanWorkflow = workflowManager.define({
     const contactedActivityDescription = `Executing ${tasks.length} task${tasks.length !== 1 ? "s" : ""} — ${plan.strategy.tone || "professional"} tone`;
     let shouldMarkProspectContacted = true;
 
+    const prospect = await step.runQuery(
+      internal.prospects.getProspectInternal,
+      { prospectId: plan.prospectId }
+    );
+    if (!prospect || prospect.qualificationStatus !== "qualified") {
+      return {
+        success: false,
+        status: "skipped",
+        error: "Prospect is no longer qualified for outreach",
+      };
+    }
+
     // Validate plan is approved
     if (
       plan.status !== "approved" &&
@@ -89,11 +101,7 @@ export const outreachPlanWorkflow = workflowManager.define({
       status: "executing",
     });
 
-    // Fetch prospect for display fields (used in notifications)
-    const prospect = await step.runQuery(
-      internal.prospects.getProspectInternal,
-      { prospectId: plan.prospectId }
-    );
+    // Prospect display fields are used in notifications.
     const prospectDisplayFields = getProspectDisplayFields(prospect);
 
     // Step 3: Execute tasks in order, re-reading the latest plan state so

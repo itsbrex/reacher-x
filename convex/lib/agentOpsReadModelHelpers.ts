@@ -269,7 +269,8 @@ export function normalizeWorkspaceAgentOpsDailyRecord(
 
   for (const field of AGENT_OPS_NUMERIC_FIELDS) {
     const value = isRecord(existing) ? existing[field] : undefined;
-    next[field] = typeof value === "number" && Number.isFinite(value) ? value : 0;
+    next[field] =
+      typeof value === "number" && Number.isFinite(value) ? value : 0;
   }
 
   for (const field of AGENT_OPS_HOURLY_FIELDS) {
@@ -897,9 +898,13 @@ export function getWorkspaceQueryPerformanceDailyDeltasFromWorkflowEvent(args: {
   let deltaValue = 0;
 
   if (args.event.eventType === "qualification_completed") {
-    const qualified =
-      getEventBooleanPayload(args.event, "qualified") === true ||
+    const eventQualified = getEventBooleanPayload(args.event, "qualified");
+    const currentlyQualified =
       args.prospect.qualificationStatus === "qualified";
+    const qualified =
+      eventQualified === undefined
+        ? currentlyQualified
+        : eventQualified && currentlyQualified;
     deltaField = "qualifiedCountDelta";
     deltaValue = qualified ? 1 : 0;
   } else if (args.event.eventType === "prospect_responded") {

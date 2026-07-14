@@ -42,6 +42,8 @@ export interface ProspectDetailsCardProps {
   qualificationStatus?: Doc<"prospects">["qualificationStatus"];
   /** Qualification score (0-100) */
   qualificationScore?: number;
+  /** Number of persisted sources that passed qualification verification. */
+  qualificationSourceCount?: number;
   /** Prospect status */
   status?: "new" | "contacted" | "in_progress" | "converted" | "archived";
   /** Company name */
@@ -68,6 +70,8 @@ export interface ProspectDetailsCardProps {
   foundViaLabel?: string;
   /** Handler for finance click (opens evidence panel) */
   onFinanceClick?: () => void;
+  /** Opens the existing evidence panel with verified qualification sources. */
+  onQualificationSourcesClick?: () => void;
   /** Additional className */
   className?: string;
 }
@@ -151,7 +155,7 @@ function DetailRow({
 }: DetailRowProps) {
   return (
     <div className={cn("flex items-center gap-3 py-1.5 text-sm", className)}>
-      <div className="text-foreground flex w-28 shrink-0 items-center gap-2">
+      <div className="text-foreground flex w-40 shrink-0 items-center gap-2">
         {icon}
         <span>{label}</span>
       </div>
@@ -196,6 +200,7 @@ function ContactSourceMeta({ source }: { source?: ProspectContactSource }) {
 export function ProspectDetailsCard({
   qualificationStatus,
   qualificationScore = 0,
+  qualificationSourceCount = 0,
   status = "new",
   company,
   websiteUrl,
@@ -209,6 +214,7 @@ export function ProspectDetailsCard({
   location,
   foundViaLabel,
   onFinanceClick,
+  onQualificationSourcesClick,
   className,
 }: ProspectDetailsCardProps) {
   const { entitySingular, stageLabels } = useActiveUseCaseLabels();
@@ -250,6 +256,22 @@ export function ProspectDetailsCard({
           />
         </div>
       </DetailRow>
+
+      {qualificationSourceCount > 0 && onQualificationSourcesClick ? (
+        <DetailRow
+          icon={<SearchActivityIcon className="fill-current" />}
+          label="Qualification sources"
+        >
+          <button
+            type="button"
+            onClick={onQualificationSourcesClick}
+            className="hover:underline"
+          >
+            {qualificationSourceCount}{" "}
+            {qualificationSourceCount === 1 ? "source" : "sources"}
+          </button>
+        </DetailRow>
+      ) : null}
 
       {/* Status (always visible) */}
       <DetailRow

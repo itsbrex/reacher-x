@@ -16,6 +16,7 @@ import {
   EXA_SEARCH_COST_PER_REQUEST_USD,
   trackProviderRequest,
 } from "./providerReliability";
+import { describeUrlWithHtmlFallback } from "../../shared/lib/urls/describeUrl";
 
 const MAX_QUERIES = 4;
 const RESULTS_PER_QUERY = 4;
@@ -53,6 +54,7 @@ export interface WebPageReadOutcome {
   url: string;
   title: string;
   snippet: string;
+  author?: string;
   error?: string;
 }
 
@@ -69,14 +71,14 @@ export async function readWebPages(
   urls: string[],
   providerContext: ResearchProviderContext
 ): Promise<WebPageReadOutcome[]> {
-  const exa = getExaClient();
   const limitedUrls = [
-    ...new Set(urls.map((url) => url.trim()).filter(Boolean)),
+    ...new Set(urls.flatMap((url) => (url.trim() ? [url.trim()] : []))),
   ].slice(0, 2);
 
   if (limitedUrls.length === 0) {
     return [];
   }
+  const exa = getExaClient();
 
   try {
     const response = await trackProviderRequest({
@@ -107,20 +109,60 @@ export async function readWebPages(
       },
     });
 
-    return (response.results ?? []).map((result) => ({
-      url: result.url,
-      title: result.title?.trim() || result.url,
-      snippet: (result.text ?? "").replace(/\s+/g, " ").trim(),
-    }));
+    const resultsByUrl = new Map(
+      (response.results ?? []).map((result) => [result.url, result])
+    );
+
+    return await Promise.all(
+      limitedUrls.map(async (url) => {
+        const result = resultsByUrl.get(url);
+        const snippet = (result?.text ?? "").replace(/\s+/g, " ").trim();
+        if (snippet) {
+          return {
+            url,
+            title: result?.title?.trim() || url,
+            snippet,
+            author: result?.author?.trim() || undefined,
+          };
+        }
+
+        const fallback = await describeUrlWithHtmlFallback(url);
+        return fallback.success
+          ? {
+              url,
+              title: fallback.title?.trim() || url,
+              snippet: fallback.content,
+              author: fallback.author,
+            }
+          : {
+              url,
+              title: url,
+              snippet: "",
+              error: fallback.error,
+            };
+      })
+    );
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Website read failed";
-    return limitedUrls.map((url) => ({
-      url,
-      title: url,
-      snippet: "",
-      error: errorMessage,
-    }));
+    return await Promise.all(
+      limitedUrls.map(async (url) => {
+        const fallback = await describeUrlWithHtmlFallback(url);
+        return fallback.success
+          ? {
+              url,
+              title: fallback.title?.trim() || url,
+              snippet: fallback.content,
+              author: fallback.author,
+            }
+          : {
+              url,
+              title: url,
+              snippet: "",
+              error: `${errorMessage}; ${fallback.error}`,
+            };
+      })
+    );
   }
 }
 

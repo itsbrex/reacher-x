@@ -22,6 +22,9 @@ import {
   prospectPlatformValidator,
   prospectStatusValidator,
   qualificationStatusValidator,
+  qualificationSourceValidator,
+  qualificationVerificationValidator,
+  qualificationScoreBreakdownValidator,
   prospectTypeValidator,
   enrichmentStatusValidator,
   planGenerationStatusValidator,
@@ -86,6 +89,7 @@ import {
 } from "./lib/setupSessionCore";
 import { logger } from "../shared/lib/logger";
 import { hydrateTwitterProfileLinkMetadata } from "./lib/twitterProfileLinkResolver";
+import { reconcileDisqualifiedProspectOutreach } from "./lib/disqualificationOutreachCore";
 import {
   normalizeTwitterUrlEntities,
   type TwitterUrlEntity,
@@ -769,6 +773,7 @@ export const getProspectWorkflowDataInternal = internalQuery({
       qualificationScore: prospect.qualificationScore,
       enrichmentStatus: prospect.enrichmentStatus,
       matchedKeywords: prospect.matchedKeywords,
+      discoveryContext: prospect.discoveryContext,
       finance: prospect.finance
         ? {
             displayValue: prospect.finance.displayValue,
@@ -2135,10 +2140,17 @@ export const saveReplyDerivedProspectWithRetry = internalAction({
 export const updateProspectQualification = internalMutation({
   args: {
     prospectId: v.id("prospects"),
+    expectedQualificationStatus: v.optional(qualificationStatusValidator),
+    expectedQualificationScore: v.optional(v.number()),
     qualificationStatus: qualificationStatusValidator,
     qualificationScore: v.number(),
+    qualificationScoreBreakdown: v.optional(
+      qualificationScoreBreakdownValidator
+    ),
     qualifiedAt: v.optional(v.number()),
     evidencePosts: v.optional(v.array(v.any())),
+    qualificationSources: v.optional(v.array(qualificationSourceValidator)),
+    qualificationVerification: v.optional(qualificationVerificationValidator),
     qualificationKeywords: v.optional(v.array(v.string())),
     authenticity: v.optional(
       v.object({
@@ -2156,6 +2168,18 @@ export const updateProspectQualification = internalMutation({
     if (!prospect) {
       return { success: true, skipped: true };
     }
+    if (
+      args.expectedQualificationStatus !== undefined &&
+      prospect.qualificationStatus !== args.expectedQualificationStatus
+    ) {
+      return { success: true, skipped: true };
+    }
+    if (
+      args.expectedQualificationScore !== undefined &&
+      prospect.qualificationScore !== args.expectedQualificationScore
+    ) {
+      return { success: true, skipped: true };
+    }
     if (!(await isActiveSetupPreviewProspect(ctx, prospect))) {
       return { success: true, skipped: true };
     }
@@ -2164,12 +2188,13 @@ export const updateProspectQualification = internalMutation({
     const nextQualified = args.qualificationStatus === "qualified";
     const usageEligible = isProspectEligibleForQualifiedUsage(prospect);
     const now = getCurrentUTCTimestamp();
+    const evidencePosts = args.evidencePosts ?? prospect.evidencePosts;
     const analyticsPatch = buildProspectAnalyticsTransitionPatch({
       prospect,
       patch: {
         qualificationStatus: args.qualificationStatus,
         qualifiedAt: args.qualifiedAt,
-        evidencePosts: args.evidencePosts,
+        evidencePosts,
       },
       now,
     });
@@ -2177,13 +2202,21 @@ export const updateProspectQualification = internalMutation({
     await ctx.db.patch(args.prospectId, {
       qualificationStatus: args.qualificationStatus,
       qualificationScore: args.qualificationScore,
+      qualificationScoreBreakdown: args.qualificationScoreBreakdown,
+      qualificationLastFailure: undefined,
       qualifiedAt: args.qualifiedAt,
       ...analyticsPatch,
-      evidencePosts: args.evidencePosts,
+      evidencePosts,
+      qualificationSources: args.qualificationSources,
+      qualificationVerification: args.qualificationVerification,
       qualificationKeywords: args.qualificationKeywords,
       authenticity: args.authenticity,
       updatedAt: now,
     });
+
+    if (args.qualificationStatus === "disqualified") {
+      await reconcileDisqualifiedProspectOutreach(ctx, args.prospectId);
+    }
 
     const usageTransition = await applyQualifiedProspectUsageTransition(ctx, {
       userId: prospect.userId,

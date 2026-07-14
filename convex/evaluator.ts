@@ -54,6 +54,7 @@ import {
   workspaceMemoryCategoryValidator,
   workspaceMemorySourceValidator,
 } from "./validators";
+import { isUsableQualificationVerification } from "./lib/qualificationEvidenceCore";
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 200;
@@ -160,24 +161,14 @@ function coerceStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-function extractEvidenceHighlights(prospect: Doc<"prospects">): string[] {
-  if (!Array.isArray(prospect.evidencePosts)) {
-    return [];
-  }
-
-  return prospect.evidencePosts
-    .map((post) => {
-      if (!isRecord(post)) {
-        return "";
-      }
-      return (
-        getStringProperty(post, "full_text") ||
-        getStringProperty(post, "text") ||
-        ""
-      );
+function extractVerifiedQualificationEvidenceHighlights(
+  prospect: Doc<"prospects">
+): string[] {
+  return (prospect.qualificationSources ?? [])
+    .flatMap((source) => {
+      const quote = source.supportingQuote.trim();
+      return quote ? [quote] : [];
     })
-    .map((text) => text.trim())
-    .filter((text) => text.length > 0)
     .slice(0, 5);
 }
 
@@ -618,10 +609,33 @@ export const buildMemoryEvaluationPlanInternal = internalAction({
       };
     }
 
-    const matchedKeywords = coerceStringArray(prospect.matchedKeywords);
+    const hasValidatedQualificationEvidence = isUsableQualificationVerification(
+      prospect.qualificationVerification
+    );
+    const matchedKeywords = hasValidatedQualificationEvidence
+      ? coerceStringArray(prospect.qualificationVerification?.discoveryQueries)
+      : [];
 
     switch (event.eventType) {
       case "qualification_completed": {
+        if (!hasValidatedQualificationEvidence) {
+          return {
+            status: "ignored",
+            ignoredReason: "qualification_evidence_not_validated",
+            summary:
+              "Qualification learning was skipped because no persisted source completed validation.",
+            promptVersion: MEMORY_EVALUATOR_PROMPT_VERSION,
+            drafts: [],
+            queryPerformanceUpdates: [],
+            retrievalStats: {
+              relevantMemories: 0,
+              semanticMatches: 0,
+              matchedQueries: 0,
+            },
+          };
+        }
+        const verifiedEvidenceHighlights =
+          extractVerifiedQualificationEvidenceHighlights(prospect);
         const learningContext = await ctx.runAction(
           internal.memory.getQualificationLearningContextInternal,
           {
@@ -630,7 +644,7 @@ export const buildMemoryEvaluationPlanInternal = internalAction({
             title: prospect.title,
             briefIntro: prospect.briefIntro,
             matchedKeywords,
-            evidenceHighlights: extractEvidenceHighlights(prospect),
+            evidenceHighlights: verifiedEvidenceHighlights,
           }
         );
         const distillation = await distillQualificationLearningDetailed({
@@ -654,7 +668,7 @@ export const buildMemoryEvaluationPlanInternal = internalAction({
               : undefined) ||
             prospect.matchReason ||
             "No reasoning recorded",
-          evidenceHighlights: extractEvidenceHighlights(prospect),
+          evidenceHighlights: verifiedEvidenceHighlights,
           priorMemoryContext: learningContext.relevantMemories,
           similarQualifiedCases: learningContext.similarQualifiedCases,
           similarDisqualifiedCases: learningContext.similarDisqualifiedCases,

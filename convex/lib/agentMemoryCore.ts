@@ -141,6 +141,10 @@ export type WorkspaceAgentMemoryInventoryRecord = {
   impactScore: number;
   relatedQueriesCount: number;
   evidenceCount: number;
+  prospectId?: string;
+  quarantinedAt?: number;
+  quarantineReason?: string;
+  qualificationAuditRunId?: string;
 };
 
 export type PromoteAgentMemoryArgs = {
@@ -452,23 +456,33 @@ async function listWorkspaceAgentMemoriesFromInventory(
   const matchedRows = args.category
     ? await db
         .query("workspaceAgentMemoryInventory")
-        .withIndex("by_workspace_category_and_created_at", (q: any) =>
-          q.eq("workspaceId", args.workspaceId).eq("category", args.category!)
+        .withIndex(
+          "by_workspace_category_quarantined_at_and_created_at",
+          (q: any) =>
+            q
+              .eq("workspaceId", args.workspaceId)
+              .eq("category", args.category!)
+              .eq("quarantinedAt", undefined)
         )
         .order("desc")
         .take(limit)
     : args.source
       ? await db
           .query("workspaceAgentMemoryInventory")
-          .withIndex("by_workspace_source_and_created_at", (q: any) =>
-            q.eq("workspaceId", args.workspaceId).eq("source", args.source!)
+          .withIndex(
+            "by_workspace_source_quarantined_at_and_created_at",
+            (q: any) =>
+              q
+                .eq("workspaceId", args.workspaceId)
+                .eq("source", args.source!)
+                .eq("quarantinedAt", undefined)
           )
           .order("desc")
           .take(limit)
       : await db
           .query("workspaceAgentMemoryInventory")
-          .withIndex("by_workspace_created_at", (q) =>
-            q.eq("workspaceId", args.workspaceId)
+          .withIndex("by_workspace_quarantined_at_and_created_at", (q: any) =>
+            q.eq("workspaceId", args.workspaceId).eq("quarantinedAt", undefined)
           )
           .order("desc")
           .take(limit);
@@ -748,6 +762,7 @@ export function buildWorkspaceAgentMemoryInventoryRecord(args: {
     impactScore: args.parsed.impactScore,
     relatedQueriesCount: args.parsed.relatedQueries.length,
     evidenceCount: args.parsed.evidence.length,
+    prospectId: args.parsed.prospectId,
   };
 }
 
@@ -767,6 +782,10 @@ export async function ensureWorkspaceAgentMemoryInventoryRecord(
     return false;
   }
 
+  const prospectId = args.record.prospectId
+    ? (db.normalizeId("prospects", args.record.prospectId) ?? undefined)
+    : undefined;
+
   await db.insert("workspaceAgentMemoryInventory", {
     workspaceId: args.workspaceId,
     memoryId: args.record.memoryId,
@@ -780,6 +799,7 @@ export async function ensureWorkspaceAgentMemoryInventoryRecord(
     impactScore: args.record.impactScore,
     relatedQueriesCount: args.record.relatedQueriesCount,
     evidenceCount: args.record.evidenceCount,
+    prospectId,
   });
 
   return true;
@@ -823,9 +843,10 @@ export async function listWorkspaceAgentMemoryInventoryInWindow(
 
   const query = db
     .query("workspaceAgentMemoryInventory")
-    .withIndex("by_workspace_created_at", (q: any) =>
+    .withIndex("by_workspace_quarantined_at_and_created_at", (q: any) =>
       q
         .eq("workspaceId", args.workspaceId)
+        .eq("quarantinedAt", undefined)
         .gte("createdAt", args.startMs)
         .lte("createdAt", endMs)
     )
@@ -847,6 +868,12 @@ export async function listWorkspaceAgentMemoryInventoryInWindow(
     impactScore: row.impactScore,
     relatedQueriesCount: row.relatedQueriesCount,
     evidenceCount: row.evidenceCount,
+    prospectId: row.prospectId ? String(row.prospectId) : undefined,
+    quarantinedAt: row.quarantinedAt,
+    quarantineReason: row.quarantineReason,
+    qualificationAuditRunId: row.qualificationAuditRunId
+      ? String(row.qualificationAuditRunId)
+      : undefined,
   }));
 }
 
@@ -860,7 +887,10 @@ export async function listWorkspaceAgentMemoriesPage(
   }
 ): Promise<{
   page: Array<
-    Pick<WorkspaceAgentMemoryRecord, "memoryId" | "createdAt" | "parsed">
+    Pick<
+      WorkspaceAgentMemoryRecord,
+      "memoryId" | "createdAt" | "memoryText" | "parsed"
+    >
   >;
   continueCursor: string;
   isDone: boolean;
@@ -882,10 +912,11 @@ export async function listWorkspaceAgentMemoriesPage(
         return {
           memoryId: row._id,
           createdAt: row._creationTime,
+          memoryText: row.memory,
           parsed,
         } satisfies Pick<
           WorkspaceAgentMemoryRecord,
-          "memoryId" | "createdAt" | "parsed"
+          "memoryId" | "createdAt" | "memoryText" | "parsed"
         >;
       })
       .filter(
@@ -893,7 +924,7 @@ export async function listWorkspaceAgentMemoriesPage(
           value
         ): value is Pick<
           WorkspaceAgentMemoryRecord,
-          "memoryId" | "createdAt" | "parsed"
+          "memoryId" | "createdAt" | "memoryText" | "parsed"
         > => value !== null
       ),
     continueCursor: result.continueCursor,
@@ -1180,10 +1211,17 @@ export async function findRelevantAgentMemories(
           memory: record.memoryText,
           userId: args.userId,
         }))
-    : await listRecentAgentMemories(db, {
+    : (
+        await listWorkspaceAgentMemoriesFromInventory(db, {
+          workspaceId: args.workspaceId as Id<"workspaces">,
+          limit: MAX_RELEVANCE_CANDIDATES,
+        })
+      ).map((record) => ({
+        _id: record.memoryId,
+        _creationTime: record.createdAt,
+        memory: record.memoryText,
         userId: args.userId,
-        limit: MAX_RELEVANCE_CANDIDATES,
-      });
+      }));
 
   return candidateRows
     .map((row) => {

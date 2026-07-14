@@ -11,6 +11,11 @@ import { logger } from "../../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 import { fetchSocialApi } from "../../lib/socialApiFetch";
 import { type TwitterPost, flattenTweetForStorage } from "./searchPosts";
+import {
+  getUserPostSearchOutcome,
+  isUserPostSearchSuccessful,
+  type UserPostSearchOutcome,
+} from "../../lib/userPostSearchCore";
 const twitterSearchUserPostsLogger = logger.withScope("TwitterSearchUserPosts");
 
 // ============================================================================
@@ -19,6 +24,7 @@ const twitterSearchUserPostsLogger = logger.withScope("TwitterSearchUserPosts");
 
 export interface UserPostsSearchResult {
   success: boolean;
+  outcome: UserPostSearchOutcome;
   posts: TwitterPost[];
   matchedKeywords: string[];
   error?: string;
@@ -336,6 +342,7 @@ export const searchUserPosts = action({
     if (!args.screenName || args.screenName.trim().length === 0) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error: "Screen name (username) is required",
@@ -352,6 +359,7 @@ export const searchUserPosts = action({
     if (args.keywords.length === 0) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error: "At least one keyword is required",
@@ -369,6 +377,7 @@ export const searchUserPosts = action({
     if (normalizedKeywords.length === 0) {
       return {
         success: false,
+        outcome: "error",
         posts: [],
         matchedKeywords: [],
         error: "At least one non-empty keyword is required",
@@ -483,8 +492,15 @@ export const searchUserPosts = action({
       );
     }
 
+    const outcome = getUserPostSearchOutcome({
+      postCount: uniquePosts.length,
+      error: aggregatedError,
+    });
     return {
-      success: uniquePosts.length > 0,
+      // A valid search with zero matches is not a provider failure. Callers
+      // must distinguish "no proof found" from unavailable provider data.
+      success: isUserPostSearchSuccessful(outcome),
+      outcome,
       posts: uniquePosts,
       matchedKeywords: Array.from(matchedKeywordsSet),
       error: aggregatedError,

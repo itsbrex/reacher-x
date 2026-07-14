@@ -11,6 +11,9 @@ export const WORKSPACE_MEMORY_NAMESPACE_KINDS = [
   "objections",
   "wins",
   "losses",
+  /** Qualification cases produced only after persisted evidence validation. */
+  "verified_wins",
+  "verified_losses",
   /** Workspace-scoped prospect list semantic search (RAG). */
   "prospect_search",
   /** Writing style profile for outreach voice matching. */

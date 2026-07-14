@@ -15,6 +15,7 @@ import {
 } from "../../lib/qualificationCore";
 import type { Id } from "../../_generated/dataModel";
 import { runLoggedAgentTool } from "./logging";
+import { sanitizeProspectEvidencePostsForWorkflow } from "../../lib/workflowSafeProspect";
 
 // ============================================================================
 // Types
@@ -338,8 +339,12 @@ export const qualifyProspect = createTool({
             prospectData.user || prospectData.author || prospectData;
 
           const result: QualificationResult = await qualifyProspectCore({
-            evidencePosts,
-            matchedKeywords,
+            platform: prospect.platform,
+            evidencePosts: sanitizeProspectEvidencePostsForWorkflow(
+              evidencePosts,
+              prospect.platform
+            ),
+            discoveryQueries: matchedKeywords,
             totalKeywords: keywords.length,
             profileData: profileData as Record<string, unknown>,
             useCaseKey: workspace.useCaseKey,
@@ -353,9 +358,12 @@ export const qualifyProspect = createTool({
               prospectId: args.prospectId as Id<"prospects">,
               qualificationStatus: result.status,
               qualificationScore: result.score,
+              qualificationScoreBreakdown: result.scoreBreakdown,
               qualifiedAt: result.qualifiedAt,
               evidencePosts: evidencePosts.slice(0, MAX_EVIDENCE_POSTS),
               qualificationKeywords: result.matchedKeywords,
+              qualificationSources: result.qualificationSources,
+              qualificationVerification: result.qualificationVerification,
               authenticity: result.authenticity,
             }
           );

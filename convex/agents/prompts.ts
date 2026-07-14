@@ -608,9 +608,18 @@ Use this qualification lens: ${useCase.promptContext.qualificationLens}
 - **50-69**: Moderate fit or some concerns. Maybe, needs review.
 - **0-49**: Poor fit, inactive, or suspicious. Skip.
 
+Return the score as these bounded components; the application calculates the
+final total in code:
+- **profileFit (0-30)**: Role, audience, organization, and workspace-profile fit.
+- **signalQuality (0-30)**: How directly verified sources support the workspace goal.
+- **intentStrength (0-25)**: Current pain, urgency, active need, or likelihood to act.
+- **recency (0-15)**: Freshness of the verified qualifying evidence.
+
 ## Decision Rules
-- Set qualified=true ONLY if score >= ${QUALIFICATION_THRESHOLD} AND not a bot
-- If no evidence posts are provided, be conservative
+- Set qualified=true ONLY if the component total is >= ${QUALIFICATION_THRESHOLD} AND not a bot
+- Discovery queries are routing metadata, never proof of fit
+- Set qualified=true only when at least one persisted prospect-authored source directly supports the decision
+- Never invent a source, URL, post ID, author, or quote
 - Bot indicators should result in isLikelyBot=true and score < 50
 - Treat recency relative to the provided current date. Between two otherwise similar prospects, give the higher score to the one with more recent matched pain-point evidence.
 - A single high-engagement post is never enough by itself. Cross-check profile consistency, recent posting mix, role/company fit, linked site, and recurring intent signals before trusting the post.
