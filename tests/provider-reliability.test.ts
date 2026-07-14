@@ -6,8 +6,11 @@ import {
   estimateSocialApiBillableUnits,
   EXA_CONTENT_COST_PER_PAGE_USD,
   EXA_SEARCH_COST_PER_REQUEST_USD,
+  hasProviderHealthEvidence,
+  isProviderHealthEvidenceHttpStatus,
   SOCIAL_API_COST_PER_ENTITY_USD,
 } from "../convex/lib/providerReliability";
+import { fetchSocialApi } from "../convex/lib/socialApiFetch";
 import { isAutoPlanGroundingStageFresh } from "../convex/lib/autoPlanGroundingCacheCore";
 import { normalizeNotificationCopy } from "../features/webapp/lib/notificationCopy";
 import { getWorkspaceSystemStatusDotClassName } from "../features/webapp/lib/workspaceSystemStatusTone";
@@ -27,6 +30,86 @@ test("credit and rate-limit failures open the correct provider circuit", () => {
     classifyProviderFailure("503 temporarily unavailable").reason,
     "transient"
   );
+  assert.equal(classifyProviderFailure("unknown", 402).reason, "credits");
+  assert.equal(
+    classifyProviderFailure("unknown", 401).reason,
+    "authentication"
+  );
+  assert.equal(classifyProviderFailure("unknown", 429).reason, "rate_limit");
+  assert.equal(classifyProviderFailure("unknown", 500).reason, "transient");
+});
+
+test("expected provider 4xx responses prove health without opening the circuit", () => {
+  assert.equal(isProviderHealthEvidenceHttpStatus(404), true);
+  assert.equal(isProviderHealthEvidenceHttpStatus(422), true);
+  assert.equal(isProviderHealthEvidenceHttpStatus(401), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(402), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(403), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(408), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(429), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(500), false);
+  assert.equal(isProviderHealthEvidenceHttpStatus(undefined), false);
+
+  assert.equal(hasProviderHealthEvidence("error", true), true);
+  assert.equal(hasProviderHealthEvidence("error", false), false);
+  assert.equal(hasProviderHealthEvidence("success", undefined), true);
+  assert.equal(hasProviderHealthEvidence("success", false), false);
+});
+
+test("SocialAPI 404 responses preserve status and cannot poison the circuit", async () => {
+  const originalFetch = globalThis.fetch;
+  const mutationArgs: unknown[] = [];
+  let mutationCallCount = 0;
+  const ctx = {
+    runMutation: async (_reference: unknown, args: unknown) => {
+      mutationArgs.push(args);
+      mutationCallCount += 1;
+      return mutationCallCount === 1
+        ? { allowed: true, reason: undefined, retryAfterAt: undefined }
+        : null;
+    },
+    runAction: async () => ({
+      waitMs: 0,
+      spacingMs: 200,
+      targetRequestsPerMinute: 300,
+    }),
+  } as unknown as Parameters<typeof fetchSocialApi>[0];
+
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({ status: "error", message: "User not found" }),
+      {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+
+  try {
+    const response = await fetchSocialApi(
+      ctx,
+      "test.missingProfile",
+      "https://api.socialapi.me/twitter/user/missing"
+    );
+
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), {
+      status: "error",
+      message: "User not found",
+    });
+    assert.equal(mutationArgs.length, 2);
+    const recordedRequest = mutationArgs[1] as Record<string, unknown>;
+    assert.equal(recordedRequest.provider, "socialapi");
+    assert.equal(recordedRequest.outcome, "error");
+    assert.equal(recordedRequest.consumer, "test.missingProfile");
+    assert.equal(recordedRequest.endpoint, "/twitter/user/missing");
+    assert.equal(recordedRequest.httpStatus, 404);
+    assert.equal(recordedRequest.errorCode, "unknown");
+    assert.equal(recordedRequest.healthEvidence, true);
+    assert.equal(typeof recordedRequest.errorMessage, "string");
+    assert.equal(typeof recordedRequest.durationMs, "number");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("provider list-price estimates use returned billable units", () => {

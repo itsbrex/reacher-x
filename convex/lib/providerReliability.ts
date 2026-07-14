@@ -25,11 +25,38 @@ export type ProviderUsageEstimate = {
   estimatedCostUsd: number;
 };
 
+export type ProviderRequestOutcome = "success" | "error" | "blocked";
+
 export const SOCIAL_API_COST_PER_ENTITY_USD = 0.2 / 1_000;
 export const EXA_SEARCH_COST_PER_REQUEST_USD = 7 / 1_000;
 export const EXA_CONTENT_COST_PER_PAGE_USD = 1 / 1_000;
 
 const PROVIDER_CIRCUIT_PROBE_INTERVAL_MS = 2 * 60 * 1_000;
+
+const CIRCUIT_BREAKING_CLIENT_HTTP_STATUSES = new Set([
+  401, 402, 403, 408, 429,
+]);
+
+export function isProviderHealthEvidenceHttpStatus(
+  httpStatus?: number
+): boolean {
+  return (
+    typeof httpStatus === "number" &&
+    httpStatus >= 400 &&
+    httpStatus < 500 &&
+    !CIRCUIT_BREAKING_CLIENT_HTTP_STATUSES.has(httpStatus)
+  );
+}
+
+export function hasProviderHealthEvidence(
+  outcome: ProviderRequestOutcome,
+  healthEvidence?: boolean
+): boolean {
+  return (
+    (outcome === "success" && healthEvidence !== false) ||
+    (outcome === "error" && healthEvidence === true)
+  );
+}
 
 export function estimateSocialApiBillableUnits(payload: unknown): number {
   if (Array.isArray(payload)) {
@@ -76,12 +103,16 @@ export class ProviderCircuitOpenError extends Error {
   }
 }
 
-export function classifyProviderFailure(error: unknown): {
+export function classifyProviderFailure(
+  error: unknown,
+  httpStatus?: number
+): {
   reason: ProviderCircuitReason;
   retryAfterMs: number;
 } {
   const message = stringifyUnknownError(error).toLowerCase();
   if (
+    httpStatus === 402 ||
     message.includes("insufficient balance") ||
     message.includes("no_more_credits") ||
     message.includes("no more credits") ||
@@ -97,6 +128,8 @@ export function classifyProviderFailure(error: unknown): {
     };
   }
   if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
     message.includes("invalid api key") ||
     message.includes("api key is not") ||
     message.includes("unauthorized") ||
@@ -107,10 +140,16 @@ export function classifyProviderFailure(error: unknown): {
       retryAfterMs: PROVIDER_CIRCUIT_PROBE_INTERVAL_MS,
     };
   }
-  if (message.includes("rate limit") || /\b429\b/.test(message)) {
+  if (
+    httpStatus === 429 ||
+    message.includes("rate limit") ||
+    /\b429\b/.test(message)
+  ) {
     return { reason: "rate_limit", retryAfterMs: 60 * 1_000 };
   }
   if (
+    httpStatus === 408 ||
+    (typeof httpStatus === "number" && httpStatus >= 500) ||
     message.includes("timeout") ||
     message.includes("timed out") ||
     message.includes("fetch failed") ||
@@ -204,7 +243,9 @@ export async function recordProviderRequestOutcome(args: {
   healthEvidence?: boolean;
 }) {
   const failure =
-    args.outcome === "error" ? classifyProviderFailure(args.error) : undefined;
+    args.outcome === "error"
+      ? classifyProviderFailure(args.error, args.httpStatus)
+      : undefined;
   await args.ctx.runMutation(
     internal.providerReliability.recordProviderRequestResult,
     {
@@ -226,7 +267,7 @@ export async function recordProviderRequestOutcome(args: {
       healthEvidence:
         args.outcome === "success"
           ? (args.healthEvidence ?? (args.usage?.billableUnits ?? 0) > 0)
-          : false,
+          : isProviderHealthEvidenceHttpStatus(args.httpStatus),
     }
   );
 }

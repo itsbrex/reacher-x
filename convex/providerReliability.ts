@@ -6,6 +6,7 @@ import {
   providerRequestOutcomeValidator,
 } from "./validators";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
+import { hasProviderHealthEvidence } from "./lib/providerReliability";
 
 const PROVIDER_PROBE_LEASE_MS = 30 * 1_000;
 const TRANSIENT_FAILURES_BEFORE_OPEN = 3;
@@ -126,7 +127,7 @@ export const recordProviderRequestResult = internalMutation({
       .withIndex("by_provider", (q) => q.eq("provider", args.provider))
       .first();
 
-    if (args.outcome === "success" && args.healthEvidence !== false) {
+    if (hasProviderHealthEvidence(args.outcome, args.healthEvidence)) {
       const patch = {
         status: "closed" as const,
         reason: undefined,

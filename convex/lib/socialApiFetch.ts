@@ -97,7 +97,7 @@ export async function fetchSocialApi(
         error,
       });
       failureRecorded = true;
-      if (applicationError) {
+      if (applicationError && response.ok) {
         throw applicationError;
       }
       return response;
