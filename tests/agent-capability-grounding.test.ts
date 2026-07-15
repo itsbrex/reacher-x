@@ -26,3 +26,21 @@ test("prospect agent refines the active plan without a redundant plan read", () 
   assert.match(prompt, /call `refinePlan` directly/);
   assert.match(prompt, /do not call `getProspectPlan` immediately before it/);
 });
+
+test("prospect agent does not repeatedly introduce itself", () => {
+  const prompt = buildOutreachAgentPrompt();
+
+  assert.match(prompt, /Mention your name only in the initial greeting/);
+  assert.match(prompt, /never introduce yourself or repeat your name/);
+  assert.doesNotMatch(prompt, /Prefer concise first-person introductions/);
+  assert.doesNotMatch(prompt, /the FIRST sentence must contain your name/);
+});
+
+test("prospect agent treats workspace context and user corrections as authoritative", () => {
+  const prompt = buildOutreachAgentPrompt();
+
+  assert.match(prompt, /latest injected workspace context/);
+  assert.match(prompt, /user's latest correction are authoritative/);
+  assert.match(prompt, /Do not defend the old assumption/);
+  assert.match(prompt, /existing plans as editable output/);
+});

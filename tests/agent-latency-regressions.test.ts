@@ -62,6 +62,15 @@ test("agent provider routing avoids a degraded single-provider lane", () => {
   assert.match(contextSource, /maxRetries: OUTREACH_AGENT_MAX_RETRIES/);
 });
 
+test("prospect agent keeps Terra as its safe default behind semantic routing", () => {
+  assert.match(aiSource, /GPT_5_6_TERRA: "openai\/gpt-5\.6-terra"/);
+  assert.match(aiSource, /OUTREACH_AGENT_MODEL = MODELS\.GPT_5_6_TERRA/);
+  assert.match(contextSource, /OUTREACH_AGENT_MODEL/);
+  assert.match(contextSource, /OUTREACH_AGENT_PROVIDER_OPTIONS/);
+  assert.match(chatSource, /classifyOutreachTurn/);
+  assert.match(chatSource, /createOutreachTextLanguageModel\("terra"/);
+});
+
 test("short outreach threads skip history RAG and use compact limits", () => {
   assert.match(agentContextSource, /OUTREACH_RECENT_MESSAGE_LIMIT = 8/);
   assert.match(agentContextSource, /OUTREACH_HISTORY_SEARCH_LIMIT = 4/);

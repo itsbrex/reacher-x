@@ -77,6 +77,9 @@ export function createAIProvider() {
 
 /** Available models via OpenRouter. */
 export const MODELS = {
+  GPT_5_6_LUNA: "openai/gpt-5.6-luna",
+  GPT_5_6_SOL: "openai/gpt-5.6-sol",
+  GPT_5_6_TERRA: "openai/gpt-5.6-terra",
   KIMI_K2_6: "moonshotai/kimi-k2.6",
   GPT_OSS: "openai/gpt-oss-120b",
 } as const;
@@ -84,6 +87,8 @@ export const MODELS = {
 export type ModelId = (typeof MODELS)[keyof typeof MODELS];
 
 export const OPENROUTER_PROVIDERS = {
+  OPENAI: "openai",
+  AZURE: "azure",
   BASETEN: "baseten",
   WANDB_FP4: "wandb/fp4",
   DECART: "decart",
@@ -157,6 +162,26 @@ function createLatencySortedProviderOptions(
         sort: "latency",
         allow_fallbacks: true,
         require_parameters: true,
+      },
+    },
+  };
+}
+
+/**
+ * Keep GPT-5.6 traffic on standard OpenAI first with standard Azure fallback.
+ * An explicit allow-list prevents OpenRouter from choosing Flex, Priority, or
+ * region-specific endpoints whose price/latency behavior differs materially.
+ */
+function createGpt56ProviderOptions(args?: {
+  requireParameters?: boolean;
+}): OpenRouterProviderOptions {
+  return {
+    openrouter: {
+      provider: {
+        only: [OPENROUTER_PROVIDERS.OPENAI, OPENROUTER_PROVIDERS.AZURE],
+        order: [OPENROUTER_PROVIDERS.OPENAI, OPENROUTER_PROVIDERS.AZURE],
+        allow_fallbacks: true,
+        require_parameters: args?.requireParameters ?? true,
       },
     },
   };
@@ -266,6 +291,43 @@ export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   ]);
 
 /**
+ * Prospect conversations and plan generation require stronger instruction
+ * following and judgment than setup helpers and simple workspace operations.
+ * Keep this route separate so those lower-judgment paths remain cost-efficient.
+ */
+export const OUTREACH_AGENT_MODEL = MODELS.GPT_5_6_TERRA;
+
+export const OUTREACH_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createGpt56ProviderOptions();
+
+export const OUTREACH_ROUTER_MODEL = MODELS.GPT_5_6_LUNA;
+export const OUTREACH_ROUTER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createGpt56ProviderOptions({ requireParameters: false });
+
+export const OUTREACH_FAST_MODEL = PINNED_AGENT_MODEL;
+export const OUTREACH_FAST_PROVIDER_OPTIONS = PINNED_AGENT_PROVIDER_OPTIONS;
+
+export const OUTREACH_TERRA_MODEL = MODELS.GPT_5_6_TERRA;
+export const OUTREACH_TERRA_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createGpt56ProviderOptions();
+
+export const OUTREACH_SOL_MODEL = MODELS.GPT_5_6_SOL;
+export const OUTREACH_SOL_PROVIDER_OPTIONS: OpenRouterProviderOptions =
+  createGpt56ProviderOptions();
+
+/**
+ * GPT-5.6 supports OpenRouter's explicit prompt-cache mode. The corresponding
+ * cache breakpoint is added by outreachPromptCacheMiddleware after the stable
+ * agent instructions and current workspace context.
+ */
+export const OUTREACH_AGENT_PROMPT_CACHE_OPTIONS = {
+  prompt_cache_options: {
+    mode: "explicit",
+    ttl: "30m",
+  },
+} as const satisfies Record<string, JSONValue>;
+
+/**
  * Vision-capable turns are pinned to Kimi and must stay on a true multimodal
  * route. We allow a provider fallback within Kimi's lane, but never a silent
  * downgrade to the default text-only agent model.
@@ -346,9 +408,17 @@ function logJsonAttemptFailure(level: JsonFailureLogLevel, ...args: unknown[]) {
  */
 export function extractUsage(result: {
   usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
     promptTokens?: number;
     completionTokens?: number;
     totalTokens?: number;
+    cachedInputTokens?: number;
+    inputTokenDetails?: {
+      noCacheTokens?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+    };
   };
 
   providerMetadata?: any;
@@ -360,6 +430,9 @@ export function extractUsage(result: {
   cost?: number;
   modelSelected?: string;
   providerSelected?: string;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  noCacheTokens?: number;
 } {
   const usage = result.usage || {};
   const metadata =
@@ -372,14 +445,19 @@ export function extractUsage(result: {
     rawCost !== undefined ? parseFloat(String(rawCost)) : undefined;
   const cost =
     parsedCost !== undefined && isFinite(parsedCost) ? parsedCost : undefined;
+  const cacheReadTokens =
+    usage.inputTokenDetails?.cacheReadTokens ?? usage.cachedInputTokens;
 
   return {
-    inputTokens: usage.promptTokens || 0,
-    outputTokens: usage.completionTokens || 0,
+    inputTokens: usage.inputTokens ?? usage.promptTokens ?? 0,
+    outputTokens: usage.outputTokens ?? usage.completionTokens ?? 0,
     totalTokens: usage.totalTokens || 0,
     cost,
     modelSelected: metadata?.model,
     providerSelected: metadata?.provider,
+    cacheReadTokens,
+    cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens,
+    noCacheTokens: usage.inputTokenDetails?.noCacheTokens,
   };
 }
 

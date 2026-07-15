@@ -19,16 +19,19 @@ import { Doc, Id } from "./_generated/dataModel";
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 import {
   createThread,
-  listUIMessages,
+  listMessages,
   vStreamArgs,
   syncStreams,
   saveMessage,
+  toUIMessages,
   type ThreadDoc,
   type UIMessage,
   type StreamArgs,
 } from "@convex-dev/agent";
 import { mainAgent, setupAgent, workspaceVisionLanguageModel } from "./agents";
 import {
+  classifyOutreachTurn,
+  createOutreachTextLanguageModel,
   outreachAgent,
   outreachAgentBaseTools,
   outreachVisionLanguageModel,
@@ -99,6 +102,12 @@ import {
   OUTREACH_MIN_MESSAGES_FOR_HISTORY_SEARCH,
   OUTREACH_RECENT_MESSAGE_LIMIT,
 } from "./lib/agentContextHelpers";
+import {
+  OUTREACH_ROUTER_AGENT_NAME,
+  compactOutreachRouterMessages,
+  summarizeOutreachOperationState,
+  type OutreachModelLane,
+} from "./lib/outreachModelRoutingCore";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -136,6 +145,15 @@ type OutreachStreamAttemptTiming = {
 };
 type OutreachStreamTiming = {
   attempts: OutreachStreamAttemptTiming[];
+};
+type OutreachRoutingTelemetry = {
+  classifierConfidence: number | null;
+  classifierLane: string | null;
+  classifierModel: string | null;
+  classifierProvider: string | null;
+  reason: string;
+  selectedLane: OutreachModelLane;
+  usedConfidenceFallback: boolean;
 };
 
 function summarizeOutreachStreamTiming(timing: OutreachStreamTiming) {
@@ -983,7 +1001,7 @@ async function listPendingAssistantMessages(ctx: ViewerCtx, threadId: string) {
   );
 }
 
-async function hasSearchableThreadHistory(
+async function getOutreachHistorySignals(
   ctx: ActionCtx,
   args: {
     threadId: string;
@@ -1013,12 +1031,119 @@ async function hasSearchableThreadHistory(
       continue;
     }
     searchableMessageCount += 1;
-    if (searchableMessageCount >= OUTREACH_MIN_MESSAGES_FOR_HISTORY_SEARCH) {
-      return true;
-    }
   }
 
-  return false;
+  const recentRouterMessages = compactOutreachRouterMessages(
+    [...messages.page].reverse().map((message) => ({
+      id: message._id,
+      role: message.message?.role,
+      text: typeof message.text === "string" ? message.text : undefined,
+    })),
+    args.excludeMessageId
+  );
+
+  return {
+    hasSearchableHistory:
+      searchableMessageCount >= OUTREACH_MIN_MESSAGES_FOR_HISTORY_SEARCH,
+    recentRouterMessages,
+  };
+}
+
+async function resolveOutreachTurnModel(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    currentPrompt: string;
+    hasVisionInput: boolean;
+    recentMessages: Array<{
+      role: "user" | "assistant";
+      text: string;
+    }>;
+    operationState: ReturnType<typeof summarizeOutreachOperationState>;
+  }
+): Promise<{
+  model: LanguageModel;
+  telemetry: OutreachRoutingTelemetry;
+}> {
+  if (args.hasVisionInput) {
+    return {
+      model: outreachVisionLanguageModel,
+      telemetry: {
+        classifierConfidence: null,
+        classifierLane: null,
+        classifierModel: null,
+        classifierProvider: null,
+        reason: "vision_input",
+        selectedLane: "vision",
+        usedConfidenceFallback: false,
+      },
+    };
+  }
+
+  try {
+    const classification = await classifyOutreachTurn({
+      currentPrompt: args.currentPrompt,
+      recentMessages: args.recentMessages,
+      operationState: args.operationState,
+    });
+
+    try {
+      await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
+        threadId: args.threadId,
+        agentName: OUTREACH_ROUTER_AGENT_NAME,
+        model: classification.model,
+        ...(classification.provider
+          ? { provider: classification.provider }
+          : {}),
+        usage: classification.usage,
+        ...(classification.providerMetadata === undefined
+          ? {}
+          : { providerMetadata: classification.providerMetadata }),
+      });
+    } catch (error) {
+      chatLogger.warn("Could not persist outreach-router usage telemetry", {
+        threadId: args.threadId,
+        errorMessage: stringifyUnknownError(error),
+      });
+    }
+
+    return {
+      model: createOutreachTextLanguageModel(
+        classification.selection.selectedLane,
+        args.threadId
+      ),
+      telemetry: {
+        classifierConfidence: classification.selection.confidence,
+        classifierLane: classification.selection.lane,
+        classifierModel: classification.model,
+        classifierProvider: classification.provider ?? null,
+        reason: classification.selection.reason,
+        selectedLane: classification.selection.selectedLane,
+        usedConfidenceFallback: classification.selection.usedConfidenceFallback,
+      },
+    };
+  } catch (error) {
+    chatLogger.warn(
+      "Semantic outreach routing failed; using Terra as the safe default",
+      {
+        threadId: args.threadId,
+        errorMessage: stringifyUnknownError(error),
+      }
+    );
+
+    return {
+      model: createOutreachTextLanguageModel("terra", args.threadId),
+      telemetry: {
+        classifierConfidence: null,
+        classifierLane: null,
+        classifierModel: null,
+        classifierProvider: null,
+        reason: "router_failure",
+        selectedLane: "terra",
+        usedConfidenceFallback: true,
+      },
+    };
+  }
 }
 
 function buildDisabledHistorySearchContextOptions() {
@@ -2521,6 +2646,7 @@ async function runStreamOutreachResponse(
   const logEvent = getWideEventLogger(ctx);
   const streamTiming: OutreachStreamTiming = { attempts: [] };
   const responseTiming: Record<string, number | undefined> = {};
+  let routingTelemetry: OutreachRoutingTelemetry | undefined;
 
   try {
     const prospectLoadStartedAt = getCurrentUTCTimestamp();
@@ -2545,8 +2671,9 @@ async function runStreamOutreachResponse(
       useCase,
       promptMessage,
       hiddenContext,
-      hasSearchableHistory,
+      historySignals,
       backgroundRefreshScheduled,
+      activePlanData,
     ] = await Promise.all([
       resolveOutreachUseCaseForThread(ctx, args.threadId, prospect),
       getThreadMessageById(ctx, args.promptMessageId),
@@ -2554,7 +2681,7 @@ async function runStreamOutreachResponse(
         threadId: args.threadId,
         promptMessageId: args.promptMessageId,
       }),
-      hasSearchableThreadHistory(ctx, {
+      getOutreachHistorySignals(ctx, {
         threadId: args.threadId,
         excludeMessageId: args.promptMessageId,
       }),
@@ -2569,6 +2696,11 @@ async function runStreamOutreachResponse(
             .then(() => true)
             .catch(() => false)
         : Promise.resolve(false),
+      prospect
+        ? ctx.runQuery(internal.outreach.getProspectActivePlanInternal, {
+            prospectId: prospect._id,
+          })
+        : Promise.resolve(null),
     ]);
     responseTiming.pre_model_parallel_ms =
       getCurrentUTCTimestamp() - preModelStartedAt;
@@ -2580,7 +2712,23 @@ async function runStreamOutreachResponse(
     const promptText =
       typeof promptMessage?.text === "string" ? promptMessage.text : "";
     const hasSearchablePrompt = promptText.trim().length > 0;
-    const shouldUseHistorySearch = hasSearchablePrompt && hasSearchableHistory;
+    const shouldUseHistorySearch =
+      hasSearchablePrompt && historySignals.hasSearchableHistory;
+    const routingStartedAt = getCurrentUTCTimestamp();
+    const resolvedRoute = await resolveOutreachTurnModel(ctx, {
+      threadId: args.threadId,
+      currentPrompt: promptText,
+      hasVisionInput: hiddenContext.hasVisionInput,
+      recentMessages: historySignals.recentRouterMessages,
+      operationState: summarizeOutreachOperationState({
+        prospectStatus: prospect?.status,
+        planStatus: activePlanData?.plan.status,
+        taskStatuses: activePlanData?.tasks.map((task) => task.status),
+      }),
+    });
+    routingTelemetry = resolvedRoute.telemetry;
+    responseTiming.model_routing_ms =
+      getCurrentUTCTimestamp() - routingStartedAt;
     const streamStartedAt = getCurrentUTCTimestamp();
     const result = await streamOutreachTextWithFallback(ctx, {
       threadId: args.threadId,
@@ -2588,9 +2736,7 @@ async function runStreamOutreachResponse(
       system: buildOutreachAgentPrompt(useCase),
       tools,
       messages: hiddenContext.messages,
-      model: hiddenContext.hasVisionInput
-        ? outreachVisionLanguageModel
-        : undefined,
+      model: resolvedRoute.model,
       preferHistorySearch: shouldUseHistorySearch,
       timing: streamTiming,
     });
@@ -2649,6 +2795,7 @@ async function runStreamOutreachResponse(
       agent_response: {
         background_x_refresh_scheduled: backgroundRefreshScheduled,
         history_search_enabled: shouldUseHistorySearch,
+        routing: routingTelemetry,
         stream_delta_throttle_ms: DEFAULT_AGENT_STREAM_DELTAS.throttleMs,
         timing: responseTiming,
         attempts: summarizeOutreachStreamTiming(streamTiming),
@@ -2666,6 +2813,7 @@ async function runStreamOutreachResponse(
       agent_response: {
         timing: responseTiming,
         attempts: summarizeOutreachStreamTiming(streamTiming),
+        routing: routingTelemetry,
       },
     });
     const normalizedError = normalizeUnknownError(error);
@@ -3060,23 +3208,41 @@ export const listThreadMessages = query({
       throw new Error("Not authorized to access this thread");
     }
 
-    // Fetches the regular non-streaming messages
-    // Per docs: pass args directly to listUIMessages
-    const paginated = await listUIMessages(ctx, components.agent, args);
-    const pageWithMetadata = await attachAgentMessageContextMetadata(
-      ctx,
-      paginated.page
-    );
-
-    // Sync streaming deltas - per docs
-    const streams = await syncStreams(ctx, components.agent, {
-      ...args,
+    // `toUIMessages` intentionally omits model/provider fields. Preserve the
+    // stored answer model per assistant order so each badge describes its own
+    // response instead of falling back to the latest model in the thread.
+    const [messageDocs, streams] = await Promise.all([
+      listMessages(ctx, components.agent, args),
       // By default syncStreams only returns streaming messages. Include finished
       // to avoid UI flashes when messages aren't saved in same transaction.
-      includeStatuses: ["streaming", "aborted", "finished"],
+      syncStreams(ctx, components.agent, {
+        ...args,
+        includeStatuses: ["streaming", "aborted", "finished"],
+      }),
+    ]);
+    const modelByAssistantOrder = new Map<number, string>();
+    for (const messageDoc of messageDocs.page) {
+      if (
+        messageDoc.message?.role === "assistant" &&
+        typeof messageDoc.model === "string" &&
+        messageDoc.model.trim()
+      ) {
+        modelByAssistantOrder.set(messageDoc.order, messageDoc.model);
+      }
+    }
+    const pageWithModels = toUIMessages(messageDocs.page).map((message) => {
+      if (message.role !== "assistant") {
+        return message;
+      }
+      const model = modelByAssistantOrder.get(message.order);
+      return model ? { ...message, model } : message;
     });
+    const pageWithMetadata = await attachAgentMessageContextMetadata(
+      ctx,
+      pageWithModels
+    );
 
-    return { ...paginated, page: pageWithMetadata, streams };
+    return { ...messageDocs, page: pageWithMetadata, streams };
   },
 });
 
@@ -3777,6 +3943,7 @@ export const respondToAskHuman = internalAction({
       threadId: args.threadId,
       system: buildOutreachAgentPrompt(useCase),
       tools,
+      model: createOutreachTextLanguageModel("terra", args.threadId),
       preferHistorySearch: true,
     });
 

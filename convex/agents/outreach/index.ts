@@ -3,19 +3,31 @@
 "use node";
 
 import { Agent, type ContextHandler } from "@convex-dev/agent";
-import { wrapLanguageModel } from "ai";
+import { generateText, wrapLanguageModel } from "ai";
 import { components, internal } from "../../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   type OpenRouterProviderOptions,
-  PINNED_AGENT_MODEL,
-  PINNED_AGENT_PROVIDER_OPTIONS,
+  OUTREACH_AGENT_MODEL,
+  OUTREACH_AGENT_PROMPT_CACHE_OPTIONS,
+  OUTREACH_AGENT_PROVIDER_OPTIONS,
+  OUTREACH_FAST_MODEL,
+  OUTREACH_FAST_PROVIDER_OPTIONS,
+  OUTREACH_ROUTER_MODEL,
+  OUTREACH_ROUTER_PROVIDER_OPTIONS,
+  OUTREACH_SOL_MODEL,
+  OUTREACH_SOL_PROVIDER_OPTIONS,
+  OUTREACH_TERRA_MODEL,
+  OUTREACH_TERRA_PROVIDER_OPTIONS,
   PINNED_VISION_MODEL,
   PINNED_VISION_PROVIDER_OPTIONS,
+  extractUsage,
+  extractJsonPayload,
   getOpenRouterExtraBody,
 } from "../../lib/ai";
 import {
   openRouterMetadataMiddleware,
+  outreachPromptCacheMiddleware,
   sanitizeProviderMetadataForConvex,
 } from "../../lib/agentMetadata";
 import { getTextEmbeddingModel } from "../../lib/embeddingModels";
@@ -54,6 +66,15 @@ import {
   OUTREACH_HISTORY_SEARCH_LIMIT,
   OUTREACH_RECENT_MESSAGE_LIMIT,
 } from "../../lib/agentContextHelpers";
+import {
+  buildOutreachModelSessionId,
+  buildOutreachRouterPrompt,
+  outreachRouteDecisionSchema,
+  selectOutreachTextLane,
+  type OutreachOperationState,
+  type OutreachRouteSelection,
+  type OutreachTextModelLane,
+} from "../../lib/outreachModelRoutingCore";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -110,25 +131,133 @@ function getOpenRouterProvider() {
 const openrouter = getOpenRouterProvider();
 function createOutreachLanguageModel(
   modelId: string,
-  providerOptions: OpenRouterProviderOptions
+  providerOptions: OpenRouterProviderOptions,
+  options?: {
+    enableExplicitPromptCaching?: boolean;
+    sessionId?: string;
+  }
 ) {
   return wrapLanguageModel({
     model: openrouter(modelId, {
-      extraBody: getOpenRouterExtraBody(providerOptions),
+      extraBody: {
+        ...getOpenRouterExtraBody(providerOptions),
+        ...(options?.enableExplicitPromptCaching
+          ? OUTREACH_AGENT_PROMPT_CACHE_OPTIONS
+          : {}),
+        ...(options?.sessionId ? { session_id: options.sessionId } : {}),
+      },
     }) as any,
-    middleware: openRouterMetadataMiddleware,
+    middleware: [
+      ...(options?.enableExplicitPromptCaching
+        ? [outreachPromptCacheMiddleware]
+        : []),
+      openRouterMetadataMiddleware,
+    ],
+  });
+}
+
+const outreachTextModelConfigs: Record<
+  OutreachTextModelLane,
+  {
+    model: string;
+    providerOptions: OpenRouterProviderOptions;
+    enableExplicitPromptCaching: boolean;
+  }
+> = {
+  fast: {
+    model: OUTREACH_FAST_MODEL,
+    providerOptions: OUTREACH_FAST_PROVIDER_OPTIONS,
+    enableExplicitPromptCaching: false,
+  },
+  terra: {
+    model: OUTREACH_TERRA_MODEL,
+    providerOptions: OUTREACH_TERRA_PROVIDER_OPTIONS,
+    enableExplicitPromptCaching: true,
+  },
+  sol: {
+    model: OUTREACH_SOL_MODEL,
+    providerOptions: OUTREACH_SOL_PROVIDER_OPTIONS,
+    enableExplicitPromptCaching: true,
+  },
+};
+
+export function createOutreachTextLanguageModel(
+  lane: OutreachTextModelLane,
+  threadId: string
+) {
+  const config = outreachTextModelConfigs[lane];
+  return createOutreachLanguageModel(config.model, config.providerOptions, {
+    enableExplicitPromptCaching: config.enableExplicitPromptCaching,
+    sessionId: buildOutreachModelSessionId(threadId, lane),
   });
 }
 
 export const outreachLanguageModel = createOutreachLanguageModel(
-  PINNED_AGENT_MODEL,
-  PINNED_AGENT_PROVIDER_OPTIONS
+  OUTREACH_AGENT_MODEL,
+  OUTREACH_AGENT_PROVIDER_OPTIONS,
+  { enableExplicitPromptCaching: true }
 );
 
 export const outreachVisionLanguageModel = createOutreachLanguageModel(
   PINNED_VISION_MODEL,
   PINNED_VISION_PROVIDER_OPTIONS
 );
+
+const outreachRouterLanguageModel = createOutreachLanguageModel(
+  OUTREACH_ROUTER_MODEL,
+  OUTREACH_ROUTER_PROVIDER_OPTIONS
+);
+
+// Luna can spend part of this budget on hidden reasoning. Keep enough room for
+// the complete JSON object so a valid route is not mistaken for a failure.
+const OUTREACH_ROUTER_MAX_OUTPUT_TOKENS = 512;
+const OUTREACH_ROUTER_TIMEOUT_MS = 12_000;
+
+export async function classifyOutreachTurn(args: {
+  currentPrompt: string;
+  recentMessages: Array<{ role: "user" | "assistant"; text: string }>;
+  operationState: OutreachOperationState;
+}): Promise<{
+  selection: OutreachRouteSelection;
+  model: string;
+  provider?: string;
+  usage: Record<string, unknown>;
+  providerMetadata?: unknown;
+}> {
+  const result = await generateText({
+    model: outreachRouterLanguageModel,
+    system:
+      "You are ReacherX's internal semantic model router. Classify the required reasoning depth for one prospect-agent turn. Return only one valid JSON object with the exact keys lane, confidence, reason, and rationale; keep rationale under 12 words and never answer the user's request.",
+    prompt: `${buildOutreachRouterPrompt(args)}\n\nReturn only the JSON object. Use one of the provided reason codes exactly.`,
+    temperature: 0,
+    maxOutputTokens: OUTREACH_ROUTER_MAX_OUTPUT_TOKENS,
+    maxRetries: 0,
+    abortSignal: AbortSignal.timeout(OUTREACH_ROUTER_TIMEOUT_MS),
+  });
+  const extractedUsage = extractUsage(result);
+  const decision = outreachRouteDecisionSchema.parse(
+    JSON.parse(extractJsonPayload(result.text))
+  );
+
+  return {
+    selection: selectOutreachTextLane(decision),
+    model: extractedUsage.modelSelected ?? OUTREACH_ROUTER_MODEL,
+    provider: extractedUsage.providerSelected,
+    usage: {
+      ...result.usage,
+      ...(extractedUsage.cost === undefined
+        ? {}
+        : { cost: extractedUsage.cost }),
+      ...(extractedUsage.modelSelected
+        ? { modelSelected: extractedUsage.modelSelected }
+        : {}),
+      ...(extractedUsage.providerSelected
+        ? { providerSelected: extractedUsage.providerSelected }
+        : {}),
+    },
+    providerMetadata: result.providerMetadata,
+  };
+}
 
 const OUTREACH_AGENT_MAX_OUTPUT_TOKENS = 1024;
 const OUTREACH_AGENT_MAX_RETRIES = 0;

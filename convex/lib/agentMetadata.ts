@@ -288,13 +288,29 @@ export function sanitizeUsageSnapshotForConvex(value: unknown) {
     return {};
   }
 
+  const inputTokenDetails = isRecord(value.inputTokenDetails)
+    ? value.inputTokenDetails
+    : undefined;
+  const cacheReadTokens =
+    getFiniteNumberProperty(inputTokenDetails ?? {}, "cacheReadTokens") ??
+    getFiniteNumberProperty(value, "cachedInputTokens");
+
   return Object.fromEntries(
     Object.entries({
       inputTokens: getFiniteNumberProperty(value, "inputTokens"),
       outputTokens: getFiniteNumberProperty(value, "outputTokens"),
       totalTokens: getFiniteNumberProperty(value, "totalTokens"),
       reasoningTokens: getFiniteNumberProperty(value, "reasoningTokens"),
-      cachedInputTokens: getFiniteNumberProperty(value, "cachedInputTokens"),
+      cachedInputTokens: cacheReadTokens,
+      cacheReadTokens,
+      cacheWriteTokens: getFiniteNumberProperty(
+        inputTokenDetails ?? {},
+        "cacheWriteTokens"
+      ),
+      noCacheTokens: getFiniteNumberProperty(
+        inputTokenDetails ?? {},
+        "noCacheTokens"
+      ),
       cost: getFiniteNumberProperty(value, "cost"),
       modelSelected: getStringProperty(value, "modelSelected"),
       providerSelected: getStringProperty(value, "providerSelected"),
@@ -311,6 +327,53 @@ export function sanitizeProviderMetadataForConvex(
     )
   );
 }
+
+/**
+ * Marks the stable outreach prefix for OpenRouter's explicit GPT-5.6 prompt
+ * cache. The first system message is the agent prompt and the second is the
+ * current workspace description. Prospect-specific context follows and may
+ * contain timestamps, so including it would prevent reliable cache reads.
+ */
+export const outreachPromptCacheMiddleware: LanguageModelMiddleware = {
+  specificationVersion: "v3",
+  async transformParams({ params }) {
+    const systemMessageIndexes = params.prompt.flatMap((message, index) =>
+      message.role === "system" ? [index] : []
+    );
+    const cacheBreakpointIndex =
+      systemMessageIndexes[1] ?? systemMessageIndexes[0];
+
+    if (cacheBreakpointIndex === undefined) {
+      return params;
+    }
+
+    return {
+      ...params,
+      prompt: params.prompt.map((message, index) => {
+        if (index !== cacheBreakpointIndex) {
+          return message;
+        }
+
+        const existingOpenRouterOptions = isRecord(
+          message.providerOptions?.openrouter
+        )
+          ? message.providerOptions.openrouter
+          : {};
+
+        return {
+          ...message,
+          providerOptions: {
+            ...message.providerOptions,
+            openrouter: {
+              ...existingOpenRouterOptions,
+              cacheControl: { type: "ephemeral" },
+            },
+          },
+        };
+      }),
+    };
+  },
+};
 
 export const openRouterMetadataMiddleware: LanguageModelMiddleware = {
   specificationVersion: "v3",

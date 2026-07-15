@@ -119,6 +119,7 @@ import type * as lib_modelTelemetry from "../lib/modelTelemetry.js";
 import type * as lib_notificationHelpers from "../lib/notificationHelpers.js";
 import type * as lib_onboardingNavigation from "../lib/onboardingNavigation.js";
 import type * as lib_outreachCore from "../lib/outreachCore.js";
+import type * as lib_outreachModelRoutingCore from "../lib/outreachModelRoutingCore.js";
 import type * as lib_outreachPlanPool from "../lib/outreachPlanPool.js";
 import type * as lib_outreachProgressHelpers from "../lib/outreachProgressHelpers.js";
 import type * as lib_outreachRecoveryCore from "../lib/outreachRecoveryCore.js";
@@ -395,6 +396,7 @@ declare const fullApi: ApiFromModules<{
   "lib/notificationHelpers": typeof lib_notificationHelpers;
   "lib/onboardingNavigation": typeof lib_onboardingNavigation;
   "lib/outreachCore": typeof lib_outreachCore;
+  "lib/outreachModelRoutingCore": typeof lib_outreachModelRoutingCore;
   "lib/outreachPlanPool": typeof lib_outreachPlanPool;
   "lib/outreachProgressHelpers": typeof lib_outreachProgressHelpers;
   "lib/outreachRecoveryCore": typeof lib_outreachRecoveryCore;
