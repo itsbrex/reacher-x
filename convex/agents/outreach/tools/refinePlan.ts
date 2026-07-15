@@ -20,6 +20,7 @@ import { X_LONG_FORM_POST_MAX_CHARS } from "../../../../shared/lib/twitter/xPost
 import type { Id } from "../../../_generated/dataModel";
 import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
 import { runLoggedAgentTool } from "../../tools/logging";
+import { getCurrentUTCTimestamp } from "../../../../shared/lib/utils/time/timeUtils";
 
 // ============================================================================
 // Schema
@@ -146,6 +147,20 @@ export const refinePlan = createTool({
         args,
       },
       async (logEvent) => {
+        const stageTimings: Record<string, number> = {};
+        const measureStage = async <T>(
+          stage: string,
+          runner: () => Promise<T>
+        ): Promise<T> => {
+          const startedAt = getCurrentUTCTimestamp();
+          try {
+            return await runner();
+          } finally {
+            stageTimings[`${stage}_ms`] = getCurrentUTCTimestamp() - startedAt;
+            logEvent.set({ timing: stageTimings });
+          }
+        };
+
         try {
           if (!args.strategy && !args.tasks) {
             logEvent.warn(
@@ -172,9 +187,13 @@ export const refinePlan = createTool({
             };
           }
 
-          const paidEligibility = await ctx.runQuery(
-            internal.plans.getPaidFeatureEligibilityByUserId,
-            { userId }
+          const paidEligibility = await measureStage(
+            "paid_eligibility",
+            async () =>
+              await ctx.runQuery(
+                internal.plans.getPaidFeatureEligibilityByUserId,
+                { userId }
+              )
           );
           if (!paidEligibility.allowed) {
             logEvent.warn("Plan refinement blocked by subscription", {
@@ -191,12 +210,18 @@ export const refinePlan = createTool({
             };
           }
 
-          const repairedTaskResult = normalizedTasks
-            ? await repairOverLimitCommentTasks({
-                ctx,
-                userId,
-                tasks: normalizedTasks,
-              })
+          const hasCommentTasks =
+            normalizedTasks?.some((task) => task.type === "comment") ?? false;
+          const repairedTaskResult = hasCommentTasks
+            ? await measureStage(
+                "comment_limit_validation",
+                async () =>
+                  await repairOverLimitCommentTasks({
+                    ctx,
+                    userId,
+                    tasks: normalizedTasks ?? [],
+                  })
+              )
             : null;
           const candidateTasks = repairedTaskResult?.tasks ?? normalizedTasks;
           const canDeferCommentTarget = candidateTasks
@@ -223,16 +248,20 @@ export const refinePlan = createTool({
           }
 
           if (candidateTasks?.some((task) => task.type === "comment")) {
-            const threadContext = await extractProspectThreadContext(
-              ctx,
-              "refinePlan",
-              logEvent
+            const threadContext = await measureStage(
+              "prospect_context",
+              async () =>
+                await extractProspectThreadContext(ctx, "refinePlan", logEvent)
             );
-            const styleReady = await ensureWorkspaceStyleReady(
-              ctx,
-              "refinePlan",
-              threadContext.workspaceId,
-              logEvent
+            const styleReady = await measureStage(
+              "style_readiness",
+              async () =>
+                await ensureWorkspaceStyleReady(
+                  ctx,
+                  "refinePlan",
+                  threadContext.workspaceId,
+                  logEvent
+                )
             );
             if (!styleReady.ready) {
               return {
@@ -243,11 +272,15 @@ export const refinePlan = createTool({
             }
           }
 
-          const planId = await extractPlanIdFromThread(
-            ctx,
-            "refinePlan",
-            internal.outreach.getActivePlanForProspect,
-            logEvent
+          const planId = await measureStage(
+            "plan_lookup",
+            async () =>
+              await extractPlanIdFromThread(
+                ctx,
+                "refinePlan",
+                internal.outreach.getActivePlanForProspect,
+                logEvent
+              )
           );
 
           if (!planId) {
@@ -260,25 +293,30 @@ export const refinePlan = createTool({
             };
           }
 
-          await ctx.runMutation(internal.outreach.updatePlan, {
-            planId,
-            strategy: args.strategy,
-            tasks: candidateTasks,
-            threadId: ctx.threadId ?? undefined,
-          });
+          await measureStage(
+            "plan_update",
+            async () =>
+              await ctx.runMutation(internal.outreach.updatePlan, {
+                planId,
+                strategy: args.strategy,
+                tasks: candidateTasks,
+                threadId: ctx.threadId ?? undefined,
+              })
+          );
 
-          const updatedPlanData = await ctx.runQuery(
-            internal.outreach.getPlanInternal,
-            {
-              planId,
-            }
+          const updatedPlanData = await measureStage(
+            "updated_plan_read",
+            async () =>
+              await ctx.runQuery(internal.outreach.getPlanInternal, {
+                planId,
+              })
           );
           const updatedTasks = updatedPlanData?.tasks ?? [];
 
           logEvent.set({
             plan: {
+              comment_limit_checked: repairedTaskResult !== null,
               id: planId,
-              repaired_task_count: 0,
               task_count: updatedTasks.length,
             },
           });

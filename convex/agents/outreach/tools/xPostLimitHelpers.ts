@@ -3,7 +3,10 @@
 import { internal } from "../../../_generated/api";
 import type { Id } from "../../../_generated/dataModel";
 import type { EffectivePostTextLimit } from "../../../../shared/lib/twitter/xPostTextLimit";
-import { getPostTextLimitError } from "../../../../shared/lib/twitter/xPostTextLimit";
+import {
+  getPostTextLimitError,
+  inferPostLimitFromSubscriptionType,
+} from "../../../../shared/lib/twitter/xPostTextLimit";
 
 type CommentLikeTask = {
   type: string;
@@ -35,7 +38,7 @@ export async function getEffectivePostLimitForAgentUser(
   );
 }
 
-export async function getStoredXSubscriptionTypeForAgentUser(
+export async function getStoredXPostLimitContextForAgentUser(
   ctx: {
     runQuery: (
       ref: any,
@@ -43,14 +46,22 @@ export async function getStoredXSubscriptionTypeForAgentUser(
     ) => Promise<{ xSubscriptionType?: string } | null>;
   },
   userId: Id<"users">
-): Promise<string | undefined> {
+): Promise<{
+  effectivePostLimit: EffectivePostTextLimit;
+  subscriptionType: string | undefined;
+}> {
   const account = await ctx.runQuery(
     internal.xStore.getXAccountForUserInternal,
     {
       userId,
     }
   );
-  return account?.xSubscriptionType;
+  return {
+    effectivePostLimit: inferPostLimitFromSubscriptionType(
+      account?.xSubscriptionType
+    ),
+    subscriptionType: account?.xSubscriptionType,
+  };
 }
 
 export async function repairOverLimitCommentTasks<

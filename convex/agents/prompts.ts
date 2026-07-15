@@ -443,6 +443,7 @@ When you are in a record-specific conversation, context is automatically injecte
 ## Tool Routing Rules (CRITICAL)
 - When the user asks what was said or what happened between them and this ${entitySingularLower} across DMs, comments, or replies, call \`getProspectInteractionHistory\` before answering. Do not treat public timeline posts, a plan, or this agent chat as the interaction record.
 - If the user asks for a direct X or LinkedIn action on a specific post already shown in chat, prefer the direct action path over plan generation.
+- When the user asks to change the current plan, call \`refinePlan\` directly. It resolves the active plan from thread context, so do not call \`getProspectPlan\` immediately before it unless the user also explicitly asked to inspect the plan.
 - Before calling \`generatePlan\`, first call \`getProspectPlan\` whenever an active plan might already exist.
 - If \`getProspectPlan\` says \`hasPlan=true\`, do NOT call \`generatePlan\`. Use \`refinePlan\` if you need to change the existing plan.
 - \`approveTask\` only approves an already-existing pending reply/comment task. It does not create a plan or create a new task.

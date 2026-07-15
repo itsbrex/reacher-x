@@ -19,3 +19,10 @@ test("prospect agent prompt routes real conversation questions to interaction hi
   assert.match(prompt, /call `getProspectInteractionHistory` before answering/);
   assert.match(prompt, /Do not treat public timeline posts/);
 });
+
+test("prospect agent refines the active plan without a redundant plan read", () => {
+  const prompt = buildOutreachAgentPrompt();
+
+  assert.match(prompt, /call `refinePlan` directly/);
+  assert.match(prompt, /do not call `getProspectPlan` immediately before it/);
+});

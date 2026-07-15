@@ -3,7 +3,7 @@
 // Docs: https://docs.convex.dev/agents/streaming
 
 import { v } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
+import { getFunctionAddress, paginationOptsValidator } from "convex/server";
 import type { LanguageModel, ModelMessage } from "ai";
 import {
   action,
@@ -55,6 +55,7 @@ import {
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import { getProspectDisplayFields } from "./lib/notificationHelpers";
 import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
+import { getWideEventLogger } from "./lib/wideEventLogger";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
 import {
   ensureProspectThreadLink,
@@ -94,6 +95,10 @@ import {
   inferAttachmentMediaKind,
   isVisionAttachmentMediaKind,
 } from "../shared/lib/utils/media/inferAttachmentMediaKind";
+import {
+  OUTREACH_MIN_MESSAGES_FOR_HISTORY_SEARCH,
+  OUTREACH_RECENT_MESSAGE_LIMIT,
+} from "./lib/agentContextHelpers";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -105,6 +110,45 @@ type ResolvedAgentTurnContext = {
   messages: AgentTurnContextMessage[];
   hasVisionInput: boolean;
 };
+type OutreachStreamStepTiming = {
+  duration_ms?: number;
+  finish_reason?: string;
+  first_chunk_ms?: number;
+  model: string;
+  provider: string;
+  started_at: number;
+  step_number: number;
+};
+type OutreachStreamAttemptTiming = {
+  agent_call_started_at: number;
+  attempt_number: number;
+  context_and_rag_ms?: number;
+  first_delta_ready_ms?: number;
+  first_saved_delta_ms?: number;
+  first_text_delta_ready_ms?: number;
+  steps: OutreachStreamStepTiming[];
+  tool_calls: Array<{
+    duration_ms: number;
+    step_number?: number;
+    success: boolean;
+    tool_name: string;
+  }>;
+};
+type OutreachStreamTiming = {
+  attempts: OutreachStreamAttemptTiming[];
+};
+
+function summarizeOutreachStreamTiming(timing: OutreachStreamTiming) {
+  return timing.attempts.map((attempt) => ({
+    attempt_number: attempt.attempt_number,
+    context_and_rag_ms: attempt.context_and_rag_ms,
+    first_delta_ready_ms: attempt.first_delta_ready_ms,
+    first_saved_delta_ms: attempt.first_saved_delta_ms,
+    first_text_delta_ready_ms: attempt.first_text_delta_ready_ms,
+    steps: attempt.steps.map(({ started_at: _startedAt, ...step }) => step),
+    tool_calls: attempt.tool_calls,
+  }));
+}
 type AttachmentReferenceInput = {
   uploadId: string | null;
   fileName: string;
@@ -185,21 +229,23 @@ async function resolveSetupUseCaseForThread(
 
 async function resolveOutreachUseCaseForThread(
   ctx: ReadableCtx,
-  threadId: string
+  threadId: string,
+  prospect?: Pick<Doc<"prospects">, "workspaceId"> | null
 ): Promise<WorkspaceUseCaseDefinition> {
-  const threadContext = await ctx.runQuery(
-    internal.prospectThreads.getThreadProspectContext,
-    {
-      threadId,
-    }
-  );
+  const workspaceId = prospect
+    ? prospect.workspaceId
+    : (
+        await ctx.runQuery(internal.prospectThreads.getThreadProspectContext, {
+          threadId,
+        })
+      )?.prospect.workspaceId;
 
-  if (!threadContext) {
+  if (!workspaceId) {
     return getWorkspaceUseCase(undefined);
   }
 
   const workspace = await ctx.runQuery(internal.workspaces.getById, {
-    workspaceId: threadContext.prospect.workspaceId,
+    workspaceId,
   });
 
   return getWorkspaceUseCase(workspace?.useCaseKey);
@@ -262,14 +308,6 @@ async function resolveWorkspaceAgentSurface(
   );
 
   return selectedContext?.routeKind === "workspace" ? "main" : "setup";
-}
-
-async function getPlainTextMessageById(
-  ctx: ActionCtx,
-  messageId: string
-): Promise<string> {
-  const message = await getThreadMessageById(ctx, messageId);
-  return typeof message?.text === "string" ? message.text : "";
 }
 
 async function getThreadMessageById(ctx: ActionCtx, messageId: string) {
@@ -540,6 +578,10 @@ async function buildResolvedTaggedEntityLine(
         prospect.displayName ??
         prospect.title ??
         prospect.externalId;
+
+      if (scope.prospectId === prospect._id) {
+        return `Prospect selected in the UI: ${label}. The canonical thread context supplies the complete profile snapshot.`;
+      }
 
       const profileContext = await loadAgentProspectProfileContext(
         ctx,
@@ -957,18 +999,31 @@ async function hasSearchableThreadHistory(
     }
   );
 
-  return messages.page.some((message) => {
+  let searchableMessageCount = 0;
+  for (const message of messages.page) {
     if (args.excludeMessageId && message._id === args.excludeMessageId) {
-      return false;
+      continue;
+    }
+    const role = message.message?.role;
+    if (role !== "user" && role !== "assistant") {
+      continue;
     }
     const text = typeof message.text === "string" ? message.text.trim() : "";
-    return text.length > 0;
-  });
+    if (text.length === 0) {
+      continue;
+    }
+    searchableMessageCount += 1;
+    if (searchableMessageCount >= OUTREACH_MIN_MESSAGES_FOR_HISTORY_SEARCH) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function buildDisabledHistorySearchContextOptions() {
   return {
-    recentMessages: 20,
+    recentMessages: OUTREACH_RECENT_MESSAGE_LIMIT,
     searchOptions: {
       limit: 0,
       textSearch: false,
@@ -1033,13 +1088,38 @@ async function runOutreachStreamText(
     tools: OutreachAgentTools;
     messages?: AgentTurnContextMessage[];
     model?: LanguageModel;
+    timing?: OutreachStreamAttemptTiming;
     contextOptions?: ReturnType<
       typeof buildDisabledHistorySearchContextOptions
     >;
   }
 ) {
+  const timing = args.timing;
+  const addDeltaAddress = getFunctionAddress(components.agent.streams.addDelta);
+  const instrumentedRunMutation: ActionCtx["runMutation"] = async (
+    reference,
+    mutationArgs
+  ) => {
+    const result = await ctx.runMutation(reference, mutationArgs);
+    if (
+      timing &&
+      timing.first_saved_delta_ms === undefined &&
+      result === true
+    ) {
+      const address = getFunctionAddress(reference);
+      if (address.reference === addDeltaAddress.reference) {
+        timing.first_saved_delta_ms =
+          getCurrentUTCTimestamp() - timing.agent_call_started_at;
+      }
+    }
+    return result;
+  };
+  const streamCtx: ActionCtx = timing
+    ? { ...ctx, runMutation: instrumentedRunMutation }
+    : ctx;
+
   return outreachAgent.streamText(
-    ctx,
+    streamCtx,
     { threadId: args.threadId },
     {
       ...(args.promptMessageId
@@ -1047,8 +1127,65 @@ async function runOutreachStreamText(
         : {}),
       ...(args.messages?.length ? { messages: args.messages } : {}),
       ...(args.model ? { model: args.model } : {}),
+      // ContextHandler intentionally supplies app-owned system context blocks.
+      // Opt in explicitly so AI SDK does not warn on every outreach turn.
+      allowSystemInMessages: true,
       system: args.system,
       tools: args.tools,
+      experimental_onStart: ({ model }) => {
+        if (!args.timing) return;
+        args.timing.context_and_rag_ms =
+          getCurrentUTCTimestamp() - args.timing.agent_call_started_at;
+        const firstStep = args.timing.steps[0];
+        if (firstStep) {
+          firstStep.model = model.modelId;
+          firstStep.provider = model.provider;
+        }
+      },
+      experimental_onStepStart: ({ stepNumber, model }) => {
+        if (!args.timing) return;
+        args.timing.steps.push({
+          step_number: stepNumber,
+          model: model.modelId,
+          provider: model.provider,
+          started_at: getCurrentUTCTimestamp(),
+        });
+      },
+      onChunk: ({ chunk }) => {
+        if (!args.timing) return;
+        const now = getCurrentUTCTimestamp();
+        args.timing.first_delta_ready_ms ??=
+          now - args.timing.agent_call_started_at;
+        if (chunk.type === "text-delta") {
+          args.timing.first_text_delta_ready_ms ??=
+            now - args.timing.agent_call_started_at;
+        }
+        const currentStep = args.timing.steps[args.timing.steps.length - 1];
+        if (currentStep && currentStep.first_chunk_ms === undefined) {
+          currentStep.first_chunk_ms = now - currentStep.started_at;
+        }
+      },
+      onStepFinish: ({ finishReason }) => {
+        if (!args.timing) return;
+        const currentStep = args.timing.steps[args.timing.steps.length - 1];
+        if (!currentStep) return;
+        currentStep.duration_ms =
+          getCurrentUTCTimestamp() - currentStep.started_at;
+        currentStep.finish_reason = finishReason;
+      },
+      experimental_onToolCallFinish: ({
+        durationMs,
+        stepNumber,
+        success,
+        toolCall,
+      }) => {
+        args.timing?.tool_calls.push({
+          duration_ms: durationMs,
+          ...(stepNumber === undefined ? {} : { step_number: stepNumber }),
+          success,
+          tool_name: toolCall.toolName,
+        });
+      },
     },
     {
       contextOptions: args.contextOptions,
@@ -1067,6 +1204,7 @@ async function runOutreachStreamTextWithHistoryFallback(
     messages?: AgentTurnContextMessage[];
     model?: LanguageModel;
     preferHistorySearch?: boolean;
+    timing?: OutreachStreamAttemptTiming;
   }
 ) {
   const initialContextOptions = args.preferHistorySearch
@@ -1166,10 +1304,25 @@ async function streamOutreachTextWithFallback(
     messages?: AgentTurnContextMessage[];
     model?: LanguageModel;
     preferHistorySearch?: boolean;
+    timing?: OutreachStreamTiming;
   }
 ) {
   const executeAttempt = async () => {
-    const result = await runOutreachStreamTextWithHistoryFallback(ctx, args);
+    const attemptTiming: OutreachStreamAttemptTiming | undefined = args.timing
+      ? {
+          agent_call_started_at: getCurrentUTCTimestamp(),
+          attempt_number: args.timing.attempts.length + 1,
+          steps: [],
+          tool_calls: [],
+        }
+      : undefined;
+    if (attemptTiming) {
+      args.timing?.attempts.push(attemptTiming);
+    }
+    const result = await runOutreachStreamTextWithHistoryFallback(ctx, {
+      ...args,
+      timing: attemptTiming,
+    });
     await result.consumeStream();
     return result;
   };
@@ -2364,28 +2517,71 @@ async function runStreamOutreachResponse(
   finishReason: string | null;
   pendingAskHuman: boolean;
 } | void> {
+  const responseStartedAt = getCurrentUTCTimestamp();
+  const logEvent = getWideEventLogger(ctx);
+  const streamTiming: OutreachStreamTiming = { attempts: [] };
+  const responseTiming: Record<string, number | undefined> = {};
+
   try {
+    const prospectLoadStartedAt = getCurrentUTCTimestamp();
     const prospect = await ctx.runQuery(
       internal.chat.getProspectForThreadInternal,
       { threadId: args.threadId }
     );
+    responseTiming.prospect_guard_ms =
+      getCurrentUTCTimestamp() - prospectLoadStartedAt;
     if (prospect?.status === "archived") {
+      logEvent?.set({
+        agent_response: {
+          outcome: "archived_prospect",
+          timing: responseTiming,
+        },
+      });
       return;
     }
 
-    const useCase = await resolveOutreachUseCaseForThread(ctx, args.threadId);
+    const preModelStartedAt = getCurrentUTCTimestamp();
+    const [
+      useCase,
+      promptMessage,
+      hiddenContext,
+      hasSearchableHistory,
+      backgroundRefreshScheduled,
+    ] = await Promise.all([
+      resolveOutreachUseCaseForThread(ctx, args.threadId, prospect),
+      getThreadMessageById(ctx, args.promptMessageId),
+      buildAgentTurnContextMessages(ctx, {
+        threadId: args.threadId,
+        promptMessageId: args.promptMessageId,
+      }),
+      hasSearchableThreadHistory(ctx, {
+        threadId: args.threadId,
+        excludeMessageId: args.promptMessageId,
+      }),
+      prospect
+        ? ctx.scheduler
+            .runAfter(
+              0,
+              internal.xPostLimitsActions
+                .getEffectivePostLimitWithRefreshInternal,
+              { userId: prospect.userId }
+            )
+            .then(() => true)
+            .catch(() => false)
+        : Promise.resolve(false),
+    ]);
+    responseTiming.pre_model_parallel_ms =
+      getCurrentUTCTimestamp() - preModelStartedAt;
+    responseTiming.queue_delay_ms = promptMessage?._creationTime
+      ? Math.max(0, responseStartedAt - promptMessage._creationTime)
+      : undefined;
+
     const tools = await getOutreachToolsForThread(ctx, args.threadId);
-    const promptText = await getPlainTextMessageById(ctx, args.promptMessageId);
-    const hiddenContext = await buildAgentTurnContextMessages(ctx, {
-      threadId: args.threadId,
-      promptMessageId: args.promptMessageId,
-    });
+    const promptText =
+      typeof promptMessage?.text === "string" ? promptMessage.text : "";
     const hasSearchablePrompt = promptText.trim().length > 0;
-    const hasSearchableHistory = await hasSearchableThreadHistory(ctx, {
-      threadId: args.threadId,
-      excludeMessageId: args.promptMessageId,
-    });
     const shouldUseHistorySearch = hasSearchablePrompt && hasSearchableHistory;
+    const streamStartedAt = getCurrentUTCTimestamp();
     const result = await streamOutreachTextWithFallback(ctx, {
       threadId: args.threadId,
       promptMessageId: args.promptMessageId,
@@ -2396,8 +2592,12 @@ async function runStreamOutreachResponse(
         ? outreachVisionLanguageModel
         : undefined,
       preferHistorySearch: shouldUseHistorySearch,
+      timing: streamTiming,
     });
+    responseTiming.stream_and_tools_ms =
+      getCurrentUTCTimestamp() - streamStartedAt;
 
+    const persistenceStartedAt = getCurrentUTCTimestamp();
     await persistRawModelResponse(ctx, {
       threadId: args.threadId,
       agentName: "Outreach Agent",
@@ -2442,6 +2642,18 @@ async function runStreamOutreachResponse(
     await ctx.runAction(internal.chat.reconcileOutreachTaskStatusAfterStream, {
       threadId: args.threadId,
     });
+    responseTiming.post_stream_persistence_ms =
+      getCurrentUTCTimestamp() - persistenceStartedAt;
+    responseTiming.total_ms = getCurrentUTCTimestamp() - responseStartedAt;
+    logEvent?.set({
+      agent_response: {
+        background_x_refresh_scheduled: backgroundRefreshScheduled,
+        history_search_enabled: shouldUseHistorySearch,
+        stream_delta_throttle_ms: DEFAULT_AGENT_STREAM_DELTAS.throttleMs,
+        timing: responseTiming,
+        attempts: summarizeOutreachStreamTiming(streamTiming),
+      },
+    });
 
     return {
       text: await result.text,
@@ -2449,6 +2661,13 @@ async function runStreamOutreachResponse(
       pendingAskHuman: askHumanCalls.length > 0,
     };
   } catch (error) {
+    responseTiming.total_ms = getCurrentUTCTimestamp() - responseStartedAt;
+    logEvent?.set({
+      agent_response: {
+        timing: responseTiming,
+        attempts: summarizeOutreachStreamTiming(streamTiming),
+      },
+    });
     const normalizedError = normalizeUnknownError(error);
     chatLogger.error(
       "Outreach stream error",

@@ -149,7 +149,10 @@ async function validateTaskInputs(
   userId: Id<"users">,
   tasks: OutreachTaskInput[]
 ): Promise<void> {
-  const limit = await getEffectivePostTextLimitForUser(ctx, userId);
+  const hasCommentTasks = tasks.some((task) => task.type === "comment");
+  const postLimit = hasCommentTasks
+    ? await getEffectivePostTextLimitForUser(ctx, userId)
+    : null;
   const canDeferCommentTarget = tasks.some(
     (task) =>
       task.type === "wait" &&
@@ -176,7 +179,10 @@ async function validateTaskInputs(
         );
       }
       if (trimmedContent) {
-        assertPostTextWithinLimit(trimmedContent, limit);
+        if (!postLimit) {
+          throw new Error("Unable to resolve the X post limit");
+        }
+        assertPostTextWithinLimit(trimmedContent, postLimit);
       }
     }
 

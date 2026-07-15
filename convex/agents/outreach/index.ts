@@ -44,13 +44,16 @@ import {
   searchWorkspaceMemories,
   socialAction,
 } from "./tools";
-import {
-  getEffectivePostLimitForAgentUser,
-  getStoredXSubscriptionTypeForAgentUser,
-} from "./tools/xPostLimitHelpers";
+import { getStoredXPostLimitContextForAgentUser } from "./tools/xPostLimitHelpers";
 import { logger } from "../../../shared/lib/logger";
 import { getStyleMemoryCategory } from "../../lib/styleSourceCore";
 import { loadAgentProspectProfileContext } from "../../lib/prospectProfileContextHelpers";
+import { createManualWideEventLogger } from "../../lib/wideEventLogger";
+import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
+import {
+  OUTREACH_HISTORY_SEARCH_LIMIT,
+  OUTREACH_RECENT_MESSAGE_LIMIT,
+} from "../../lib/agentContextHelpers";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -128,6 +131,7 @@ export const outreachVisionLanguageModel = createOutreachLanguageModel(
 );
 
 const OUTREACH_AGENT_MAX_OUTPUT_TOKENS = 1024;
+const OUTREACH_AGENT_MAX_RETRIES = 0;
 
 // ============================================================================
 // Context Handler - Injects prospect data into LLM context
@@ -142,45 +146,130 @@ const prospectContextHandler: ContextHandler = async (ctx, args) => {
   if (!args.threadId) {
     return args.allMessages;
   }
+  const threadId = args.threadId;
+
+  const logEvent = createManualWideEventLogger({
+    kind: "manual",
+    operation: "outreachAgent.context",
+    context: {
+      thread: { id: threadId },
+      context: {
+        input_message_count: args.allMessages.length,
+        recent_message_count: args.recent.length,
+        search_message_count: args.search.length,
+      },
+    },
+  });
+  const stageTimings: Record<string, number> = {};
+  const measureStage = async <T>(
+    stage: string,
+    runner: () => Promise<T>
+  ): Promise<T> => {
+    const startedAt = getCurrentUTCTimestamp();
+    try {
+      return await runner();
+    } finally {
+      stageTimings[`${stage}_ms`] = getCurrentUTCTimestamp() - startedAt;
+      logEvent.set({ timing: stageTimings });
+    }
+  };
 
   try {
-    const threadContext = await ctx.runQuery(
-      internal.prospectThreads.getThreadProspectContext,
-      {
-        threadId: args.threadId,
-      }
+    const threadContext = await measureStage(
+      "thread_context",
+      async () =>
+        await ctx.runQuery(internal.prospectThreads.getThreadProspectContext, {
+          threadId,
+        })
     );
 
     if (!threadContext) {
+      logEvent.emitSuccess(undefined, {
+        context: { outcome: "no_prospect_context" },
+      });
       return args.allMessages;
     }
 
     const prospect = threadContext.prospect;
-    const [workspace, workspaceInspection] = await Promise.all([
-      ctx.runQuery(internal.workspaces.getById, {
-        workspaceId: prospect.workspaceId,
-      }),
-      ctx.runQuery(internal.workspaces.getWorkspaceInspectionInternal, {
-        workspaceId: prospect.workspaceId,
+    const [
+      workspace,
+      workspaceInspection,
+      outreachLearningContext,
+      profileContext,
+      xPostLimitContext,
+      styleMemories,
+    ] = await Promise.all([
+      measureStage(
+        "workspace",
+        async () =>
+          await ctx.runQuery(internal.workspaces.getById, {
+            workspaceId: prospect.workspaceId,
+          })
+      ),
+      measureStage(
+        "workspace_inspection",
+        async () =>
+          await ctx.runQuery(
+            internal.workspaces.getWorkspaceInspectionInternal,
+            {
+              workspaceId: prospect.workspaceId,
+            }
+          )
+      ),
+      measureStage(
+        "learning_rag",
+        async () =>
+          await ctx.runAction(
+            internal.memory.getOutreachLearningContextInternal,
+            {
+              workspaceId: String(prospect.workspaceId),
+              userId: String(prospect.userId),
+              platform:
+                prospect.platform === "linkedin" ? "linkedin" : "twitter",
+              title: prospect.title,
+              briefIntro: prospect.briefIntro,
+              painPoints:
+                prospect.painPoints?.map(
+                  (painPoint: { pain: string }) => painPoint.pain
+                ) || [],
+              matchedKeywords: prospect.matchedKeywords || [],
+              finance: prospect.finance?.displayValue,
+            }
+          )
+      ),
+      measureStage(
+        "prospect_profile",
+        async () => await loadAgentProspectProfileContext(ctx, prospect)
+      ),
+      measureStage(
+        "stored_x_limit",
+        async () =>
+          await getStoredXPostLimitContextForAgentUser(ctx, prospect.userId)
+      ),
+      measureStage("writing_style", async () => {
+        try {
+          return await ctx.runQuery(
+            internal.memory.listPinnedWorkspaceMemoriesInternal,
+            {
+              workspaceId: String(prospect.workspaceId),
+              category: getStyleMemoryCategory(
+                prospect.platform === "linkedin" ? "linkedin" : "twitter"
+              ),
+              limit: 1,
+            }
+          );
+        } catch (styleError) {
+          outreachAgentLogger.warn(
+            "Failed to fetch writing style profile",
+            styleError
+          );
+          return [];
+        }
       }),
     ]);
     const useCase = getWorkspaceUseCase(workspace?.useCaseKey);
-    const outreachLearningContext = await ctx.runAction(
-      internal.memory.getOutreachLearningContextInternal,
-      {
-        workspaceId: String(prospect.workspaceId),
-        userId: String(prospect.userId),
-        platform: prospect.platform === "linkedin" ? "linkedin" : "twitter",
-        title: prospect.title,
-        briefIntro: prospect.briefIntro,
-        painPoints:
-          prospect.painPoints?.map(
-            (painPoint: { pain: string }) => painPoint.pain
-          ) || [],
-        matchedKeywords: prospect.matchedKeywords || [],
-        finance: prospect.finance?.displayValue,
-      }
-    );
+    const { effectivePostLimit, subscriptionType: xSubscriptionType } =
+      xPostLimitContext;
 
     // Inject prospect context as system message
     // NOTE: Do NOT include IDs in the prompt - the LLM tends to modify them.
@@ -222,7 +311,6 @@ ${
 Treat the offering and ICPs above as required grounding for every plan. Use this vocabulary in user-facing responses. Internal tool names still refer to prospects.`,
     };
 
-    const profileContext = await loadAgentProspectProfileContext(ctx, prospect);
     const contextMessage = {
       role: "system" as const,
       content: `${profileContext}
@@ -255,14 +343,6 @@ ${outreachLearningContext.similarCases.map((item: string) => `- ${item}`).join("
 Use this memory as guidance when generating or refining outreach plans. Prefer patterns with clear operational pain, avoid weak or repetitive angles, and adapt to the current prospect rather than copying prior phrasing.`,
     };
 
-    const xSubscriptionType = await getStoredXSubscriptionTypeForAgentUser(
-      ctx,
-      prospect.userId
-    );
-    const effectivePostLimit = await getEffectivePostLimitForAgentUser(
-      ctx,
-      prospect.userId
-    );
     const xLimitMessage = {
       role: "system" as const,
       content:
@@ -288,25 +368,13 @@ Still prefer concise writing unless the user clearly wants a longer post.`,
 
     // 4th block: Writing Style Profile (deterministic retrieval by category)
     let writingStyleMessage: { role: "system"; content: string } | null = null;
-    try {
-      const styleMemories = await ctx.runQuery(
-        internal.memory.listPinnedWorkspaceMemoriesInternal,
-        {
-          workspaceId: String(prospect.workspaceId),
-          category: getStyleMemoryCategory(
-            prospect.platform === "linkedin" ? "linkedin" : "twitter"
-          ),
-          limit: 1,
-        }
-      );
-
-      if (styleMemories.length > 0) {
-        const profile = styleMemories[0];
-        const styleText = profile.parsed?.narrative || profile.promptLine || "";
-        if (styleText) {
-          writingStyleMessage = {
-            role: "system" as const,
-            content: `## Your Writing Voice
+    if (styleMemories.length > 0) {
+      const profile = styleMemories[0];
+      const styleText = profile.parsed?.narrative || profile.promptLine || "";
+      if (styleText) {
+        writingStyleMessage = {
+          role: "system" as const,
+          content: `## Your Writing Voice
 
 You are writing AS this user. All outreach messages must match their personal voice.
 
@@ -319,18 +387,12 @@ RULES:
 - If they're casual, be casual. If they're direct, be direct.
 - Their edit corrections (if any in the profile) override all other style guidance.
 - NEVER sound like a LinkedIn recruiter, corporate marketer, or generic AI.`,
-          };
-        }
+        };
       }
-    } catch (styleError) {
-      outreachAgentLogger.warn(
-        "Failed to fetch writing style profile",
-        styleError
-      );
     }
 
     // Prepend context to all messages
-    return [
+    const messages = [
       useCaseMessage,
       contextMessage,
       workspaceMemoryMessage,
@@ -338,7 +400,22 @@ RULES:
       ...(writingStyleMessage ? [writingStyleMessage] : []),
       ...args.allMessages,
     ];
+    logEvent.emitSuccess(messages, {
+      context: {
+        output_message_count: messages.length,
+        workspace_memory_count:
+          outreachLearningContext.relevantMemories.length +
+          outreachLearningContext.operatorPreferences.length +
+          outreachLearningContext.winningPatterns.length +
+          outreachLearningContext.objections.length +
+          outreachLearningContext.similarCases.length,
+      },
+      prospect: { id: prospect._id },
+      workspace: { id: prospect.workspaceId },
+    });
+    return messages;
   } catch (error) {
+    logEvent.emitError(error);
     outreachAgentLogger.warn("Failed to fetch prospect context", error);
   }
 
@@ -375,12 +452,15 @@ export const outreachAgent = new Agent(components.agent, {
   maxSteps: 15,
   callSettings: {
     maxOutputTokens: OUTREACH_AGENT_MAX_OUTPUT_TOKENS,
+    // OpenRouter already performs provider failover. Retrying the whole HTTP
+    // request here can add another upstream timeout before the user sees text.
+    maxRetries: OUTREACH_AGENT_MAX_RETRIES,
   },
   contextOptions: {
-    recentMessages: 20,
+    recentMessages: OUTREACH_RECENT_MESSAGE_LIMIT,
     // Enable hybrid text + vector search per docs/convex/llm-context.md
     searchOptions: {
-      limit: 10,
+      limit: OUTREACH_HISTORY_SEARCH_LIMIT,
       textSearch: true,
       vectorSearch: true,
     },

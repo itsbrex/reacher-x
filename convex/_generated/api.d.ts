@@ -86,6 +86,7 @@ import type * as interactions from "../interactions.js";
 import type * as interactionsActions from "../interactionsActions.js";
 import type * as keywords from "../keywords.js";
 import type * as lib_accessHelpers from "../lib/accessHelpers.js";
+import type * as lib_agentContextHelpers from "../lib/agentContextHelpers.js";
 import type * as lib_agentMemoryCore from "../lib/agentMemoryCore.js";
 import type * as lib_agentMetadata from "../lib/agentMetadata.js";
 import type * as lib_agentOpsCore from "../lib/agentOpsCore.js";
@@ -361,6 +362,7 @@ declare const fullApi: ApiFromModules<{
   interactionsActions: typeof interactionsActions;
   keywords: typeof keywords;
   "lib/accessHelpers": typeof lib_accessHelpers;
+  "lib/agentContextHelpers": typeof lib_agentContextHelpers;
   "lib/agentMemoryCore": typeof lib_agentMemoryCore;
   "lib/agentMetadata": typeof lib_agentMetadata;
   "lib/agentOpsCore": typeof lib_agentOpsCore;

@@ -13,6 +13,7 @@ type OpenRouterProviderRouting = Record<string, JSONValue> & {
   order?: string[];
   allow_fallbacks?: boolean;
   require_parameters?: boolean;
+  sort?: "price" | "throughput" | "latency";
 };
 
 export type OpenRouterProviderOptions = {
@@ -146,6 +147,21 @@ function createOnlyProviderOptions(
   };
 }
 
+function createLatencySortedProviderOptions(
+  only: OpenRouterProviderSlug[]
+): OpenRouterProviderOptions {
+  return {
+    openrouter: {
+      provider: {
+        only,
+        sort: "latency",
+        allow_fallbacks: true,
+        require_parameters: true,
+      },
+    },
+  };
+}
+
 type RoutingModelConfig = {
   model: ModelId;
   providerOptions: OpenRouterProviderOptions;
@@ -234,17 +250,20 @@ export const HELPER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
 export const AUTOCOMPLETE_PROVIDER_OPTIONS = HELPER_PROVIDER_OPTIONS;
 
 /**
- * Tool-calling agents are pinned to Cerebras because streamed multi-step runs
- * aborted intermittently when OpenRouter routed GPT-OSS traffic to Groq.
+ * Tool-calling agents use a latency-ranked Cerebras/Groq pool. OpenRouter
+ * chooses from rolling provider latency and can fail over inside the request,
+ * preventing a degraded single endpoint from holding every model step.
  *
- * Keep this route separate from the broader preset-based fast/reasoning
- * routing so autocomplete and non-agent text generation can still evolve
- * independently.
+ * Keep this route separate from broader fast/reasoning routing so background
+ * generation can still evolve independently.
  */
 export const PINNED_AGENT_MODEL = MODELS.GPT_OSS;
 
 export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createOnlyProviderOptions([OPENROUTER_PROVIDERS.CEREBRAS]);
+  createLatencySortedProviderOptions([
+    OPENROUTER_PROVIDERS.CEREBRAS,
+    OPENROUTER_PROVIDERS.GROQ,
+  ]);
 
 /**
  * Vision-capable turns are pinned to Kimi and must stay on a true multimodal
