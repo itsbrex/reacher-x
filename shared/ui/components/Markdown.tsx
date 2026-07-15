@@ -42,7 +42,7 @@ function highlightInlineAtMentions(text: string) {
     parts.push(
       <span
         key={`${tokenStart}-${token}`}
-        className="text-muted-foreground font-mono"
+        className="font-pixel-square text-muted-foreground font-bold"
       >
         {token}
       </span>
@@ -120,14 +120,14 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   pre: function PreComponent({ children }) {
     return <>{children}</>;
   },
-  // Links with mono font and muted foreground
+  // Links with pixel font and muted foreground
   a: function AComponent({ children, href, ...props }) {
     return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-muted-foreground font-mono hover:underline"
+        className="font-pixel-square text-muted-foreground font-bold hover:underline"
         {...props}
       >
         {renderMentionStyledChildren(children)}
@@ -137,7 +137,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   // Ordered list with proper styling
   ol: function OlComponent({ children, ...props }) {
     return (
-      <ol className="my-2 ml-4 list-decimal space-y-1" {...props}>
+      <ol className="my-3 ml-5 list-decimal space-y-2" {...props}>
         {children}
       </ol>
     );
@@ -145,7 +145,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   // Unordered list with proper styling
   ul: function UlComponent({ children, ...props }) {
     return (
-      <ul className="my-2 ml-4 list-disc space-y-1" {...props}>
+      <ul className="my-3 ml-5 list-disc space-y-2" {...props}>
         {children}
       </ul>
     );
@@ -153,7 +153,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   // List items
   li: function LiComponent({ children, ...props }) {
     return (
-      <li className="pl-1" {...props}>
+      <li className="pl-1 leading-6" {...props}>
         {renderMentionStyledChildren(children)}
       </li>
     );
@@ -161,7 +161,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   // Paragraphs with proper spacing
   p: function PComponent({ children, ...props }) {
     return (
-      <p className="my-2 leading-relaxed" {...props}>
+      <p className="my-3 leading-6" {...props}>
         {renderMentionStyledChildren(children)}
       </p>
     );

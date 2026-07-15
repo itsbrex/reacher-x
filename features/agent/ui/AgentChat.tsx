@@ -1342,15 +1342,17 @@ function UserMessageContextContent({
 
 function getAssistantMarkdownClassName() {
   return cn(
-    "markdown-content text-foreground break-words whitespace-normal text-sm",
+    "markdown-content text-foreground break-words whitespace-normal text-sm text-pretty",
     "prose dark:prose-invert max-w-none prose-sm",
-    "prose-p:my-2 prose-p:leading-relaxed prose-p:first:mt-0",
-    "prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5",
-    "prose-h1:text-xl prose-h1:font-bold prose-h1:my-3",
-    "prose-h2:text-lg prose-h2:font-semibold prose-h2:my-2",
-    "prose-h3:text-base prose-h3:font-semibold prose-h3:my-2",
-    "prose-h4:text-sm prose-h4:font-medium",
-    "prose-hr:border-border/80",
+    "[&>:first-child]:mt-0 [&>:last-child]:mb-0",
+    "prose-p:my-3 prose-p:leading-6",
+    "prose-ul:my-3 prose-ol:my-3 prose-li:my-0 prose-li:leading-6 prose-li:marker:text-muted-foreground",
+    "prose-h1:mt-6 prose-h1:mb-3 prose-h1:text-xl prose-h1:font-bold",
+    "prose-h2:mt-5 prose-h2:mb-2 prose-h2:text-lg prose-h2:font-semibold",
+    "prose-h3:mt-4 prose-h3:mb-2 prose-h3:text-base prose-h3:font-semibold",
+    "prose-h4:mt-3 prose-h4:mb-1.5 prose-h4:text-sm prose-h4:font-medium",
+    "prose-blockquote:border-border prose-blockquote:my-4 prose-blockquote:pl-4 prose-blockquote:not-italic",
+    "prose-hr:border-border/80 prose-hr:my-6",
     "prose-table:my-0",
     "prose-code:border prose-code:bg-transparent prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-medium prose-code:text-sm prose-code:text-inherit prose-code:before:content-none prose-code:after:content-none",
     "prose-strong:font-semibold"
