@@ -58,7 +58,7 @@ export interface GetProspectPlanResult {
  */
 export const getProspectPlan = createTool({
   description:
-    "Get the existing outreach plan for a prospect. Use this to check if a plan exists before generating a new one, or to get plan details from any conversation thread. The prospectId is automatically extracted from the thread - you don't need to provide it.",
+    "Get the existing outreach plan for a prospect. Use this when the user explicitly asks to inspect the current plan, or to check whether a plan exists before generating a new one. Do not call this immediately before refinePlan because refinePlan resolves the active plan itself. The prospectId is automatically extracted from the thread - you don't need to provide it.",
   inputSchema: z.object({
     prospectId: z
       .string()

@@ -354,6 +354,11 @@ export function getAgentArtifactSemanticKey(
     return `${type}:${platform}:${prospectId}:${title}:${postIds}`;
   }
 
+  if (type === "PlanPreviewCard") {
+    const planId = getStringProperty(props, "planId");
+    return planId ? `${type}:${planId}` : null;
+  }
+
   return null;
 }
 

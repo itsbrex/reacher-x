@@ -95,7 +95,7 @@ import { AgentArtifactRenderer } from "@/shared/ui/components/json-render";
 import {
   extractPostMentionCandidatesFromArtifact,
   getAgentArtifactFromResult,
-  validateAgentArtifactEnvelope,
+  getAgentArtifactSemanticKey,
   type AgentArtifactEnvelope,
 } from "@/shared/lib/json-render/agentArtifacts";
 import { logger } from "@/shared/lib/logger";
@@ -105,6 +105,10 @@ import {
   parseLegacyAgentMessageContent,
 } from "@/shared/lib/mentions/messageContext";
 import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
+import {
+  getAgentArtifactsFromToolResult,
+  getSupersededArtifactKeysByToolCallId,
+} from "@/features/agent/lib/toolArtifacts";
 import { AgentProspectEmptyState } from "./components/AgentProspectEmptyState";
 import { AgentWorkspaceEmptyState } from "./components/AgentWorkspaceEmptyState";
 import {
@@ -271,6 +275,11 @@ function buildStableKey(base: string, sequence: Map<string, number>) {
 }
 
 function getAgentArtifactStableKey(artifact: AgentArtifactEnvelope): string {
+  const semanticKey = getAgentArtifactSemanticKey(artifact);
+  if (semanticKey) {
+    return semanticKey;
+  }
+
   const rootElement = artifact.spec.elements[artifact.spec.root];
   const rootType = rootElement?.type ?? "artifact";
   const props = rootElement?.props;
@@ -611,10 +620,12 @@ function ToolCallVisualization({
   toolCalls,
   onOpenPanelFromCard,
   onOpenPlanPanel,
+  supersededArtifactKeysByToolCallId,
 }: {
   toolCalls: ToolCallInfo[];
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   onOpenPlanPanel?: (prospectId?: string | null) => void;
+  supersededArtifactKeysByToolCallId?: ReadonlyMap<string, ReadonlySet<string>>;
 }) {
   const approvePlan = useMutation(api.outreach.approvePlan);
   const deletePlan = useMutation(api.outreach.deletePlan);
@@ -633,12 +644,16 @@ function ToolCallVisualization({
     // Handle both Convex Agent states ("result") and AI SDK states ("output-available")
     const isToolComplete =
       tc.state === "result" || tc.state === "output-available";
-    const artifacts =
-      isToolComplete && result && Array.isArray(result.artifacts)
-        ? result.artifacts
-            .map((value) => validateAgentArtifactEnvelope(value))
-            .filter((value): value is AgentArtifactEnvelope => value !== null)
-        : [];
+    const allArtifacts =
+      isToolComplete && result ? getAgentArtifactsFromToolResult(result) : [];
+    const supersededArtifactKeys =
+      tc.toolCallId && tc.toolCallId.length > 0
+        ? supersededArtifactKeysByToolCallId?.get(tc.toolCallId)
+        : undefined;
+    const artifacts = allArtifacts.filter((artifact) => {
+      const semanticKey = getAgentArtifactSemanticKey(artifact);
+      return !semanticKey || !supersededArtifactKeys?.has(semanticKey);
+    });
     if (artifacts.length > 0) {
       if (pendingMarkerToolCalls.length > 0) {
         renderedToolCallNodes.push(
@@ -659,8 +674,8 @@ function ToolCallVisualization({
             onApprovePlan={(planId: string) => {
               void approvePlan({ planId: planId as Id<"outreachPlans"> });
             }}
-            onDeletePlan={async (planId: string) => {
-              await toast.promise(
+            onDeletePlan={(planId: string) => {
+              toast.promise(
                 deletePlan({ planId: planId as Id<"outreachPlans"> }),
                 {
                   loading: "Deleting plan...",
@@ -674,40 +689,8 @@ function ToolCallVisualization({
       }
       continue;
     }
-    const artifact =
-      isToolComplete && result ? getAgentArtifactFromResult(result) : null;
-    if (artifact) {
-      if (pendingMarkerToolCalls.length > 0) {
-        renderedToolCallNodes.push(
-          <ToolCallGroup
-            key={`tool-group-${idx}`}
-            toolCalls={[...pendingMarkerToolCalls]}
-          />
-        );
-        pendingMarkerToolCalls.length = 0;
-      }
-
-      renderedToolCallNodes.push(
-        <ArtifactToolResult
-          key={`${tc.toolName}-${idx}`}
-          artifact={artifact}
-          onOpenPanelFromCard={onOpenPanelFromCard}
-          onOpenPlanPanel={onOpenPlanPanel}
-          onApprovePlan={(planId: string) => {
-            void approvePlan({ planId: planId as Id<"outreachPlans"> });
-          }}
-          onDeletePlan={async (planId: string) => {
-            await toast.promise(
-              deletePlan({ planId: planId as Id<"outreachPlans"> }),
-              {
-                loading: "Deleting plan...",
-                success: "Plan deleted",
-                error: "Failed to delete plan",
-              }
-            );
-          }}
-        />
-      );
+    if (allArtifacts.length > 0) {
+      pendingMarkerToolCalls.push(tc);
       continue;
     }
 
@@ -755,6 +738,16 @@ function ToolCallVisualization({
         typeof plan.strategy?.rationale === "string"
       ) {
         const planId = typeof plan.id === "string" ? plan.id : undefined;
+        const legacyPlanSemanticKey = planId
+          ? `PlanPreviewCard:${planId}`
+          : null;
+        if (
+          legacyPlanSemanticKey &&
+          supersededArtifactKeys?.has(legacyPlanSemanticKey)
+        ) {
+          pendingMarkerToolCalls.push(tc);
+          continue;
+        }
         if (pendingMarkerToolCalls.length > 0) {
           renderedToolCallNodes.push(
             <ToolCallGroup
@@ -781,8 +774,8 @@ function ToolCallVisualization({
                 planId: resolvedPlanId as Id<"outreachPlans">,
               });
             }}
-            onDeletePlan={async (resolvedPlanId: string) => {
-              await toast.promise(
+            onDeletePlan={(resolvedPlanId: string) => {
+              toast.promise(
                 deletePlan({
                   planId: resolvedPlanId as Id<"outreachPlans">,
                 }),
@@ -1585,6 +1578,8 @@ function ChatMessage({
         typeof part.errorText === "string" ? part.errorText : undefined,
     });
   }
+  const supersededArtifactKeysByToolCallId =
+    getSupersededArtifactKeysByToolCallId(toolCalls);
 
   const failedStateMessage =
     isAssistant &&
@@ -1743,6 +1738,9 @@ function ChatMessage({
                       toolCalls={[tc]}
                       onOpenPanelFromCard={onOpenPanelFromCard}
                       onOpenPlanPanel={onOpenPlanPanel}
+                      supersededArtifactKeysByToolCallId={
+                        supersededArtifactKeysByToolCallId
+                      }
                     />
                   </motion.div>
                 );
@@ -1764,6 +1762,9 @@ function ChatMessage({
                   toolCalls={toolCalls}
                   onOpenPanelFromCard={onOpenPanelFromCard}
                   onOpenPlanPanel={onOpenPlanPanel}
+                  supersededArtifactKeysByToolCallId={
+                    supersededArtifactKeysByToolCallId
+                  }
                 />
               </motion.div>
             )}
