@@ -20,10 +20,13 @@ test("DM-only plan refinement skips X post-limit validation", () => {
     refinePlanSource,
     /normalizedTasks\?\.some\(\(task\) => task\.type === "comment"\)/
   );
-  assert.match(refinePlanSource, /const repairedTaskResult = hasCommentTasks/);
+  assert.match(
+    refinePlanSource,
+    /const repairedTaskResult =\s+hasCommentTasks/
+  );
   assert.match(
     outreachCoreSource,
-    /const postLimit = hasCommentTasks[\s\S]*?getEffectivePostTextLimitForUser/
+    /const postLimit = hasXCommentTasks[\s\S]*?getEffectivePostTextLimitForUser/
   );
 });
 
@@ -57,7 +60,7 @@ test("agent provider routing avoids a degraded single-provider lane", () => {
   assert.match(aiSource, /sort: "latency"/);
   assert.match(
     aiSource,
-    /OPENROUTER_PROVIDERS\.CEREBRAS,[\s\S]*?OPENROUTER_PROVIDERS\.GROQ/
+    /PINNED_AGENT_PROVIDER_OPTIONS[\s\S]*?OPENROUTER_PROVIDERS\.CEREBRAS,[\s\S]*?OPENROUTER_PROVIDERS\.GROQ,[\s\S]*?OPENROUTER_PROVIDERS\.BASETEN/
   );
   assert.match(contextSource, /maxRetries: OUTREACH_AGENT_MAX_RETRIES/);
 });
