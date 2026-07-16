@@ -2,11 +2,13 @@
 // Agent definitions using @convex-dev/agent + OpenRouter
 
 import { Agent } from "@convex-dev/agent";
-import { wrapLanguageModel } from "ai";
+import { stepCountIs, wrapLanguageModel } from "ai";
 import { components, internal } from "../_generated/api";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   type OpenRouterProviderOptions,
+  OUTREACH_AGENT_MODEL,
+  OUTREACH_AGENT_PROVIDER_OPTIONS,
   PINNED_AGENT_MODEL,
   PINNED_AGENT_PROVIDER_OPTIONS,
   PINNED_VISION_MODEL,
@@ -19,38 +21,36 @@ import {
 } from "../lib/agentMetadata";
 import { buildMainAgentPrompt, buildSetupAgentPrompt } from "./prompts";
 import { DEFAULT_WORKSPACE_USE_CASE_KEY } from "../../shared/lib/workspaceUseCases";
+import { analyzeUrl } from "./tools/analyzeUrl";
+import { convertToSocialQueries } from "./tools/convertToSocialQueries";
+import { createWorkspace } from "./tools/createWorkspace";
+import { enrichProspect } from "./tools/enrichProspect";
+import { generateImprovedDescriptionAndICPs } from "./tools/generateImprovedDescription";
+import { getUserStatus } from "./tools/getUserStatus";
+import { listProspectPlans, managePlanBatch } from "./tools/planBatch";
+import { qualifyProspect } from "./tools/qualifyProspect";
+import { queryWorkspace } from "./tools/queryWorkspace";
+import { rememberWorkspaceMemory } from "./tools/rememberWorkspaceMemory";
+import { searchProspects } from "./tools/searchProspects";
+import { searchWorkspaceMemories } from "./tools/searchWorkspaceMemories";
+import { updateWorkspace } from "./tools/updateWorkspace";
+import { approveSocialActionRequest } from "./outreach/tools/approveSocialActionRequest";
+import { approveTask } from "./outreach/tools/approveTask";
+import { askHuman } from "./outreach/tools/askHuman";
+import { displayEntity } from "./outreach/tools/displayEntity";
+import { getProspectInteractionHistory } from "./outreach/tools/getProspectInteractionHistory";
+import { getProspectPlan } from "./outreach/tools/getProspectPlan";
+import { getSocialContext } from "./outreach/tools/getSocialContext";
+import { inspectWorkspace } from "./outreach/tools/inspectWorkspace";
 import {
-  analyzeUrl,
-  generateImprovedDescriptionAndICPs,
-  getUserStatus,
-  createWorkspace,
-  updateWorkspace,
-  convertToSocialQueries,
-  searchProspects,
-  qualifyProspect,
-  enrichProspect,
-  rememberWorkspaceMemory,
-  searchWorkspaceMemories,
-  listProspectPlans,
-  queryWorkspace,
-  managePlanBatch,
-} from "./tools";
-import {
-  approveSocialActionRequest,
-  approveTask,
-  askHuman,
   cancelPlan,
   deletePlan,
-  displayEntity,
-  getProspectInteractionHistory,
-  getProspectPlan,
-  getSocialContext,
-  inspectWorkspace,
   pausePlan,
-  researchProspect,
   resumePlan,
-  socialAction,
-} from "./outreach/tools";
+} from "./outreach/tools/planLifecycle";
+import { researchProspect } from "./outreach/tools/researchProspect";
+import { socialAction } from "./outreach/tools/socialAction";
+import { stopOnDeferredAgentExecution } from "../lib/deferredAgentTurn";
 
 // ============================================================================
 // Lazy Model Provider
@@ -103,6 +103,11 @@ export const workspaceLanguageModel = createWorkspaceLanguageModel(
   PINNED_AGENT_PROVIDER_OPTIONS
 );
 
+export const workspaceMainLanguageModel = createWorkspaceLanguageModel(
+  OUTREACH_AGENT_MODEL,
+  OUTREACH_AGENT_PROVIDER_OPTIONS
+);
+
 export const workspaceVisionLanguageModel = createWorkspaceLanguageModel(
   PINNED_VISION_MODEL,
   PINNED_VISION_PROVIDER_OPTIONS
@@ -137,10 +142,13 @@ const mainAgentBaseTools = {
 
 export const mainAgent = new Agent(components.agent, {
   name: "Main Agent",
-  languageModel: workspaceLanguageModel,
+  languageModel: workspaceMainLanguageModel,
   instructions: buildMainAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
   tools: mainAgentBaseTools,
-  maxSteps: 15,
+  stopWhen: [
+    stepCountIs(15),
+    stopOnDeferredAgentExecution<typeof mainAgentBaseTools>(),
+  ],
   contextOptions: {
     recentMessages: 20,
   },

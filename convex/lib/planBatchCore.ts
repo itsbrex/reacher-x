@@ -48,6 +48,43 @@ export type PlanBatchReferenceCatalogItem = {
   createdAt: number;
 };
 
+function getModelMessageText(message: ModelMessage): string {
+  if (typeof message.content === "string") {
+    return message.content.trim();
+  }
+
+  const textParts: string[] = [];
+  for (const part of message.content) {
+    if (part.type !== "text") {
+      continue;
+    }
+
+    const text = part.text.trim();
+    if (text) {
+      textParts.push(text);
+    }
+  }
+  return textParts.join("\n");
+}
+
+export function getLatestPlanBatchUserPrompt(
+  messages: ModelMessage[]
+): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const text = getModelMessageText(message);
+    if (text) {
+      return text;
+    }
+  }
+
+  return undefined;
+}
+
 export function createPlanBatchReferenceKey(): string {
   const randomPart = crypto.randomUUID().replaceAll("-", "").slice(0, 16);
   return `${PLAN_BATCH_REFERENCE_PREFIX}${randomPart}`;
@@ -328,9 +365,11 @@ export function buildScopedPlanBatchPrompt(args: {
   prospectName: string;
   operation: PlanBatchItemOperation;
   sharedInstruction: string;
+  sourcePrompt?: string;
   targetInstruction?: string;
   attachments: PlanBatchAttachment[];
 }): string {
+  const sourcePrompt = args.sourcePrompt?.trim();
   const targetInstruction = args.targetInstruction?.trim();
   const attachmentLines = args.attachments.map(
     (attachment) =>
@@ -342,6 +381,9 @@ export function buildScopedPlanBatchPrompt(args: {
     "",
     `This request applies only to ${args.prospectName}.`,
     "Never reference, infer, or use instructions or profile data belonging to another prospect.",
+    ...(sourcePrompt
+      ? ["", "Original user message that initiated this work:", sourcePrompt]
+      : []),
     "",
     "Shared instruction:",
     args.sharedInstruction.trim(),
@@ -379,13 +421,7 @@ export function filterLegacySharedBatchTurns(
 
   for (const message of messages) {
     if (message.role === "user") {
-      const messageText =
-        typeof message.content === "string"
-          ? message.content
-          : message.content
-              .filter((part) => part.type === "text")
-              .map((part) => part.text)
-              .join(" ");
+      const messageText = getModelMessageText(message);
       const isLegacySharedBatch = messageText.includes(
         LEGACY_SHARED_PROSPECT_BATCH_PROMPT_PREFIX
       );

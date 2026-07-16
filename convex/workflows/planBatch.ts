@@ -11,6 +11,22 @@ export const planBatchWorkflow = workflow.define({
     status: v.string(),
   }),
   handler: async (step, { runId }): Promise<{ status: string }> => {
+    const finalizeAgentResponse = async () => {
+      const terminalRun = await step.runQuery(
+        internal.planBatches.getPlanBatchRunInternal,
+        { runId }
+      );
+      if (
+        terminalRun?.responsePromptMessageId &&
+        !terminalRun.agentResponseCompletedAt
+      ) {
+        await step.runAction(internal.chat.resumePlanBatchAgentResponse, {
+          runId,
+        });
+      }
+      return terminalRun?.status ?? "missing";
+    };
+
     while (true) {
       const selection = await step.runMutation(
         internal.planBatches.selectPlanBatchTargetsPage,
@@ -41,11 +57,13 @@ export const planBatchWorkflow = workflow.define({
       }
     }
 
-    if (run.status === "cancelled" || run.status === "failed") {
-      return { status: run.status };
-    }
-    if (run.status === "completed" || run.status === "partial") {
-      return { status: run.status };
+    if (
+      run.status === "cancelled" ||
+      run.status === "failed" ||
+      run.status === "completed" ||
+      run.status === "partial"
+    ) {
+      return { status: await finalizeAgentResponse() };
     }
 
     while (true) {
@@ -58,6 +76,18 @@ export const planBatchWorkflow = workflow.define({
       }
     }
 
-    return { status: "dispatched" };
+    run = await step.runQuery(internal.planBatches.getPlanBatchRunInternal, {
+      runId,
+    });
+    if (
+      run &&
+      !["completed", "partial", "failed", "cancelled"].includes(run.status)
+    ) {
+      await step.awaitEvent({
+        name: getPlanBatchWorkflowEventName(String(runId)),
+      });
+    }
+
+    return { status: await finalizeAgentResponse() };
   },
 });

@@ -1,6 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { updatePendingTurnPhase } from "../features/agent/lib/pendingTurnState";
+import {
+  isPlanBatchTurnWaiting,
+  updatePendingTurnPhase,
+} from "../features/agent/lib/pendingTurnState";
+
+test("keeps plan batch turns pending until the Agent response completes", () => {
+  assert.equal(
+    isPlanBatchTurnWaiting({
+      status: "running",
+      agentResponseCompleted: false,
+    }),
+    true
+  );
+  assert.equal(
+    isPlanBatchTurnWaiting({
+      status: "completed",
+      agentResponseCompleted: false,
+    }),
+    true
+  );
+  assert.equal(
+    isPlanBatchTurnWaiting({
+      status: "completed",
+      agentResponseCompleted: true,
+    }),
+    false
+  );
+  assert.equal(isPlanBatchTurnWaiting(null), false);
+});
 
 test("returns the same pending turn when the phase is already current", () => {
   const pendingTurn = {

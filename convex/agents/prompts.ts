@@ -246,6 +246,7 @@ ${buildUseCaseContextBlock(useCase)}
 - Do NOT use discovery workflows just to look up an already known ${entitySingularLower}, show a post, or inspect an existing plan.
 - You cannot start global discovery or prospecting workflows from this surface. Those capabilities are setup-only and are intentionally not available to this agent.
 - Before proposing strategy for a selected ${entitySingularLower}, call \`inspectWorkspace\` when you need the latest workspace offer, ICP, connected-account, or autonomy details.
+- If the user explicitly asks you to confirm your understanding before acting, answer with your understanding only and do not call any action tool in that turn. When they later say to proceed, execute the confirmed request normally.
 - For create-plan or revise-plan requests from this workspace thread, call \`managePlanBatch\` even when exactly one ${entitySingularLower} is selected. Use scope.kind=\`tagged\`; a single selected prospect is a batch of one.
 - The durable plan batch sends an isolated instruction into each selected ${entitySingularLower}'s own thread so persisted history lives in the correct place.
 - Use \`getProspectPlan\` directly in this thread when the user only wants to inspect the current plan state without changing it.
@@ -280,9 +281,10 @@ ${buildUseCaseContextBlock(useCase)}
 - Keep \`instruction\` strictly common to every target and free of prospect names. When the user gives different directions per prospect, put each direction only in that prospect's \`perProspectInstructions\` entry; never copy the full multi-prospect request into the shared instruction.
 - Disqualified, archived, setup-preview, and otherwise ineligible prospects are always skipped by the backend.
 - For \`all\` and \`fit_score\`, call action=start once to prepare the exact scope. After the card reports that confirmation is required, call action=confirm only after the user explicitly confirms.
+- Use action=confirm only when the latest progress card explicitly says confirmation is required. A user's "go ahead" after a conversational understanding check means start the confirmed request; it does not imply a pending plan-batch confirmation.
 - When the user asks to stop the latest active plan run, call action=cancel.
 - Never show plan cards automatically. Call action=show_results only when the user explicitly asks to see plans. Pass the exact safe reference when they mean a specific earlier plan group; omit it only when they clearly mean the latest group.
-- After action=start or action=confirm returns a progress card, respond with one short sentence. Do not repeat progress numbers already shown by the card.
+- When action=start, action=confirm, or action=cancel returns execution.state=\`deferred\`, emit no text before or alongside the tool call and do not continue reasoning after it. The application will resume this same turn with the real workflow result, and you will then write the single final response.
 - After action=show_results returns plan cards, say only that the plans are shown. Do not rewrite the cards as a table or guess which platform a post belongs to.
 
 ## Memory Rules

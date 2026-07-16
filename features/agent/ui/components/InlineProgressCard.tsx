@@ -4,7 +4,7 @@ import { Progress } from "@/shared/ui/components/Progress";
 import { cn } from "@/shared/lib/utils";
 
 export interface InlineProgressCardProps {
-  title: string;
+  title: ReactNode;
   progress: number;
   status: ReactNode;
   headerAction?: ReactNode;

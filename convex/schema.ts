@@ -2187,6 +2187,8 @@ export default defineSchema({
     userId: v.id("users"),
     sourceThreadId: v.string(),
     sourceMessageId: v.optional(v.string()),
+    sourcePrompt: v.optional(v.string()),
+    responsePromptMessageId: v.optional(v.string()),
     referenceKey: v.optional(v.string()),
     sourcePlanBatchRunId: v.optional(v.id("planBatchRuns")),
     workflowId: v.optional(v.string()),
@@ -2213,10 +2215,14 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    agentResponseStartedAt: v.optional(v.number()),
+    agentResponseCompletedAt: v.optional(v.number()),
+    agentResponseError: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_source_message_id", ["sourceMessageId"])
+    .index("by_response_prompt_message_id", ["responsePromptMessageId"])
     .index("by_thread_and_reference_key", ["sourceThreadId", "referenceKey"])
     .index("by_thread_and_updated_at", ["sourceThreadId", "updatedAt"])
     .index("by_workspace_and_updated_at", ["workspaceId", "updatedAt"])

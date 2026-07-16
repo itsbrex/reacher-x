@@ -180,6 +180,19 @@ function buildPlanBatchCopyState(
   };
 }
 
+const TERMINAL_PLAN_BATCH_STATUSES = new Set<Doc<"planBatchRuns">["status"]>([
+  "completed",
+  "partial",
+  "failed",
+  "cancelled",
+]);
+
+function isTerminalPlanBatchStatus(
+  status: Doc<"planBatchRuns">["status"]
+): boolean {
+  return TERMINAL_PLAN_BATCH_STATUSES.has(status);
+}
+
 async function upsertPlanBatchStartedNotification(
   ctx: MutationCtx,
   run: Doc<"planBatchRuns">
@@ -579,6 +592,8 @@ export const createPlanBatchRunInternal = internalMutation({
     userId: v.id("users"),
     sourceThreadId: v.string(),
     sourceMessageId: v.optional(v.string()),
+    sourcePrompt: v.optional(v.string()),
+    responsePromptMessageId: v.optional(v.string()),
     operation: planBatchOperationValidator,
     scopeKind: planBatchScopeKindValidator,
     sourcePlanBatchReference: v.optional(v.string()),
@@ -672,13 +687,14 @@ export const createPlanBatchRunInternal = internalMutation({
     }
 
     let sourcePlanBatchRunId: Id<"planBatchRuns"> | undefined;
+    let referencedRun: Doc<"planBatchRuns"> | null = null;
     if (args.scopeKind === "plan_group") {
       if (!args.sourcePlanBatchReference) {
         throw new Error(
           "Choose one of the available outreach plan references from this conversation."
         );
       }
-      const referencedRun = await ctx.db
+      referencedRun = await ctx.db
         .query("planBatchRuns")
         .withIndex("by_thread_and_reference_key", (q) =>
           q
@@ -771,7 +787,7 @@ export const createPlanBatchRunInternal = internalMutation({
       );
     }
 
-    const attachments = await collectBatchAttachments(
+    const selectedAttachments = await collectBatchAttachments(
       ctx,
       [sourceContext, targetContext],
       {
@@ -779,6 +795,10 @@ export const createPlanBatchRunInternal = internalMutation({
         workspaceId: args.workspaceId,
       }
     );
+    const attachments =
+      selectedAttachments.length > 0
+        ? selectedAttachments
+        : (referencedRun?.attachments ?? []);
     const now = getCurrentUTCTimestamp();
     const referenceKey = createPlanBatchReferenceKey();
     const runId = await ctx.db.insert("planBatchRuns", {
@@ -786,6 +806,8 @@ export const createPlanBatchRunInternal = internalMutation({
       userId: args.userId,
       sourceThreadId: args.sourceThreadId,
       sourceMessageId: args.sourceMessageId,
+      sourcePrompt: args.sourcePrompt?.trim() || undefined,
+      responsePromptMessageId: args.responsePromptMessageId,
       referenceKey,
       sourcePlanBatchRunId,
       operation: args.operation,
@@ -1022,6 +1044,7 @@ export const confirmLatestPlanBatchInternal = internalMutation({
     sourceThreadId: v.string(),
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
+    responsePromptMessageId: v.optional(v.string()),
   },
   returns: v.union(v.id("planBatchRuns"), v.null()),
   handler: async (ctx, args) => {
@@ -1032,6 +1055,10 @@ export const confirmLatestPlanBatchInternal = internalMutation({
     const now = getCurrentUTCTimestamp();
     await ctx.db.patch("planBatchRuns", run._id, {
       status: "queued",
+      responsePromptMessageId: args.responsePromptMessageId,
+      agentResponseStartedAt: undefined,
+      agentResponseCompletedAt: undefined,
+      agentResponseError: undefined,
       startedAt: now,
       updatedAt: now,
     });
@@ -1046,6 +1073,7 @@ export const cancelLatestPlanBatchInternal = internalMutation({
     sourceThreadId: v.string(),
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
+    responsePromptMessageId: v.optional(v.string()),
   },
   returns: v.union(v.id("planBatchRuns"), v.null()),
   handler: async (ctx, args) => {
@@ -1059,6 +1087,10 @@ export const cancelLatestPlanBatchInternal = internalMutation({
     const now = getCurrentUTCTimestamp();
     await ctx.db.patch("planBatchRuns", run._id, {
       status: "cancelled",
+      responsePromptMessageId: args.responsePromptMessageId,
+      agentResponseStartedAt: undefined,
+      agentResponseCompletedAt: undefined,
+      agentResponseError: undefined,
       completedAt: now,
       updatedAt: now,
     });
@@ -1212,10 +1244,17 @@ export const handlePlanBatchWorkflowComplete = internalMutation({
     }
 
     const run = await ctx.db.get("planBatchRuns", args.context.runId);
-    if (
-      !run ||
-      ["completed", "partial", "failed", "cancelled"].includes(run.status)
-    ) {
+    if (!run) {
+      return null;
+    }
+    if (isTerminalPlanBatchStatus(run.status)) {
+      if (run.responsePromptMessageId && !run.agentResponseCompletedAt) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.chat.resumePlanBatchAgentResponse,
+          { runId: run._id }
+        );
+      }
       return null;
     }
 
@@ -1250,6 +1289,13 @@ export const handlePlanBatchWorkflowComplete = internalMutation({
       actionLabel: "Open chat",
       threadId: run.sourceThreadId,
     });
+    if (run.responsePromptMessageId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.chat.resumePlanBatchAgentResponse,
+        { runId: run._id }
+      );
+    }
     await ctx.scheduler.runAfter(
       0,
       internal.planBatches.cancelQueuedPlanBatchItemsPage,
@@ -1490,6 +1536,7 @@ export const handlePlanBatchItemComplete = internalMutation({
       actionLabel: "Open chat",
       threadId: run.sourceThreadId,
     });
+    await signalPlanBatchWorkflow(ctx, completedRun);
     return null;
   },
 });
@@ -1509,6 +1556,7 @@ export const getPlanBatchRun = query({
       notAuthorizedMessage: "Not authorized",
     });
     const showNamedIssues = run.eligibleCount > 0 && run.eligibleCount <= 2;
+    const targetNamesPromise = getSmallPlanBatchTargetNames(ctx, run);
     const failedItems = showNamedIssues
       ? await ctx.db
           .query("planBatchItems")
@@ -1531,7 +1579,7 @@ export const getPlanBatchRun = query({
         };
       })
     );
-    const targetNames = await getSmallPlanBatchTargetNames(ctx, run);
+    const targetNames = await targetNamesPromise;
     return {
       _id: run._id,
       operation: run.operation,
@@ -1550,6 +1598,187 @@ export const getPlanBatchRun = query({
       finishedCount: run.finishedCount,
       targetNames,
       issues,
+    };
+  },
+});
+
+export const getPlanBatchAgentResponseContextInternal = internalQuery({
+  args: { runId: v.id("planBatchRuns") },
+  returns: v.any(),
+  handler: async (ctx, { runId }) => {
+    const run = await ctx.db.get("planBatchRuns", runId);
+    if (!run) {
+      return null;
+    }
+
+    const [targetNames, failedItems] = await Promise.all([
+      getSmallPlanBatchTargetNames(ctx, run),
+      ctx.db
+        .query("planBatchItems")
+        .withIndex("by_run_and_status", (q) =>
+          q.eq("runId", runId).eq("status", "failed")
+        )
+        .take(10),
+    ]);
+
+    return {
+      runId: run._id,
+      threadId: run.sourceThreadId,
+      promptMessageId: run.responsePromptMessageId,
+      responseStartedAt: run.agentResponseStartedAt,
+      responseCompletedAt: run.agentResponseCompletedAt,
+      result: {
+        status: run.status,
+        operation: run.operation,
+        targetCount: run.targetCount,
+        eligibleCount: run.eligibleCount,
+        succeededCount: run.succeededCount,
+        createdCount: run.createdCount ?? 0,
+        updatedCount: run.updatedCount ?? 0,
+        failedCount: run.failedCount,
+        skippedCount: run.skippedCount,
+        errorMessage: run.errorMessage,
+        targetNames,
+        issues: failedItems.map((item) => ({
+          prospectName: item.prospectName ?? "Prospect",
+          reason: item.errorMessage ?? "Could not finish this plan",
+        })),
+      },
+    };
+  },
+});
+
+export const claimPlanBatchAgentResponseInternal = internalMutation({
+  args: { runId: v.id("planBatchRuns") },
+  returns: v.union(
+    v.object({
+      startedAt: v.number(),
+      shouldGenerate: v.boolean(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, { runId }) => {
+    const run = await ctx.db.get("planBatchRuns", runId);
+    if (
+      !run ||
+      !run.responsePromptMessageId ||
+      !isTerminalPlanBatchStatus(run.status)
+    ) {
+      return null;
+    }
+
+    if (run.agentResponseCompletedAt) {
+      return {
+        startedAt: run.agentResponseStartedAt ?? run.agentResponseCompletedAt,
+        shouldGenerate: false,
+      };
+    }
+
+    if (run.agentResponseStartedAt && !run.agentResponseError) {
+      return {
+        startedAt: run.agentResponseStartedAt,
+        shouldGenerate: false,
+      };
+    }
+
+    const startedAt = run.agentResponseStartedAt ?? getCurrentUTCTimestamp();
+    await ctx.db.patch("planBatchRuns", runId, {
+      agentResponseStartedAt: startedAt,
+      agentResponseError: undefined,
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+    return { startedAt, shouldGenerate: true };
+  },
+});
+
+export const completePlanBatchAgentResponseInternal = internalMutation({
+  args: { runId: v.id("planBatchRuns") },
+  returns: v.null(),
+  handler: async (ctx, { runId }) => {
+    const run = await ctx.db.get("planBatchRuns", runId);
+    if (!run || run.agentResponseCompletedAt) {
+      return null;
+    }
+
+    await ctx.db.patch("planBatchRuns", runId, {
+      agentResponseCompletedAt: getCurrentUTCTimestamp(),
+      agentResponseError: undefined,
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+    return null;
+  },
+});
+
+export const reopenPlanBatchAgentResponseInternal = internalMutation({
+  args: {
+    runId: v.id("planBatchRuns"),
+    errorMessage: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { runId, errorMessage }) => {
+    const run = await ctx.db.get("planBatchRuns", runId);
+    if (!run || !isTerminalPlanBatchStatus(run.status)) {
+      return null;
+    }
+
+    await ctx.db.patch("planBatchRuns", runId, {
+      agentResponseCompletedAt: undefined,
+      agentResponseError: errorMessage,
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+    return null;
+  },
+});
+
+export const failPlanBatchAgentResponseInternal = internalMutation({
+  args: {
+    runId: v.id("planBatchRuns"),
+    errorMessage: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { runId, errorMessage }) => {
+    const run = await ctx.db.get("planBatchRuns", runId);
+    if (!run || run.agentResponseCompletedAt) {
+      return null;
+    }
+
+    await ctx.db.patch("planBatchRuns", runId, {
+      agentResponseError: errorMessage,
+      updatedAt: getCurrentUTCTimestamp(),
+    });
+    return null;
+  },
+});
+
+export const getPlanBatchTurnState = query({
+  args: { messageId: v.string() },
+  returns: v.union(
+    v.object({
+      status: planBatchRunStatusValidator,
+      agentResponseCompleted: v.boolean(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, { messageId }) => {
+    const user = await requireUser(ctx);
+    const run = await ctx.db
+      .query("planBatchRuns")
+      .withIndex("by_response_prompt_message_id", (q) =>
+        q.eq("responsePromptMessageId", messageId)
+      )
+      .first();
+    if (!run || run.userId !== user._id) {
+      return null;
+    }
+    await requireOwnedWorkspace(ctx, run.workspaceId, {
+      user,
+      notFoundMessage: "Workspace not found",
+      notAuthorizedMessage: "Not authorized",
+    });
+
+    return {
+      status: run.status,
+      agentResponseCompleted: Boolean(run.agentResponseCompletedAt),
     };
   },
 });

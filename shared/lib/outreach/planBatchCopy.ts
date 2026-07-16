@@ -290,6 +290,45 @@ export function getPlanBatchCopy(state: PlanBatchCopyState): PlanBatchCopy {
   }
 }
 
+export interface PlanBatchTitleValue {
+  text: string;
+  kind: "count" | "name";
+}
+
+export function getPlanBatchTitleValues(
+  state: PlanBatchCopyState
+): PlanBatchTitleValue[] {
+  switch (state.status) {
+    case "awaiting_confirmation":
+      return [{ text: formatCount(state.eligibleCount), kind: "count" }];
+    case "queued":
+    case "running": {
+      const names = getSmallTargetNames(state);
+      return names.length > 0
+        ? names.map((name) => ({ text: name, kind: "name" as const }))
+        : [{ text: formatCount(state.eligibleCount), kind: "count" }];
+    }
+    case "completed": {
+      if (state.succeededCount === 0) {
+        return [];
+      }
+      const names = getSmallTargetNames(state);
+      return names.length > 0
+        ? names.map((name) => ({ text: name, kind: "name" as const }))
+        : [{ text: formatCount(state.succeededCount), kind: "count" }];
+    }
+    case "partial":
+      return [
+        { text: formatCount(state.succeededCount), kind: "count" },
+        { text: formatCount(state.eligibleCount), kind: "count" },
+      ];
+    case "selecting":
+    case "failed":
+    case "cancelled":
+      return [];
+  }
+}
+
 export function getPlanBatchStartedMessage(operation: PlanBatchCopyOperation) {
   if (operation === "create") {
     return "Started creating the selected outreach plans.";

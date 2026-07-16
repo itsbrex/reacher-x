@@ -10,11 +10,139 @@ import {
   buildScopedPlanBatchPrompt,
   filterLegacySharedBatchTurns,
   getDefaultPlanBatchInstruction,
+  getLatestPlanBatchUserPrompt,
   normalizePlanBatchFitRange,
   resolvePlanBatchApplication,
   resolvePlanBatchEligibility,
   resolvePlanBatchTargetInstructions,
 } from "../convex/lib/planBatchCore";
+import {
+  createDeferredAgentExecution,
+  getDeferredAgentExecution,
+  stopOnDeferredAgentExecution,
+} from "../convex/lib/deferredAgentTurn";
+import {
+  buildPlanBatchAgentContinuationMessages,
+  buildPlanBatchAgentTerminalToolOutput,
+} from "../convex/lib/planBatchAgentContinuation";
+
+test("deferred tool results stop the current model loop", async () => {
+  const stopCondition = stopOnDeferredAgentExecution();
+  const shouldStop = await stopCondition({
+    steps: [
+      {
+        toolResults: [
+          {
+            output: {
+              execution: createDeferredAgentExecution("run_123"),
+            },
+          },
+        ],
+      },
+    ] as never,
+  });
+
+  assert.equal(shouldStop, true);
+  assert.deepEqual(
+    getDeferredAgentExecution({
+      type: "json",
+      value: {
+        execution: createDeferredAgentExecution("run_123"),
+      },
+    }),
+    createDeferredAgentExecution("run_123")
+  );
+});
+
+test("plan batch continuation replaces the stale deferred result for the Agent", () => {
+  const result = {
+    status: "partial",
+    operation: "update",
+    targetCount: 3,
+    eligibleCount: 3,
+    succeededCount: 2,
+    createdCount: 0,
+    updatedCount: 2,
+    failedCount: 1,
+    skippedCount: 0,
+    targetNames: [],
+    issues: [{ prospectName: "Ada", reason: "Plan changed" }],
+  };
+  const deferredOutput = {
+    type: "json" as const,
+    value: {
+      execution: createDeferredAgentExecution("run_123"),
+    },
+  };
+  const existingResponses: ModelMessage[] = [
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "tool-call-1",
+          toolName: "managePlanBatch",
+          input: { action: "start" },
+        },
+      ],
+    },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "tool-call-1",
+          toolName: "managePlanBatch",
+          output: deferredOutput,
+        },
+      ],
+    },
+  ];
+
+  const messages = buildPlanBatchAgentContinuationMessages(
+    {
+      search: [],
+      recent: [],
+      inputMessages: [],
+      inputPrompt: [{ role: "user", content: "Update these plans." }],
+      existingResponses,
+    },
+    {
+      runId: "run_123",
+      result,
+    }
+  );
+  const terminalToolMessage = messages.at(-1);
+  assert.equal(terminalToolMessage?.role, "tool");
+  if (terminalToolMessage?.role !== "tool") {
+    assert.fail("Expected the terminal tool result");
+  }
+  const terminalPart = terminalToolMessage.content[0];
+  assert.equal(terminalPart.type, "tool-result");
+  if (terminalPart.type !== "tool-result") {
+    assert.fail("Expected a terminal tool-result part");
+  }
+
+  assert.equal(getDeferredAgentExecution(terminalPart.output), null);
+  assert.deepEqual(terminalPart.output, {
+    type: "json",
+    value: buildPlanBatchAgentTerminalToolOutput({
+      runId: "run_123",
+      result,
+    }),
+  });
+  assert.deepEqual(existingResponses[1], {
+    role: "tool",
+    content: [
+      {
+        type: "tool-result",
+        toolCallId: "tool-call-1",
+        toolName: "managePlanBatch",
+        output: deferredOutput,
+      },
+    ],
+  });
+});
 
 test("fit-score ranges are inclusive, bounded, and ordered", () => {
   assert.deepEqual(normalizePlanBatchFitRange({ min: 69.6, max: 80.4 }), {
@@ -137,6 +265,8 @@ test("scoped prompts contain only the current prospect instruction", () => {
     prospectName: "Michel Lieben",
     operation: "update",
     sharedInstruction: "Make the opener shorter.",
+    sourcePrompt:
+      "Keep the existing attachment and make the follow-up feel natural.",
     targetInstruction: "Reference Michel's latest launch.",
     attachments: [
       {
@@ -149,8 +279,30 @@ test("scoped prompts contain only the current prospect instruction", () => {
 
   assert.match(prompt, /Michel Lieben/);
   assert.match(prompt, /Michel's latest launch/);
+  assert.match(prompt, /Keep the existing attachment/);
   assert.match(prompt, /https:\/\/example.com\/michel.png/);
   assert.doesNotMatch(prompt, /Nick|Logan/);
+});
+
+test("plan batches preserve the user's exact initiating message", () => {
+  const messages: ModelMessage[] = [
+    { role: "user", content: "Create the original outreach plans." },
+    { role: "assistant", content: "The plans are ready." },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Keep the demo attached and use it in replies when relevant.",
+        },
+      ],
+    },
+  ];
+
+  assert.equal(
+    getLatestPlanBatchUserPrompt(messages),
+    "Keep the demo attached and use it in replies when relevant."
+  );
 });
 
 test("delegated plan creation gets a platform-neutral research-grounded default", () => {

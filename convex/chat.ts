@@ -28,7 +28,12 @@ import {
   type UIMessage,
   type StreamArgs,
 } from "@convex-dev/agent";
-import { mainAgent, setupAgent, workspaceVisionLanguageModel } from "./agents";
+import {
+  mainAgent,
+  setupAgent,
+  workspaceLanguageModel,
+  workspaceVisionLanguageModel,
+} from "./agents";
 import {
   classifyOutreachTurn,
   createOutreachTextLanguageModel,
@@ -57,6 +62,11 @@ import {
 } from "./lib/errorHelpers";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import { getProspectDisplayFields } from "./lib/notificationHelpers";
+import {
+  createPlanBatchAgentContinuationContextHandler,
+  type PlanBatchAgentResult,
+} from "./lib/planBatchAgentContinuation";
+import { getDeferredAgentExecution } from "./lib/deferredAgentTurn";
 import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
 import { getWideEventLogger } from "./lib/wideEventLogger";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
@@ -111,6 +121,7 @@ import {
 } from "./lib/outreachModelRoutingCore";
 import { buildPlanBatchReferenceCatalogContext } from "./lib/planBatchCore";
 import { buildAgentAttachmentReferenceContext } from "./lib/agentAttachmentReferenceCore";
+import { OUTREACH_AGENT_MODEL, PINNED_AGENT_MODEL } from "./lib/ai";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -1440,6 +1451,7 @@ async function runMainStreamText(
     system: string;
     messages?: AgentTurnContextMessage[];
     model?: LanguageModel;
+    disableTools?: boolean;
   }
 ) {
   return mainAgent.streamText(
@@ -1452,6 +1464,7 @@ async function runMainStreamText(
       ...(args.prompt ? { prompt: args.prompt } : {}),
       ...(args.messages?.length ? { messages: args.messages } : {}),
       ...(args.model ? { model: args.model } : {}),
+      ...(args.disableTools ? { tools: {} } : {}),
       system: args.system,
     },
     {
@@ -3049,11 +3062,12 @@ export const listThreadMessages = query({
     // response instead of falling back to the latest model in the thread.
     const [messageDocs, streams] = await Promise.all([
       listMessages(ctx, components.agent, args),
-      // By default syncStreams only returns streaming messages. Include finished
-      // to avoid UI flashes when messages aren't saved in same transaction.
       syncStreams(ctx, components.agent, {
         ...args,
-        includeStatuses: ["streaming", "aborted", "finished"],
+        // The Agent component saves the final message atomically with stream
+        // completion. Returning finished streams creates a duplicate ghost row
+        // until the component's delayed cleanup removes it.
+        includeStatuses: ["streaming", "aborted"],
       }),
     ]);
     const modelByAssistantOrder = new Map<number, string>();
@@ -3438,6 +3452,291 @@ export const streamAgentResponse = internalAction({
           promptMessageId: args.promptMessageId,
         },
         normalizedError
+      );
+      throw normalizedError;
+    }
+  },
+});
+
+type PlanBatchAgentResponseContext = {
+  runId: Id<"planBatchRuns">;
+  threadId: string;
+  promptMessageId?: string;
+  responseStartedAt?: number;
+  responseCompletedAt?: number;
+  result: PlanBatchAgentResult;
+};
+
+async function hasDeferredPlanBatchToolResult(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+    runId: Id<"planBatchRuns">;
+  }
+) {
+  const promptMessage = await getThreadMessageById(ctx, args.promptMessageId);
+  if (!promptMessage) {
+    return false;
+  }
+
+  const messages = await ctx.runQuery(
+    components.agent.messages.listMessagesByThreadId,
+    {
+      threadId: args.threadId,
+      order: "desc",
+      paginationOpts: {
+        numItems: RETRYABLE_AGENT_TURN_MESSAGE_WINDOW,
+        cursor: null,
+      },
+    }
+  );
+
+  return messages.page.some((message) => {
+    if (
+      message.order !== promptMessage.order ||
+      message.message?.role !== "tool"
+    ) {
+      return false;
+    }
+
+    return message.message.content.some((part) => {
+      if (part.type !== "tool-result" || part.toolName !== "managePlanBatch") {
+        return false;
+      }
+
+      return (
+        getDeferredAgentExecution(part.output)?.continuationId ===
+        String(args.runId)
+      );
+    });
+  });
+}
+
+async function hasCompletedSuccessfulAssistantResponseSince(
+  ctx: ActionCtx,
+  args: {
+    threadId: string;
+    promptMessageId: string;
+    startedAt: number;
+  }
+) {
+  const promptMessage = await getThreadMessageById(ctx, args.promptMessageId);
+  if (!promptMessage) {
+    return false;
+  }
+
+  const messages = await ctx.runQuery(
+    components.agent.messages.listMessagesByThreadId,
+    {
+      threadId: args.threadId,
+      order: "desc",
+      paginationOpts: {
+        numItems: RETRYABLE_AGENT_TURN_MESSAGE_WINDOW,
+        cursor: null,
+      },
+    }
+  );
+
+  return messages.page.some(
+    (message) =>
+      message.order === promptMessage.order &&
+      message._creationTime >= args.startedAt &&
+      message.message?.role === "assistant" &&
+      message.status === "success" &&
+      typeof message.text === "string" &&
+      message.text.trim().length > 0
+  );
+}
+
+export const resumePlanBatchAgentResponse = internalAction({
+  args: { runId: v.id("planBatchRuns") },
+  returns: v.null(),
+  handler: async (ctx, { runId }) => {
+    const responseContext = (await ctx.runQuery(
+      internal.planBatches.getPlanBatchAgentResponseContextInternal,
+      { runId }
+    )) as PlanBatchAgentResponseContext | null;
+    if (!responseContext?.promptMessageId) {
+      return null;
+    }
+    if (responseContext.responseCompletedAt) {
+      const hasSuccessfulResponse =
+        await hasCompletedSuccessfulAssistantResponseSince(ctx, {
+          threadId: responseContext.threadId,
+          promptMessageId: responseContext.promptMessageId,
+          startedAt: responseContext.responseStartedAt ?? 0,
+        });
+      if (hasSuccessfulResponse) {
+        return null;
+      }
+      await ctx.runMutation(
+        internal.planBatches.reopenPlanBatchAgentResponseInternal,
+        {
+          runId,
+          errorMessage:
+            "Completion marker had no successful assistant response.",
+        }
+      );
+    }
+    if (
+      !(await hasDeferredPlanBatchToolResult(ctx, {
+        threadId: responseContext.threadId,
+        promptMessageId: responseContext.promptMessageId,
+        runId,
+      }))
+    ) {
+      throw new Error(
+        "Deferred plan-batch tool result is not persisted yet; retrying."
+      );
+    }
+
+    const claim = await ctx.runMutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      { runId }
+    );
+    if (!claim || !claim.shouldGenerate) {
+      return null;
+    }
+
+    try {
+      if (
+        await hasCompletedSuccessfulAssistantResponseSince(ctx, {
+          threadId: responseContext.threadId,
+          promptMessageId: responseContext.promptMessageId,
+          startedAt: claim.startedAt,
+        })
+      ) {
+        await ctx.runMutation(
+          internal.planBatches.completePlanBatchAgentResponseInternal,
+          { runId }
+        );
+        return null;
+      }
+
+      const useCase = await resolveSetupUseCaseForThread(
+        ctx,
+        responseContext.threadId
+      );
+      const contextHandler = createPlanBatchAgentContinuationContextHandler({
+        runId: String(runId),
+        result: responseContext.result,
+      });
+      const attempts = [
+        {
+          model: undefined,
+          modelId: OUTREACH_AGENT_MODEL,
+        },
+        {
+          model: workspaceLanguageModel,
+          modelId: PINNED_AGENT_MODEL,
+        },
+      ] satisfies Array<{
+        model: LanguageModel | undefined;
+        modelId: string;
+      }>;
+      let responseText = "";
+      let responseFinishReason:
+        | "stop"
+        | "length"
+        | "content-filter"
+        | "tool-calls"
+        | "error"
+        | "other"
+        | "unknown"
+        | undefined;
+      let responseModelId = attempts[0].modelId;
+      let lastAttemptError: Error | null = null;
+
+      for (const [attemptIndex, attempt] of attempts.entries()) {
+        try {
+          const result = await mainAgent.generateText(
+            ctx,
+            { threadId: responseContext.threadId },
+            {
+              promptMessageId: responseContext.promptMessageId,
+              system: buildMainAgentPrompt(useCase),
+              tools: {},
+              ...(attempt.model ? { model: attempt.model } : {}),
+            },
+            {
+              contextHandler,
+              storageOptions: { saveMessages: "none" },
+            }
+          );
+
+          await persistRawModelResponse(ctx, {
+            threadId: responseContext.threadId,
+            agentName: "Main Agent",
+            request: result.request,
+            response: result.response,
+            providerMetadata: result.providerMetadata,
+          });
+
+          const text = result.text.trim();
+          if (!text) {
+            lastAttemptError = new Error(
+              `Main Agent returned an empty plan-batch response using ${attempt.modelId}.`
+            );
+          } else {
+            responseText = text;
+            responseFinishReason = result.finishReason;
+            responseModelId = attempt.modelId;
+            break;
+          }
+        } catch (error) {
+          lastAttemptError = normalizeUnknownError(error);
+        }
+
+        if (attemptIndex < attempts.length - 1) {
+          chatLogger.warn(
+            "Plan-batch Agent continuation produced no usable response; retrying once on the fallback model",
+            {
+              threadId: responseContext.threadId,
+              promptMessageId: responseContext.promptMessageId,
+              runId,
+              model: attempt.modelId,
+              errorMessage: lastAttemptError?.message,
+            }
+          );
+        }
+      }
+
+      if (!responseText) {
+        throw (
+          lastAttemptError ??
+          new Error("Main Agent returned an empty plan-batch response.")
+        );
+      }
+
+      await saveMessage(ctx, components.agent, {
+        threadId: responseContext.threadId,
+        promptMessageId: responseContext.promptMessageId,
+        agentName: "Main Agent",
+        message: {
+          role: "assistant",
+          content: responseText,
+        },
+        metadata: {
+          status: "success",
+          finishReason: responseFinishReason,
+          model: responseModelId,
+          provider: "openrouter",
+        },
+      });
+      await ctx.runMutation(
+        internal.planBatches.completePlanBatchAgentResponseInternal,
+        { runId }
+      );
+      return null;
+    } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
+      await ctx.runMutation(
+        internal.planBatches.failPlanBatchAgentResponseInternal,
+        {
+          runId,
+          errorMessage: normalizedError.message,
+        }
       );
       throw normalizedError;
     }

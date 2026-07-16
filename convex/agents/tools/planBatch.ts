@@ -9,7 +9,14 @@ import {
   createPlanPreviewArtifact,
   type AgentArtifactEnvelope,
 } from "../../../shared/lib/json-render/agentArtifacts";
-import { getDefaultPlanBatchInstruction } from "../../lib/planBatchCore";
+import {
+  getDefaultPlanBatchInstruction,
+  getLatestPlanBatchUserPrompt,
+} from "../../lib/planBatchCore";
+import {
+  createDeferredAgentExecution,
+  type DeferredAgentExecution,
+} from "../../lib/deferredAgentTurn";
 import { getUserSafeErrorMessage } from "../../lib/errorHelpers";
 import { getPlanBatchStartedMessage } from "../../../shared/lib/outreach/planBatchCopy";
 import {
@@ -178,6 +185,7 @@ type ManagePlanBatchResult = {
   runId?: string;
   artifact?: AgentArtifactEnvelope;
   artifacts?: AgentArtifactEnvelope[];
+  execution?: DeferredAgentExecution;
   error?: string;
 };
 
@@ -186,7 +194,7 @@ export const managePlanBatch = createTool({
     "Start, confirm, stop, or show results for outreach plans. Use operation=create when the user says create, operation=update when the user says update, and create_or_update only when the user clearly asks for both. Use scope=tagged for current UI tags, plan_group for an exact safe reference supplied in this thread, and named for exact prospect names or handles stated by the user. Never invent references. All prospects and filtered groups require confirmation before work begins. Omit optional fields when they do not apply, but null is accepted safely. Prospect IDs and attachment URLs are resolved server-side and must never be invented or passed by the model.",
   inputSchema: managePlanBatchInputSchema,
   strict: true,
-  execute: async (ctx, args): Promise<ManagePlanBatchResult> => {
+  execute: async (ctx, args, options): Promise<ManagePlanBatchResult> => {
     try {
       const workspaceId = await resolveWorkspaceIdForUser(
         ctx,
@@ -194,6 +202,8 @@ export const managePlanBatch = createTool({
       );
       const userId = ctx.userId as Id<"users"> | undefined;
       const sourceThreadId = ctx.threadId;
+      const responsePromptMessageId = getToolPromptMessageId(ctx);
+      const sourcePrompt = getLatestPlanBatchUserPrompt(options.messages);
       if (!workspaceId || !userId || !sourceThreadId) {
         return {
           success: false,
@@ -205,7 +215,12 @@ export const managePlanBatch = createTool({
       if (args.action === "confirm") {
         const runId = await ctx.runMutation(
           internal.planBatches.confirmLatestPlanBatchInternal,
-          { workspaceId, userId, sourceThreadId }
+          {
+            workspaceId,
+            userId,
+            sourceThreadId,
+            responsePromptMessageId,
+          }
         );
         if (!runId) {
           return {
@@ -219,13 +234,21 @@ export const managePlanBatch = createTool({
           runId,
           message: "Started working on the outreach plans.",
           artifact: createPlanBatchProgressArtifact({ runId }),
+          execution: responsePromptMessageId
+            ? createDeferredAgentExecution(String(runId))
+            : undefined,
         };
       }
 
       if (args.action === "cancel") {
         const runId = await ctx.runMutation(
           internal.planBatches.cancelLatestPlanBatchInternal,
-          { workspaceId, userId, sourceThreadId }
+          {
+            workspaceId,
+            userId,
+            sourceThreadId,
+            responsePromptMessageId,
+          }
         );
         if (!runId) {
           return {
@@ -240,6 +263,9 @@ export const managePlanBatch = createTool({
           message:
             "Stopped. Finished plans are saved. The rest will not continue.",
           artifact: createPlanBatchProgressArtifact({ runId }),
+          execution: responsePromptMessageId
+            ? createDeferredAgentExecution(String(runId))
+            : undefined,
         };
       }
 
@@ -334,8 +360,11 @@ export const managePlanBatch = createTool({
         };
       }
 
-      const sourceMessageId = getToolPromptMessageId(ctx);
+      const sourceMessageId = responsePromptMessageId;
       const operation = args.operation;
+      const defersAgentResponse =
+        Boolean(responsePromptMessageId) &&
+        ["tagged", "plan_group", "named"].includes(args.scope.kind);
       const namedTargets =
         args.scope.kind === "named"
           ? await ctx.runQuery(
@@ -354,6 +383,10 @@ export const managePlanBatch = createTool({
           userId,
           sourceThreadId,
           sourceMessageId,
+          sourcePrompt,
+          responsePromptMessageId: defersAgentResponse
+            ? responsePromptMessageId
+            : undefined,
           operation,
           scopeKind: args.scope.kind,
           sourcePlanBatchReference:
@@ -377,6 +410,9 @@ export const managePlanBatch = createTool({
           ? getPlanBatchStartedMessage(operation)
           : "I am checking which prospects can be included. I will show you how many are ready before anything starts.",
         artifact: createPlanBatchProgressArtifact({ runId: run.runId }),
+        execution: defersAgentResponse
+          ? createDeferredAgentExecution(String(run.runId))
+          : undefined,
       };
     } catch (error) {
       const message = getUserSafeErrorMessage(

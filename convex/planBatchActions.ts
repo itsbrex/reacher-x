@@ -144,6 +144,7 @@ export const processPlanBatchItem = internalAction({
       prospectName: context.prospect.displayName || context.prospect.externalId,
       operation: context.item.operation as PlanBatchItemOperation,
       sharedInstruction: context.run.instruction,
+      sourcePrompt: context.run.sourcePrompt,
       targetInstruction: context.item.targetInstruction,
       attachments: context.run.attachments,
     });

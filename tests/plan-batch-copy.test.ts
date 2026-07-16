@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   getPlanBatchCopy,
   getPlanBatchNotificationCopy,
+  getPlanBatchTitleValues,
   type PlanBatchCopyState,
 } from "../shared/lib/outreach/planBatchCopy";
 
@@ -177,6 +178,40 @@ test("confirmation copy explains the next step without system terms", () => {
   });
 });
 
+test("headline values distinguish names from counts", () => {
+  assert.deepEqual(getPlanBatchTitleValues(createState()), [
+    { text: "Nick LoPiccolo", kind: "name" },
+    { text: "Logan Gott", kind: "name" },
+  ]);
+  assert.deepEqual(
+    getPlanBatchTitleValues(
+      createState({
+        targetCount: 1842,
+        eligibleCount: 1842,
+        succeededCount: 726,
+        targetNames: [],
+      })
+    ),
+    [{ text: "1,842", kind: "count" }]
+  );
+  assert.deepEqual(
+    getPlanBatchTitleValues(
+      createState({
+        status: "partial",
+        targetCount: 40,
+        eligibleCount: 40,
+        succeededCount: 37,
+        failedCount: 3,
+        targetNames: [],
+      })
+    ),
+    [
+      { text: "37", kind: "count" },
+      { text: "40", kind: "count" },
+    ]
+  );
+});
+
 test("notifications use the same simple copy system", () => {
   const startedCopy = getPlanBatchNotificationCopy(createState());
   const completedCopy = getPlanBatchNotificationCopy(
@@ -202,6 +237,9 @@ test("main agent uses semantic model intent without keyword routing", () => {
   const toolSource = readFileSync("convex/agents/tools/planBatch.ts", "utf8");
   const coreSource = readFileSync("convex/lib/planBatchCore.ts", "utf8");
   const actionSource = readFileSync("convex/planBatchActions.ts", "utf8");
+  const batchSource = readFileSync("convex/planBatches.ts", "utf8");
+  const chatSource = readFileSync("convex/chat.ts", "utf8");
+  const workflowSource = readFileSync("convex/workflows/planBatch.ts", "utf8");
 
   assert.match(
     promptSource,
@@ -217,7 +255,20 @@ test("main agent uses semantic model intent without keyword routing", () => {
   assert.match(toolSource, /strict: true/);
   assert.match(promptSource, /Never use keyword rules/);
   assert.match(promptSource, /Never reveal a \\`plans_\.\.\.\\` reference/);
+  assert.match(
+    promptSource,
+    /returns execution\.state=\\`deferred\\`, emit no text/
+  );
+  assert.match(promptSource, /confirm your understanding before acting/);
   assert.match(actionSource, /allowSystemInMessages: true/);
+  assert.match(workflowSource, /resumePlanBatchAgentResponse/);
+  assert.match(chatSource, /includeStatuses: \["streaming", "aborted"\]/);
+  assert.doesNotMatch(
+    chatSource,
+    /includeStatuses: \["streaming", "aborted", "finished"\]/
+  );
+  assert.doesNotMatch(batchSource, /savePlanBatchCompletionMessage/);
+  assert.doesNotMatch(batchSource, /bridgePlanBatchCompletionToThread/);
   assert.doesNotMatch(toolSource, /reference: run\.reference/);
   assert.doesNotMatch(coreSource, /CREATE_PLAN_REQUEST_PATTERN/);
   assert.doesNotMatch(coreSource, /UPDATE_PLAN_REQUEST_PATTERN/);

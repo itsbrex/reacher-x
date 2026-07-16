@@ -2,8 +2,9 @@
 
 import { convexTest } from "convex-test";
 import type { WorkId } from "@convex-dev/workpool";
+import { createThread, saveMessage } from "@convex-dev/agent";
 import { describe, expect, test } from "vitest";
-import { internal } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   consumeAgentThreadTargetSelection,
@@ -29,6 +30,14 @@ async function registerWorkflowComponent(t: ReturnType<typeof convexTest>) {
     default: { register: (testInstance: typeof t) => void };
   };
   workflowTest.default.register(t);
+}
+
+async function registerAgentComponent(t: ReturnType<typeof convexTest>) {
+  const testModulePath = ["@convex-dev/agent", "test"].join("/");
+  const agentTest = (await import(testModulePath)) as {
+    default: { register: (testInstance: typeof t) => void };
+  };
+  agentTest.default.register(t);
 }
 
 function createProspectTag(args: {
@@ -137,6 +146,226 @@ async function insertRunningBatchItem(
 }
 
 describe("plan batch durable state", () => {
+  test("exposes terminal results for Agent continuation without appending hard-coded copy", async () => {
+    const t = convexTest(schema, modules);
+    await registerAgentComponent(t);
+    const seeded = await seedQualifiedProspect(t, "completion-message");
+    const { threadId, promptMessageId, runId } = await t.run(async (ctx) => {
+      const threadId = await createThread(ctx, components.agent, {
+        userId: seeded.userId,
+      });
+      const { messageId } = await saveMessage(ctx, components.agent, {
+        threadId,
+        prompt: "Update the outreach plan.",
+      });
+      const runId = await ctx.db.insert("planBatchRuns", {
+        workspaceId: seeded.workspaceId,
+        userId: seeded.userId,
+        sourceThreadId: threadId,
+        sourceMessageId: messageId,
+        responsePromptMessageId: messageId,
+        operation: "update",
+        scopeKind: "named",
+        instruction: "Update the outreach plan.",
+        attachments: [],
+        confirmationRequired: false,
+        status: "completed",
+        targetCount: 1,
+        eligibleCount: 1,
+        queuedCount: 0,
+        runningCount: 0,
+        succeededCount: 1,
+        createdCount: 0,
+        updatedCount: 1,
+        failedCount: 0,
+        skippedCount: 0,
+        selectionSkippedCount: 0,
+        finishedCount: 1,
+        completedAt: 2,
+        createdAt: 1,
+        updatedAt: 2,
+      });
+      await ctx.db.insert("planBatchItems", {
+        runId,
+        prospectId: seeded.prospectId,
+        prospectName: "Prospect completion-message",
+        operation: "update",
+        status: "succeeded",
+        attemptCount: 1,
+        completedAt: 2,
+        createdAt: 1,
+        updatedAt: 2,
+      });
+      return { threadId, promptMessageId: messageId, runId };
+    });
+
+    const responseContext = await t.query(
+      internal.planBatches.getPlanBatchAgentResponseContextInternal,
+      {
+        runId,
+      }
+    );
+    const claim = await t.mutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+    const duplicateClaim = await t.mutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+
+    const messagesBeforeAgentResponse = await t.run((ctx) =>
+      ctx.runQuery(components.agent.messages.listMessagesByThreadId, {
+        threadId,
+        order: "asc",
+        paginationOpts: { numItems: 20, cursor: null },
+      })
+    );
+    expect(
+      messagesBeforeAgentResponse.page.some(
+        (message) => message.message?.role === "assistant"
+      )
+    ).toBe(false);
+    expect(responseContext?.result).toMatchObject({
+      status: "completed",
+      operation: "update",
+      succeededCount: 1,
+      updatedCount: 1,
+      failedCount: 0,
+    });
+    expect(claim).toMatchObject({ shouldGenerate: true });
+    expect(duplicateClaim).toMatchObject({
+      startedAt: claim?.startedAt,
+      shouldGenerate: false,
+    });
+    await t.mutation(internal.planBatches.failPlanBatchAgentResponseInternal, {
+      runId,
+      errorMessage: "Provider returned no text.",
+    });
+    const retryClaim = await t.mutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+    expect(retryClaim).toMatchObject({
+      startedAt: claim?.startedAt,
+      shouldGenerate: true,
+    });
+
+    await t.run(async (ctx) => {
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        promptMessageId,
+        agentName: "Main Agent",
+        message: {
+          role: "assistant",
+          content: "I updated the outreach plan successfully.",
+        },
+      });
+    });
+    await t.mutation(
+      internal.planBatches.completePlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+    await t.mutation(
+      internal.planBatches.reopenPlanBatchAgentResponseInternal,
+      {
+        runId,
+        errorMessage: "Completion marker had no successful assistant response.",
+      }
+    );
+    const reopenedClaim = await t.mutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+    expect(reopenedClaim).toMatchObject({
+      startedAt: claim?.startedAt,
+      shouldGenerate: true,
+    });
+    await t.mutation(
+      internal.planBatches.completePlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+
+    const { run, messages } = await t.run(async (ctx) => ({
+      run: await ctx.db.get("planBatchRuns", runId),
+      messages: await ctx.runQuery(
+        components.agent.messages.listMessagesByThreadId,
+        {
+          threadId,
+          order: "asc",
+          paginationOpts: { numItems: 20, cursor: null },
+        }
+      ),
+    }));
+    const promptMessage = messages.page.find(
+      (message) => message._id === promptMessageId
+    );
+    const completionMessage = messages.page.find(
+      (message) =>
+        message.order === promptMessage?.order &&
+        message.message?.role === "assistant"
+    );
+
+    expect(run?.agentResponseStartedAt).toBeTypeOf("number");
+    expect(run?.agentResponseCompletedAt).toBeTypeOf("number");
+    expect(completionMessage?.text).toBe(
+      "I updated the outreach plan successfully."
+    );
+  });
+
+  test("does not claim an Agent response for a non-terminal batch", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await seedQualifiedProspect(t, "pending-agent-response");
+    const runId = await t.run((ctx) =>
+      ctx.db.insert("planBatchRuns", {
+        workspaceId: seeded.workspaceId,
+        userId: seeded.userId,
+        sourceThreadId: "workspace-pending-thread",
+        sourceMessageId: "prompt-message",
+        responsePromptMessageId: "prompt-message",
+        operation: "update",
+        scopeKind: "named",
+        instruction: "Update the outreach plan.",
+        attachments: [],
+        confirmationRequired: false,
+        status: "running",
+        targetCount: 1,
+        eligibleCount: 1,
+        queuedCount: 0,
+        runningCount: 1,
+        succeededCount: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        selectionSkippedCount: 0,
+        finishedCount: 0,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    );
+
+    const claim = await t.mutation(
+      internal.planBatches.claimPlanBatchAgentResponseInternal,
+      {
+        runId,
+      }
+    );
+    expect(claim).toBeNull();
+  });
+
   test("requires exact target names and keeps downstream prompts isolated", () => {
     const targets = [
       {
@@ -310,7 +539,7 @@ describe("plan batch durable state", () => {
     expect(selection).toBeNull();
   });
 
-  test("updates a previously created plan group with the current message attachment", async () => {
+  test("updates a referenced plan group with its original attachment", async () => {
     const t = convexTest(schema, modules);
     await registerWorkflowComponent(t);
     const first = await seedQualifiedProspect(t, "follow-up-first");
@@ -362,6 +591,10 @@ describe("plan batch durable state", () => {
       ctx.storage.store(new Blob(["demo"], { type: "video/mp4" }))
     );
     const { sourceRunId, expectedDemoUrl } = await t.run(async (ctx) => {
+      const expectedDemoUrl = await ctx.storage.getUrl(storedDemoId);
+      if (!expectedDemoUrl) {
+        throw new Error("Stored demo URL was not created.");
+      }
       const runId = await ctx.db.insert("planBatchRuns", {
         workspaceId: first.workspaceId,
         userId: first.userId,
@@ -370,7 +603,13 @@ describe("plan batch durable state", () => {
         operation: "create",
         scopeKind: "tagged",
         instruction: "Create the plans.",
-        attachments: [],
+        attachments: [
+          {
+            fileName: "demo.mp4",
+            mediaKind: "video",
+            url: expectedDemoUrl,
+          },
+        ],
         confirmationRequired: false,
         status: "completed",
         targetCount: 2,
@@ -387,16 +626,6 @@ describe("plan batch durable state", () => {
         completedAt: 2,
         createdAt: 1,
         updatedAt: 2,
-      });
-      const uploadId = await ctx.db.insert("mediaUploads", {
-        userId: first.userId,
-        workspaceId: first.workspaceId,
-        storageId: storedDemoId,
-        fileName: "demo.mp4",
-        displayName: "demo.mp4",
-        mimeType: "video/mp4",
-        size: 4,
-        uploadedAt: 3,
       });
       await Promise.all([
         ctx.db.insert("planBatchItems", {
@@ -430,20 +659,10 @@ describe("plan batch durable state", () => {
           workspaceId: first.workspaceId,
           promptTextSource: "user",
           taggedEntities: [],
-          attachments: [
-            {
-              uploadId,
-              fileName: "demo.mp4",
-              mediaUrl: "https://example.com/extensionless-storage-url",
-            },
-          ],
+          attachments: [],
           createdAt: 3,
         }),
       ]);
-      const expectedDemoUrl = await ctx.storage.getUrl(storedDemoId);
-      if (!expectedDemoUrl) {
-        throw new Error("Stored demo URL was not created.");
-      }
       return { sourceRunId: runId, expectedDemoUrl };
     });
 
@@ -468,6 +687,8 @@ describe("plan batch durable state", () => {
         userId: first.userId,
         sourceThreadId,
         sourceMessageId: "follow-up-message",
+        sourcePrompt:
+          "Keep the current demo attached and update the plans naturally.",
         operation: "update",
         scopeKind: "plan_group",
         sourcePlanBatchReference: sourceReference,
@@ -481,6 +702,9 @@ describe("plan batch durable state", () => {
     );
     expect(run?.sourcePlanBatchRunId).toBe(sourceRunId);
     expect(run?.sourceMessageId).toBe("follow-up-message");
+    expect(run?.sourcePrompt).toBe(
+      "Keep the current demo attached and update the plans naturally."
+    );
     expect(run?.attachments).toEqual([
       {
         fileName: "demo.mp4",

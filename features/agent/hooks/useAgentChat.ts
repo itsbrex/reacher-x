@@ -23,7 +23,10 @@ import {
 import { useConvexReady, useQueryWithStatus } from "@/shared/hooks";
 import { logger } from "@/shared/lib/logger";
 import { resolveAgentThreadInitializationMode } from "@/features/agent/lib/agentThreadInitialization";
-import { updatePendingTurnPhase } from "@/features/agent/lib/pendingTurnState";
+import {
+  isPlanBatchTurnWaiting,
+  updatePendingTurnPhase,
+} from "@/features/agent/lib/pendingTurnState";
 import { getUIMessageDisplayText } from "@/features/agent/lib/uiMessageText";
 
 // ============================================================================
@@ -76,6 +79,7 @@ export interface PendingTurnState {
   prompt: string;
   phase: PendingTurnPhase;
   threadId: string | null;
+  messageId: string | null;
   order: number | null;
   showUserPrompt: boolean;
   assistantLabel: string;
@@ -254,6 +258,7 @@ export function useAgentChat(
         prompt,
         phase: "submitting",
         threadId: null,
+        messageId: null,
         order: null,
         showUserPrompt,
         assistantLabel,
@@ -520,6 +525,7 @@ export function useAgentChat(
             : {
                 ...current,
                 threadId: result.threadId,
+                messageId: result.messageId,
                 order: result.order,
                 phase: current.phase === "stopping" ? "stopping" : "queued",
               }
@@ -609,6 +615,7 @@ export function useAgentChat(
             : {
                 ...current,
                 threadId: result.threadId,
+                messageId: null,
                 order: result.greetingOrder ?? null,
                 phase: current.phase === "stopping" ? "stopping" : "queued",
               }
@@ -666,6 +673,12 @@ export function useAgentChat(
     api.chat.getThreadGenerationState,
     isConvexReady && isInitialized && threadId ? { threadId } : "skip"
   );
+  const planBatchTurnStateQuery = useQueryWithStatus(
+    api.planBatches.getPlanBatchTurnState,
+    isConvexReady && pendingTurn?.messageId
+      ? { messageId: pendingTurn.messageId }
+      : "skip"
+  );
 
   useEffect(() => {
     seenFailedMessageKeysRef.current.clear();
@@ -717,6 +730,18 @@ export function useAgentChat(
 
   useEffect(() => {
     if (!pendingTurn) {
+      return;
+    }
+
+    if (pendingTurn.messageId && planBatchTurnStateQuery.isPending) {
+      return;
+    }
+
+    const planBatchTurnState = planBatchTurnStateQuery.data;
+    if (isPlanBatchTurnWaiting(planBatchTurnState)) {
+      setPendingTurn((current) =>
+        updatePendingTurnPhase(current, pendingTurn.id, "streaming")
+      );
       return;
     }
 
@@ -785,7 +810,14 @@ export function useAgentChat(
     setPendingTurn((current) =>
       current?.id === pendingTurn.id ? null : current
     );
-  }, [isStreaming, visibleMessageStatus, messages, pendingTurn]);
+  }, [
+    isStreaming,
+    visibleMessageStatus,
+    messages,
+    pendingTurn,
+    planBatchTurnStateQuery.data,
+    planBatchTurnStateQuery.isPending,
+  ]);
 
   useEffect(() => {
     if (!error) {
@@ -1083,6 +1115,7 @@ export function useAgentChat(
               : {
                   ...current,
                   threadId: result.threadId,
+                  messageId: result.messageId,
                   order: result.order,
                   phase: current.phase === "stopping" ? "stopping" : "queued",
                 }
@@ -1143,6 +1176,7 @@ export function useAgentChat(
                 : {
                     ...current,
                     threadId: result.threadId,
+                    messageId: result.messageId,
                     order: result.order,
                     phase: current.phase === "stopping" ? "stopping" : "queued",
                   }
@@ -1197,6 +1231,7 @@ export function useAgentChat(
               : {
                   ...current,
                   threadId,
+                  messageId: result.messageId,
                   order: result.order,
                   phase: current.phase === "stopping" ? "stopping" : "queued",
                 }
@@ -1219,6 +1254,7 @@ export function useAgentChat(
               : {
                   ...current,
                   threadId,
+                  messageId: result.messageId,
                   order: result.order,
                   phase: current.phase === "stopping" ? "stopping" : "queued",
                 }
