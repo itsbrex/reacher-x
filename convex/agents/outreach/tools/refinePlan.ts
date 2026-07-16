@@ -22,6 +22,11 @@ import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
 import { runLoggedAgentTool } from "../../tools/logging";
 import { getCurrentUTCTimestamp } from "../../../../shared/lib/utils/time/timeUtils";
 import { getMediaCapabilityErrorMessage } from "../../../lib/mediaCapabilityCore";
+import { restoreExistingMediaUploadIds } from "../../../lib/agentAttachmentReferenceCore";
+import {
+  attachmentRefsSchema,
+  resolveTaskAttachmentReferences,
+} from "./attachmentReferences";
 
 // ============================================================================
 // Schema
@@ -47,11 +52,14 @@ const taskSchema = z.object({
   }),
   targetTweetId: z.string().optional(),
   content: z.string().max(X_LONG_FORM_POST_MAX_CHARS).optional(),
+  attachmentRefs: attachmentRefsSchema,
   mediaUrls: z
-    .array(z.string().url())
+    .array(z.url())
     .max(4)
     .optional()
-    .describe("Exact URLs from the user's selected workspace attachments"),
+    .describe(
+      "Exact verified URLs already present in the current plan context, or explicitly supplied by a delegated system instruction. Use these to preserve existing plan media. For newly selected files, use attachmentRefs instead."
+    ),
   mediaDescriptions: z.array(z.string().max(1_000)).max(4).optional(),
   mediaKinds: z
     .array(z.enum(["image", "gif", "video"]))
@@ -98,6 +106,9 @@ export interface RefinePlanResult {
     status: string;
     content?: string;
     targetTweetId?: string;
+    mediaUrls?: string[];
+    mediaDescriptions?: string[];
+    mediaKinds?: Array<"image" | "gif" | "video">;
   }>;
   artifact?: AgentArtifactEnvelope;
   error?: string;
@@ -186,7 +197,7 @@ export const refinePlan = createTool({
             };
           }
 
-          const normalizedTasks = args.tasks
+          const normalizedTasksWithReferences = args.tasks
             ? normalizeCommentTasks(args.tasks, args.strategy?.targetTweetId)
             : undefined;
           const userId = ctx.userId as Id<"users"> | null;
@@ -255,6 +266,17 @@ export const refinePlan = createTool({
             : null;
           const prospectPlatform =
             prospect?.platform === "linkedin" ? "linkedin" : "twitter";
+          const normalizedTasks = normalizedTasksWithReferences
+            ? restoreExistingMediaUploadIds(
+                await measureStage("attachment_resolution", async () =>
+                  resolveTaskAttachmentReferences(
+                    ctx,
+                    normalizedTasksWithReferences
+                  )
+                ),
+                existingPlanData?.tasks ?? []
+              )
+            : undefined;
 
           const hasCommentTasks =
             normalizedTasks?.some((task) => task.type === "comment") ?? false;
@@ -367,6 +389,9 @@ export const refinePlan = createTool({
               status: task.status,
               content: task.content,
               targetTweetId: task.targetTweetId,
+              mediaUrls: task.mediaUrls,
+              mediaDescriptions: task.mediaDescriptions,
+              mediaKinds: task.mediaKinds,
             })),
             artifact: updatedPlanData
               ? createPlanPreviewArtifact({

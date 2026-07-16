@@ -58,6 +58,9 @@ export async function loadAgentProspectProfileContext(
               status: task.status,
               content: task.content,
               targetTweetId: task.targetTweetId,
+              mediaUrls: task.mediaUrls,
+              mediaDescriptions: task.mediaDescriptions,
+              mediaKinds: task.mediaKinds,
             })),
         }
       : null,

@@ -40,10 +40,9 @@ import {
 import { getLatestActiveProspectThreadLink } from "./lib/relationshipHelpers";
 import {
   outreachStrategyValidator,
-  outreachTaskTimingValidator,
-  outreachTaskTypeValidator,
   outreachEditableTaskTypeValidator,
   outreachTaskApprovalContextValidator,
+  outreachTaskInputValidator,
   outreachPlanStatusValidator,
   outreachPlanArchiveHoldPreviousStatusValidator,
   outreachTaskStatusValidator,
@@ -1585,19 +1584,7 @@ export const createPlan = internalMutation({
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
     strategy: outreachStrategyValidator,
-    tasks: v.array(
-      v.object({
-        type: outreachTaskTypeValidator,
-        description: v.string(),
-        timing: outreachTaskTimingValidator,
-        targetTweetId: v.optional(v.string()),
-        content: v.optional(v.string()),
-        mediaUrls: v.optional(v.array(v.string())),
-        mediaDescriptions: v.optional(v.array(v.string())),
-        mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
-        approvalContext: v.optional(outreachTaskApprovalContextValidator),
-      })
-    ),
+    tasks: v.array(outreachTaskInputValidator),
     threadId: v.optional(v.string()),
     planBatchItemId: v.optional(v.id("planBatchItems")),
   },
@@ -1647,21 +1634,7 @@ export const updatePlan = internalMutation({
   args: {
     planId: v.id("outreachPlans"),
     strategy: v.optional(outreachStrategyValidator),
-    tasks: v.optional(
-      v.array(
-        v.object({
-          type: outreachTaskTypeValidator,
-          description: v.string(),
-          timing: outreachTaskTimingValidator,
-          targetTweetId: v.optional(v.string()),
-          content: v.optional(v.string()),
-          mediaUrls: v.optional(v.array(v.string())),
-          mediaDescriptions: v.optional(v.array(v.string())),
-          mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
-          approvalContext: v.optional(outreachTaskApprovalContextValidator),
-        })
-      )
-    ),
+    tasks: v.optional(v.array(outreachTaskInputValidator)),
     threadId: v.optional(v.string()),
     planBatchItemId: v.optional(v.id("planBatchItems")),
   },

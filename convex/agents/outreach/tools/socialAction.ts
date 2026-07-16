@@ -18,6 +18,10 @@ import {
 } from "./helpers";
 import { getEffectivePostLimitForAgentUser } from "./xPostLimitHelpers";
 import { getPostTextLimitError } from "../../../../shared/lib/twitter/xPostTextLimit";
+import {
+  attachmentRefsSchema,
+  resolveToolAttachmentMediaInput,
+} from "./attachmentReferences";
 
 const internalLinkedInApi = (internal as any).linkedin;
 
@@ -98,11 +102,12 @@ const socialActionArgsSchema = z.object({
     .describe(
       "Draft text for create_post, reply_to_post, send_dm, send_dm_in_existing_conversation, linkedin_send_message, linkedin_send_message_existing_conversation, linkedin_invite_user, or linkedin_comment_on_post."
     ),
+  attachmentRefs: attachmentRefsSchema,
   mediaUrls: z
     .array(z.string())
     .optional()
     .describe(
-      "Optional public media URLs. For create_post/reply_to_post: up to 4 photos or exactly 1 GIF/video. For X DMs: at most one URL. For LinkedIn messages/comments: pass the attachments you want staged with the draft."
+      "Optional verified media URLs already present in current context, or explicitly supplied by a delegated instruction. For newly selected Agent-chat files, use attachmentRefs."
     ),
   mediaDescriptions: z
     .array(z.string())
@@ -242,6 +247,12 @@ export const socialAction = createTool({
     }
 
     const isLinkedInAction = args.action.startsWith("linkedin_");
+    const resolvedMedia = await resolveToolAttachmentMediaInput(ctx, {
+      attachmentRefs: args.attachmentRefs,
+      mediaUrls: args.mediaUrls,
+      mediaDescriptions: args.mediaDescriptions,
+      mediaKinds: args.mediaKinds,
+    });
     const executionThreadId = await resolveExecutionThreadId(
       ctx,
       "socialAction"
@@ -264,9 +275,9 @@ export const socialAction = createTool({
           actionKey: args.action,
           postId: args.postId ?? args.tweetId,
           text: normalizedText,
-          mediaUrls: args.mediaUrls,
-          mediaDescriptions: args.mediaDescriptions,
-          mediaKinds: args.mediaKinds,
+          mediaUrls: resolvedMedia.mediaUrls,
+          mediaDescriptions: resolvedMedia.mediaDescriptions,
+          mediaKinds: resolvedMedia.mediaKinds,
           reactionType: args.reactionType,
           replaceExistingPending: args.replaceExistingPending,
           targetLabel: args.targetLabel,
@@ -281,9 +292,9 @@ export const socialAction = createTool({
             targetUserId: args.targetUserId,
             conversationId: args.conversationId,
             text: normalizedText,
-            mediaUrls: args.mediaUrls,
-            mediaDescriptions: args.mediaDescriptions,
-            mediaKinds: args.mediaKinds,
+            mediaUrls: resolvedMedia.mediaUrls,
+            mediaDescriptions: resolvedMedia.mediaDescriptions,
+            mediaKinds: resolvedMedia.mediaKinds,
             replaceExistingPending: args.replaceExistingPending,
             targetLabel: args.targetLabel,
             context: args.context,

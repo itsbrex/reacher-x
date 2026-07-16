@@ -1063,6 +1063,15 @@ export const agentMessageAttachmentReferenceValidator = v.object({
   mediaUrl: v.optional(v.union(v.string(), v.null())),
 });
 
+export const agentAttachmentToolReferenceValidator = v.object({
+  reference: v.string(),
+  uploadId: v.id("mediaUploads"),
+  url: v.string(),
+  fileName: v.string(),
+  mediaKind: mentionAttachmentMediaKindValidator,
+  selectedInCurrentMessage: v.boolean(),
+});
+
 export const agentMessageTaggedEntityValidator = v.object({
   id: v.string(),
   entityId: v.string(),
@@ -1521,6 +1530,19 @@ export const outreachTaskApprovalContextValidator = v.object({
   sourcePostRef: v.optional(twitterPostRefValidator),
   sourcePostSummary: v.optional(twitterPostSummaryValidator),
   sourceContext: v.optional(v.string()),
+});
+
+export const outreachTaskInputValidator = v.object({
+  type: outreachTaskTypeValidator,
+  description: v.string(),
+  timing: outreachTaskTimingValidator,
+  targetTweetId: v.optional(v.string()),
+  content: v.optional(v.string()),
+  mediaUrls: v.optional(v.array(v.string())),
+  mediaUploadIds: v.optional(v.array(v.id("mediaUploads"))),
+  mediaDescriptions: v.optional(v.array(v.string())),
+  mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
+  approvalContext: v.optional(outreachTaskApprovalContextValidator),
 });
 
 export const outreachPlanSnapshotTaskValidator = v.object({

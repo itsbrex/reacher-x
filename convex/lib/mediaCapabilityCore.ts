@@ -189,8 +189,6 @@ export async function resolveOwnedOutreachMedia(
     mediaUploadIds?: Id<"mediaUploads">[];
   }
 ): Promise<ResolvedOutreachMedia[]> {
-  if (args.mediaUrls.length === 0) return [];
-
   if (args.mediaUploadIds?.length) {
     if (args.mediaUploadIds.length !== args.mediaUrls.length) {
       throw mediaCapabilityError(
@@ -231,6 +229,8 @@ export async function resolveOwnedOutreachMedia(
       })
     );
   }
+
+  if (args.mediaUrls.length === 0) return [];
 
   const uploads = await ctx.db
     .query("mediaUploads")

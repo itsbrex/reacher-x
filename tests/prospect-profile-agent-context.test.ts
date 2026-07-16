@@ -62,6 +62,9 @@ test("agent profile snapshot includes the same stored website, socials, enrichme
             type: "comment",
             description: "Engage with the launch post",
             status: "pending",
+            mediaUrls: ["https://example.com/demo.mp4"],
+            mediaDescriptions: ["Product demo"],
+            mediaKinds: ["video"],
           },
         ],
       },
@@ -91,6 +94,9 @@ test("agent profile snapshot includes the same stored website, socials, enrichme
   assert.equal(snapshot.qualificationAndEnrichment.painPoints?.length, 1);
   assert.equal(snapshot.relevantActivity.evidencePosts.length, 1);
   assert.equal(snapshot.currentOutreachPlan?.tasks.length, 1);
+  assert.deepEqual(snapshot.currentOutreachPlan?.tasks[0]?.mediaUrls, [
+    "https://example.com/demo.mp4",
+  ]);
   assert.deepEqual(snapshot.interactionHistory, {
     items: [{ kind: "reply", text: "Thanks for sharing" }],
   });

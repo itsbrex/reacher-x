@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agentAttachments from "../agentAttachments.js";
 import type * as agentOps from "../agentOps.js";
 import type * as agentOpsReadModels from "../agentOpsReadModels.js";
 import type * as agentTelemetry from "../agentTelemetry.js";
@@ -20,6 +21,7 @@ import type * as agents_outreach_rag from "../agents/outreach/rag.js";
 import type * as agents_outreach_tools_approveSocialActionRequest from "../agents/outreach/tools/approveSocialActionRequest.js";
 import type * as agents_outreach_tools_approveTask from "../agents/outreach/tools/approveTask.js";
 import type * as agents_outreach_tools_askHuman from "../agents/outreach/tools/askHuman.js";
+import type * as agents_outreach_tools_attachmentReferences from "../agents/outreach/tools/attachmentReferences.js";
 import type * as agents_outreach_tools_displayEntity from "../agents/outreach/tools/displayEntity.js";
 import type * as agents_outreach_tools_generatePlan from "../agents/outreach/tools/generatePlan.js";
 import type * as agents_outreach_tools_getProspectInteractionHistory from "../agents/outreach/tools/getProspectInteractionHistory.js";
@@ -86,6 +88,7 @@ import type * as interactions from "../interactions.js";
 import type * as interactionsActions from "../interactionsActions.js";
 import type * as keywords from "../keywords.js";
 import type * as lib_accessHelpers from "../lib/accessHelpers.js";
+import type * as lib_agentAttachmentReferenceCore from "../lib/agentAttachmentReferenceCore.js";
 import type * as lib_agentContextHelpers from "../lib/agentContextHelpers.js";
 import type * as lib_agentMemoryCore from "../lib/agentMemoryCore.js";
 import type * as lib_agentMetadata from "../lib/agentMetadata.js";
@@ -292,6 +295,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentAttachments: typeof agentAttachments;
   agentOps: typeof agentOps;
   agentOpsReadModels: typeof agentOpsReadModels;
   agentTelemetry: typeof agentTelemetry;
@@ -304,6 +308,7 @@ declare const fullApi: ApiFromModules<{
   "agents/outreach/tools/approveSocialActionRequest": typeof agents_outreach_tools_approveSocialActionRequest;
   "agents/outreach/tools/approveTask": typeof agents_outreach_tools_approveTask;
   "agents/outreach/tools/askHuman": typeof agents_outreach_tools_askHuman;
+  "agents/outreach/tools/attachmentReferences": typeof agents_outreach_tools_attachmentReferences;
   "agents/outreach/tools/displayEntity": typeof agents_outreach_tools_displayEntity;
   "agents/outreach/tools/generatePlan": typeof agents_outreach_tools_generatePlan;
   "agents/outreach/tools/getProspectInteractionHistory": typeof agents_outreach_tools_getProspectInteractionHistory;
@@ -370,6 +375,7 @@ declare const fullApi: ApiFromModules<{
   interactionsActions: typeof interactionsActions;
   keywords: typeof keywords;
   "lib/accessHelpers": typeof lib_accessHelpers;
+  "lib/agentAttachmentReferenceCore": typeof lib_agentAttachmentReferenceCore;
   "lib/agentContextHelpers": typeof lib_agentContextHelpers;
   "lib/agentMemoryCore": typeof lib_agentMemoryCore;
   "lib/agentMetadata": typeof lib_agentMetadata;

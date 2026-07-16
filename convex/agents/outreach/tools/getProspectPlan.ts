@@ -43,6 +43,9 @@ export interface GetProspectPlanResult {
     status: string;
     content?: string;
     targetTweetId?: string;
+    mediaUrls?: string[];
+    mediaDescriptions?: string[];
+    mediaKinds?: Array<"image" | "gif" | "video">;
   }>;
   artifact?: AgentArtifactEnvelope;
   error?: string;
@@ -119,6 +122,9 @@ export const getProspectPlan = createTool({
           status: t.status,
           content: t.content,
           targetTweetId: t.targetTweetId,
+          mediaUrls: t.mediaUrls,
+          mediaDescriptions: t.mediaDescriptions,
+          mediaKinds: t.mediaKinds,
         })),
         artifact: createPlanPreviewArtifact({
           planId: result.plan._id,

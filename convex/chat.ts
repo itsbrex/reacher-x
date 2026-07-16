@@ -110,6 +110,7 @@ import {
   type OutreachModelLane,
 } from "./lib/outreachModelRoutingCore";
 import { buildPlanBatchReferenceCatalogContext } from "./lib/planBatchCore";
+import { buildAgentAttachmentReferenceContext } from "./lib/agentAttachmentReferenceCore";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -680,6 +681,9 @@ async function buildResolvedTaggedEntityLine(
       return `Task: Task ${task.order} for ${prospectLabel} (taskId: ${String(task._id)}; planId: ${String(plan._id)}; prospectId: ${String(plan.prospectId)}; status: ${task.status}; type: ${task.type}; summary: ${summary})`;
     }
     case "attachment": {
+      if (scope.kind === "prospect") {
+        return null;
+      }
       const resolvedAttachment = await resolveAttachmentReference(ctx, scope, {
         uploadId: entity.entityId ?? null,
         fileName: entity.label,
@@ -872,13 +876,29 @@ async function buildAgentTurnContextMessages(
       )
     )
   ).filter((line): line is string => Boolean(line));
-  const attachmentLines = (
-    await Promise.all(
-      effectiveMetadata.attachments.map((attachment) =>
-        buildResolvedAttachmentReferenceLine(ctx, scope, attachment)
-      )
-    )
-  ).filter((line): line is string => Boolean(line));
+  const attachmentReferences =
+    scope.kind === "prospect"
+      ? await ctx.runQuery(
+          internal.agentAttachments.listAvailableForAgentTool,
+          {
+            threadId: args.threadId,
+            messageId: args.promptMessageId,
+            userId: scope.userId,
+          }
+        )
+      : [];
+  const attachmentReferenceContext =
+    buildAgentAttachmentReferenceContext(attachmentReferences);
+  const attachmentLines =
+    scope.kind === "prospect"
+      ? []
+      : (
+          await Promise.all(
+            effectiveMetadata.attachments.map((attachment) =>
+              buildResolvedAttachmentReferenceLine(ctx, scope, attachment)
+            )
+          )
+        ).filter((line): line is string => Boolean(line));
   const visionAttachmentMessage = await buildVisionAttachmentMessage(
     ctx,
     scope,
@@ -903,6 +923,13 @@ async function buildAgentTurnContextMessages(
     messages.push({
       role: "system",
       content: planReferenceContext,
+    });
+  }
+
+  if (attachmentReferenceContext) {
+    messages.push({
+      role: "system",
+      content: attachmentReferenceContext,
     });
   }
 

@@ -74,6 +74,9 @@ export type AgentProspectProfileRelatedContext = {
       status: Doc<"outreachTasks">["status"];
       content?: string;
       targetTweetId?: string;
+      mediaUrls?: string[];
+      mediaDescriptions?: string[];
+      mediaKinds?: Array<"image" | "gif" | "video">;
     }>;
   } | null;
   interactionHistory: unknown | null;

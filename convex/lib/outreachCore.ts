@@ -173,39 +173,54 @@ async function validateTaskInputs(
       task.timing.type === "event" &&
       task.timing.value === "next_post"
   );
-  const allMediaUrls = [
-    ...new Set(
-      tasks.flatMap(
-        (task) =>
-          task.mediaUrls?.filter(
-            (mediaUrl): mediaUrl is string =>
-              typeof mediaUrl === "string" && mediaUrl.trim().length > 0
-          ) ?? []
-      )
-    ),
-  ];
-  const resolvedMedia = await resolveOwnedOutreachMedia(ctx, {
-    userId,
-    workspaceId,
-    mediaUrls: allMediaUrls,
-  });
-  const mediaByUrl = new Map(resolvedMedia.map((media) => [media.url, media]));
-  const preparedTasks: OutreachTaskInput[] = [];
-
-  for (const task of tasks) {
-    const trimmedContent = task.content?.trim() ?? "";
-    const mediaUrls =
+  const mediaUrlsByTask = tasks.map(
+    (task) =>
       task.mediaUrls?.filter(
         (mediaUrl): mediaUrl is string =>
           typeof mediaUrl === "string" && mediaUrl.trim().length > 0
-      ) ?? [];
-    const taskMedia = mediaUrls.map((mediaUrl) => {
-      const media = mediaByUrl.get(mediaUrl);
-      if (!media) {
-        throw new Error(`Unable to resolve selected attachment: ${mediaUrl}`);
-      }
-      return media;
-    });
+      ) ?? []
+  );
+  const allMediaUrls = [
+    ...new Set(
+      tasks.flatMap((task, index) =>
+        task.mediaUploadIds?.length ? [] : mediaUrlsByTask[index]
+      )
+    ),
+  ];
+  const [resolvedMedia, resolvedMediaByTask] = await Promise.all([
+    resolveOwnedOutreachMedia(ctx, {
+      userId,
+      workspaceId,
+      mediaUrls: allMediaUrls,
+    }),
+    Promise.all(
+      tasks.map((task, index) =>
+        task.mediaUploadIds?.length
+          ? resolveOwnedOutreachMedia(ctx, {
+              userId,
+              workspaceId,
+              mediaUrls: mediaUrlsByTask[index],
+              mediaUploadIds: task.mediaUploadIds,
+            })
+          : null
+      )
+    ),
+  ]);
+  const mediaByUrl = new Map(resolvedMedia.map((media) => [media.url, media]));
+  const preparedTasks: OutreachTaskInput[] = [];
+
+  for (const [taskIndex, task] of tasks.entries()) {
+    const trimmedContent = task.content?.trim() ?? "";
+    const mediaUrls = mediaUrlsByTask[taskIndex];
+    const taskMedia =
+      resolvedMediaByTask[taskIndex] ??
+      mediaUrls.map((mediaUrl) => {
+        const media = mediaByUrl.get(mediaUrl);
+        if (!media) {
+          throw new Error(`Unable to resolve selected attachment: ${mediaUrl}`);
+        }
+        return media;
+      });
 
     if (taskMedia.length > 0 && task.type !== "comment" && task.type !== "dm") {
       throw new Error(

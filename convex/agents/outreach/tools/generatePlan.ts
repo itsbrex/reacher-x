@@ -23,6 +23,10 @@ import {
 import { X_LONG_FORM_POST_MAX_CHARS } from "../../../../shared/lib/twitter/xPostTextLimit";
 import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
 import { getMediaCapabilityErrorMessage } from "../../../lib/mediaCapabilityCore";
+import {
+  attachmentRefsSchema,
+  resolveTaskAttachmentReferences,
+} from "./attachmentReferences";
 
 // ============================================================================
 // Schema
@@ -37,11 +41,14 @@ const taskSchema = z.object({
   }),
   targetTweetId: z.string().optional(),
   content: z.string().max(X_LONG_FORM_POST_MAX_CHARS).optional(),
+  attachmentRefs: attachmentRefsSchema,
   mediaUrls: z
-    .array(z.string().url())
+    .array(z.url())
     .max(4)
     .optional()
-    .describe("Exact URLs from the user's selected workspace attachments"),
+    .describe(
+      "Exact verified URLs already present in plan context, or explicitly supplied by a delegated system instruction. For newly selected files, use attachmentRefs instead."
+    ),
   mediaDescriptions: z.array(z.string().max(1_000)).max(4).optional(),
   mediaKinds: z
     .array(z.enum(["image", "gif", "video"]))
@@ -91,6 +98,9 @@ export interface GeneratePlanResult {
     status: string;
     content?: string;
     targetTweetId?: string;
+    mediaUrls?: string[];
+    mediaDescriptions?: string[];
+    mediaKinds?: Array<"image" | "gif" | "video">;
   }>;
   artifact?: AgentArtifactEnvelope;
   error?: string;
@@ -267,16 +277,20 @@ export const generatePlan = createTool({
         args.tasks,
         args.strategy.targetTweetId
       );
+      const resolvedTasks = await resolveTaskAttachmentReferences(
+        ctx,
+        normalizedTasks
+      );
       const repairedTasks =
         prospectPlatform === "twitter"
           ? (
               await repairOverLimitCommentTasks({
                 ctx,
                 userId,
-                tasks: normalizedTasks,
+                tasks: resolvedTasks,
               })
             ).tasks
-          : normalizedTasks;
+          : resolvedTasks;
       const canDeferCommentTarget = allowsDeferredNextPostTarget(repairedTasks);
       const invalidCommentTask = repairedTasks.find(
         (task) =>
@@ -364,6 +378,9 @@ export const generatePlan = createTool({
           status: task.status,
           content: task.content,
           targetTweetId: task.targetTweetId,
+          mediaUrls: task.mediaUrls,
+          mediaDescriptions: task.mediaDescriptions,
+          mediaKinds: task.mediaKinds,
         })),
         artifact: createPlanPreviewArtifact({
           planId,
