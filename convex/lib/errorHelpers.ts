@@ -64,10 +64,13 @@ function sanitizeUnknownErrorValue(
       seen.add(value);
 
       const sanitizedEntries = Object.entries(value)
-        .map(([key, entryValue]) => [
-          key,
-          sanitizeUnknownErrorValue(entryValue, depth + 1, seen),
-        ] as const)
+        .map(
+          ([key, entryValue]) =>
+            [
+              key,
+              sanitizeUnknownErrorValue(entryValue, depth + 1, seen),
+            ] as const
+        )
         .filter(([, entryValue]) => entryValue !== undefined);
 
       return Object.fromEntries(sanitizedEntries);
@@ -153,4 +156,18 @@ export function normalizeUnknownError(error: unknown): Error {
   }
 
   return new Error(stringifyUnknownError(error));
+}
+
+export function getUserSafeErrorMessage(
+  error: unknown,
+  fallback = "Something went wrong"
+): string {
+  const rawMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : fallback;
+  const firstLine = rawMessage.split("\n", 1)[0]?.trim();
+  return firstLine?.replace(/^Uncaught Error:\s*/i, "") || fallback;
 }

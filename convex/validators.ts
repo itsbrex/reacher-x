@@ -1095,6 +1095,12 @@ export const agentMessageContextMetadataValidator = v.object({
   attachments: v.array(agentMessageAttachmentReferenceValidator),
 });
 
+export const agentThreadTargetSelectionTargetValidator = v.object({
+  prospectId: v.id("prospects"),
+  label: v.string(),
+  handle: v.optional(v.string()),
+});
+
 export const updateWorkspaceV4ArgsValidator = v.object({
   workspaceId: v.id("workspaces"),
   name: v.optional(workspaceNameValidator),
@@ -1355,6 +1361,11 @@ export const outreachNotificationTypeValidator = v.union(
   v.literal("social_action_failed"),
   v.literal("setup_preview_ready"),
   v.literal("plan_completed"),
+  v.literal("plan_batch_ready"),
+  v.literal("plan_batch_started"),
+  v.literal("plan_batch_completed"),
+  v.literal("plan_batch_partial"),
+  v.literal("plan_batch_failed"),
   v.literal("error")
 );
 
@@ -1763,6 +1774,57 @@ export const autoPlanRunStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed")
 );
+
+export const planBatchOperationValidator = v.union(
+  v.literal("create"),
+  v.literal("update"),
+  v.literal("create_or_update")
+);
+
+export const planBatchItemOperationValidator = v.union(
+  v.literal("create"),
+  v.literal("update")
+);
+
+export const planBatchScopeKindValidator = v.union(
+  v.literal("tagged"),
+  v.literal("plan_group"),
+  v.literal("named"),
+  v.literal("all"),
+  v.literal("fit_score")
+);
+
+export const planBatchRunStatusValidator = v.union(
+  v.literal("selecting"),
+  v.literal("awaiting_confirmation"),
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("partial"),
+  v.literal("failed"),
+  v.literal("cancelled")
+);
+
+export const planBatchItemStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("succeeded"),
+  v.literal("failed"),
+  v.literal("skipped"),
+  v.literal("cancelled")
+);
+
+export const planBatchAttachmentValidator = v.object({
+  url: v.string(),
+  fileName: v.string(),
+  mediaKind: mentionAttachmentMediaKindValidator,
+});
+
+export const planBatchWorkCompletionContextValidator = v.object({
+  runId: v.id("planBatchRuns"),
+  itemId: v.id("planBatchItems"),
+});
 
 export const autoPlanFailureCodeValidator = v.union(
   v.literal("reconnect_required"),

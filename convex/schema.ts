@@ -50,6 +50,12 @@ import {
   planGenerationStatusValidator,
   autoPlanRunStatusValidator,
   autoPlanFailureCodeValidator,
+  planBatchOperationValidator,
+  planBatchItemOperationValidator,
+  planBatchScopeKindValidator,
+  planBatchRunStatusValidator,
+  planBatchItemStatusValidator,
+  planBatchAttachmentValidator,
   providerNameValidator,
   providerCircuitStatusValidator,
   providerCircuitReasonValidator,
@@ -131,6 +137,7 @@ import {
   agentMessageAttachmentReferenceValidator,
   agentMessagePromptTextSourceValidator,
   agentMessageTaggedEntityValidator,
+  agentThreadTargetSelectionTargetValidator,
 } from "./validators";
 
 // ============================================================================
@@ -1349,6 +1356,24 @@ export default defineSchema({
     .index("by_user", ["userId"]),
 
   /**
+   * Last explicit prospect selection made by the user in an agent thread.
+   *
+   * This is durable conversational state, separate from per-message UI
+   * metadata. Untagged follow-ups keep the selection; a later explicitly
+   * tagged message replaces it.
+   */
+  agentThreadTargetSelections: defineTable({
+    threadId: v.string(),
+    userId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    sourceMessageId: v.string(),
+    sourceContextCreatedAt: v.number(),
+    targets: v.array(agentThreadTargetSelectionTargetValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_thread", ["threadId"]),
+
+  /**
    * Lightweight prospect list-card read model.
    * Keeps shell/list queries off the heavyweight prospects table.
    */
@@ -2120,6 +2145,7 @@ export default defineSchema({
     archiveHold: v.optional(outreachPlanArchiveHoldValidator),
   })
     .index("by_prospect", ["prospectId"])
+    .index("by_prospect_and_status", ["prospectId", "status"])
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_user", ["userId"]),
 
@@ -2139,6 +2165,7 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     recoveryRetriedAt: v.optional(v.number()),
+    recoveryExhaustedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_prospect", ["prospectId"])
@@ -2148,6 +2175,81 @@ export default defineSchema({
       "errorCode",
       "recoveryRetriedAt",
     ]),
+
+  /**
+   * One durable workspace-issued plan operation.
+   *
+   * Tagged, all-prospect, and fit-score-targeted requests share this table and
+   * the same execution path. Large scopes are selected before confirmation.
+   */
+  planBatchRuns: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    sourceThreadId: v.string(),
+    sourceMessageId: v.optional(v.string()),
+    referenceKey: v.optional(v.string()),
+    sourcePlanBatchRunId: v.optional(v.id("planBatchRuns")),
+    workflowId: v.optional(v.string()),
+    operation: planBatchOperationValidator,
+    scopeKind: planBatchScopeKindValidator,
+    instruction: v.string(),
+    fitScoreMin: v.optional(v.number()),
+    fitScoreMax: v.optional(v.number()),
+    attachments: v.array(planBatchAttachmentValidator),
+    confirmationRequired: v.boolean(),
+    status: planBatchRunStatusValidator,
+    selectionCursor: v.optional(v.string()),
+    targetCount: v.number(),
+    eligibleCount: v.number(),
+    queuedCount: v.number(),
+    runningCount: v.number(),
+    succeededCount: v.number(),
+    createdCount: v.optional(v.number()),
+    updatedCount: v.optional(v.number()),
+    failedCount: v.number(),
+    skippedCount: v.number(),
+    selectionSkippedCount: v.number(),
+    finishedCount: v.number(),
+    errorMessage: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_source_message_id", ["sourceMessageId"])
+    .index("by_thread_and_reference_key", ["sourceThreadId", "referenceKey"])
+    .index("by_thread_and_updated_at", ["sourceThreadId", "updatedAt"])
+    .index("by_workspace_and_updated_at", ["workspaceId", "updatedAt"])
+    .index("by_user_and_status", ["userId", "status"]),
+
+  /** Per-prospect work and audit state for a durable plan batch. */
+  planBatchItems: defineTable({
+    runId: v.id("planBatchRuns"),
+    prospectId: v.id("prospects"),
+    prospectName: v.optional(v.string()),
+    operation: planBatchItemOperationValidator,
+    targetInstruction: v.optional(v.string()),
+    status: planBatchItemStatusValidator,
+    skipReason: v.optional(v.string()),
+    baselinePlanId: v.optional(v.id("outreachPlans")),
+    baselinePlanVersion: v.optional(v.number()),
+    // Written atomically by plan create/refine mutations. This proves that
+    // this exact batch item applied the resulting plan change across retries.
+    appliedPlanId: v.optional(v.id("outreachPlans")),
+    appliedPlanVersion: v.optional(v.number()),
+    appliedAt: v.optional(v.number()),
+    planId: v.optional(v.id("outreachPlans")),
+    threadId: v.optional(v.string()),
+    workId: v.optional(v.string()),
+    attemptCount: v.number(),
+    errorMessage: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_run_and_status", ["runId", "status"])
+    .index("by_run_and_prospect", ["runId", "prospectId"]),
 
   /** Successful grounding stages reused across workpool and recovery retries. */
   autoPlanGroundingCache: defineTable({
@@ -2183,6 +2285,7 @@ export default defineSchema({
     originalDraftContent: v.optional(v.string()),
     // Optional media edits attached during approval before posting
     mediaUrls: v.optional(v.array(v.string())),
+    mediaUploadIds: v.optional(v.array(v.id("mediaUploads"))),
     mediaDescriptions: v.optional(v.array(v.string())),
     mediaKinds: v.optional(v.array(twitterMediaKindValidator)),
     // Snapshot for deterministic panel hydration/reopen
@@ -2427,10 +2530,22 @@ export default defineSchema({
     threadId: v.optional(v.string()),
     approvalEventId: v.optional(v.string()),
     // Timestamps
+    eventVersion: v.optional(v.number()),
+    eventUpdatedAt: v.optional(v.number()),
     seenAt: v.optional(v.number()),
     dismissedAt: v.optional(v.number()),
   })
     .index("by_user_status", ["userId", "status"])
+    .index("by_user_workspace_event_updated_at", [
+      "userId",
+      "workspaceId",
+      "eventUpdatedAt",
+    ])
+    .index("by_user_workspace_key", [
+      "userId",
+      "workspaceId",
+      "notificationKey",
+    ])
     .index("by_workspace", ["workspaceId"])
     .index("by_plan", ["planId"])
     .index("by_task", ["taskId"])

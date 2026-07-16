@@ -99,6 +99,14 @@ import {
 } from "../shared/lib/twitter/xPostTextLimit";
 import { getEffectivePostTextLimitForUser } from "./lib/xPostLimits";
 import { resumeOutreachPlansAfterUnarchiveCore } from "./lib/resumeOutreachAfterUnarchive";
+import {
+  assertOutreachMediaCapability,
+  getMediaCapabilityErrorMessage,
+  resolveOwnedOutreachMedia,
+  withAttachmentNames,
+  type OutreachMediaPlatform,
+  type ResolvedOutreachMedia,
+} from "./lib/mediaCapabilityCore";
 
 type PanelMode = "approval" | "posted";
 const outreachLogger = logger.withScope("Outreach");
@@ -267,53 +275,104 @@ function getRecordedPlatform(
   task: Pick<Doc<"outreachTasks">, "approvalContext">,
   prospect?: Pick<Doc<"prospects">, "platform"> | null
 ): "twitter" | "linkedin" {
-  return (
-    task.approvalContext?.platform ??
-    (prospect?.platform === "linkedin" ? "linkedin" : "twitter")
-  );
+  if (prospect) {
+    return prospect.platform === "linkedin" ? "linkedin" : "twitter";
+  }
+  return task.approvalContext?.platform ?? "twitter";
 }
 
-async function getTaskDraftValidationError(
+interface TaskDraftValidationResult {
+  error: string | null;
+  media: ResolvedOutreachMedia[];
+  platform: OutreachMediaPlatform;
+}
+
+async function validateTaskDraft(
   ctx: MutationCtx,
   args: {
     task: Pick<
       Doc<"outreachTasks">,
-      "type" | "description" | "approvalContext" | "mediaUrls"
+      | "type"
+      | "description"
+      | "approvalContext"
+      | "mediaUrls"
+      | "mediaUploadIds"
     >;
     prospect?: Pick<Doc<"prospects">, "platform"> | null;
     userId: Id<"users">;
+    workspaceId: Id<"workspaces">;
     content: string;
     mediaUrls: string[];
+    mediaUploadIds?: Id<"mediaUploads">[];
   }
-): Promise<string | null> {
+): Promise<TaskDraftValidationResult> {
+  const platform = getRecordedPlatform(args.task, args.prospect);
+
   if (args.task.type === "comment") {
-    if (!hasPostBody(args.content, args.mediaUrls)) {
-      return "Reply text or media is required";
+    const hasValidBody =
+      platform === "linkedin"
+        ? args.content.length > 0
+        : hasPostBody(args.content, args.mediaUrls);
+    if (!hasValidBody) {
+      return {
+        error:
+          platform === "linkedin"
+            ? "LinkedIn comment text is required"
+            : "Reply text or media is required",
+        media: [],
+        platform,
+      };
     }
 
-    const postLimit = await getEffectivePostTextLimitForUser(ctx, args.userId);
-    return args.content ? getPostTextLimitError(args.content, postLimit) : null;
+    if (platform === "twitter" && args.content) {
+      const postLimit = await getEffectivePostTextLimitForUser(
+        ctx,
+        args.userId
+      );
+      const textError = getPostTextLimitError(args.content, postLimit);
+      if (textError) return { error: textError, media: [], platform };
+    }
   }
 
   if (args.task.type === "dm") {
     if (!hasDmBody(args.content, args.mediaUrls)) {
-      return "DM content is required";
+      return { error: "DM content is required", media: [], platform };
     }
 
-    const platform = getRecordedPlatform(args.task, args.prospect);
     if (platform === "linkedin") {
-      return args.content.length > LINKEDIN_DM_TEXT_MAX
-        ? `LinkedIn DM text exceeds limit (${args.content.length} characters, max ${LINKEDIN_DM_TEXT_MAX}).`
-        : null;
+      if (args.content.length > LINKEDIN_DM_TEXT_MAX) {
+        return {
+          error: `LinkedIn DM text exceeds limit (${args.content.length} characters, max ${LINKEDIN_DM_TEXT_MAX}).`,
+          media: [],
+          platform,
+        };
+      }
+    } else if (args.content) {
+      const textError = getDmTextLimitError(args.content);
+      if (textError) return { error: textError, media: [], platform };
     }
-
-    if (args.mediaUrls.length > 1) {
-      return "X DMs support at most one media attachment.";
-    }
-    return args.content ? getDmTextLimitError(args.content) : null;
   }
 
-  return null;
+  try {
+    const media = await resolveOwnedOutreachMedia(ctx, {
+      userId: args.userId,
+      workspaceId: args.workspaceId,
+      mediaUrls: args.mediaUrls,
+      mediaUploadIds: args.mediaUploadIds,
+    });
+    if (args.task.type === "comment" || args.task.type === "dm") {
+      assertOutreachMediaCapability({
+        platform,
+        surface: args.task.type,
+        media,
+      });
+    }
+    return { error: null, media, platform };
+  } catch (error) {
+    const mediaError = getMediaCapabilityErrorMessage(error);
+    if (mediaError) return { error: mediaError, media: [], platform };
+    throw error;
+  }
 }
 
 function assertExpectedTaskType(
@@ -833,18 +892,15 @@ export const listNotifications = query({
       notAuthorizedMessage: "Not authorized to view this workspace",
     });
 
-    // Get workspace-scoped notifications for user, ordered by creation time (descending)
+    // Order by the latest meaningful event, not only document creation. Keyed
+    // notifications are reused, so an updated older document must re-enter the
+    // live result set for its new event version to toast.
     const notifications = await ctx.db
       .query("outreachNotifications")
-      .withIndex("by_workspace", (q) =>
-        q.eq("workspaceId", resolvedWorkspaceId)
+      .withIndex("by_user_workspace_event_updated_at", (q) =>
+        q.eq("userId", user._id).eq("workspaceId", resolvedWorkspaceId)
       )
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userId"), user._id),
-          q.neq(q.field("status"), "dismissed")
-        )
-      )
+      .filter((q) => q.neq(q.field("status"), "dismissed"))
       .order("desc")
       .take(100);
 
@@ -872,11 +928,14 @@ export const listNotifications = query({
 
       const typePriorityDiff =
         getTypePriority(a.type) - getTypePriority(b.type);
-      if (typePriorityDiff !== 0) {
-        return typePriorityDiff;
+      const eventUpdatedDiff =
+        (b.eventUpdatedAt ?? b._creationTime) -
+        (a.eventUpdatedAt ?? a._creationTime);
+      if (eventUpdatedDiff !== 0) {
+        return eventUpdatedDiff;
       }
 
-      return b._creationTime - a._creationTime;
+      return typePriorityDiff;
     });
   },
 });
@@ -1540,6 +1599,7 @@ export const createPlan = internalMutation({
       })
     ),
     threadId: v.optional(v.string()),
+    planBatchItemId: v.optional(v.id("planBatchItems")),
   },
   handler: async (ctx, args) => {
     const input: OutreachPlanInput = {
@@ -1549,6 +1609,7 @@ export const createPlan = internalMutation({
       strategy: args.strategy,
       tasks: args.tasks,
       threadId: args.threadId,
+      planBatchItemId: args.planBatchItemId,
     };
 
     return await createOutreachPlan(ctx, input);
@@ -1602,12 +1663,14 @@ export const updatePlan = internalMutation({
       )
     ),
     threadId: v.optional(v.string()),
+    planBatchItemId: v.optional(v.id("planBatchItems")),
   },
   handler: async (ctx, args) => {
     await refinePlanCore(ctx, args.planId, {
       strategy: args.strategy,
       tasks: args.tasks as OutreachTaskInput[] | undefined,
       threadId: args.threadId,
+      planBatchItemId: args.planBatchItemId,
     });
   },
 });
@@ -2502,14 +2565,12 @@ export const createTaskExecutionFailureNotification = internalMutation({
 
     const prospect = await ctx.db.get(plan.prospectId);
     const display = getProspectDisplayFields(prospect);
-    const platform =
-      task.approvalContext?.platform ??
-      (task.type === "dm" && prospect?.platform === "linkedin"
-        ? "linkedin"
-        : "twitter");
+    const platform = getRecordedPlatform(task, prospect);
     const title =
       platform === "linkedin"
-        ? "LinkedIn message failed"
+        ? task.type === "dm"
+          ? "LinkedIn message failed"
+          : "LinkedIn comment failed"
         : task.type === "dm"
           ? "DM failed on X/Twitter"
           : "Reply failed on X/Twitter";
@@ -2531,6 +2592,66 @@ export const createTaskExecutionFailureNotification = internalMutation({
   },
 });
 
+export const createPlanMediaCapabilityNotification = internalMutation({
+  args: {
+    userId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    prospectId: v.id("prospects"),
+    threadId: v.optional(v.string()),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const prospect = await ctx.db.get(args.prospectId);
+    if (
+      !prospect ||
+      prospect.userId !== args.userId ||
+      prospect.workspaceId !== args.workspaceId
+    ) {
+      return null;
+    }
+    const platform = prospect.platform === "linkedin" ? "linkedin" : "twitter";
+    return await createNotification(ctx, {
+      userId: args.userId,
+      workspaceId: args.workspaceId,
+      type: "error",
+      title: `Attachment not supported on ${platform === "linkedin" ? "LinkedIn" : "X/Twitter"}`,
+      message: args.message,
+      notificationKey: `plan-media-capability:${args.prospectId}:${getCurrentUTCTimestamp()}`,
+      prospectId: args.prospectId,
+      threadId: args.threadId,
+      contextPlatform: platform,
+      ...getProspectDisplayFields(prospect),
+    });
+  },
+});
+
+export const createExistingPlanMediaCapabilityNotification = internalMutation({
+  args: {
+    planId: v.id("outreachPlans"),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) return null;
+    const prospect = await ctx.db.get(plan.prospectId);
+    if (!prospect) return null;
+    const platform = prospect.platform === "linkedin" ? "linkedin" : "twitter";
+    return await createNotification(ctx, {
+      userId: plan.userId,
+      workspaceId: plan.workspaceId,
+      type: "error",
+      title: `Attachment not supported on ${platform === "linkedin" ? "LinkedIn" : "X/Twitter"}`,
+      message: args.message,
+      notificationKey: `plan-media-capability:${args.planId}:${getCurrentUTCTimestamp()}`,
+      prospectId: plan.prospectId,
+      planId: plan._id,
+      threadId: plan.threadId,
+      contextPlatform: platform,
+      ...getProspectDisplayFields(prospect),
+    });
+  },
+});
+
 // Note: executeCommentTask and parseTwitterError live in outreachActions.ts
 // because authenticated Twitter actions run in the Node.js runtime.
 
@@ -2541,6 +2662,51 @@ export const getTaskInternal = internalQuery({
   args: { taskId: v.id("outreachTasks") },
   handler: async (ctx, { taskId }) => {
     return await ctx.db.get(taskId);
+  },
+});
+
+/** Revalidate attachment ownership and current platform rules before sending. */
+export const validateTaskMediaForExecution = internalQuery({
+  args: { taskId: v.id("outreachTasks") },
+  returns: v.object({
+    platform: v.union(v.literal("twitter"), v.literal("linkedin")),
+    mediaUrls: v.array(v.string()),
+  }),
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task) throw new Error("Task not found");
+    if (task.type !== "comment" && task.type !== "dm") {
+      throw new Error("Only comment and DM tasks can contain attachments");
+    }
+
+    const plan = await ctx.db.get(task.planId);
+    if (!plan) throw new Error("Plan not found");
+    const prospect = await ctx.db.get(plan.prospectId);
+    if (
+      !prospect ||
+      prospect.userId !== plan.userId ||
+      prospect.workspaceId !== plan.workspaceId
+    ) {
+      throw new Error("Prospect not found for this plan");
+    }
+
+    const platform = getRecordedPlatform(task, prospect);
+    const media = await resolveOwnedOutreachMedia(ctx, {
+      userId: plan.userId,
+      workspaceId: plan.workspaceId,
+      mediaUrls: toStringArray(task.mediaUrls),
+      mediaUploadIds: task.mediaUploadIds,
+    });
+    assertOutreachMediaCapability({
+      platform,
+      surface: task.type,
+      media,
+    });
+
+    return {
+      platform,
+      mediaUrls: media.map((attachment) => attachment.url),
+    };
   },
 });
 
@@ -3343,16 +3509,16 @@ export const createTaskApprovalNotification = internalMutation({
     const useCase = getWorkspaceUseCase(workspace?.useCaseKey);
     const name =
       args.prospectDisplayName || useCase.entitySingular.toLowerCase();
-    const taskPlatform = args.platform ?? "twitter";
-    const title =
-      taskPlatform === "linkedin" || !args.targetTweetId
-        ? `Approve the DM to ${name}`
-        : `Approve the reply to ${name}`;
 
     const task = await ctx.db.get(args.taskId);
     if (!task) {
       throw new Error("Task not found");
     }
+    const taskPlatform = args.platform ?? "twitter";
+    const title =
+      task.type === "dm"
+        ? `Approve the ${taskPlatform === "linkedin" ? "LinkedIn message" : "DM"} to ${name}`
+        : `Approve the ${taskPlatform === "linkedin" ? "LinkedIn comment" : "reply"} to ${name}`;
 
     const approvalNonce = (task.approvalNonce ?? 0) + 1;
     const approvalEventId = await workflowManager.createEvent(ctx, {
@@ -3473,15 +3639,16 @@ export const approveTaskWithEdits = mutation({
           typeof mediaUrl === "string" && mediaUrl.trim().length > 0
       ) ?? [];
     const prospect = await ctx.db.get(plan.prospectId);
-    const validationError = await getTaskDraftValidationError(ctx, {
+    const validation = await validateTaskDraft(ctx, {
       task,
       prospect,
       userId: plan.userId,
+      workspaceId: plan.workspaceId,
       content: trimmedContent,
       mediaUrls,
     });
-    if (validationError) {
-      throw new Error(validationError);
+    if (validation.error) {
+      throw new Error(validation.error);
     }
 
     if (
@@ -3497,12 +3664,14 @@ export const approveTaskWithEdits = mutation({
     // Preserve original draft for style learning before overwriting
     const originalDraft = task.content;
     const isEdited = trimmedContent !== (originalDraft || "").trim();
-    const mediaKinds = normalizeMediaKinds(args.mediaKinds, mediaUrls);
+    const mediaKinds = validation.media.map((media) => media.kind);
 
     await ctx.db.patch(args.taskId, {
+      description: withAttachmentNames(task.description, validation.media),
       content: trimmedContent,
       originalDraftContent: originalDraft,
-      mediaUrls,
+      mediaUrls: validation.media.map((media) => media.url),
+      mediaUploadIds: validation.media.map((media) => media.uploadId),
       mediaDescriptions: args.mediaDescriptions,
       mediaKinds,
       approvedAt: getCurrentUTCTimestamp(),
@@ -3510,8 +3679,12 @@ export const approveTaskWithEdits = mutation({
         ? {
             ...task.approvalContext,
             ...args.approvalContext,
+            platform: validation.platform,
           }
-        : task.approvalContext,
+        : {
+            ...task.approvalContext,
+            platform: validation.platform,
+          },
     });
 
     await recordMemoryWorkflowEvent(ctx, {
@@ -3552,7 +3725,7 @@ export const approveTaskWithEdits = mutation({
             originalDraft,
             editedContent: trimmedContent,
             diffSource: "outreach_task",
-            platform: getRecordedPlatform(task, prospect),
+            platform: validation.platform,
             sourceVersion:
               xAccount.styleSourceVersion ?? xAccount._creationTime,
             sourceExternalUserId: xAccount.xUserId,
@@ -3629,24 +3802,32 @@ export const updatePendingTaskDraft = mutation({
     }
 
     const prospect = await ctx.db.get(plan.prospectId);
-    const validationError = await getTaskDraftValidationError(ctx, {
+    const validation = await validateTaskDraft(ctx, {
       task,
       prospect,
       userId: plan.userId,
+      workspaceId: plan.workspaceId,
       content: trimmedContent,
       mediaUrls,
+      mediaUploadIds: hasMediaSnapshot ? undefined : task.mediaUploadIds,
     });
-    if (validationError) {
-      throw new Error(validationError);
+    if (validation.error) {
+      throw new Error(validation.error);
     }
 
     await ctx.db.patch(args.taskId, {
+      description: withAttachmentNames(task.description, validation.media),
       content: trimmedContent,
+      mediaUrls: validation.media.map((media) => media.url),
+      mediaUploadIds: validation.media.map((media) => media.uploadId),
+      mediaKinds: validation.media.map((media) => media.kind),
+      approvalContext: {
+        ...task.approvalContext,
+        platform: validation.platform,
+      },
       ...(hasMediaSnapshot
         ? {
-            mediaUrls,
             mediaDescriptions: args.mediaDescriptions,
-            mediaKinds: normalizeMediaKinds(args.mediaKinds, mediaUrls),
           }
         : {}),
     });
@@ -3703,18 +3884,28 @@ export const approveTask = mutation({
         (mediaUrl): mediaUrl is string =>
           typeof mediaUrl === "string" && mediaUrl.trim().length > 0
       ) ?? [];
-    const validationError = await getTaskDraftValidationError(ctx, {
+    const validation = await validateTaskDraft(ctx, {
       task,
       prospect: prospectApprove,
       userId: plan.userId,
+      workspaceId: plan.workspaceId,
       content: task.content?.trim() ?? "",
       mediaUrls,
+      mediaUploadIds: task.mediaUploadIds,
     });
-    if (validationError) {
-      throw new Error(validationError);
+    if (validation.error) {
+      throw new Error(validation.error);
     }
 
     await ctx.db.patch(taskId, {
+      description: withAttachmentNames(task.description, validation.media),
+      mediaUrls: validation.media.map((media) => media.url),
+      mediaUploadIds: validation.media.map((media) => media.uploadId),
+      mediaKinds: validation.media.map((media) => media.kind),
+      approvalContext: {
+        ...task.approvalContext,
+        platform: validation.platform,
+      },
       approvedAt: getCurrentUTCTimestamp(),
     });
 

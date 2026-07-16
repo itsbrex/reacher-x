@@ -103,6 +103,8 @@ export const outreachPlanWorkflow = workflowManager.define({
 
     // Prospect display fields are used in notifications.
     const prospectDisplayFields = getProspectDisplayFields(prospect);
+    const prospectPlatform =
+      prospect.platform === "linkedin" ? "linkedin" : "twitter";
 
     // Step 3: Execute tasks in order, re-reading the latest plan state so
     // refinements to future tasks can take effect while a plan is executing.
@@ -165,7 +167,11 @@ export const outreachPlanWorkflow = workflowManager.define({
       try {
         if (task.type === "comment") {
           // Validate task has required content
-          if (!task.content || !task.targetTweetId) {
+          if (
+            (!task.content &&
+              (prospectPlatform === "linkedin" || !task.mediaUrls?.length)) ||
+            !task.targetTweetId
+          ) {
             outreachWorkflowLogger.error("Comment task missing required data", {
               planId: String(args.planId),
               taskId: String(task._id),
@@ -193,8 +199,8 @@ export const outreachPlanWorkflow = workflowManager.define({
                 planId: args.planId,
                 taskId: task._id,
                 workflowId,
-                content: task.content,
-                platform: task.approvalContext?.platform ?? "twitter",
+                content: task.content ?? "",
+                platform: prospectPlatform,
                 targetTweetId: task.targetTweetId,
                 threadId: currentPlan.threadId,
                 ...prospectDisplayFields,
@@ -273,7 +279,7 @@ export const outreachPlanWorkflow = workflowManager.define({
             throw new Error("Task missing required DM content");
           }
 
-          const platform = task.approvalContext?.platform ?? "twitter";
+          const platform = prospectPlatform;
           const agentSettings = await step.runQuery(
             internal.workspaces.getWorkspaceAgentSettingsInternal,
             {
@@ -443,12 +449,17 @@ export const outreachPlanWorkflow = workflowManager.define({
 
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
+        const failedTask = await step.runQuery(
+          internal.outreach.getTaskInternal,
+          { taskId: task._id }
+        );
+        const userFacingError = failedTask?.errorMessage || errorMessage;
 
         outreachWorkflowLogger.error("Outreach task failed", {
           planId: String(args.planId),
           taskId: String(task._id),
           workflowId,
-          errorMessage,
+          errorMessage: userFacingError,
         });
 
         // Critical task failed - pause workflow
@@ -462,6 +473,16 @@ export const outreachPlanWorkflow = workflowManager.define({
             planId: args.planId,
             status: nextPlanStatus,
           });
+          if (nextPlanStatus !== "blocked_auth") {
+            await step.runMutation(
+              internal.outreach.createTaskExecutionFailureNotification,
+              {
+                taskId: task._id,
+                attemptId: `workflow:${workflowId}`,
+                message: userFacingError,
+              }
+            );
+          }
           await step.runAction(
             internal.chat.bridgeOutreachTaskStatusToThread,
             {
@@ -473,7 +494,7 @@ export const outreachPlanWorkflow = workflowManager.define({
           return {
             success: false,
             status: nextPlanStatus,
-            error: `Task failed: ${errorMessage}`,
+            error: `Task failed: ${userFacingError}`,
           };
         }
       }

@@ -18,9 +18,11 @@ import {
   ensureWorkspaceStyleReady,
   extractProspectThreadContext,
   resolveExecutionThreadId,
+  type ToolContext,
 } from "./helpers";
 import { X_LONG_FORM_POST_MAX_CHARS } from "../../../../shared/lib/twitter/xPostTextLimit";
 import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
+import { getMediaCapabilityErrorMessage } from "../../../lib/mediaCapabilityCore";
 
 // ============================================================================
 // Schema
@@ -35,6 +37,16 @@ const taskSchema = z.object({
   }),
   targetTweetId: z.string().optional(),
   content: z.string().max(X_LONG_FORM_POST_MAX_CHARS).optional(),
+  mediaUrls: z
+    .array(z.string().url())
+    .max(4)
+    .optional()
+    .describe("Exact URLs from the user's selected workspace attachments"),
+  mediaDescriptions: z.array(z.string().max(1_000)).max(4).optional(),
+  mediaKinds: z
+    .array(z.enum(["image", "gif", "video"]))
+    .max(4)
+    .optional(),
 });
 
 const strategySchema = z.object({
@@ -157,7 +169,13 @@ export const generatePlan = createTool({
       .optional()
       .describe("Optional: Extracted automatically from thread"),
   }),
-  execute: async (ctx, args): Promise<GeneratePlanResult> => {
+  execute: async (ctx: ToolContext, args): Promise<GeneratePlanResult> => {
+    let mediaFailureContext: {
+      userId: Id<"users">;
+      workspaceId: Id<"workspaces">;
+      prospectId: Id<"prospects">;
+      threadId?: string;
+    } | null = null;
     try {
       // Get current user from context
       const userId = ctx.userId as Id<"users"> | null;
@@ -197,6 +215,12 @@ export const generatePlan = createTool({
           error: "Missing prospect or workspace context",
         };
       }
+      const prospect = await ctx.runQuery(
+        internal.prospects.getProspectInternal,
+        { prospectId }
+      );
+      const prospectPlatform =
+        prospect?.platform === "linkedin" ? "linkedin" : "twitter";
 
       const existingPlan = await ctx.runQuery(
         internal.outreach.getProspectActivePlanInternal,
@@ -243,24 +267,33 @@ export const generatePlan = createTool({
         args.tasks,
         args.strategy.targetTweetId
       );
-      const { tasks: repairedTasks } = await repairOverLimitCommentTasks({
-        ctx,
-        userId,
-        tasks: normalizedTasks,
-      });
+      const repairedTasks =
+        prospectPlatform === "twitter"
+          ? (
+              await repairOverLimitCommentTasks({
+                ctx,
+                userId,
+                tasks: normalizedTasks,
+              })
+            ).tasks
+          : normalizedTasks;
       const canDeferCommentTarget = allowsDeferredNextPostTarget(repairedTasks);
       const invalidCommentTask = repairedTasks.find(
         (task) =>
           task.type === "comment" &&
-          (!task.content || (!task.targetTweetId && !canDeferCommentTarget))
+          ((!task.content &&
+            (prospectPlatform === "linkedin" || !task.mediaUrls?.length)) ||
+            (!task.targetTweetId && !canDeferCommentTarget))
       );
       if (invalidCommentTask) {
         return {
           success: false,
           message:
-            "Unable to create plan because at least one comment task is missing reply content or a target post. Select a specific post first, or use an explicit wait-for-next-post strategy on X before the comment task.",
+            prospectPlatform === "linkedin"
+              ? "Unable to create plan because a LinkedIn comment task is missing text or a target post."
+              : "Unable to create plan because at least one reply task is missing text/media or a target post. Select a specific post first, or use an explicit wait-for-next-post strategy on X before the reply task.",
           error:
-            "Comment tasks require content and either targetTweetId or an explicit next_post wait strategy",
+            "Comment tasks require supported content and either a target post or an explicit next-post wait strategy",
         };
       }
 
@@ -290,6 +323,12 @@ export const generatePlan = createTool({
           error: "Ambiguous prospect context",
         };
       }
+      mediaFailureContext = {
+        userId,
+        workspaceId,
+        prospectId,
+        threadId: executionThreadId,
+      };
 
       const planId = await ctx.runMutation(internal.outreach.createPlan, {
         prospectId,
@@ -298,7 +337,13 @@ export const generatePlan = createTool({
         strategy: args.strategy,
         tasks: repairedTasks,
         threadId: executionThreadId,
+        planBatchItemId: ctx.planBatchItemId,
       });
+      const createdPlanData = await ctx.runQuery(
+        internal.outreach.getPlanInternal,
+        { planId }
+      );
+      const createdTasks = createdPlanData?.tasks ?? [];
 
       return {
         success: true,
@@ -311,12 +356,12 @@ export const generatePlan = createTool({
           strategy: args.strategy,
           version: 1,
         },
-        tasks: repairedTasks.map((task, index) => ({
-          id: `generated-task-${index + 1}`,
-          order: index + 1,
+        tasks: createdTasks.map((task: (typeof createdTasks)[number]) => ({
+          id: task._id,
+          order: task.order,
           type: task.type,
           description: task.description,
-          status: "pending",
+          status: task.status,
           content: task.content,
           targetTweetId: task.targetTweetId,
         })),
@@ -325,12 +370,12 @@ export const generatePlan = createTool({
           prospectId,
           status: "draft",
           rationale: args.strategy.rationale,
-          tasks: repairedTasks.map((task, index) => ({
-            _id: `generated-task-${index + 1}`,
-            order: index + 1,
+          tasks: createdTasks.map((task: (typeof createdTasks)[number]) => ({
+            _id: task._id,
+            order: task.order,
             type: task.type,
             description: task.description,
-            status: "pending",
+            status: task.status,
             content: task.content,
             targetTweetId: task.targetTweetId,
           })),
@@ -339,11 +384,28 @@ export const generatePlan = createTool({
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      const mediaErrorMessage = getMediaCapabilityErrorMessage(error);
+      if (mediaErrorMessage && mediaFailureContext) {
+        try {
+          await ctx.runMutation(
+            internal.outreach.createPlanMediaCapabilityNotification,
+            {
+              ...mediaFailureContext,
+              message: mediaErrorMessage,
+            }
+          );
+        } catch (notificationError) {
+          console.warn(
+            "[generatePlan] Could not create media capability notification",
+            notificationError
+          );
+        }
+      }
 
       return {
         success: false,
-        message: `Unable to create plan: ${errorMessage}`,
-        error: errorMessage,
+        message: `Unable to create plan: ${mediaErrorMessage ?? errorMessage}`,
+        error: mediaErrorMessage ?? errorMessage,
       };
     }
   },

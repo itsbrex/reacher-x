@@ -3,8 +3,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useActiveUseCaseLabels, useQueryWithStatus } from "@/shared/hooks";
+import { useQueryWithStatus } from "@/shared/hooks";
 import { Button } from "@/shared/ui/components/Button";
+import { InlineCode } from "@/shared/ui/components/InlineCode";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -31,8 +32,6 @@ export function OutreachPlanSection({
 }: OutreachPlanSectionProps) {
   const router = useRouter();
   const { pushPanel } = usePanelStack();
-  const { entitySingular } = useActiveUseCaseLabels();
-  const entitySingularLower = entitySingular.toLowerCase();
 
   const planDataQuery = useQueryWithStatus(api.outreach.getProspectPlan, {
     prospectId: prospectId as Id<"prospects">,
@@ -84,11 +83,11 @@ export function OutreachPlanSection({
       <div className="rounded-xl border border-dashed p-6 text-center">
         <Loader2 className="text-primary mx-auto size-6 animate-spin" />
         <p className="mt-2 text-sm font-medium">
-          Generating outreach plan&hellip;
+          <InlineCode variant="mark">△</InlineCode> Agent is creating the
+          plan&hellip;
         </p>
         <p className="text-muted-foreground mt-1 text-xs">
-          This high-match {entitySingularLower} (80+) is getting a personalized
-          plan automatically.
+          Reviewing their profile to find the right way to reach out.
         </p>
       </div>
     );
@@ -98,15 +97,9 @@ export function OutreachPlanSection({
     return (
       <div className="rounded-xl border border-dashed p-6 text-center">
         <p className="text-muted-foreground text-sm">
-          Use{" "}
-          <code className="text-foreground rounded border px-1.5 py-0.5 font-mono text-[13px] font-medium">
-            △ Agent
-          </code>{" "}
-          to plan and chat, or use{" "}
-          <code className="text-foreground rounded border px-1.5 py-0.5 font-mono text-[13px] font-medium">
-            Generate plan
-          </code>{" "}
-          to create your first outreach plan draft.
+          Use <InlineCode>△ Agent</InlineCode> to plan and chat, or use{" "}
+          <InlineCode>Generate plan</InlineCode> to create your first outreach
+          plan draft.
         </p>
         <Button
           variant="outline"

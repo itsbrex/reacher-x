@@ -95,6 +95,8 @@ import { AgentArtifactRenderer } from "@/shared/ui/components/json-render";
 import {
   extractPostMentionCandidatesFromArtifact,
   getAgentArtifactFromResult,
+  validateAgentArtifactEnvelope,
+  type AgentArtifactEnvelope,
 } from "@/shared/lib/json-render/agentArtifacts";
 import { logger } from "@/shared/lib/logger";
 import type { MentionEntitySearchResult } from "@/shared/lib/mentions/mentionEntities";
@@ -266,6 +268,35 @@ function buildStableKey(base: string, sequence: Map<string, number>) {
   const nextCount = (sequence.get(base) ?? 0) + 1;
   sequence.set(base, nextCount);
   return `${base}-${nextCount}`;
+}
+
+function getAgentArtifactStableKey(artifact: AgentArtifactEnvelope): string {
+  const rootElement = artifact.spec.elements[artifact.spec.root];
+  const rootType = rootElement?.type ?? "artifact";
+  const props = rootElement?.props;
+
+  if (!props || typeof props !== "object") {
+    return `${rootType}:${artifact.spec.root}`;
+  }
+
+  const propsRecord = props as Record<string, unknown>;
+  const stableIdKeys = [
+    "planId",
+    "runId",
+    "memoryId",
+    "actionRequestId",
+    "prospectId",
+    "postId",
+  ] as const;
+
+  for (const key of stableIdKeys) {
+    const value = propsRecord[key];
+    if (typeof value === "string" && value.length > 0) {
+      return `${rootType}:${value}`;
+    }
+  }
+
+  return `${rootType}:${artifact.spec.root}:${JSON.stringify(propsRecord)}`;
 }
 
 function getProgressStatusIcon(status: ProgressStep["status"]) {
@@ -602,6 +633,47 @@ function ToolCallVisualization({
     // Handle both Convex Agent states ("result") and AI SDK states ("output-available")
     const isToolComplete =
       tc.state === "result" || tc.state === "output-available";
+    const artifacts =
+      isToolComplete && result && Array.isArray(result.artifacts)
+        ? result.artifacts
+            .map((value) => validateAgentArtifactEnvelope(value))
+            .filter((value): value is AgentArtifactEnvelope => value !== null)
+        : [];
+    if (artifacts.length > 0) {
+      if (pendingMarkerToolCalls.length > 0) {
+        renderedToolCallNodes.push(
+          <ToolCallGroup
+            key={`tool-group-${idx}`}
+            toolCalls={[...pendingMarkerToolCalls]}
+          />
+        );
+        pendingMarkerToolCalls.length = 0;
+      }
+      for (const resultArtifact of artifacts) {
+        renderedToolCallNodes.push(
+          <ArtifactToolResult
+            key={`${tc.toolCallId ?? tc.toolName}:${getAgentArtifactStableKey(resultArtifact)}`}
+            artifact={resultArtifact}
+            onOpenPanelFromCard={onOpenPanelFromCard}
+            onOpenPlanPanel={onOpenPlanPanel}
+            onApprovePlan={(planId: string) => {
+              void approvePlan({ planId: planId as Id<"outreachPlans"> });
+            }}
+            onDeletePlan={async (planId: string) => {
+              await toast.promise(
+                deletePlan({ planId: planId as Id<"outreachPlans"> }),
+                {
+                  loading: "Deleting plan...",
+                  success: "Plan deleted",
+                  error: "Failed to delete plan",
+                }
+              );
+            }}
+          />
+        );
+      }
+      continue;
+    }
     const artifact =
       isToolComplete && result ? getAgentArtifactFromResult(result) : null;
     if (artifact) {
@@ -1788,7 +1860,7 @@ function ChatHeader({
   const resolvedDmPlatform = dmPlatform === "linkedin" ? "linkedin" : "twitter";
 
   return (
-    <header className="bg-background sticky top-0 right-0 left-0 z-10 flex h-10 shrink-0 items-center justify-between border-b py-2 pr-4 pl-2.5">
+    <header className="bg-background sticky top-0 right-0 left-0 z-10 flex h-10 shrink-0 items-center justify-between border-b px-4 py-2">
       <div className="flex items-center gap-1">
         {onBack && (
           <Button
@@ -2023,14 +2095,19 @@ function ChatSkeleton({
         </ChatContainerRoot>
 
         {/* Skeleton input area - matches actual input structure */}
-        <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
+        <div className="bg-background shrink-0 px-4 pb-4 backdrop-blur-xl">
           <div
             className={cn(
               AGENT_CHAT_CONTENT_COLUMN_CLASS_NAME,
               "border-input bg-background rounded-xl border p-2 opacity-60"
             )}
           >
-            <div className="text-muted-foreground min-h-10 px-3 py-2 text-sm">
+            <div
+              className={cn(
+                DM_COMPOSER_CONTENT_EDITABLE_CLASS,
+                "text-muted-foreground min-h-10"
+              )}
+            >
               Type here...
             </div>
             <div className="flex items-center justify-between pt-0.5">
@@ -3150,7 +3227,7 @@ export function AgentChat({
         </div>
 
         {!showCenteredWorkspaceEmptyState ? (
-          <div className="bg-background shrink-0 px-4 pt-3 pb-4 backdrop-blur-xl">
+          <div className="bg-background shrink-0 px-4 pb-4 backdrop-blur-xl">
             {composerContent}
           </div>
         ) : null}

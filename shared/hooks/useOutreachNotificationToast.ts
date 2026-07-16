@@ -11,24 +11,70 @@ import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
+import {
+  getOutreachNotificationEventKey,
+  getOutreachNotificationEventTimestamp,
+} from "@/shared/lib/notifications/outreachNotificationEvents";
 import { useAuth } from "./useAuth";
 import { useNotificationWorkspace } from "./useNotificationWorkspace";
 import { useQueryWithStatus } from "./useQueryWithStatus";
+import { getCurrentUTCTimestamp } from "../lib/utils/time/timeUtils";
 
-type OutreachNotificationSummary = {
+type OutreachNotificationSummary = Omit<
+  Pick<
+    Doc<"outreachNotifications">,
+    | "_creationTime"
+    | "_id"
+    | "actionLabel"
+    | "actionRequestId"
+    | "eventUpdatedAt"
+    | "eventVersion"
+    | "message"
+    | "prospectId"
+    | "status"
+    | "targetHref"
+    | "taskId"
+    | "threadId"
+    | "title"
+    | "type"
+  >,
+  "_id" | "actionRequestId" | "prospectId" | "taskId"
+> & {
   _id: string;
-  status: string;
-  type: string;
-  title: string;
-  message?: string;
-  targetHref?: string;
-  actionLabel?: string;
-  prospectId?: string;
-  threadId?: string;
-  taskId?: string;
   actionRequestId?: string;
+  prospectId?: string;
+  taskId?: string;
 };
+
+type NotificationToastVariant = "info" | "success" | "warning" | "error";
+
+function getNotificationToastVariant(
+  type: Doc<"outreachNotifications">["type"]
+): NotificationToastVariant {
+  switch (type) {
+    case "ask_human":
+    case "twitter_action_request":
+    case "social_action_request":
+    case "plan_batch_ready":
+    case "plan_batch_started":
+      return "info";
+    case "prospects_found":
+    case "outreach_sent":
+    case "prospect_replied":
+    case "social_action_completed":
+    case "setup_preview_ready":
+    case "plan_completed":
+    case "plan_batch_completed":
+      return "success";
+    case "plan_batch_partial":
+      return "warning";
+    case "social_action_failed":
+    case "plan_batch_failed":
+    case "error":
+      return "error";
+  }
+}
 
 /**
  * Shows Sonner toast notifications for new approval requests and prospect replies.
@@ -38,6 +84,10 @@ export function useOutreachNotificationToast() {
   const convex = useConvex();
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaceId, shellStateQuery } = useNotificationWorkspace();
+  const workspaceSessionStartedAt = useMemo(
+    () => getCurrentUTCTimestamp(),
+    [workspaceId]
+  );
 
   const notificationsQuery = useQueryWithStatus(
     api.outreach.listNotifications,
@@ -78,15 +128,23 @@ export function useOutreachNotificationToast() {
 
     if (!baselineInitializedRef.current) {
       for (const notification of pending) {
-        shownNotifications.current.add(notification._id);
+        if (
+          getOutreachNotificationEventTimestamp(notification) <
+          workspaceSessionStartedAt
+        ) {
+          shownNotifications.current.add(
+            getOutreachNotificationEventKey(notification)
+          );
+        }
       }
       baselineInitializedRef.current = true;
-      return;
     }
 
     for (const notification of pending) {
+      const notificationEventKey =
+        getOutreachNotificationEventKey(notification);
       // Skip if already shown
-      if (shownNotifications.current.has(notification._id)) continue;
+      if (shownNotifications.current.has(notificationEventKey)) continue;
 
       const targetHref =
         notification.targetHref ??
@@ -130,51 +188,19 @@ export function useOutreachNotificationToast() {
         : undefined;
 
       const commonOptions = {
-        id: notification._id,
+        id: notificationEventKey,
         duration: 8000, // Auto-dismiss after 8s
         action: toastAction,
       };
 
-      // Show appropriate toast based on notification type
-      if (notification.type === "ask_human") {
-        toast.info(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "prospect_replied") {
-        toast.success(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "social_action_request") {
-        toast.info(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "social_action_completed") {
-        toast.success(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "setup_preview_ready") {
-        toast.success(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "social_action_failed") {
-        toast.error(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      } else if (notification.type === "error") {
-        toast.error(notification.title, {
-          description: notification.message,
-          ...commonOptions,
-        });
-      }
+      const variant = getNotificationToastVariant(notification.type);
+      toast[variant](notification.title, {
+        description: notification.message,
+        ...commonOptions,
+      });
 
       // Mark as shown
-      shownNotifications.current.add(notification._id);
+      shownNotifications.current.add(notificationEventKey);
     }
   }, [
     isAuthenticated,
@@ -183,6 +209,7 @@ export function useOutreachNotificationToast() {
     notificationsQuery.isSuccess,
     shellStateQuery.isPending,
     workspaceId,
+    workspaceSessionStartedAt,
     convex,
   ]);
 }

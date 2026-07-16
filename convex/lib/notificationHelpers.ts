@@ -185,9 +185,12 @@ export async function createNotification(
   ctx: MutationCtx,
   input: NotificationCreateInput
 ): Promise<Id<"outreachNotifications">> {
+  const now = getCurrentUTCTimestamp();
   return await ctx.db.insert("outreachNotifications", {
     ...applyNotificationDefaults(input),
     status: "pending",
+    eventVersion: 1,
+    eventUpdatedAt: now,
   });
 }
 
@@ -197,26 +200,30 @@ export async function upsertNotificationByKey(
 ): Promise<Id<"outreachNotifications">> {
   const existing = await ctx.db
     .query("outreachNotifications")
-    .withIndex("by_workspace", (q) => q.eq("workspaceId", input.workspaceId))
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userId"), input.userId),
-        q.eq(q.field("notificationKey"), input.notificationKey)
-      )
+    .withIndex("by_user_workspace_key", (q) =>
+      q
+        .eq("userId", input.userId)
+        .eq("workspaceId", input.workspaceId)
+        .eq("notificationKey", input.notificationKey)
     )
     .first();
 
   const next = applyNotificationDefaults(input);
+  const now = getCurrentUTCTimestamp();
   if (!existing) {
     return await ctx.db.insert("outreachNotifications", {
       ...next,
       status: "pending",
+      eventVersion: 1,
+      eventUpdatedAt: now,
     });
   }
 
   await ctx.db.patch(existing._id, {
     ...next,
     status: "pending",
+    eventVersion: (existing.eventVersion ?? 0) + 1,
+    eventUpdatedAt: now,
     seenAt: undefined,
     dismissedAt: undefined,
   });
@@ -233,23 +240,24 @@ export async function dismissNotificationsByKey(
 ): Promise<void> {
   const notifications = await ctx.db
     .query("outreachNotifications")
-    .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userId"), args.userId),
-        q.eq(q.field("notificationKey"), args.notificationKey),
-        q.neq(q.field("status"), "dismissed")
-      )
+    .withIndex("by_user_workspace_key", (q) =>
+      q
+        .eq("userId", args.userId)
+        .eq("workspaceId", args.workspaceId)
+        .eq("notificationKey", args.notificationKey)
     )
     .collect();
+  const activeNotifications = notifications.filter(
+    (notification) => notification.status !== "dismissed"
+  );
 
-  if (notifications.length === 0) {
+  if (activeNotifications.length === 0) {
     return;
   }
 
   const dismissedAt = getCurrentUTCTimestamp();
   await Promise.all(
-    notifications.map((notification) =>
+    activeNotifications.map((notification) =>
       ctx.db.patch(notification._id, {
         status: "dismissed",
         dismissedAt,

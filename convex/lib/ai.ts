@@ -275,9 +275,10 @@ export const HELPER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
 export const AUTOCOMPLETE_PROVIDER_OPTIONS = HELPER_PROVIDER_OPTIONS;
 
 /**
- * Tool-calling agents use a latency-ranked Cerebras/Groq pool. OpenRouter
- * chooses from rolling provider latency and can fail over inside the request,
- * preventing a degraded single endpoint from holding every model step.
+ * Tool-calling agents use a latency-ranked Cerebras/Groq/BaseTen pool.
+ * OpenRouter chooses from rolling provider latency and can fail over inside
+ * the request, preventing simultaneous endpoint throttling from stopping the
+ * whole agent turn.
  *
  * Keep this route separate from broader fast/reasoning routing so background
  * generation can still evolve independently.
@@ -288,6 +289,7 @@ export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
   createLatencySortedProviderOptions([
     OPENROUTER_PROVIDERS.CEREBRAS,
     OPENROUTER_PROVIDERS.GROQ,
+    OPENROUTER_PROVIDERS.BASETEN,
   ]);
 
 /**

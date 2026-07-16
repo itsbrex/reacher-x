@@ -94,6 +94,7 @@ import {
   normalizeAgentMessageContextMetadata,
   type AgentMessageContextMetadata,
 } from "../shared/lib/mentions/messageContext";
+import { upsertAgentThreadTargetSelection } from "./lib/agentThreadTargetSelectionHelpers";
 import {
   inferAttachmentMediaKind,
   isVisionAttachmentMediaKind,
@@ -108,6 +109,7 @@ import {
   summarizeOutreachOperationState,
   type OutreachModelLane,
 } from "./lib/outreachModelRoutingCore";
+import { buildPlanBatchReferenceCatalogContext } from "./lib/planBatchCore";
 
 type ViewerCtx = QueryCtx | MutationCtx;
 type ReadableCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -360,63 +362,24 @@ async function getAgentMessageContextMetadataById(
   });
 }
 
-async function getLatestSuccessfulUserMessageForThread(
-  ctx: ActionCtx,
-  threadId: string
-): Promise<{
-  messageId: string;
-  prompt: string;
-  metadata: AgentMessageContextMetadata | null;
-} | null> {
-  const messages = await ctx.runQuery(
-    components.agent.messages.listMessagesByThreadId,
-    {
-      threadId,
-      order: "desc",
-      statuses: ["success"],
-      paginationOpts: { numItems: 25, cursor: null },
-    }
-  );
-
-  const latestUserMessage = messages.page.find(
-    (message) => message.message?.role === "user"
-  );
-
-  if (!latestUserMessage) {
-    return null;
-  }
-
-  const prompt =
-    typeof latestUserMessage.text === "string"
-      ? latestUserMessage.text.trim()
-      : "";
-  const metadata = await getAgentMessageContextMetadataById(
-    ctx,
-    latestUserMessage._id
-  );
-
-  return {
-    messageId: latestUserMessage._id,
-    prompt,
-    metadata,
-  };
-}
-
 type AgentThreadScopeContext =
   | {
       kind: "prospect";
       workspaceId: Id<"workspaces">;
       prospectId: Id<"prospects">;
+      userId: Id<"users">;
     }
   | {
       kind: "workspace" | "setup";
       workspaceId: Id<"workspaces">;
       prospectId: null;
+      userId: Id<"users">;
     }
   | {
       kind: "unknown";
       workspaceId: null;
       prospectId: null;
+      userId: null;
     };
 
 async function resolveAgentThreadScopeContext(
@@ -434,6 +397,7 @@ async function resolveAgentThreadScopeContext(
       kind: "prospect",
       workspaceId: prospectThreadContext.workspaceId,
       prospectId: prospectThreadContext.prospectId,
+      userId: prospectThreadContext.userId,
     };
   }
 
@@ -448,15 +412,28 @@ async function resolveAgentThreadScopeContext(
       kind: "workspace",
       workspaceId: workspaceThreadContext.workspaceId,
       prospectId: null,
+      userId: workspaceThreadContext.userId,
     };
   }
 
   const setupWorkspaceId = await getWorkspaceIdForSetupThread(ctx, threadId);
   if (setupWorkspaceId) {
+    const workspace = await ctx.runQuery(internal.workspaces.getById, {
+      workspaceId: setupWorkspaceId,
+    });
+    if (!workspace) {
+      return {
+        kind: "unknown",
+        workspaceId: null,
+        prospectId: null,
+        userId: null,
+      };
+    }
     return {
       kind: "setup",
       workspaceId: setupWorkspaceId,
       prospectId: null,
+      userId: workspace.userId,
     };
   }
 
@@ -464,6 +441,7 @@ async function resolveAgentThreadScopeContext(
     kind: "unknown",
     workspaceId: null,
     prospectId: null,
+    userId: null,
   };
 }
 
@@ -483,6 +461,7 @@ async function persistAgentMessageContext(
     taggedEntities: [],
     attachments: [],
   };
+  const createdAt = getCurrentUTCTimestamp();
   await ctx.db.insert("agentMessageContexts", {
     threadId: args.threadId,
     messageId: args.messageId,
@@ -492,8 +471,18 @@ async function persistAgentMessageContext(
     promptTextSource: metadata.promptTextSource,
     taggedEntities: metadata.taggedEntities,
     attachments: metadata.attachments,
-    createdAt: getCurrentUTCTimestamp(),
+    createdAt,
   });
+  if (scope.workspaceId && metadata.taggedEntities.length > 0) {
+    await upsertAgentThreadTargetSelection(ctx, {
+      threadId: args.threadId,
+      userId: args.userId,
+      workspaceId: scope.workspaceId,
+      sourceMessageId: args.messageId,
+      sourceContextCreatedAt: createdAt,
+      taggedEntities: metadata.taggedEntities,
+    });
+  }
 }
 
 export const persistAgentMessageContextInternal = internalMutation({
@@ -516,10 +505,15 @@ export const persistAgentMessageContextInternal = internalMutation({
 function buildResolvedAttachmentLine(args: {
   fileName: string;
   mediaUrl: string | null;
+  mimeType?: string | null;
 }) {
-  return args.mediaUrl
-    ? `Attachment: ${args.fileName} (${args.mediaUrl})`
-    : `Attachment: ${args.fileName}`;
+  const mediaKind = inferAttachmentMediaKind({
+    mimeType: args.mimeType,
+    url: args.mediaUrl ?? args.fileName,
+  });
+  return `Attachment selected in the current message: ${args.fileName}${
+    mediaKind ? ` (type: ${mediaKind})` : ""
+  }. The application resolves its URL server-side; never include a storage URL in tool input.`;
 }
 
 async function resolveAttachmentReference(
@@ -698,6 +692,7 @@ async function buildResolvedTaggedEntityLine(
       return buildResolvedAttachmentLine({
         fileName: resolvedAttachment.fileName,
         mediaUrl: resolvedAttachment.mediaUrl,
+        mimeType: resolvedAttachment.mimeType,
       });
     }
     case "post": {
@@ -755,6 +750,7 @@ async function buildResolvedAttachmentReferenceLine(
   return buildResolvedAttachmentLine({
     fileName: resolvedAttachment.fileName,
     mediaUrl: resolvedAttachment.mediaUrl,
+    mimeType: resolvedAttachment.mimeType,
   });
 }
 
@@ -859,28 +855,26 @@ async function buildAgentTurnContextMessages(
     promptMessageId: string;
   }
 ): Promise<ResolvedAgentTurnContext> {
-  const metadata = await getAgentMessageContextMetadataById(
-    ctx,
-    args.promptMessageId
-  );
-  if (!metadata) {
-    return {
-      messages: [],
-      hasVisionInput: false,
-    };
-  }
-
-  const scope = await resolveAgentThreadScopeContext(ctx, args.threadId);
+  const [metadata, scope] = await Promise.all([
+    getAgentMessageContextMetadataById(ctx, args.promptMessageId),
+    resolveAgentThreadScopeContext(ctx, args.threadId),
+  ]);
+  const effectiveMetadata = metadata ?? {
+    version: 1 as const,
+    promptTextSource: "user" as const,
+    taggedEntities: [],
+    attachments: [],
+  };
   const taggedEntityLines = (
     await Promise.all(
-      metadata.taggedEntities.map((entity) =>
+      effectiveMetadata.taggedEntities.map((entity) =>
         buildResolvedTaggedEntityLine(ctx, scope, entity)
       )
     )
   ).filter((line): line is string => Boolean(line));
   const attachmentLines = (
     await Promise.all(
-      metadata.attachments.map((attachment) =>
+      effectiveMetadata.attachments.map((attachment) =>
         buildResolvedAttachmentReferenceLine(ctx, scope, attachment)
       )
     )
@@ -888,9 +882,29 @@ async function buildAgentTurnContextMessages(
   const visionAttachmentMessage = await buildVisionAttachmentMessage(
     ctx,
     scope,
-    metadata
+    effectiveMetadata
   );
   const messages: AgentTurnContextMessage[] = [];
+  const planReferenceContext =
+    scope.kind === "workspace"
+      ? buildPlanBatchReferenceCatalogContext(
+          await ctx.runQuery(
+            internal.planBatches.listPlanBatchReferencesForThreadInternal,
+            {
+              sourceThreadId: args.threadId,
+              workspaceId: scope.workspaceId,
+              userId: scope.userId,
+            }
+          )
+        )
+      : null;
+
+  if (planReferenceContext) {
+    messages.push({
+      role: "system",
+      content: planReferenceContext,
+    });
+  }
 
   if (taggedEntityLines.length > 0 || attachmentLines.length > 0) {
     const sections: string[] = [
@@ -2305,115 +2319,6 @@ export const createProspectThreadWithPrompt = mutation({
 });
 
 /**
- * Fan-out: deliver an operator instruction to each prospect's own △ Agent
- * thread and schedule an agent turn per prospect (internal; called by the
- * main △ Agent's updatePlansBatch tool).
- *
- * Each prospect gets its own thread turn so refinements happen with full
- * per-prospect context. Runs are staggered to avoid a thundering herd.
- */
-export const fanOutProspectInstructionsInternal = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    prospectIds: v.array(v.id("prospects")),
-    instruction: v.string(),
-  },
-  handler: async (
-    ctx,
-    { workspaceId, prospectIds, instruction }
-  ): Promise<{
-    dispatched: number;
-    skipped: Array<{ prospectId: string; reason: string }>;
-  }> => {
-    const trimmedInstruction = instruction.trim();
-    if (!trimmedInstruction) {
-      throw new Error("Instruction cannot be empty.");
-    }
-
-    const FAN_OUT_LIMIT = 25;
-    const STAGGER_MS = 3_000;
-    const targets = prospectIds.slice(0, FAN_OUT_LIMIT);
-    const skipped: Array<{ prospectId: string; reason: string }> = [];
-    let dispatched = 0;
-    let workspaceUserId: Id<"users"> | null = null;
-
-    const prompt = [
-      "Operator instruction (sent to multiple prospects at once):",
-      trimmedInstruction,
-      "",
-      "Apply this instruction to THIS prospect. Review the current plan and refine it (or explain briefly why no change is needed). Keep the response short.",
-    ].join("\n");
-
-    for (const prospectId of targets) {
-      const prospect = await ctx.db.get(prospectId);
-      if (!prospect || prospect.workspaceId !== workspaceId) {
-        skipped.push({
-          prospectId: String(prospectId),
-          reason: "not in this workspace",
-        });
-        continue;
-      }
-      if (prospect.status === "archived") {
-        skipped.push({ prospectId: String(prospectId), reason: "archived" });
-        continue;
-      }
-      workspaceUserId = prospect.userId;
-
-      let threadId: string;
-      const existingLink = await getLatestActiveProspectThreadLink(
-        ctx.db,
-        prospectId
-      );
-      if (existingLink) {
-        threadId = existingLink.threadId;
-      } else {
-        threadId = await createThread(ctx, components.agent, {
-          userId: prospect.userId,
-          title: `outreach:${prospectId}`,
-          summary: trimmedInstruction.slice(0, 150),
-        });
-        await ensureProspectThreadLink(ctx, {
-          prospectId,
-          threadId,
-          userId: prospect.userId,
-          threadStatus: "active",
-          threadSummary: trimmedInstruction.slice(0, 150),
-        });
-      }
-
-      const { messageId } = await saveMessage(ctx, components.agent, {
-        threadId,
-        prompt,
-      });
-
-      await ctx.scheduler.runAfter(
-        dispatched * STAGGER_MS,
-        internal.chat.streamOutreachResponse,
-        {
-          threadId,
-          promptMessageId: messageId,
-        }
-      );
-      dispatched += 1;
-    }
-
-    if (dispatched > 0 && workspaceUserId) {
-      await createNotification(ctx, {
-        userId: workspaceUserId,
-        workspaceId,
-        type: "outreach_sent",
-        title: `△ Agent is updating ${dispatched} plan${dispatched === 1 ? "" : "s"}`,
-        message: `Your instruction is being applied across ${dispatched} prospect${dispatched === 1 ? "" : "s"}: "${trimmedInstruction.slice(0, 120)}"`,
-        notificationKey: `plans-batch:${workspaceId}:${getCurrentUTCTimestamp()}`,
-        targetHref: "/prospects",
-      });
-    }
-
-    return { dispatched, skipped };
-  },
-});
-
-/**
  * Lists all threads for a specific prospect.
  */
 export const listProspectThreads = query({
@@ -2518,12 +2423,17 @@ export const deleteThread = mutation({
       ctx.db,
       threadId
     );
+    const targetSelection = await ctx.db
+      .query("agentThreadTargetSelections")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .unique();
 
     await outreachAgent.deleteThreadAsync(ctx, { threadId });
 
     await Promise.all([
       ...threadLinks.map((link) => ctx.db.delete(link._id)),
       ...workspaceThreadLinks.map((link) => ctx.db.delete(link._id)),
+      ...(targetSelection ? [ctx.db.delete(targetSelection._id)] : []),
     ]);
   },
 });
@@ -2840,107 +2750,6 @@ export const streamOutreachResponse = internalAction({
   },
   handler: async (ctx, args) => {
     return await runStreamOutreachResponse(ctx, args);
-  },
-});
-
-/**
- * Continue work for the selected prospect in that prospect's own △ Agent
- * thread, while the user stays in the main workspace thread.
- *
- * The latest successful user message from the workspace thread is copied into
- * the canonical prospect thread so the persisted thread history reflects the
- * real instruction that produced the plan.
- */
-export const continueProspectThreadFromWorkspace = internalAction({
-  args: {
-    prospectId: v.id("prospects"),
-    sourceThreadId: v.string(),
-  },
-  handler: async (
-    ctx,
-    { prospectId, sourceThreadId }
-  ): Promise<{
-    success: true;
-    threadId: string;
-    forwardedMessageId: string;
-    assistantText: string | undefined;
-    plan: Doc<"outreachPlans"> | null;
-    tasks: Doc<"outreachTasks">[];
-  }> => {
-    const sourceMessage = await getLatestSuccessfulUserMessageForThread(
-      ctx,
-      sourceThreadId
-    );
-    if (!sourceMessage) {
-      throw new Error(
-        "Could not find a user message to forward into the selected prospect thread."
-      );
-    }
-
-    const forwardedPrompt =
-      sourceMessage.prompt ||
-      "Create or update the outreach plan for this prospect using the latest workspace-thread instruction.";
-
-    const prospect = await ctx.runQuery(
-      internal.prospects.getProspectInternal,
-      {
-        prospectId,
-      }
-    );
-    if (!prospect) {
-      throw new Error("Prospect not found");
-    }
-    if (prospect.status === "archived") {
-      throw new Error("Prospect is archived");
-    }
-
-    const ensuredThread: {
-      threadId: string;
-      created: boolean;
-    } = await ctx.runMutation(
-      internal.prospectThreads.ensureActiveThreadForProspectInternal,
-      {
-        prospectId,
-        threadSummary: forwardedPrompt.slice(0, 150),
-      }
-    );
-
-    const { messageId } = await saveMessage(ctx, components.agent, {
-      threadId: ensuredThread.threadId,
-      prompt: forwardedPrompt,
-    });
-    if (sourceMessage.metadata) {
-      await ctx.runMutation(internal.chat.persistAgentMessageContextInternal, {
-        threadId: ensuredThread.threadId,
-        messageId,
-        userId: prospect.userId,
-        metadata: sourceMessage.metadata,
-      });
-    }
-
-    const streamResult = await runStreamOutreachResponse(ctx, {
-      threadId: ensuredThread.threadId,
-      promptMessageId: messageId,
-    });
-
-    const planData: {
-      plan: Doc<"outreachPlans">;
-      tasks: Doc<"outreachTasks">[];
-    } | null = await ctx.runQuery(
-      internal.outreach.getProspectActivePlanInternal,
-      {
-        prospectId,
-      }
-    );
-
-    return {
-      success: true,
-      threadId: ensuredThread.threadId,
-      forwardedMessageId: messageId,
-      assistantText: streamResult?.text,
-      plan: planData?.plan ?? null,
-      tasks: planData?.tasks ?? [],
-    };
   },
 });
 

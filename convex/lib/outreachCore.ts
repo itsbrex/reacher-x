@@ -3,6 +3,8 @@
 // Layer 3: Core Logic (following Three-Layer Architecture from AGENT_CONTEXT.txt)
 
 import { Infer } from "convex/values";
+import type { GenericDatabaseReader } from "convex/server";
+import type { DataModel } from "../_generated/dataModel";
 import { Id, Doc } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { MutationCtx, QueryCtx } from "../_generated/server";
@@ -32,6 +34,13 @@ import {
 } from "../../shared/lib/twitter/xPostTextLimit";
 import { getEffectivePostTextLimitForUser } from "./xPostLimits";
 import { requireProspectEligibleForOutreach } from "./accessHelpers";
+import {
+  assertOutreachMediaCapability,
+  resolveOwnedOutreachMedia,
+  withAttachmentNames,
+  type OutreachMediaPlatform,
+} from "./mediaCapabilityCore";
+import { DISQUALIFICATION_ACTIVE_PLAN_STATUSES } from "./disqualificationOutreachCore";
 
 const LINKEDIN_DM_TEXT_MAX = 8_000;
 
@@ -71,6 +80,7 @@ export interface OutreachPlanInput {
   strategy: Infer<typeof outreachStrategyValidator>;
   tasks: OutreachTaskInput[];
   threadId?: string;
+  planBatchItemId?: Id<"planBatchItems">;
 }
 
 export interface OutreachTaskInput {
@@ -80,6 +90,7 @@ export interface OutreachTaskInput {
   targetTweetId?: string;
   content?: string;
   mediaUrls?: string[];
+  mediaUploadIds?: Id<"mediaUploads">[];
   mediaDescriptions?: string[];
   mediaKinds?: Array<"image" | "gif" | "video">;
   approvalContext?: {
@@ -147,10 +158,13 @@ export type OutreachPlanSnapshot = Infer<typeof outreachPlanSnapshotValidator>;
 async function validateTaskInputs(
   ctx: MutationCtx,
   userId: Id<"users">,
+  workspaceId: Id<"workspaces">,
+  platform: OutreachMediaPlatform,
   tasks: OutreachTaskInput[]
-): Promise<void> {
-  const hasCommentTasks = tasks.some((task) => task.type === "comment");
-  const postLimit = hasCommentTasks
+): Promise<OutreachTaskInput[]> {
+  const hasXCommentTasks =
+    platform === "twitter" && tasks.some((task) => task.type === "comment");
+  const postLimit = hasXCommentTasks
     ? await getEffectivePostTextLimitForUser(ctx, userId)
     : null;
   const canDeferCommentTarget = tasks.some(
@@ -159,6 +173,25 @@ async function validateTaskInputs(
       task.timing.type === "event" &&
       task.timing.value === "next_post"
   );
+  const allMediaUrls = [
+    ...new Set(
+      tasks.flatMap(
+        (task) =>
+          task.mediaUrls?.filter(
+            (mediaUrl): mediaUrl is string =>
+              typeof mediaUrl === "string" && mediaUrl.trim().length > 0
+          ) ?? []
+      )
+    ),
+  ];
+  const resolvedMedia = await resolveOwnedOutreachMedia(ctx, {
+    userId,
+    workspaceId,
+    mediaUrls: allMediaUrls,
+  });
+  const mediaByUrl = new Map(resolvedMedia.map((media) => [media.url, media]));
+  const preparedTasks: OutreachTaskInput[] = [];
+
   for (const task of tasks) {
     const trimmedContent = task.content?.trim() ?? "";
     const mediaUrls =
@@ -166,11 +199,29 @@ async function validateTaskInputs(
         (mediaUrl): mediaUrl is string =>
           typeof mediaUrl === "string" && mediaUrl.trim().length > 0
       ) ?? [];
+    const taskMedia = mediaUrls.map((mediaUrl) => {
+      const media = mediaByUrl.get(mediaUrl);
+      if (!media) {
+        throw new Error(`Unable to resolve selected attachment: ${mediaUrl}`);
+      }
+      return media;
+    });
+
+    if (taskMedia.length > 0 && task.type !== "comment" && task.type !== "dm") {
+      throw new Error(
+        `Task "${task.description}" cannot contain media because ${task.type} tasks do not post or send files`
+      );
+    }
 
     if (task.type === "comment") {
-      if (!trimmedContent && mediaUrls.length === 0) {
+      if (
+        !trimmedContent &&
+        (platform === "linkedin" || mediaUrls.length === 0)
+      ) {
         throw new Error(
-          `Comment task "${task.description}" requires reply text or media`
+          platform === "linkedin"
+            ? `LinkedIn comment task "${task.description}" requires text`
+            : `Comment task "${task.description}" requires reply text or media`
         );
       }
       if (!task.targetTweetId && !canDeferCommentTarget) {
@@ -179,11 +230,18 @@ async function validateTaskInputs(
         );
       }
       if (trimmedContent) {
-        if (!postLimit) {
+        if (platform === "twitter" && !postLimit) {
           throw new Error("Unable to resolve the X post limit");
         }
-        assertPostTextWithinLimit(trimmedContent, postLimit);
+        if (platform === "twitter" && postLimit) {
+          assertPostTextWithinLimit(trimmedContent, postLimit);
+        }
       }
+      assertOutreachMediaCapability({
+        platform,
+        surface: "comment",
+        media: taskMedia,
+      });
     }
 
     if (task.type === "dm") {
@@ -193,7 +251,6 @@ async function validateTaskInputs(
         );
       }
 
-      const platform = task.approvalContext?.platform ?? "twitter";
       if (trimmedContent) {
         if (platform === "linkedin") {
           if (trimmedContent.length > LINKEDIN_DM_TEXT_MAX) {
@@ -206,11 +263,11 @@ async function validateTaskInputs(
         }
       }
 
-      if (platform === "twitter" && mediaUrls.length > 1) {
-        throw new Error(
-          `X DM task "${task.description}" supports at most one media attachment`
-        );
-      }
+      assertOutreachMediaCapability({
+        platform,
+        surface: "dm",
+        media: taskMedia,
+      });
     }
 
     if (
@@ -226,7 +283,25 @@ async function validateTaskInputs(
         `Task "${task.description}" has more mediaKinds than mediaUrls`
       );
     }
+
+    preparedTasks.push({
+      ...task,
+      description: withAttachmentNames(task.description, taskMedia),
+      mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+      mediaUploadIds:
+        taskMedia.length > 0
+          ? taskMedia.map((media) => media.uploadId)
+          : undefined,
+      mediaKinds:
+        taskMedia.length > 0 ? taskMedia.map((media) => media.kind) : undefined,
+      approvalContext: {
+        ...task.approvalContext,
+        platform,
+      },
+    });
   }
+
+  return preparedTasks;
 }
 
 function toPlanSnapshotTask(
@@ -308,6 +383,50 @@ export async function logPlanEvent(
 // Plan Operations
 // ============================================================================
 
+async function markPlanBatchItemApplied(
+  ctx: MutationCtx,
+  args: {
+    planBatchItemId?: Id<"planBatchItems">;
+    prospectId: Id<"prospects">;
+    workspaceId: Id<"workspaces">;
+    userId: Id<"users">;
+    planId: Id<"outreachPlans">;
+    operation: "create" | "update";
+    appliedPlanVersion: number;
+  }
+): Promise<void> {
+  if (!args.planBatchItemId) {
+    return;
+  }
+
+  const item = await ctx.db.get("planBatchItems", args.planBatchItemId);
+  if (
+    !item ||
+    item.prospectId !== args.prospectId ||
+    item.operation !== args.operation ||
+    item.status !== "running"
+  ) {
+    throw new Error("Plan batch item context is no longer valid.");
+  }
+
+  const run = await ctx.db.get("planBatchRuns", item.runId);
+  if (
+    !run ||
+    run.status === "cancelled" ||
+    run.status === "failed" ||
+    run.workspaceId !== args.workspaceId ||
+    run.userId !== args.userId
+  ) {
+    throw new Error("Plan batch run is no longer active.");
+  }
+
+  await ctx.db.patch("planBatchItems", item._id, {
+    appliedPlanId: args.planId,
+    appliedPlanVersion: args.appliedPlanVersion,
+    appliedAt: getCurrentUTCTimestamp(),
+  });
+}
+
 /**
  * Create a new outreach plan for a prospect.
  * Enforces single-plan-per-prospect rule.
@@ -326,6 +445,8 @@ export async function createOutreachPlan(
     throw new Error("Prospect does not belong to this outreach workspace");
   }
   requireProspectEligibleForOutreach(prospect);
+  const platform: OutreachMediaPlatform =
+    prospect.platform === "linkedin" ? "linkedin" : "twitter";
 
   // Check for existing active plan
   const existingPlan = await ctx.db
@@ -345,6 +466,15 @@ export async function createOutreachPlan(
     );
   }
 
+  // Validate and normalize every task before writing plan state.
+  const preparedTasks = await validateTaskInputs(
+    ctx,
+    input.userId,
+    input.workspaceId,
+    platform,
+    input.tasks
+  );
+
   // Create the plan
   const planId = await ctx.db.insert("outreachPlans", {
     prospectId: input.prospectId,
@@ -357,9 +487,6 @@ export async function createOutreachPlan(
     updatedAt: now,
   });
 
-  // Validate all tasks before creating (especially comment tasks need content + targetTweetId)
-  await validateTaskInputs(ctx, input.userId, input.tasks);
-
   // Create tasks
   const createdTasks: Array<{
     _id: Id<"outreachTasks">;
@@ -371,8 +498,8 @@ export async function createOutreachPlan(
     targetTweetId?: string;
   }> = [];
 
-  for (let i = 0; i < input.tasks.length; i++) {
-    const task = input.tasks[i];
+  for (let i = 0; i < preparedTasks.length; i++) {
+    const task = preparedTasks[i];
     const taskId = await ctx.db.insert("outreachTasks", {
       planId,
       order: i + 1,
@@ -383,6 +510,7 @@ export async function createOutreachPlan(
       targetTweetId: task.targetTweetId,
       content: task.content,
       mediaUrls: task.mediaUrls,
+      mediaUploadIds: task.mediaUploadIds,
       mediaDescriptions: task.mediaDescriptions,
       mediaKinds: task.mediaKinds,
       approvalContext: task.approvalContext,
@@ -417,6 +545,15 @@ export async function createOutreachPlan(
     title: "Outreach plan created",
     planSnapshot,
   });
+  await markPlanBatchItemApplied(ctx, {
+    planBatchItemId: input.planBatchItemId,
+    prospectId: input.prospectId,
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+    planId,
+    operation: "create",
+    appliedPlanVersion: 1,
+  });
 
   return planId;
 }
@@ -431,6 +568,7 @@ export async function refinePlan(
     strategy?: OutreachPlanInput["strategy"];
     tasks?: OutreachTaskInput[];
     threadId?: string;
+    planBatchItemId?: Id<"planBatchItems">;
   }
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
@@ -438,6 +576,8 @@ export async function refinePlan(
   const prospect = await ctx.db.get("prospects", plan.prospectId);
   if (!prospect) throw new Error("Prospect not found");
   requireProspectEligibleForOutreach(prospect);
+  const platform: OutreachMediaPlatform =
+    prospect.platform === "linkedin" ? "linkedin" : "twitter";
   if (
     plan.status !== "draft" &&
     plan.status !== "paused" &&
@@ -453,6 +593,15 @@ export async function refinePlan(
   const nextVersion = plan.version + 1;
   const nextStrategy = updates.strategy ?? plan.strategy;
   const nextThreadId = updates.threadId ?? plan.threadId;
+  const preparedTasks = updates.tasks
+    ? await validateTaskInputs(
+        ctx,
+        plan.userId,
+        plan.workspaceId,
+        platform,
+        updates.tasks
+      )
+    : undefined;
 
   if (
     updates.strategy ||
@@ -468,10 +617,7 @@ export async function refinePlan(
   }
 
   // Replace tasks if provided
-  if (updates.tasks) {
-    // Validate all tasks (especially comment tasks need content + targetTweetId)
-    await validateTaskInputs(ctx, plan.userId, updates.tasks);
-
+  if (preparedTasks) {
     const existingTasks = await ctx.db
       .query("outreachTasks")
       .withIndex("by_plan", (q) => q.eq("planId", planId))
@@ -496,8 +642,8 @@ export async function refinePlan(
       await ctx.db.delete(task._id);
     }
 
-    for (let i = 0; i < updates.tasks.length; i++) {
-      const task = updates.tasks[i];
+    for (let i = 0; i < preparedTasks.length; i++) {
+      const task = preparedTasks[i];
       await ctx.db.insert("outreachTasks", {
         planId,
         order: nextOrderStart + i,
@@ -508,12 +654,23 @@ export async function refinePlan(
         targetTweetId: task.targetTweetId,
         content: task.content,
         mediaUrls: task.mediaUrls,
+        mediaUploadIds: task.mediaUploadIds,
         mediaDescriptions: task.mediaDescriptions,
         mediaKinds: task.mediaKinds,
         approvalContext: task.approvalContext,
       });
     }
   }
+
+  await markPlanBatchItemApplied(ctx, {
+    planBatchItemId: updates.planBatchItemId,
+    prospectId: plan.prospectId,
+    workspaceId: plan.workspaceId,
+    userId: plan.userId,
+    planId,
+    operation: "update",
+    appliedPlanVersion: nextVersion,
+  });
 }
 
 /**
@@ -541,6 +698,29 @@ export async function approvePlan(
 /**
  * Get a prospect's active plan.
  */
+export async function getProspectActivePlanDocument(
+  db: GenericDatabaseReader<DataModel>,
+  prospectId: Id<"prospects">
+): Promise<Doc<"outreachPlans"> | null> {
+  const plans = (
+    await Promise.all(
+      DISQUALIFICATION_ACTIVE_PLAN_STATUSES.map((status) =>
+        db
+          .query("outreachPlans")
+          .withIndex("by_prospect_and_status", (q) =>
+            q.eq("prospectId", prospectId).eq("status", status)
+          )
+          .order("desc")
+          .first()
+      )
+    )
+  ).filter((plan): plan is Doc<"outreachPlans"> => plan !== null);
+  return (
+    plans.sort((left, right) => right._creationTime - left._creationTime)[0] ??
+    null
+  );
+}
+
 export async function getProspectActivePlan(
   ctx: QueryCtx,
   prospectId: Id<"prospects">
@@ -548,17 +728,7 @@ export async function getProspectActivePlan(
   plan: Doc<"outreachPlans">;
   tasks: Doc<"outreachTasks">[];
 } | null> {
-  const plan = await ctx.db
-    .query("outreachPlans")
-    .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
-    .order("desc")
-    .filter((q) =>
-      q.and(
-        q.neq(q.field("status"), "completed"),
-        q.neq(q.field("status"), "abandoned")
-      )
-    )
-    .first();
+  const plan = await getProspectActivePlanDocument(ctx.db, prospectId);
 
   if (!plan) return null;
 

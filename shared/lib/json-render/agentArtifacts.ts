@@ -163,6 +163,13 @@ export const agentArtifactCatalog = defineCatalog(schema, {
       description:
         "Shows a compact outreach plan preview with strategy summary and optional approval affordances.",
     },
+    PlanBatchProgressCard: {
+      props: z.object({
+        runId: z.string(),
+      }),
+      description:
+        "Shows live progress for a durable create, update, or create-or-update plan batch.",
+    },
     MemoryCard: {
       props: z.object({
         memoryId: z.string(),
@@ -633,6 +640,12 @@ export function createPlanPreviewArtifact(input: {
     status: input.status,
     rationale: input.rationale,
     tasks: input.tasks,
+  });
+}
+
+export function createPlanBatchProgressArtifact(input: { runId: string }) {
+  return createAgentArtifact("PlanBatchProgressCard", {
+    runId: input.runId,
   });
 }
 

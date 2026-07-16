@@ -2,15 +2,96 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./lib/functionBuilders";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
+  AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW,
   AUTO_PLAN_RECOVERY_FAILURE_CODES,
   classifyAutoPlanFailure,
+  hasAutoPlanRecoveryCapacity,
   isAutoPlanFailureRecoveryEligible,
 } from "./lib/autoPlanCore";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { resolveProspectTwitterIdentity } from "../shared/lib/twitter/prospectTwitterIdentity";
 import {
   getProspectDisplayFields,
   upsertNotificationByKey,
 } from "./lib/notificationHelpers";
+
+type AutoPlanRecoveryCandidate = {
+  sourceRunId: Id<"autoPlanRuns">;
+  prospectId: Id<"prospects">;
+  workspaceId: Id<"workspaces">;
+  userId: Id<"users">;
+};
+
+async function hasRecoveryCapacityForProspect(
+  ctx: Pick<QueryCtx, "db">,
+  prospectId: Id<"prospects">,
+  now: number
+): Promise<boolean> {
+  const recentRuns = await ctx.db
+    .query("autoPlanRuns")
+    .withIndex("by_prospect", (q) => q.eq("prospectId", prospectId))
+    .order("desc")
+    .take(AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW);
+
+  return hasAutoPlanRecoveryCapacity(
+    recentRuns.map((run) => run._creationTime),
+    now
+  );
+}
+
+async function claimAutoPlanRecoveryRun(
+  ctx: MutationCtx,
+  args: {
+    run: Doc<"autoPlanRuns">;
+    now: number;
+    expectedWorkspaceId?: Id<"workspaces">;
+  }
+): Promise<AutoPlanRecoveryCandidate | null> {
+  const { run, now, expectedWorkspaceId } = args;
+  const prospect = await ctx.db.get(run.prospectId);
+  if (
+    !prospect ||
+    (expectedWorkspaceId && prospect.workspaceId !== expectedWorkspaceId) ||
+    prospect.planGenerationStatus !== "failed"
+  ) {
+    return null;
+  }
+
+  const hasCapacity = await hasRecoveryCapacityForProspect(
+    ctx,
+    prospect._id,
+    now
+  );
+  if (!hasCapacity) {
+    await ctx.db.patch(run._id, {
+      recoveryRetriedAt: now,
+      recoveryExhaustedAt: now,
+      updatedAt: now,
+    });
+    const displayFields = getProspectDisplayFields(prospect);
+    await upsertNotificationByKey(ctx, {
+      userId: prospect.userId,
+      workspaceId: prospect.workspaceId,
+      type: "error",
+      title: `Couldn’t create a plan for ${displayFields.prospectDisplayName || prospect.externalId}`,
+      message:
+        "Automatic retries stopped after repeated failures. Try again from this prospect after the issue is resolved.",
+      notificationKey: `auto-plan-failed:${prospect._id}`,
+      prospectId: prospect._id,
+      ...displayFields,
+    });
+    return null;
+  }
+
+  await ctx.db.patch(run._id, { recoveryRetriedAt: now, updatedAt: now });
+  return {
+    sourceRunId: run._id,
+    prospectId: prospect._id,
+    workspaceId: prospect.workspaceId,
+    userId: prospect.userId,
+  };
+}
 
 export const markAutoPlanRunStarted = internalMutation({
   args: { runId: v.id("autoPlanRuns") },
@@ -114,7 +195,7 @@ export const claimFailedAutoPlanRecoveryBatch = internalMutation({
       .order("desc")
       .take(Math.max(1, Math.min(args.limit * 3, 600)));
     const now = getCurrentUTCTimestamp();
-    const claimed = [];
+    const claimed: AutoPlanRecoveryCandidate[] = [];
     const seenProspects = new Set<string>();
 
     for (const run of failedRuns) {
@@ -127,21 +208,12 @@ export const claimFailedAutoPlanRecoveryBatch = internalMutation({
         continue;
       }
       seenProspects.add(String(run.prospectId));
-      const prospect = await ctx.db.get(run.prospectId);
-      if (
-        !prospect ||
-        prospect.workspaceId !== args.workspaceId ||
-        prospect.planGenerationStatus !== "failed"
-      ) {
-        continue;
-      }
-      await ctx.db.patch(run._id, { recoveryRetriedAt: now, updatedAt: now });
-      claimed.push({
-        sourceRunId: run._id,
-        prospectId: prospect._id,
-        workspaceId: prospect.workspaceId,
-        userId: prospect.userId,
+      const candidate = await claimAutoPlanRecoveryRun(ctx, {
+        run,
+        now,
+        expectedWorkspaceId: args.workspaceId,
       });
+      if (candidate) claimed.push(candidate);
     }
 
     return claimed;
@@ -172,7 +244,7 @@ export const claimFailedAutoPlanRecoveryBatchGlobal = internalMutation({
       .sort((left, right) => right.updatedAt - left.updatedAt)
       .slice(0, Math.min(limit * 3, 300));
     const now = getCurrentUTCTimestamp();
-    const claimed = [];
+    const claimed: AutoPlanRecoveryCandidate[] = [];
     const seenProspects = new Set<string>();
 
     for (const run of failedRuns) {
@@ -184,17 +256,8 @@ export const claimFailedAutoPlanRecoveryBatchGlobal = internalMutation({
         continue;
       }
       seenProspects.add(String(run.prospectId));
-      const prospect = await ctx.db.get(run.prospectId);
-      if (!prospect || prospect.planGenerationStatus !== "failed") {
-        continue;
-      }
-      await ctx.db.patch(run._id, { recoveryRetriedAt: now, updatedAt: now });
-      claimed.push({
-        sourceRunId: run._id,
-        prospectId: prospect._id,
-        workspaceId: prospect.workspaceId,
-        userId: prospect.userId,
-      });
+      const candidate = await claimAutoPlanRecoveryRun(ctx, { run, now });
+      if (candidate) claimed.push(candidate);
     }
 
     return claimed;
@@ -226,6 +289,15 @@ export const getAutoPlanRecoveryProbeTarget = internalQuery({
     for (const run of runs) {
       const prospect = await ctx.db.get(run.prospectId);
       if (!prospect || prospect.planGenerationStatus !== "failed") {
+        continue;
+      }
+      if (
+        !(await hasRecoveryCapacityForProspect(
+          ctx,
+          prospect._id,
+          getCurrentUTCTimestamp()
+        ))
+      ) {
         continue;
       }
       if (prospect.platform !== "twitter") {

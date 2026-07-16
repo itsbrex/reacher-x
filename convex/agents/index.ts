@@ -31,10 +31,9 @@ import {
   enrichProspect,
   rememberWorkspaceMemory,
   searchWorkspaceMemories,
-  continueProspectThread,
   listProspectPlans,
   queryWorkspace,
-  updatePlansBatch,
+  managePlanBatch,
 } from "./tools";
 import {
   approveSocialActionRequest,
@@ -114,13 +113,12 @@ const mainAgentBaseTools = {
   inspectWorkspace,
   queryWorkspace,
   listProspectPlans,
-  updatePlansBatch,
+  managePlanBatch,
   // Selected prospect context
   getProspectInteractionHistory,
   getSocialContext,
   getProspectPlan,
   researchProspect,
-  continueProspectThread,
   // Plan management
   pausePlan,
   resumePlan,
@@ -196,9 +194,6 @@ export const setupAgent = new Agent(components.agent, {
     // Workspace memory tools
     rememberWorkspaceMemory,
     searchWorkspaceMemories,
-    // Main △ Agent fan-out (workspace-wide plan control)
-    listProspectPlans,
-    updatePlansBatch,
   },
   // Allow multiple tool calls for complex flows
   maxSteps: 15,

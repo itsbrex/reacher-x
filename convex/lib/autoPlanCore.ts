@@ -27,16 +27,16 @@ const autoPlanTransportTaskSchema = z.object({
   description: z.string(),
   timing: z.object({
     type: z.enum(["immediate", "delay", "event", "best_time"]),
-    value: z.string().optional(),
+    value: z.string().nullable(),
   }),
-  targetTweetId: z.string().optional(),
-  content: z.string().optional(),
+  targetTweetId: z.string().nullable(),
+  content: z.string().nullable(),
 });
 
 export const autoPlanTransportSchema = z.object({
   strategy: z.object({
     rationale: z.string(),
-    targetTweetId: z.string().optional(),
+    targetTweetId: z.string().nullable(),
     valueProposition: z.string(),
     tone: z.string(),
   }),
@@ -83,11 +83,12 @@ export type AutoPlanFailure = {
 export const AUTO_PLAN_RECOVERY_FAILURE_CODES = [
   "grounding_unavailable",
   "provider_balance_unavailable",
-  "provider_schema_unsupported",
-  "context_too_large",
   "provider_transient",
   "generation_failed",
 ] as const satisfies readonly AutoPlanFailureCode[];
+
+export const AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW = 3;
+export const AUTO_PLAN_RECOVERY_WINDOW_MS = 6 * 60 * 60 * 1_000;
 
 const AUTO_PLAN_RECOVERY_CODE_SET = new Set<AutoPlanFailureCode>(
   AUTO_PLAN_RECOVERY_FAILURE_CODES
@@ -97,6 +98,17 @@ export function isAutoPlanFailureRecoveryEligible(
   code: AutoPlanFailureCode | undefined
 ): boolean {
   return code != null && AUTO_PLAN_RECOVERY_CODE_SET.has(code);
+}
+
+export function hasAutoPlanRecoveryCapacity(
+  runCreationTimes: number[],
+  now: number
+): boolean {
+  const recoveryWindowStartedAt = now - AUTO_PLAN_RECOVERY_WINDOW_MS;
+  const recentRunCount = runCreationTimes.filter(
+    (createdAt) => createdAt >= recoveryWindowStartedAt
+  ).length;
+  return recentRunCount < AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW;
 }
 
 function stringifyAutoPlanError(error: unknown): string {
@@ -163,12 +175,15 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     message.includes("minitems") ||
     message.includes("maxitems") ||
     message.includes("unsupported schema") ||
-    message.includes("invalid json schema")
+    message.includes("invalid json schema") ||
+    message.includes("invalid schema for response_format") ||
+    message.includes("required is required to be supplied")
   ) {
     return {
       code: "provider_schema_unsupported",
       retryable: false,
-      userMessage: "We’ll try again automatically.",
+      userMessage:
+        "The plan generator returned an unsupported format. Try again after the issue is resolved.",
     };
   }
 
@@ -183,7 +198,8 @@ export function classifyAutoPlanFailure(error: unknown): AutoPlanFailure {
     return {
       code: "context_too_large",
       retryable: false,
-      userMessage: "We’ll try again automatically.",
+      userMessage:
+        "The available context is too large to generate this plan automatically.",
     };
   }
 
@@ -368,6 +384,26 @@ export function normalizeAutoPlanDraft(draft: AutoPlanDraft): AutoPlanDraft {
         (task.type === "comment" ? strategyTargetTweetId : undefined),
     })),
   };
+}
+
+export function parseAutoPlanTransportDraft(value: unknown): AutoPlanDraft {
+  const draft = autoPlanTransportSchema.parse(value);
+
+  return autoPlanDraftSchema.parse({
+    strategy: {
+      ...draft.strategy,
+      targetTweetId: draft.strategy.targetTweetId ?? undefined,
+    },
+    tasks: draft.tasks.map((task) => ({
+      ...task,
+      timing: {
+        ...task.timing,
+        value: task.timing.value ?? undefined,
+      },
+      targetTweetId: task.targetTweetId ?? undefined,
+      content: task.content ?? undefined,
+    })),
+  });
 }
 
 export function validateAutoPlanDraftAgainstGrounding(args: {

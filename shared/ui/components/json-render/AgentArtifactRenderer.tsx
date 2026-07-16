@@ -12,6 +12,7 @@ import { InlineProfilePreviewCard } from "@/features/agent/ui/components/InlineP
 import { InlineProspectProfileCard } from "@/features/agent/ui/components/InlineProspectProfileCard";
 import { InlineReplyApprovalCard } from "@/features/agent/ui/components/InlineReplyApprovalCard";
 import { OnboardingProgressCard } from "@/features/agent/ui/components/OnboardingProgressCard";
+import { PlanBatchProgressCard } from "@/features/agent/ui/components/PlanBatchProgressCard";
 import { PostCard } from "@/features/agent/ui/components/PostCard";
 import { InlineFeatureStrip } from "@/shared/ui/components/InlineFeatureStrip";
 import { api } from "@/convex/_generated/api";
@@ -822,6 +823,9 @@ const { registry } = defineRegistry(agentArtifactCatalog, {
     ),
     PostListArtifact: ({ props }) => <PostListArtifactCard props={props} />,
     PlanPreviewCard: ({ props }) => <PlanPreviewArtifactCard props={props} />,
+    PlanBatchProgressCard: ({ props }) => (
+      <PlanBatchProgressCard runId={props.runId} />
+    ),
     MemoryCard: ({ props }) => <MemoryArtifactCard props={props} />,
     TwitterActionCard: ({ props }) => (
       <TwitterActionArtifactCard props={props} />

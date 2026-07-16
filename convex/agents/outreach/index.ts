@@ -75,6 +75,8 @@ import {
   type OutreachRouteSelection,
   type OutreachTextModelLane,
 } from "../../lib/outreachModelRoutingCore";
+import { filterLegacySharedBatchTurns } from "../../lib/planBatchCore";
+import type { OutreachAgentCustomContext } from "./context";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -520,6 +522,8 @@ RULES:
       }
     }
 
+    const isolatedMessages = filterLegacySharedBatchTurns(args.allMessages);
+
     // Prepend context to all messages
     const messages = [
       useCaseMessage,
@@ -527,7 +531,7 @@ RULES:
       workspaceMemoryMessage,
       xLimitMessage,
       ...(writingStyleMessage ? [writingStyleMessage] : []),
-      ...args.allMessages,
+      ...isolatedMessages,
     ];
     logEvent.emitSuccess(messages, {
       context: {
@@ -570,43 +574,46 @@ RULES:
  * prospect-thread relationship and injects that prospect data as a system
  * message, so the agent doesn't need to ask for IDs.
  */
-export const outreachAgent = new Agent(components.agent, {
-  name: "Outreach Agent",
-  languageModel: outreachLanguageModel,
-  // Enable vector search on message history per docs/convex/agent-usage.md
-  embeddingModel: getTextEmbeddingModel(),
-  instructions: buildOutreachAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
-  tools: outreachAgentBaseTools,
-  // Allow multi-step for complex plan refinement
-  maxSteps: 15,
-  callSettings: {
-    maxOutputTokens: OUTREACH_AGENT_MAX_OUTPUT_TOKENS,
-    // OpenRouter already performs provider failover. Retrying the whole HTTP
-    // request here can add another upstream timeout before the user sees text.
-    maxRetries: OUTREACH_AGENT_MAX_RETRIES,
-  },
-  contextOptions: {
-    recentMessages: OUTREACH_RECENT_MESSAGE_LIMIT,
-    // Enable hybrid text + vector search per docs/convex/llm-context.md
-    searchOptions: {
-      limit: OUTREACH_HISTORY_SEARCH_LIMIT,
-      textSearch: true,
-      vectorSearch: true,
+export const outreachAgent = new Agent<OutreachAgentCustomContext>(
+  components.agent,
+  {
+    name: "Outreach Agent",
+    languageModel: outreachLanguageModel,
+    // Enable vector search on message history per docs/convex/agent-usage.md
+    embeddingModel: getTextEmbeddingModel(),
+    instructions: buildOutreachAgentPrompt(DEFAULT_WORKSPACE_USE_CASE_KEY),
+    tools: outreachAgentBaseTools,
+    // Allow multi-step for complex plan refinement
+    maxSteps: 15,
+    callSettings: {
+      maxOutputTokens: OUTREACH_AGENT_MAX_OUTPUT_TOKENS,
+      // OpenRouter already performs provider failover. Retrying the whole HTTP
+      // request here can add another upstream timeout before the user sees text.
+      maxRetries: OUTREACH_AGENT_MAX_RETRIES,
     },
-  },
-  // Inject prospect context from the canonical thread relationship
-  contextHandler: prospectContextHandler,
-  usageHandler: async (ctx, args) => {
-    await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
-      userId: args.userId,
-      threadId: args.threadId,
-      agentName: args.agentName,
-      model: args.model,
-      provider: args.provider,
-      usage: args.usage,
-      providerMetadata: sanitizeProviderMetadataForConvex(
-        args.providerMetadata
-      ),
-    });
-  },
-});
+    contextOptions: {
+      recentMessages: OUTREACH_RECENT_MESSAGE_LIMIT,
+      // Enable hybrid text + vector search per docs/convex/llm-context.md
+      searchOptions: {
+        limit: OUTREACH_HISTORY_SEARCH_LIMIT,
+        textSearch: true,
+        vectorSearch: true,
+      },
+    },
+    // Inject prospect context from the canonical thread relationship
+    contextHandler: prospectContextHandler,
+    usageHandler: async (ctx, args) => {
+      await ctx.runMutation(internal.agentTelemetry.insertUsageEvent, {
+        userId: args.userId,
+        threadId: args.threadId,
+        agentName: args.agentName,
+        model: args.model,
+        provider: args.provider,
+        usage: args.usage,
+        providerMetadata: sanitizeProviderMetadataForConvex(
+          args.providerMetadata
+        ),
+      });
+    },
+  }
+);

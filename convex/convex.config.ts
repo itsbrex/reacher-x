@@ -6,6 +6,7 @@ import actionRetrier from "@convex-dev/action-retrier/convex.config";
 import workpool from "@convex-dev/workpool/convex.config";
 import rag from "@convex-dev/rag/convex.config";
 import polar from "@convex-dev/polar/convex.config";
+import migrations from "@convex-dev/migrations/convex.config";
 
 const app = defineApp();
 
@@ -13,6 +14,7 @@ const app = defineApp();
 app.use(workflow);
 app.use(agent);
 app.use(actionRetrier);
+app.use(migrations);
 // Workpools for throttling (prevents OCC errors on rate limit table)
 app.use(workpool, { name: "qualificationPool" });
 app.use(workpool, { name: "enrichmentPool" });

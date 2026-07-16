@@ -1,18 +1,35 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { zodSchema } from "ai";
 import {
+  AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW,
+  AUTO_PLAN_RECOVERY_WINDOW_MS,
   assessAutoPlanGrounding,
   autoPlanDraftSchema,
   autoPlanTransportSchema,
   classifyAutoPlanFailure,
+  hasAutoPlanRecoveryCapacity,
   isAutoPlanFailureRecoveryEligible,
+  parseAutoPlanTransportDraft,
   validateAutoPlanDraftAgainstGrounding,
   type AutoPlanDraft,
   type AutoPlanGroundingContext,
 } from "../convex/lib/autoPlanCore";
 
 const ROOT = process.cwd();
+
+function asSchemaObject(value: unknown): Record<string, unknown> {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] {
+  assert.ok(
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
+  return value;
+}
 
 function createGroundingContext(
   overrides: Partial<AutoPlanGroundingContext> = {}
@@ -205,17 +222,70 @@ test("automatic generation caches successful grounding stages and isolates agent
 });
 
 test("provider transport schema stays compatible while app validation remains strict", () => {
-  const invalidDraft = {
+  const transportDraft = {
     strategy: {
-      rationale: "",
-      valueProposition: "",
-      tone: "",
+      rationale: "Wait for a relevant signal before reaching out.",
+      targetTweetId: null,
+      valueProposition: "Share a relevant onboarding improvement.",
+      tone: "Direct and useful",
     },
-    tasks: [],
+    tasks: [
+      {
+        type: "wait" as const,
+        description: "Wait for a relevant post.",
+        timing: { type: "event" as const, value: null },
+        targetTweetId: null,
+        content: null,
+      },
+    ],
   };
 
-  assert.equal(autoPlanTransportSchema.safeParse(invalidDraft).success, true);
-  assert.equal(autoPlanDraftSchema.safeParse(invalidDraft).success, false);
+  assert.equal(autoPlanTransportSchema.safeParse(transportDraft).success, true);
+  assert.equal(autoPlanDraftSchema.safeParse(transportDraft).success, false);
+  assert.deepEqual(parseAutoPlanTransportDraft(transportDraft), {
+    strategy: {
+      rationale: "Wait for a relevant signal before reaching out.",
+      targetTweetId: undefined,
+      valueProposition: "Share a relevant onboarding improvement.",
+      tone: "Direct and useful",
+    },
+    tasks: [
+      {
+        type: "wait",
+        description: "Wait for a relevant post.",
+        timing: { type: "event", value: undefined },
+        targetTweetId: undefined,
+        content: undefined,
+      },
+    ],
+  });
+});
+
+test("provider transport JSON schema requires every nullable field", async () => {
+  const schema = asSchemaObject(
+    await zodSchema(autoPlanTransportSchema).jsonSchema
+  );
+  const properties = asSchemaObject(schema.properties);
+  const strategy = asSchemaObject(properties.strategy);
+  const tasks = asSchemaObject(properties.tasks);
+
+  assert.deepEqual(asStringArray(strategy.required), [
+    "rationale",
+    "targetTweetId",
+    "valueProposition",
+    "tone",
+  ]);
+  const task = asSchemaObject(tasks.items);
+  assert.deepEqual(asStringArray(task.required), [
+    "type",
+    "description",
+    "timing",
+    "targetTweetId",
+    "content",
+  ]);
+  const taskProperties = asSchemaObject(task.properties);
+  const timing = asSchemaObject(taskProperties.timing);
+  assert.deepEqual(asStringArray(timing.required), ["type", "value"]);
 });
 
 test("automatic plan failures distinguish terminal setup issues from transient providers", () => {
@@ -238,6 +308,17 @@ test("automatic plan failures distinguish terminal setup issues from transient p
     classifyAutoPlanFailure("Unsupported minLength").retryable,
     false
   );
+  assert.deepEqual(
+    classifyAutoPlanFailure(
+      "Invalid schema for response_format 'response': required is required to be supplied"
+    ),
+    {
+      code: "provider_schema_unsupported",
+      retryable: false,
+      userMessage:
+        "The plan generator returned an unsupported format. Try again after the issue is resolved.",
+    }
+  );
   assert.deepEqual(classifyAutoPlanFailure("SocialAPI: Insufficient balance"), {
     code: "provider_balance_unavailable",
     retryable: false,
@@ -251,10 +332,50 @@ test("automatic plan failures distinguish terminal setup issues from transient p
     isAutoPlanFailureRecoveryEligible("grounding_unavailable"),
     true
   );
+  assert.equal(
+    isAutoPlanFailureRecoveryEligible("provider_schema_unsupported"),
+    false
+  );
+  assert.equal(isAutoPlanFailureRecoveryEligible("context_too_large"), false);
   assert.equal(isAutoPlanFailureRecoveryEligible("reconnect_required"), false);
   assert.equal(
     isAutoPlanFailureRecoveryEligible("writing_style_unavailable"),
     false
+  );
+});
+
+test("automatic plan recovery is bounded within a rolling window", () => {
+  const now = AUTO_PLAN_RECOVERY_WINDOW_MS * 2;
+  assert.equal(
+    hasAutoPlanRecoveryCapacity(
+      Array.from(
+        { length: AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW - 1 },
+        (_, index) => now - index * 1_000
+      ),
+      now
+    ),
+    true
+  );
+  assert.equal(
+    hasAutoPlanRecoveryCapacity(
+      Array.from(
+        { length: AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW },
+        (_, index) => now - index * 1_000
+      ),
+      now
+    ),
+    false
+  );
+  assert.equal(
+    hasAutoPlanRecoveryCapacity(
+      [
+        now,
+        now - AUTO_PLAN_RECOVERY_WINDOW_MS - 1,
+        now - AUTO_PLAN_RECOVERY_WINDOW_MS - 2,
+      ],
+      now
+    ),
+    true
   );
 });
 
@@ -291,6 +412,38 @@ test("automatic plan reliability prevents repeated paid work and dead notificati
 
   const prospectSource = readFileSync(`${ROOT}/convex/prospects.ts`, "utf8");
   assert.match(prospectSource, /prospect\.planGenerationStatus !== "idle"/);
+
+  const runSource = readFileSync(`${ROOT}/convex/autoPlanRuns.ts`, "utf8");
+  assert.match(runSource, /recoveryExhaustedAt/);
+  assert.match(runSource, /Automatic retries stopped after repeated failures/);
+});
+
+test("keyed failure notifications resurface as new events", () => {
+  const notificationSource = readFileSync(
+    `${ROOT}/convex/lib/notificationHelpers.ts`,
+    "utf8"
+  );
+  const outreachSource = readFileSync(`${ROOT}/convex/outreach.ts`, "utf8");
+  const toastSource = readFileSync(
+    `${ROOT}/shared/hooks/useOutreachNotificationToast.ts`,
+    "utf8"
+  );
+
+  assert.match(notificationSource, /eventVersion: 1/);
+  assert.match(notificationSource, /eventUpdatedAt: now/);
+  assert.match(notificationSource, /existing\.eventVersion \?\? 0/);
+  assert.match(outreachSource, /by_user_workspace_event_updated_at/);
+  assert.ok(
+    outreachSource.indexOf("const eventUpdatedDiff") <
+      outreachSource.indexOf("return typePriorityDiff")
+  );
+  assert.match(toastSource, /getOutreachNotificationEventKey/);
+
+  const inboxSource = readFileSync(
+    `${ROOT}/features/webapp/ui/components/notifications/NotificationsInbox.tsx`,
+    "utf8"
+  );
+  assert.match(inboxSource, /getOutreachNotificationEventTimestamp/);
 });
 
 test("auto-plan history hides legacy blank threads", () => {

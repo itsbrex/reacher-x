@@ -10,7 +10,7 @@ import { internal } from "../../../_generated/api";
 import {
   ensureWorkspaceStyleReady,
   extractPlanIdFromThread,
-  extractProspectThreadContext,
+  type ToolContext,
 } from "./helpers";
 import {
   createPlanPreviewArtifact,
@@ -21,6 +21,7 @@ import type { Id } from "../../../_generated/dataModel";
 import { repairOverLimitCommentTasks } from "./xPostLimitHelpers";
 import { runLoggedAgentTool } from "../../tools/logging";
 import { getCurrentUTCTimestamp } from "../../../../shared/lib/utils/time/timeUtils";
+import { getMediaCapabilityErrorMessage } from "../../../lib/mediaCapabilityCore";
 
 // ============================================================================
 // Schema
@@ -46,6 +47,16 @@ const taskSchema = z.object({
   }),
   targetTweetId: z.string().optional(),
   content: z.string().max(X_LONG_FORM_POST_MAX_CHARS).optional(),
+  mediaUrls: z
+    .array(z.string().url())
+    .max(4)
+    .optional()
+    .describe("Exact URLs from the user's selected workspace attachments"),
+  mediaDescriptions: z.array(z.string().max(1_000)).max(4).optional(),
+  mediaKinds: z
+    .array(z.enum(["image", "gif", "video"]))
+    .max(4)
+    .optional(),
 });
 
 const strategySchema = z.object({
@@ -139,7 +150,7 @@ export const refinePlan = createTool({
       .optional()
       .describe("Updated list of tasks (optional - replaces all tasks)"),
   }),
-  execute: async (ctx, args): Promise<RefinePlanResult> =>
+  execute: async (ctx: ToolContext, args): Promise<RefinePlanResult> =>
     runLoggedAgentTool(
       ctx,
       {
@@ -161,6 +172,7 @@ export const refinePlan = createTool({
           }
         };
 
+        let mediaFailurePlanId: Id<"outreachPlans"> | null = null;
         try {
           if (!args.strategy && !args.tasks) {
             logEvent.warn(
@@ -210,19 +222,54 @@ export const refinePlan = createTool({
             };
           }
 
-          const hasCommentTasks =
-            normalizedTasks?.some((task) => task.type === "comment") ?? false;
-          const repairedTaskResult = hasCommentTasks
-            ? await measureStage(
-                "comment_limit_validation",
-                async () =>
-                  await repairOverLimitCommentTasks({
-                    ctx,
-                    userId,
-                    tasks: normalizedTasks ?? [],
-                  })
+          const planId = await measureStage("plan_lookup", async () =>
+            extractPlanIdFromThread(
+              ctx,
+              "refinePlan",
+              internal.outreach.getActivePlanForProspect,
+              logEvent
+            )
+          );
+          if (!planId) {
+            logEvent.warn("No active plan found in thread context");
+            return {
+              success: false,
+              message:
+                "Could not find an active plan to update. Please generate a plan first.",
+              error: "No active plan found in thread context",
+            };
+          }
+          mediaFailurePlanId = planId;
+
+          const existingPlanData = await measureStage(
+            "existing_plan_read",
+            async () =>
+              ctx.runQuery(internal.outreach.getPlanInternal, { planId })
+          );
+          const prospect = existingPlanData
+            ? await measureStage("prospect_read", async () =>
+                ctx.runQuery(internal.prospects.getProspectInternal, {
+                  prospectId: existingPlanData.plan.prospectId,
+                })
               )
             : null;
+          const prospectPlatform =
+            prospect?.platform === "linkedin" ? "linkedin" : "twitter";
+
+          const hasCommentTasks =
+            normalizedTasks?.some((task) => task.type === "comment") ?? false;
+          const repairedTaskResult =
+            hasCommentTasks && prospectPlatform === "twitter"
+              ? await measureStage(
+                  "comment_limit_validation",
+                  async () =>
+                    await repairOverLimitCommentTasks({
+                      ctx,
+                      userId,
+                      tasks: normalizedTasks ?? [],
+                    })
+                )
+              : null;
           const candidateTasks = repairedTaskResult?.tasks ?? normalizedTasks;
           const canDeferCommentTarget = candidateTasks
             ? allowsDeferredNextPostTarget(candidateTasks)
@@ -230,7 +277,9 @@ export const refinePlan = createTool({
           const invalidCommentTask = candidateTasks?.find(
             (task) =>
               task.type === "comment" &&
-              (!task.content || (!task.targetTweetId && !canDeferCommentTarget))
+              ((!task.content &&
+                (prospectPlatform === "linkedin" || !task.mediaUrls?.length)) ||
+                (!task.targetTweetId && !canDeferCommentTarget))
           );
           if (invalidCommentTask) {
             logEvent.warn("Comment task missing content or target", {
@@ -241,25 +290,22 @@ export const refinePlan = createTool({
             return {
               success: false,
               message:
-                "Unable to update the plan because at least one comment task is missing reply content or a target post. Select a specific post first, or use an explicit wait-for-next-post strategy on X before the comment task.",
+                prospectPlatform === "linkedin"
+                  ? "Unable to update the plan because a LinkedIn comment task is missing text or a target post."
+                  : "Unable to update the plan because at least one reply task is missing text/media or a target post. Select a specific post first, or use an explicit wait-for-next-post strategy on X before the reply task.",
               error:
-                "Comment tasks require content and either targetTweetId or an explicit next_post wait strategy",
+                "Comment tasks require supported content and either a target post or an explicit next-post wait strategy",
             };
           }
 
           if (candidateTasks?.some((task) => task.type === "comment")) {
-            const threadContext = await measureStage(
-              "prospect_context",
-              async () =>
-                await extractProspectThreadContext(ctx, "refinePlan", logEvent)
-            );
             const styleReady = await measureStage(
               "style_readiness",
               async () =>
                 await ensureWorkspaceStyleReady(
                   ctx,
                   "refinePlan",
-                  threadContext.workspaceId,
+                  existingPlanData?.plan.workspaceId ?? null,
                   logEvent
                 )
             );
@@ -272,27 +318,6 @@ export const refinePlan = createTool({
             }
           }
 
-          const planId = await measureStage(
-            "plan_lookup",
-            async () =>
-              await extractPlanIdFromThread(
-                ctx,
-                "refinePlan",
-                internal.outreach.getActivePlanForProspect,
-                logEvent
-              )
-          );
-
-          if (!planId) {
-            logEvent.warn("No active plan found in thread context");
-            return {
-              success: false,
-              message:
-                "Could not find an active plan to update. Please generate a plan first.",
-              error: "No active plan found in thread context",
-            };
-          }
-
           await measureStage(
             "plan_update",
             async () =>
@@ -301,6 +326,7 @@ export const refinePlan = createTool({
                 strategy: args.strategy,
                 tasks: candidateTasks,
                 threadId: ctx.threadId ?? undefined,
+                planBatchItemId: ctx.planBatchItemId,
               })
           );
 
@@ -365,13 +391,32 @@ export const refinePlan = createTool({
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
+          const mediaErrorMessage = getMediaCapabilityErrorMessage(error);
+          if (mediaErrorMessage && mediaFailurePlanId) {
+            try {
+              await ctx.runMutation(
+                internal.outreach.createExistingPlanMediaCapabilityNotification,
+                {
+                  planId: mediaFailurePlanId,
+                  message: mediaErrorMessage,
+                }
+              );
+            } catch (notificationError) {
+              logEvent.warn("Could not create media capability notification", {
+                error:
+                  notificationError instanceof Error
+                    ? notificationError.message
+                    : String(notificationError),
+              });
+            }
+          }
 
           logEvent.error(error);
 
           return {
             success: false,
-            message: `Unable to update plan: ${errorMessage}`,
-            error: errorMessage,
+            message: `Unable to update plan: ${mediaErrorMessage ?? errorMessage}`,
+            error: mediaErrorMessage ?? errorMessage,
           };
         }
       }

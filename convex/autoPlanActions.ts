@@ -17,12 +17,12 @@ import { internalAction } from "./lib/functionBuilders";
 import { AUTO_PLAN_GENERATION_THRESHOLD } from "./lib/outreachCore";
 import {
   assessAutoPlanGrounding,
-  autoPlanDraftSchema,
   autoPlanTransportSchema,
   buildAutoPlanResearchQueries,
   buildGroundedAutoPlanPrompt,
   classifyAutoPlanFailure,
   normalizeAutoPlanDraft,
+  parseAutoPlanTransportDraft,
   validateAutoPlanDraftAgainstGrounding,
   type AutoPlanGenerationResult,
   type AutoPlanGroundingContext,
@@ -552,7 +552,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
     });
 
     const normalizedDraft = normalizeAutoPlanDraft(
-      autoPlanDraftSchema.parse(generated.object)
+      parseAutoPlanTransportDraft(generated.object)
     );
     const validationErrors = validateAutoPlanDraftAgainstGrounding({
       draft: normalizedDraft,

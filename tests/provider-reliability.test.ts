@@ -14,6 +14,10 @@ import { fetchSocialApi } from "../convex/lib/socialApiFetch";
 import { isAutoPlanGroundingStageFresh } from "../convex/lib/autoPlanGroundingCacheCore";
 import { normalizeNotificationCopy } from "../features/webapp/lib/notificationCopy";
 import { getWorkspaceSystemStatusDotClassName } from "../features/webapp/lib/workspaceSystemStatusTone";
+import {
+  getOutreachNotificationEventKey,
+  getOutreachNotificationEventTimestamp,
+} from "../shared/lib/notifications/outreachNotificationEvents";
 
 const ROOT = process.cwd();
 
@@ -188,6 +192,22 @@ test("workspace status surfaces share one semantic color mapping", () => {
   assert.equal(
     getWorkspaceSystemStatusDotClassName("attention"),
     "bg-destructive"
+  );
+});
+
+test("updated keyed notifications use their latest event identity and time", () => {
+  const now = Date.now();
+  const notification = {
+    _id: "notification",
+    _creationTime: now - 3 * 24 * 60 * 60 * 1_000,
+    eventUpdatedAt: now,
+    eventVersion: 2,
+  };
+
+  assert.equal(getOutreachNotificationEventTimestamp(notification), now);
+  assert.equal(
+    getOutreachNotificationEventKey(notification),
+    `notification:2:${now}`
   );
 });
 

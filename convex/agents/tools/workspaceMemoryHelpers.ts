@@ -14,12 +14,26 @@ import { parseSetupThreadState } from "../../lib/setupThreadHelpers";
 import type { ConvexWideEventLogger } from "../../lib/wideEventLogger";
 
 export type ToolContext = ToolCtx;
+type ToolContextWithPromptMessageId = ToolContext & {
+  promptMessageId?: string;
+};
 
 export type WorkspaceMemoryContext = {
   userId: Id<"users"> | null;
   workspaceId: string | null;
   prospectId: string | null;
 };
+
+/**
+ * The installed Agent component currently exposes the prompt message as
+ * `promptMessageId` at runtime while its public ToolCtx type documents
+ * `messageId`. Support both names centrally until the component aligns them.
+ */
+export function getToolPromptMessageId(ctx: ToolContext): string | undefined {
+  return (
+    ctx.messageId ?? (ctx as ToolContextWithPromptMessageId).promptMessageId
+  );
+}
 
 /**
  * Resolve the current workspace + optional prospect context for a thread.

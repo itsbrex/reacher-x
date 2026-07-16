@@ -38,6 +38,7 @@ import {
 } from "../shared/lib/twitter/xPostTextLimit";
 import { logger } from "../shared/lib/logger";
 import { getLinkedInFailure } from "./lib/unipileClient";
+import { getMediaCapabilityErrorMessage } from "./lib/mediaCapabilityCore";
 
 type OutreachFailureClass =
   | "reauth_required"
@@ -73,7 +74,8 @@ type StructuredOutreachError = {
 type ExecuteCommentTaskResult =
   | {
       success: true;
-      tweetId: string;
+      tweetId?: string;
+      commentId?: string;
       attemptId: string;
     }
   | {
@@ -118,6 +120,15 @@ function parseTwitterError(
   error: unknown,
   options?: { platform?: "twitter" | "linkedin" }
 ): StructuredOutreachError {
+  const mediaErrorMessage = getMediaCapabilityErrorMessage(error);
+  if (mediaErrorMessage) {
+    return {
+      classification: "unprocessable",
+      message: mediaErrorMessage,
+      retryable: false,
+    };
+  }
+
   if (options?.platform === "linkedin") {
     const failure = getLinkedInFailure(error);
     return {
@@ -233,7 +244,7 @@ export const executeCommentTask = internalAction({
       throw new Error("Task not found");
     }
 
-    const mediaUrls = task.mediaUrls || [];
+    let mediaUrls = task.mediaUrls || [];
     if (!task.targetTweetId || !hasPostBody(task.content, mediaUrls)) {
       throw new Error("Task missing required data for comment");
     }
@@ -246,55 +257,110 @@ export const executeCommentTask = internalAction({
       throw new Error("Plan not found");
     }
     const planUserId = plan.userId;
-    const limit = await ctx.runQuery(
-      internal.xPostLimits.getEffectivePostLimitInternal,
-      { userId: planUserId }
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
+      { prospectId: plan.prospectId }
     );
-    const postLimitErr = task.content
-      ? getPostTextLimitError(task.content, limit)
-      : null;
-    if (postLimitErr) {
-      const errorDetails: StructuredOutreachError = {
-        classification: "content_too_long",
-        message: postLimitErr,
-        retryable: false,
-        suggestion:
-          limit.mode === "short"
-            ? `Shorten the reply to at most ${X_POST_WEIGHTED_MAX} weighted characters (URLs count as fewer raw characters on X).`
-            : `Shorten the reply to at most ${X_LONG_FORM_POST_MAX_CHARS} characters.`,
-      };
+    const platform = prospect
+      ? prospect.platform === "linkedin"
+        ? "linkedin"
+        : "twitter"
+      : (task.approvalContext?.platform ?? "twitter");
 
-      await ctx.runMutation(internal.outreach.updateTaskResult, {
-        taskId: args.taskId,
-        status: "failed",
-        errorMessage: errorDetails.message,
-        resultData: {
-          error: {
-            ...errorDetails,
-            attemptId,
-          },
-        },
-      });
-
-      await ctx.runMutation(
-        internal.outreach.createTaskExecutionFailureNotification,
-        {
-          taskId: args.taskId,
-          attemptId,
-          message: errorDetails.message,
-        }
+    if (platform === "twitter") {
+      const limit = await ctx.runQuery(
+        internal.xPostLimits.getEffectivePostLimitInternal,
+        { userId: planUserId }
       );
+      const postLimitErr = task.content
+        ? getPostTextLimitError(task.content, limit)
+        : null;
+      if (postLimitErr) {
+        const errorDetails: StructuredOutreachError = {
+          classification: "content_too_long",
+          message: postLimitErr,
+          retryable: false,
+          suggestion:
+            limit.mode === "short"
+              ? `Shorten the reply to at most ${X_POST_WEIGHTED_MAX} weighted characters (URLs count as fewer raw characters on X).`
+              : `Shorten the reply to at most ${X_LONG_FORM_POST_MAX_CHARS} characters.`,
+        };
 
-      await bridgeStatusMessage();
-      return {
-        success: false,
-        errorClass: errorDetails.classification,
-        errorMessage: errorDetails.message,
-        retryable: false,
-        attemptId,
-      };
+        await ctx.runMutation(internal.outreach.updateTaskResult, {
+          taskId: args.taskId,
+          status: "failed",
+          errorMessage: errorDetails.message,
+          resultData: {
+            error: {
+              ...errorDetails,
+              attemptId,
+            },
+          },
+        });
+
+        await ctx.runMutation(
+          internal.outreach.createTaskExecutionFailureNotification,
+          {
+            taskId: args.taskId,
+            attemptId,
+            message: errorDetails.message,
+          }
+        );
+
+        await bridgeStatusMessage();
+        return {
+          success: false,
+          errorClass: errorDetails.classification,
+          errorMessage: errorDetails.message,
+          retryable: false,
+          attemptId,
+        };
+      }
     }
     try {
+      const mediaValidation = await ctx.runQuery(
+        internal.outreach.validateTaskMediaForExecution,
+        { taskId: args.taskId }
+      );
+      mediaUrls = mediaValidation.mediaUrls;
+
+      if (platform === "linkedin") {
+        const result = await ctx.runAction(
+          internal.linkedin.commentOnLinkedInPostInternal,
+          {
+            userId: planUserId,
+            prospectId: plan.prospectId,
+            postId: task.targetTweetId,
+            text: task.content || "",
+            mediaUrls,
+          }
+        );
+
+        await ctx.runMutation(internal.outreach.updateTaskResult, {
+          taskId: args.taskId,
+          status: "waiting_response",
+          resultData: {
+            messageId: result.commentId,
+            postedAt: getCurrentUTCTimestamp(),
+            postedText: result.postedTextPreview || task.content || "",
+            postedMediaUrls: mediaUrls,
+            postedMediaDescriptions: task.mediaDescriptions || [],
+            postedMediaKinds: task.mediaKinds || [],
+            postedBy: { name: "You" },
+            attemptId,
+            text: result.postedTextPreview || task.content || "",
+            platform,
+          },
+        });
+
+        await bridgeStatusMessage();
+        return {
+          success: true,
+          commentId: result.commentId,
+          attemptId,
+        };
+      }
+
       const entry = getTwitterActionCatalogEntry("reply_to_post");
       const provider = await getXProviderContextForUser(ctx, internal.xStore, {
         userId: plan.userId,
@@ -407,7 +473,7 @@ export const executeCommentTask = internalAction({
         attemptId,
       };
     } catch (error) {
-      const errorDetails = parseTwitterError(error, { platform: "twitter" });
+      const errorDetails = parseTwitterError(error, { platform });
 
       await ctx.runMutation(internal.outreach.updateTaskResult, {
         taskId: args.taskId,
@@ -437,7 +503,10 @@ export const executeCommentTask = internalAction({
       }
 
       let manualRecovery: { started: boolean } = { started: false };
-      if (errorDetails.classification === "api_policy_forbidden") {
+      if (
+        platform === "twitter" &&
+        errorDetails.classification === "api_policy_forbidden"
+      ) {
         try {
           manualRecovery = await ctx.runAction(
             internal.outreachRecovery.beginTwitterManualReplyRecovery,
@@ -514,7 +583,7 @@ export const executeDmTask = internalAction({
       throw new Error("Task not found");
     }
 
-    const mediaUrls = task.mediaUrls || [];
+    let mediaUrls = task.mediaUrls || [];
     if (!hasDmBody(task.content, mediaUrls)) {
       throw new Error("Task missing required data for DM");
     }
@@ -528,7 +597,15 @@ export const executeDmTask = internalAction({
     }
     const planUserId = plan.userId;
 
-    const platform = task.approvalContext?.platform ?? "twitter";
+    const prospect = await ctx.runQuery(
+      internal.prospects.getProspectInternal,
+      { prospectId: plan.prospectId }
+    );
+    const platform = prospect
+      ? prospect.platform === "linkedin"
+        ? "linkedin"
+        : "twitter"
+      : (task.approvalContext?.platform ?? "twitter");
 
     const previousResult =
       typeof task.resultData === "object" && task.resultData !== null
@@ -536,6 +613,12 @@ export const executeDmTask = internalAction({
         : null;
 
     try {
+      const mediaValidation = await ctx.runQuery(
+        internal.outreach.validateTaskMediaForExecution,
+        { taskId: args.taskId }
+      );
+      mediaUrls = mediaValidation.mediaUrls;
+
       let conversationId: string | undefined;
       let messageId: string | undefined;
 

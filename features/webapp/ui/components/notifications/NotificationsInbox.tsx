@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { normalizeNotificationCopy } from "@/features/webapp/lib/notificationCopy";
+import { getOutreachNotificationEventTimestamp } from "@/shared/lib/notifications/outreachNotificationEvents";
 import { cn, formatRelativeTime, parseText } from "@/shared/lib/utils";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
 import {
@@ -34,6 +35,7 @@ export type NotificationItem = Omit<
     | "_creationTime"
     | "actionLabel"
     | "actionRequestId"
+    | "eventUpdatedAt"
     | "message"
     | "prospectAvatarUrl"
     | "prospectDisplayName"
@@ -62,6 +64,8 @@ type NotificationGroup = {
   older: NotificationItem[];
 };
 
+const EMPTY_NOTIFICATIONS: NotificationItem[] = [];
+
 type NotificationListItem =
   | {
       kind: "single";
@@ -73,7 +77,7 @@ type NotificationListItem =
       notifications: NotificationItem[];
     };
 
-export function groupNotificationsByDay(
+function groupNotificationsByDay(
   notifications: NotificationItem[]
 ): NotificationGroup {
   const now = new Date();
@@ -87,10 +91,12 @@ export function groupNotificationsByDay(
   };
 
   for (const notification of notifications) {
-    const createdDate = new Date(notification._creationTime);
-    if (createdDate >= today) {
+    const eventDate = new Date(
+      getOutreachNotificationEventTimestamp(notification)
+    );
+    if (eventDate >= today) {
       groups.today.push(notification);
-    } else if (createdDate >= yesterday) {
+    } else if (eventDate >= yesterday) {
       groups.yesterday.push(notification);
     } else {
       groups.older.push(notification);
@@ -117,10 +123,16 @@ function getNotificationIcon(type: NotificationItem["type"]) {
       return <Send className="size-4" />;
     case "setup_preview_ready":
       return <CheckCircle className="size-4" />;
+    case "plan_batch_ready":
+    case "plan_batch_started":
+      return <NotificationsIcon className="fill-current" />;
     case "social_action_failed":
+    case "plan_batch_partial":
+    case "plan_batch_failed":
     case "error":
       return <WarningIcon className="size-4 fill-current" />;
     case "plan_completed":
+    case "plan_batch_completed":
       return <CheckCircle className="size-4" />;
     default:
       return <NotificationsIcon className="fill-current" />;
@@ -274,7 +286,7 @@ interface NotificationCardProps {
 
 function NotificationCard({
   notification,
-  groupedNotifications = [],
+  groupedNotifications = EMPTY_NOTIFICATIONS,
   onSelect,
   onDismiss,
 }: NotificationCardProps) {
@@ -283,13 +295,17 @@ function NotificationCard({
   const threadNotifications = React.useMemo(
     () =>
       [...groupedNotifications].sort(
-        (a, b) => a._creationTime - b._creationTime
+        (a, b) =>
+          getOutreachNotificationEventTimestamp(a) -
+          getOutreachNotificationEventTimestamp(b)
       ),
     [groupedNotifications]
   );
   const hasThread = threadNotifications.length > 1;
+  const notificationEventTimestamp =
+    getOutreachNotificationEventTimestamp(notification);
   const timeAgo = formatRelativeTime(
-    new Date(notification._creationTime).toISOString()
+    new Date(notificationEventTimestamp).toISOString()
   );
 
   const isPending = threadNotifications.some(
@@ -336,7 +352,7 @@ function NotificationCard({
             </Avatar>
           </ProspectPlatformAvatar>
         ) : (
-          <div className="bg-secondary text-foreground flex size-8 items-center justify-center rounded-md">
+          <div className="border-border text-foreground flex size-8 items-center justify-center rounded-md border">
             {getNotificationIcon(notification.type)}
           </div>
         )}
@@ -368,8 +384,10 @@ function NotificationCard({
             </div>
             <div className="space-y-3 pt-1">
               {threadNotifications.map((item, index) => {
+                const itemEventTimestamp =
+                  getOutreachNotificationEventTimestamp(item);
                 const itemTimeAgo = formatRelativeTime(
-                  new Date(item._creationTime).toISOString()
+                  new Date(itemEventTimestamp).toISOString()
                 );
                 const itemMessage = item.message
                   ? parseText(
@@ -414,7 +432,7 @@ function NotificationCard({
                         </p>
                       ) : null}
                       <time
-                        dateTime={new Date(item._creationTime).toISOString()}
+                        dateTime={new Date(itemEventTimestamp).toISOString()}
                         className="text-muted-foreground mt-0.5 block text-sm"
                       >
                         {itemTimeAgo}
@@ -464,7 +482,7 @@ function NotificationCard({
               </p>
             ) : null}
             <time
-              dateTime={new Date(notification._creationTime).toISOString()}
+              dateTime={new Date(notificationEventTimestamp).toISOString()}
               className="text-muted-foreground block text-sm"
             >
               {timeAgo}
