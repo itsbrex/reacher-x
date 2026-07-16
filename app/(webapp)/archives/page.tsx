@@ -275,7 +275,7 @@ export default function ArchivesPage() {
                       showExactMatch={false}
                     />
                   </div>
-                  <div className="mt-3 hidden items-center justify-between gap-3 md:flex">
+                  <div className="hidden items-center justify-between gap-3 md:flex">
                     <div className="w-72 lg:w-80">
                       <SearchInput
                         defaultValue={searchQuery}

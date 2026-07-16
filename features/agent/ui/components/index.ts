@@ -25,3 +25,7 @@ export {
   type PostCardSkeletonProps,
 } from "./PostCardSkeleton";
 export { OnboardingProgressCard } from "./OnboardingProgressCard";
+export {
+  InlineProgressCard,
+  type InlineProgressCardProps,
+} from "./InlineProgressCard";

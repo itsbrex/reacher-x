@@ -51,6 +51,7 @@ import {
   TableRow,
 } from "@/shared/ui/components/Table";
 import { TablePagination } from "@/shared/ui/components/TablePagination";
+import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import { AgentOpsPanel } from "./AgentOpsPanel";
 import type {
@@ -180,6 +181,9 @@ export function AgentOpsDashboard() {
   );
   const data =
     (dashboardQuery.data as AgentOpsDashboardData | undefined) ?? defaultData;
+  const isDashboardLoading =
+    workspaceStatusQuery.isPending || dashboardQuery.isPending;
+  const isMemoryLoading = isDashboardLoading || memoryInventoryQuery.isPending;
   const memoryInventoryData = (memoryInventoryQuery.data as
     | AgentOpsMemoryInventoryPageData
     | undefined) ?? {
@@ -731,7 +735,21 @@ export function AgentOpsDashboard() {
               )
             }
           >
-            {filteredQueries.length === 0 ? (
+            {isDashboardLoading ? (
+              <>
+                <DiscoveryTableSkeleton rowCount={queryPageSize} />
+                <TablePagination
+                  page={0}
+                  totalPages={1}
+                  pageSize={queryPageSize}
+                  pageSizeOptions={[5, 10, 20]}
+                  onPageChange={queryPages.setPage}
+                  onPageSizeChange={setQueryPageSize}
+                  size="xs"
+                  disabled
+                />
+              </>
+            ) : filteredQueries.length === 0 ? (
               <EmptyState
                 title="No discovery records yet"
                 description="When the agent proposes and reviews discovery queries during the selected period, they will appear here."
@@ -749,6 +767,7 @@ export function AgentOpsDashboard() {
                   pageSizeOptions={[5, 10, 20]}
                   onPageChange={(nextPage) => queryPages.setPage(nextPage)}
                   onPageSizeChange={setQueryPageSize}
+                  size="xs"
                 />
               </>
             )}
@@ -888,11 +907,20 @@ export function AgentOpsDashboard() {
             exportLabel={isExportingMemories ? "Exporting..." : "Export CSV"}
             exportDisabled={isExportingMemories}
           >
-            {memoryInventoryQuery.isPending ? (
-              <EmptyState
-                title="Loading memories"
-                description="Fetching the latest memory activity for this period."
-              />
+            {isMemoryLoading ? (
+              <>
+                <MemoryTableSkeleton rowCount={memoryPageSize} />
+                <TablePagination
+                  page={0}
+                  totalPages={1}
+                  pageSize={memoryPageSize}
+                  pageSizeOptions={[5, 10, 20]}
+                  onPageChange={setMemoryPage}
+                  onPageSizeChange={updateMemoryPageSize}
+                  size="xs"
+                  disabled
+                />
+              </>
             ) : filteredMemories.length === 0 ? (
               <EmptyState
                 title="No memories yet"
@@ -911,6 +939,7 @@ export function AgentOpsDashboard() {
                   pageSizeOptions={[5, 10, 20]}
                   onPageChange={setMemoryPage}
                   onPageSizeChange={updateMemoryPageSize}
+                  size="xs"
                 />
               </>
             )}
@@ -964,7 +993,21 @@ export function AgentOpsDashboard() {
               )
             }
           >
-            {filteredActivity.length === 0 ? (
+            {isDashboardLoading ? (
+              <>
+                <ActivityTableSkeleton rowCount={activityPageSize} />
+                <TablePagination
+                  page={0}
+                  totalPages={1}
+                  pageSize={activityPageSize}
+                  pageSizeOptions={[5, 10, 20]}
+                  onPageChange={activityPages.setPage}
+                  onPageSizeChange={setActivityPageSize}
+                  size="xs"
+                  disabled
+                />
+              </>
+            ) : filteredActivity.length === 0 ? (
               <EmptyState
                 title="No recent activity"
                 description="As workflows, evaluator runs, and memory events execute, they will appear in this feed."
@@ -982,6 +1025,7 @@ export function AgentOpsDashboard() {
                   pageSizeOptions={[5, 10, 20]}
                   onPageChange={(nextPage) => activityPages.setPage(nextPage)}
                   onPageSizeChange={setActivityPageSize}
+                  size="xs"
                 />
               </>
             )}
@@ -1242,6 +1286,95 @@ function downloadCsv(
 // Tables — standalone, no Card wrappers, hover rows, whole-row clickable
 // ============================================================================
 
+type TableSkeletonColumn = {
+  label: string;
+  width: string;
+  skeletonWidth: string;
+};
+
+function AgentOpsTableSkeleton({
+  columns,
+  tableClassName,
+  rowCount = 10,
+}: {
+  columns: TableSkeletonColumn[];
+  tableClassName: string;
+  rowCount?: number;
+}) {
+  return (
+    <TableContainer>
+      <Table className={`${tableClassName} table-fixed`}>
+        <TableHeader>
+          <TableRow>
+            {columns.map((column) => (
+              <TableHead key={column.label} className={column.width}>
+                {column.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: rowCount }, (_, index) => (
+            <TableRow key={`agent-ops-table-skeleton-${index}`}>
+              {columns.map((column) => (
+                <TableCell key={column.label}>
+                  <Skeleton className={`h-3.5 ${column.skeletonWidth}`} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+function DiscoveryTableSkeleton({ rowCount }: { rowCount: number }) {
+  return (
+    <AgentOpsTableSkeleton
+      tableClassName="min-w-[700px]"
+      rowCount={rowCount}
+      columns={[
+        { label: "Query", width: "w-[44%]", skeletonWidth: "w-3/4" },
+        { label: "Status", width: "w-[18%]", skeletonWidth: "w-16" },
+        { label: "Reply rate", width: "w-[24%]", skeletonWidth: "w-14" },
+        { label: "Reviewed", width: "w-[14%]", skeletonWidth: "w-20" },
+      ]}
+    />
+  );
+}
+
+function MemoryTableSkeleton({ rowCount }: { rowCount: number }) {
+  return (
+    <AgentOpsTableSkeleton
+      tableClassName="min-w-[780px]"
+      rowCount={rowCount}
+      columns={[
+        { label: "Memory", width: "w-[44%]", skeletonWidth: "w-3/4" },
+        { label: "Category", width: "w-[20%]", skeletonWidth: "w-24" },
+        { label: "Impact", width: "w-[12%]", skeletonWidth: "w-12" },
+        { label: "Confidence", width: "w-[12%]", skeletonWidth: "w-12" },
+        { label: "Created", width: "w-[12%]", skeletonWidth: "w-20" },
+      ]}
+    />
+  );
+}
+
+function ActivityTableSkeleton({ rowCount }: { rowCount: number }) {
+  return (
+    <AgentOpsTableSkeleton
+      tableClassName="min-w-[720px]"
+      rowCount={rowCount}
+      columns={[
+        { label: "Activity", width: "w-[48%]", skeletonWidth: "w-2/3" },
+        { label: "Type", width: "w-[16%]", skeletonWidth: "w-14" },
+        { label: "Status", width: "w-[20%]", skeletonWidth: "w-16" },
+        { label: "When", width: "w-[16%]", skeletonWidth: "w-20" },
+      ]}
+    />
+  );
+}
+
 function DiscoveryTable({
   rows,
   onOpenQuery,
@@ -1251,13 +1384,13 @@ function DiscoveryTable({
 }) {
   return (
     <TableContainer>
-      <Table>
+      <Table className="min-w-[700px] table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Query</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Performance</TableHead>
-            <TableHead>Reviewed</TableHead>
+            <TableHead className="w-[44%]">Query</TableHead>
+            <TableHead className="w-[18%]">Status</TableHead>
+            <TableHead className="w-[24%]">Reply rate</TableHead>
+            <TableHead className="w-[14%]">Reviewed</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1267,22 +1400,18 @@ function DiscoveryTable({
               className="cursor-pointer"
               onClick={() => onOpenQuery(row.queryCandidateId)}
             >
-              <TableCell>
-                <p className="font-medium">{row.rawValue}</p>
-                <p className="text-muted-foreground text-xs">
-                  {row.sourceTheme ?? row.canonicalValue}
-                </p>
+              <TableCell className="max-w-0">
+                <span className="block truncate font-medium" title={row.rawValue}>
+                  {row.rawValue}
+                </span>
               </TableCell>
               <TableCell>
                 <div className="flex flex-nowrap gap-1.5">
                   <StatusBadge value={row.status} />
                 </div>
               </TableCell>
-              <TableCell>
-                <p>{row.replyRate.toFixed(1)}% replies</p>
-                <p className="text-muted-foreground text-xs">
-                  {`${row.qualifiedCount} qualified · ${row.convertedCount} converted`}
-                </p>
+              <TableCell className="font-mono text-xs tabular-nums">
+                {row.replyRate.toFixed(1)}%
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {formatRelativeDate(row.reviewedAt ?? row.createdAt)}
@@ -1304,13 +1433,14 @@ function MemoryTable({
 }) {
   return (
     <TableContainer>
-      <Table>
+      <Table className="min-w-[780px] table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Memory</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Impact</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead className="w-[44%]">Memory</TableHead>
+            <TableHead className="w-[20%]">Category</TableHead>
+            <TableHead className="w-[12%]">Impact</TableHead>
+            <TableHead className="w-[12%]">Confidence</TableHead>
+            <TableHead className="w-[12%]">Created</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1320,21 +1450,21 @@ function MemoryTable({
               className="cursor-pointer"
               onClick={() => onOpen(row.memoryId)}
             >
-              <TableCell>
-                <p className="font-medium">{row.title}</p>
-                <p className="text-muted-foreground text-xs">{row.summary}</p>
+              <TableCell className="max-w-0">
+                <span className="block truncate font-medium" title={row.title}>
+                  {row.title}
+                </span>
               </TableCell>
               <TableCell>
-                <div className="flex flex-nowrap gap-1.5">
-                  <StatusBadge value={row.source} />
+                <div className="flex min-w-0">
                   <StatusBadge value={row.category} />
                 </div>
               </TableCell>
-              <TableCell>
-                <p>{row.impactScore.toFixed(1)} impact</p>
-                <p className="text-muted-foreground text-xs">
-                  {row.confidence.toFixed(1)}% confidence
-                </p>
+              <TableCell className="font-mono text-xs tabular-nums">
+                {row.impactScore.toFixed(1)}
+              </TableCell>
+              <TableCell className="font-mono text-xs tabular-nums">
+                {row.confidence.toFixed(1)}%
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {formatRelativeDate(row.createdAt)}
@@ -1356,12 +1486,13 @@ function ActivityTable({
 }) {
   return (
     <TableContainer>
-      <Table>
+      <Table className="min-w-[720px] table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Activity</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>When</TableHead>
+            <TableHead className="w-[48%]">Activity</TableHead>
+            <TableHead className="w-[16%]">Type</TableHead>
+            <TableHead className="w-[20%]">Status</TableHead>
+            <TableHead className="w-[16%]">When</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1371,19 +1502,21 @@ function ActivityTable({
               className="cursor-pointer"
               onClick={() => onOpen(row)}
             >
-              <TableCell>
-                <p className="font-medium capitalize">{row.title}</p>
-                <p className="text-muted-foreground text-xs">
-                  {row.description}
-                </p>
+              <TableCell className="max-w-0">
+                <span
+                  className="block truncate font-medium capitalize"
+                  title={row.description}
+                >
+                  {row.title}
+                </span>
               </TableCell>
               <TableCell>
-                <div className="flex flex-nowrap gap-1.5">
-                  <StatusBadge value={row.kind} />
-                  <StatusBadge value={row.status} />
-                </div>
+                <StatusBadge value={row.kind} />
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell>
+                <StatusBadge value={row.status} />
+              </TableCell>
+              <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">
                 {formatRelativeDate(row.timestamp)}
               </TableCell>
             </TableRow>

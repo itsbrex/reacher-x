@@ -1200,7 +1200,7 @@ function ProspectsToolbar({
 }: ProspectsToolbarProps) {
   return (
     <div className={cn("@container", className)}>
-      <nav className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 md:gap-y-2 @[760px]:mt-3 @[760px]:grid-cols-[auto_minmax(0,1fr)_auto] @[760px]:gap-y-0">
+      <nav className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 md:gap-y-2 @[760px]:grid-cols-[auto_minmax(0,1fr)_auto] @[760px]:gap-y-0">
         <div className="col-span-2 row-start-1 min-w-0 md:col-span-1 @[760px]:col-start-2 @[760px]:w-72 @[760px]:justify-self-end @[960px]:w-80">
           <SearchInput
             defaultValue={searchQuery}

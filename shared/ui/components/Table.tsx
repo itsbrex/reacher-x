@@ -9,7 +9,7 @@ const TableContainer = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("bg-background overflow-hidden rounded-xl border", className)}
+    className={cn("bg-background overflow-hidden rounded-lg border", className)}
     {...props}
   />
 ));
@@ -26,7 +26,7 @@ const Table = React.forwardRef<
   >
     <table
       ref={ref}
-      className={cn("w-max min-w-full caption-bottom text-sm", className)}
+      className={cn("w-full caption-bottom text-sm", className)}
       {...props}
     />
   </ScrollArea>
@@ -40,7 +40,7 @@ const TableHeader = React.forwardRef<
   <thead
     ref={ref}
     className={cn(
-      "bg-muted/10 [&_tr]:border-b [&_tr:hover]:bg-transparent",
+      "bg-muted/20 [&_tr]:border-b [&_tr:hover]:bg-transparent",
       className
     )}
     {...props}
@@ -82,7 +82,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "hover:bg-muted/40 data-[state=selected]:bg-muted border-b transition-colors",
+      "hover:bg-muted/30 data-[state=selected]:bg-muted border-b transition-colors",
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "text-muted-foreground h-12 px-5 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      "text-muted-foreground h-9 px-3 text-left align-middle text-xs font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -112,7 +112,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "px-5 py-4 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}

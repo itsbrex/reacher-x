@@ -58,6 +58,7 @@ export interface TablePaginationProps {
   pageSizeOptions?: readonly number[];
   onPageSizeChange?: (pageSize: number) => void;
   size?: "xs" | "sm";
+  disabled?: boolean;
   className?: string;
 }
 
@@ -69,6 +70,7 @@ export function TablePagination({
   pageSizeOptions = [5, 10, 20],
   onPageSizeChange,
   size = "sm",
+  disabled = false,
   className,
 }: TablePaginationProps) {
   const resolvedTotalPages = Math.max(totalPages, 1);
@@ -97,7 +99,12 @@ export function TablePagination({
       {showPageSizeSelect ? (
         <Select
           value={String(pageSize)}
-          onValueChange={(value) => onPageSizeChange(Number(value))}
+          disabled={disabled}
+          onValueChange={(value) => {
+            if (!disabled) {
+              onPageSizeChange(Number(value));
+            }
+          }}
         >
           <SelectTrigger
             size={size}
@@ -121,24 +128,24 @@ export function TablePagination({
             <PaginationPrevious
               href="#"
               size={size}
-              aria-disabled={!canPrevious}
+              aria-disabled={disabled || !canPrevious}
               className={cn(
                 navItemClass,
-                !canPrevious && "pointer-events-none opacity-50"
+                (disabled || !canPrevious) && "pointer-events-none opacity-50"
               )}
               onClick={(event) => {
                 event.preventDefault();
-                if (canPrevious) {
+                if (!disabled && canPrevious) {
                   onPageChange(currentPage - 1);
                 }
               }}
             />
           </PaginationItem>
 
-          {tokens.map((token, index) => {
+          {tokens.map((token) => {
             if (typeof token !== "number") {
               return (
-                <PaginationItem key={`${token}-${index}`}>
+                <PaginationItem key={token}>
                   <PaginationEllipsis />
                 </PaginationItem>
               );
@@ -152,10 +159,14 @@ export function TablePagination({
                   href="#"
                   size={size}
                   isActive={isActive}
-                  className={itemSizeClass}
+                  aria-disabled={disabled}
+                  className={cn(
+                    itemSizeClass,
+                    disabled && "pointer-events-none opacity-50"
+                  )}
                   onClick={(event) => {
                     event.preventDefault();
-                    if (!isActive) {
+                    if (!disabled && !isActive) {
                       onPageChange(token);
                     }
                   }}
@@ -170,14 +181,14 @@ export function TablePagination({
             <PaginationNext
               href="#"
               size={size}
-              aria-disabled={!canNext}
+              aria-disabled={disabled || !canNext}
               className={cn(
                 navItemClass,
-                !canNext && "pointer-events-none opacity-50"
+                (disabled || !canNext) && "pointer-events-none opacity-50"
               )}
               onClick={(event) => {
                 event.preventDefault();
-                if (canNext) {
+                if (!disabled && canNext) {
                   onPageChange(currentPage + 1);
                 }
               }}

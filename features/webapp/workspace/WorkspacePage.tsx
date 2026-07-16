@@ -31,6 +31,7 @@ import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/Worksp
 import { Button } from "@/shared/ui/components/Button";
 import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 import { CharacterCounter } from "@/shared/ui/components/CharacterCounter";
+import { InlineCode } from "@/shared/ui/components/InlineCode";
 import {
   Form,
   FormControl,
@@ -145,27 +146,33 @@ function icpDraftHasMeaningfulContent(
 }
 
 function WorkspaceAgentSettingsRow({
+  icon,
   title,
   description,
   control,
-  footer,
 }: {
+  icon: ReactNode;
   title: string;
   description: ReactNode;
   control: ReactNode;
-  footer?: ReactNode;
 }) {
   return (
     <article className="px-4 py-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-x-4 md:grid-cols-[minmax(0,1fr)_7.5rem] md:gap-x-8">
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium">{title}</h3>
-          <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+      <div className="flex items-start gap-3">
+        <div className="border-border text-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+          {icon}
         </div>
-        <div className="flex min-w-0 justify-end pt-0.5">{control}</div>
-        {footer ? (
-          <div className="col-start-1 mt-3 min-w-0">{footer}</div>
-        ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-x-4 md:grid-cols-[minmax(0,1fr)_7.5rem] md:gap-x-8">
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium">{title}</h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {description}
+              </p>
+            </div>
+            <div className="flex min-w-0 justify-end pt-0.5">{control}</div>
+          </div>
+        </div>
       </div>
     </article>
   );
@@ -1089,28 +1096,29 @@ export default function WorkspacePage() {
                       <TabsContent value="agent" className="mt-0">
                         <section className="-mx-4">
                           <WorkspaceAgentSettingsRow
-                            title="Review required"
-                            description="Approve each reply before it sends. Turn this off to let Agent send without waiting."
+                            icon={
+                              <ChangeHistoryIcon
+                                className="size-4 fill-current"
+                                aria-hidden="true"
+                              />
+                            }
+                            title="Ask before sending"
+                            description={
+                              <>
+                                Review each reply and DM before{" "}
+                                <InlineCode variant="mark">
+                                  △
+                                </InlineCode>{" "}
+                                Agent sends it.
+                              </>
+                            }
                             control={
                               <Switch
                                 checked={isAgentReviewRequired}
                                 disabled={agentControlsDisabled}
-                                aria-label="Toggle review required mode"
+                                aria-label="Toggle ask before sending"
                                 onCheckedChange={handleAgentAutonomyChange}
                               />
-                            }
-                            footer={
-                              !isAgentReviewRequired ? (
-                                <div className="space-y-1">
-                                  <p className="text-muted-foreground text-xs">
-                                    Agent sends without waiting for approval.
-                                  </p>
-                                  <p className="text-muted-foreground text-xs">
-                                    Replies that were already waiting for
-                                    approval stay queued.
-                                  </p>
-                                </div>
-                              ) : null
                             }
                           />
                         </section>

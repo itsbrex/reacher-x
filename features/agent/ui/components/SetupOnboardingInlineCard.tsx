@@ -2,14 +2,12 @@
 
 import { useCallback, useLayoutEffect, useState } from "react";
 import { Button } from "@/shared/ui/components/Button";
-import { Card, CardContent } from "@/shared/ui/components/Card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/ui/components/DropdownMenu";
-import { Progress } from "@/shared/ui/components/Progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,9 +24,9 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "@/shared/lib/utils";
 import type { WorkspaceUseCaseKey } from "@/shared/lib/workspaceUseCases";
 import { buildSetupHref } from "@/shared/lib/urls/setupHref";
+import { InlineProgressCard } from "./InlineProgressCard";
 
 const PANEL_ANCHOR_ID = "rx-onboarding-panel";
 
@@ -166,67 +164,57 @@ export function SetupOnboardingInlineCard({
 
   return (
     <>
-      <Card
-        className={cn(
-          "border-border overflow-hidden rounded-xl border shadow-none",
-          className
-        )}
-      >
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-foreground min-w-0 flex-1 text-sm font-semibold">
-              {title}
-            </h3>
-            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="xsIcon"
-                  variant="ghost"
-                  className="shrink-0"
-                  aria-label="Setup actions"
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    deferDialogOpen("reset");
-                  }}
-                >
-                  Reset
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    deferDialogOpen("delete");
-                  }}
-                >
-                  Delete draft
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <Progress
-            className="h-0.5 rounded-none"
-            indicatorClassName="bg-foreground rounded-none"
-            value={progress}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-muted-foreground text-xs">
-              Step{" "}
-              <span className="text-foreground font-mono tabular-nums">
-                {stepNumber}/{stepTotal}
-              </span>
-            </p>
-            <Button type="button" size="xs" onClick={handleContinueClick}>
-              Continue
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <InlineProgressCard
+        title={title}
+        progress={progress}
+        className={className}
+        headerAction={
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="xsIcon"
+                variant="ghost"
+                className="shrink-0"
+                aria-label="Setup actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  deferDialogOpen("reset");
+                }}
+              >
+                Reset
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  deferDialogOpen("delete");
+                }}
+              >
+                Delete draft
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+        status={
+          <p>
+            Step{" "}
+            <span className="text-foreground font-mono tabular-nums">
+              {stepNumber}/{stepTotal}
+            </span>
+          </p>
+        }
+        footerAction={
+          <Button type="button" size="xs" onClick={handleContinueClick}>
+            Continue
+          </Button>
+        }
+      />
 
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>

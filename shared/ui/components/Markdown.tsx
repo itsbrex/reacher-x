@@ -3,6 +3,7 @@ import React, { memo } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock, CodeBlockCode } from "./CodeBlock";
+import { InlineCode } from "./InlineCode";
 
 export type MarkdownProps = {
   children: string;
@@ -97,15 +98,13 @@ const INITIAL_COMPONENTS: Partial<Components> = {
 
     if (isInline) {
       return (
-        <code
-          className={cn(
-            "border-border rounded border bg-transparent px-1.5 py-0.5 font-mono text-sm text-inherit before:content-none after:content-none",
-            className
-          )}
+        <InlineCode
+          variant="markdown"
+          className={className}
           {...props}
         >
           {children}
-        </code>
+        </InlineCode>
       );
     }
 
