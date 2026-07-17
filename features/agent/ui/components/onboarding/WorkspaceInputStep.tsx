@@ -38,7 +38,7 @@ import {
   type WorkspaceUseCaseKey,
 } from "@/shared/lib/workspaceUseCases";
 import { getSetupExampleDescriptions } from "@/shared/lib/setupExampleDescriptions";
-import { SetupPreviewProgressTimeline } from "./SetupPreviewProgressTimeline";
+import { SetupPreviewWaitingState } from "./SetupPreviewWaitingState";
 
 type GeneratedIcp = {
   title: string;
@@ -84,7 +84,32 @@ interface WorkspaceInputStepProps {
   onOpenPreviewProfile?: (target: SetupPreviewProfilePanelTarget) => void;
 }
 
-export function WorkspaceInputStep({
+export function WorkspaceInputStep(props: WorkspaceInputStepProps) {
+  const phase = props.inputPhase ?? "collecting_input";
+  const isPreviewSearchWaiting =
+    phase === "provisioning_preview_workspace" ||
+    phase === "discovering_preview_prospects" ||
+    phase === "preview_search_in_progress";
+
+  if (isPreviewSearchWaiting) {
+    const useCase = getWorkspaceUseCase(props.useCaseKey);
+
+    return (
+      <SetupPreviewWaitingState
+        entityPlural={useCase.entityPlural}
+        progress={props.previewProgress}
+        startedAt={
+          props.previewDiscoveryStartedAt ?? props.previewStatusUpdatedAt
+        }
+        className="h-full"
+      />
+    );
+  }
+
+  return <WorkspaceInputContent {...props} inputPhase={phase} />;
+}
+
+function WorkspaceInputContent({
   inputValue,
   isSubmitting,
   profileLabelPlural,
@@ -93,9 +118,6 @@ export function WorkspaceInputStep({
   generatedProfiles,
   inputPhase,
   previewProspects,
-  previewProgress,
-  previewDiscoveryStartedAt,
-  previewStatusUpdatedAt,
   errorMessage,
   onContinue,
   onConfirmIdealProfiles,
@@ -128,11 +150,7 @@ export function WorkspaceInputStep({
   });
 
   const phase = inputPhase ?? "collecting_input";
-  const showLoadingState =
-    isSubmitting ||
-    phase === "generating_icps" ||
-    phase === "provisioning_preview_workspace" ||
-    phase === "discovering_preview_prospects";
+  const showLoadingState = isSubmitting || phase === "generating_icps";
   const showAutoFillState = isReadingUrl;
   const showPromptComposer =
     phase !== "provisioning_preview_workspace" &&
@@ -153,11 +171,7 @@ export function WorkspaceInputStep({
     ? "Auto-filling description..."
     : phase === "generating_icps"
       ? "Generating ideal profiles..."
-      : phase === "provisioning_preview_workspace"
-        ? "Provisioning preview workspace..."
-        : phase === "discovering_preview_prospects"
-          ? `Finding ${entityPluralLower}...`
-          : null;
+      : null;
   useEffect(() => {
     if (readError && readError !== lastToastedError.current) {
       lastToastedError.current = readError;
@@ -287,22 +301,6 @@ export function WorkspaceInputStep({
             </>
           ),
         };
-      case "provisioning_preview_workspace":
-        return {
-          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
-          description: `Agent is using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
-        };
-      case "discovering_preview_prospects":
-        return {
-          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
-          description: `Agent is using your approved ${entityPluralLower} profiles to find real matching ${entityPluralLower}.`,
-        };
-      case "preview_search_in_progress":
-        return {
-          title: `Finding ${useCase.entityPlural}. This may take 5-10 minutes.`,
-          description:
-            "This audience needs a deeper search, so Agent is still looking for strong matches.",
-        };
       case "awaiting_preview_approval":
         return {
           title: `Preview ${entityPluralLower}`,
@@ -428,42 +426,6 @@ export function WorkspaceInputStep({
             </div>
           </section>
         );
-      case "provisioning_preview_workspace":
-        return (
-          <section className="space-y-3 px-4" aria-live="polite">
-            <SetupPreviewProgressTimeline
-              mode="starting"
-              entityPlural={useCase.entityPlural}
-              progress={previewProgress}
-              startedAt={previewDiscoveryStartedAt}
-              stageStartedAt={previewStatusUpdatedAt}
-            />
-          </section>
-        );
-      case "discovering_preview_prospects":
-        return (
-          <section className="space-y-3 px-4" aria-live="polite">
-            <SetupPreviewProgressTimeline
-              mode="discovering"
-              entityPlural={useCase.entityPlural}
-              progress={previewProgress}
-              startedAt={previewDiscoveryStartedAt}
-              stageStartedAt={previewDiscoveryStartedAt}
-            />
-          </section>
-        );
-      case "preview_search_in_progress":
-        return (
-          <section className="space-y-3 px-4" aria-live="polite">
-            <SetupPreviewProgressTimeline
-              mode="searching"
-              entityPlural={useCase.entityPlural}
-              progress={previewProgress}
-              startedAt={previewDiscoveryStartedAt}
-              stageStartedAt={previewStatusUpdatedAt}
-            />
-          </section>
-        );
       case "awaiting_preview_approval":
         return (
           <section className="space-y-3 px-4" aria-label="Preview results">
@@ -504,13 +466,9 @@ export function WorkspaceInputStep({
     onOpenPreviewProfile,
     onSourceUrlChange,
     phase,
-    previewDiscoveryStartedAt,
-    previewProgress,
     previewProspects,
     profileLabelPlural,
-    previewStatusUpdatedAt,
     sourceUrl,
-    useCase.entityPlural,
   ]);
 
   return (
