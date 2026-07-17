@@ -22,6 +22,14 @@ interface ProspectSuccessEmptyStateCopyArgs {
   stageLabels: Record<WorkspaceUseCaseStageKey, string>;
 }
 
+interface ProspectWaitingStateCopyArgs {
+  entityPlural: string;
+}
+
+interface ProspectWaitingStateCopy {
+  message: string;
+}
+
 const PREVIOUS_STAGE_BY_STAGE: Partial<
   Record<ProspectPipelineEmptyStage, WorkspaceUseCaseStageKey>
 > = {
@@ -70,5 +78,13 @@ export function getProspectSuccessEmptyStateCopy({
   return {
     title: `No ${successLabelLower} yet`,
     description: `${entityPlural} appear here when the agent marks them as ${convertedLabel}, or when you manually mark one as ${convertedLabel}. If you expected results, check filters or the ${inProgressLabel} stage.`,
+  };
+}
+
+export function getProspectWaitingStateCopy({
+  entityPlural,
+}: ProspectWaitingStateCopyArgs): ProspectWaitingStateCopy {
+  return {
+    message: `Agent is preparing your ${lower(entityPlural)}. They will appear here in 5 to 30 minutes.`,
   };
 }

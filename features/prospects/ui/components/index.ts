@@ -56,6 +56,8 @@ export {
 export { PendingProspectsFeedBar } from "./PendingProspectsFeedBar";
 export { ProspectListEmptyState } from "./ProspectListEmptyState";
 export type { ProspectListEmptyStateProps } from "./ProspectListEmptyState";
+export { ProspectWaitingState } from "./ProspectWaitingState";
+export type { ProspectWaitingStateProps } from "./ProspectWaitingState";
 export { ProspectListFilterPanel } from "./ProspectListFilterPanel";
 export { ProspectListSortPanel } from "./ProspectListSortPanel";
 

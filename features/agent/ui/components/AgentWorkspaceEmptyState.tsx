@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { cn } from "@/shared/lib/utils";
+import { AgentWorkingMark } from "@/shared/ui/components/AgentWorkingMark";
 
 interface AgentWorkspaceEmptyStateProps {
   children: ReactNode;
@@ -20,16 +20,7 @@ export function AgentWorkspaceEmptyState({
       </h2>
 
       <div className="mb-4 flex justify-center" aria-hidden="true">
-        <span
-          className={cn(
-            "agent-workspace-mark block font-mono text-[5rem] leading-none font-light",
-            isResolving
-              ? "agent-workspace-mark-resolving"
-              : "agent-workspace-mark-ready"
-          )}
-        >
-          △
-        </span>
+        <AgentWorkingMark isResolving={isResolving} />
       </div>
 
       <div className="text-left">{children}</div>

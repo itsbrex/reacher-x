@@ -138,7 +138,9 @@ export const SearchInput = memo(
     const atLimit = effectiveLength >= QUERY_CHAR_LIMIT;
 
     return (
-      <div className={cn("space-y-1", className)}>
+      <div
+        className={cn("space-y-1", disabled && "cursor-not-allowed", className)}
+      >
         {/* Fixed-height wrapper so overlay stays vertically centered even when error message shows */}
         <div className="relative">
           <Input
@@ -173,7 +175,12 @@ export const SearchInput = memo(
             aria-haspopup="listbox"
             aria-expanded={ariaExpanded}
           />
-          <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2">
+          <div
+            className={cn(
+              "absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2",
+              disabled && "opacity-50"
+            )}
+          >
             {/* Divider between toggle and counter */}
             <CharacterCounter
               current={effectiveLength}

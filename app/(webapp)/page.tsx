@@ -47,6 +47,7 @@ import {
   ProspectListEmptyState,
   ProspectListFilterPanel,
   ProspectListSortPanel,
+  ProspectWaitingState,
   ProspectPanelRenderer,
   usePanelStack,
   useProspectProfile,
@@ -68,7 +69,6 @@ import { DEFAULT_PROSPECT_LIST_SORT } from "@/features/prospects/lib/prospectLis
 import { shouldShowProspectFeedSkeleton } from "@/features/prospects/lib/prospectListResults";
 import { WorkspaceSystemStatusFeedBar } from "@/features/webapp/ui/components/WorkspaceSystemStatusFeedBar";
 import { buildSetupHref } from "@/shared/lib/urls/setupHref";
-import AnimatedNumber from "@/shared/ui/components/AnimatedNumber";
 
 type WorkspaceSetupStatus =
   | { status: "unauthenticated" }
@@ -152,21 +152,6 @@ function createEmptyTabAttention(): TabAttentionState {
     contacted: false,
     in_progress: false,
   };
-}
-
-function WaitingStateMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <span className="text-foreground inline-flex items-baseline gap-1 text-sm leading-none font-medium">
-      <AnimatedNumber value={value} animateOnMount />
-      <span>{label}</span>
-    </span>
-  );
 }
 
 export default function ProspectsPage() {
@@ -916,6 +901,24 @@ export default function ProspectsPage() {
     workspaceSystemStatus !== undefined &&
     (workspaceSystemStatus.mode === "running" ||
       workspaceSystemStatus.mode === "degraded");
+
+  useEffect(() => {
+    if (!showWaitingState) return;
+
+    if (isFilterPanelOpen) {
+      closeFilterPanel();
+    }
+    if (isSortPanelOpen) {
+      closeSortPanel();
+    }
+  }, [
+    closeFilterPanel,
+    closeSortPanel,
+    isFilterPanelOpen,
+    isSortPanelOpen,
+    showWaitingState,
+  ]);
+
   const showSearchNoMatch =
     isWorkspaceReady &&
     !browseMode &&
@@ -977,14 +980,16 @@ export default function ProspectsPage() {
                   sortActive={isSortActive}
                   onOpenFilters={openFilterPanelWithState}
                   onOpenSort={openSortPanel}
+                  disabled={showWaitingState}
                   className="px-4 pt-4"
                 />
 
                 <div className="flex flex-col gap-4 px-4 pt-4 pb-4">
-                  {(showPendingBar && feedState) ||
-                  (showAgentStatusBar &&
-                    onboardingProgress &&
-                    workspaceSystemStatus) ? (
+                  {!showWaitingState &&
+                  ((showPendingBar && feedState) ||
+                    (showAgentStatusBar &&
+                      onboardingProgress &&
+                      workspaceSystemStatus)) ? (
                     <div className="flex w-full flex-col gap-4 md:max-w-lg">
                       {showPendingBar && feedState ? (
                         <PendingProspectsFeedBar
@@ -1024,48 +1029,10 @@ export default function ProspectsPage() {
                       )}
                     </div>
                   ) : showWaitingState && onboardingProgress ? (
-                    <ProspectListEmptyState
-                      title={`Waiting for found ${entityPlural} to get enriched`}
-                      description="You'll see them here as soon as they're ready."
-                      icon={
-                        <FramePersonIcon className="fill-muted-foreground size-12" />
-                      }
-                    >
-                      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                        <WaitingStateMetric
-                          label="Found"
-                          value={onboardingProgress.found}
-                        />
-                        <span
-                          aria-hidden="true"
-                          className="text-muted-foreground text-sm"
-                        >
-                          •
-                        </span>
-                        <WaitingStateMetric
-                          label="Qualified"
-                          value={onboardingProgress.qualified}
-                        />
-                        <span
-                          aria-hidden="true"
-                          className="text-muted-foreground text-sm"
-                        >
-                          •
-                        </span>
-                        <WaitingStateMetric
-                          label="Ready"
-                          value={onboardingProgress.actionableReadyCount}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => router.push(routes.analyticsHref)}
-                      >
-                        View analytics
-                      </Button>
-                    </ProspectListEmptyState>
+                    <ProspectWaitingState
+                      entityPlural={entityPlural}
+                      onViewAnalytics={() => router.push(routes.analyticsHref)}
+                    />
                   ) : showEmptyState ? (
                     <ProspectListEmptyState
                       title={emptyStateCopy.title}
@@ -1180,6 +1147,7 @@ interface ProspectsToolbarProps {
   sortActive: boolean;
   onOpenFilters: () => void;
   onOpenSort: () => void;
+  disabled: boolean;
   className?: string;
 }
 
@@ -1196,6 +1164,7 @@ function ProspectsToolbar({
   sortActive,
   onOpenFilters,
   onOpenSort,
+  disabled,
   className,
 }: ProspectsToolbarProps) {
   return (
@@ -1207,6 +1176,7 @@ function ProspectsToolbar({
             onQueryChange={onSearchChange}
             placeholder={searchPlaceholder}
             showExactMatch={false}
+            disabled={disabled}
           />
         </div>
 
@@ -1227,6 +1197,7 @@ function ProspectsToolbar({
                   key={tab.id}
                   value={tab.id}
                   size="sm"
+                  disabled={disabled}
                   aria-label={[
                     tab.label,
                     hasCount ? `${count} total` : null,
@@ -1267,6 +1238,7 @@ function ProspectsToolbar({
             aria-label="Open filters"
             showIndicator={filterActiveCount > 0}
             onClick={onOpenFilters}
+            disabled={disabled}
             type="button"
             size="xsIcon"
             className="shrink-0 md:h-9 md:w-9"
@@ -1277,6 +1249,7 @@ function ProspectsToolbar({
             aria-label="Open sort"
             showIndicator={sortActive}
             onClick={onOpenSort}
+            disabled={disabled}
             type="button"
             size="xsIcon"
             className="shrink-0 md:h-9 md:w-9"
