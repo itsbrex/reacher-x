@@ -15,6 +15,7 @@ import {
   formatUsageCycleLabel,
   buildUsageTrendPoints,
   parseUsageCycleKey,
+  resolveUsagePlanSnapshot,
   sameUsageCycleWindow,
   sortUsageWorkspaceRows,
 } from "./lib/usageDashboardCore";
@@ -94,19 +95,23 @@ export const getUsageDashboard = query({
     const selectedCycleRow =
       cycleRows.find((row) => sameUsageCycleWindow(row, selectedWindow)) ??
       null;
-    const selectedTier = selectedCycleRow?.tier ?? plan.tier;
-    const selectedLimit =
-      selectedCycleRow?.prospectsLimit ?? plan.prospectsLimit;
-    const comparisonMode =
-      selectedLimit === -1 ? ("count" as const) : ("percent" as const);
-    const selectedWorkspacesUsed = sameUsageCycleWindow(
+    const selectedIsCurrent = sameUsageCycleWindow(
       selectedWindow,
       currentWindow
-    )
+    );
+    const selectedPlan = resolveUsagePlanSnapshot({
+      isCurrent: selectedIsCurrent,
+      livePlan: plan,
+      storedCycle: selectedCycleRow,
+    });
+    const selectedTier = selectedPlan.tier;
+    const selectedLimit = selectedPlan.prospectsLimit;
+    const comparisonMode =
+      selectedLimit === -1 ? ("count" as const) : ("percent" as const);
+    const selectedWorkspacesUsed = selectedIsCurrent
       ? completedWorkspaces.length
       : (selectedCycleRow?.workspacesUsed ?? completedWorkspaces.length);
-    const selectedWorkspacesLimit =
-      selectedCycleRow?.workspacesLimit ?? plan.workspacesLimit;
+    const selectedWorkspacesLimit = selectedPlan.workspacesLimit;
     const resetDaysLeft =
       getCalendarDaysUntil(now, selectedWindow.cycleEnd) ?? 0;
 

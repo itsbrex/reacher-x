@@ -5,6 +5,7 @@ import {
   createTrendBucketSet,
   type NormalizedAnalyticsWindow,
 } from "./analyticsCore";
+import type { PlanTier } from "./planConstants";
 
 export type UsageCycleWindow = {
   cycleStart: number;
@@ -15,6 +16,25 @@ export type UsageTrendPoint = {
   date: string;
   value: number;
 };
+
+export type UsagePlanSnapshot = {
+  tier: PlanTier;
+  prospectsLimit: number;
+  workspacesLimit: number;
+};
+
+/** Current-cycle limits always come from the canonical live plan. */
+export function resolveUsagePlanSnapshot(args: {
+  isCurrent: boolean;
+  livePlan: UsagePlanSnapshot;
+  storedCycle: UsagePlanSnapshot | null;
+}): UsagePlanSnapshot {
+  if (args.isCurrent || !args.storedCycle) {
+    return args.livePlan;
+  }
+
+  return args.storedCycle;
+}
 
 export function createUsageCycleKey(window: UsageCycleWindow) {
   return `${window.cycleStart}:${window.cycleEnd}`;

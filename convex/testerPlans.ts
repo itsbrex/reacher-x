@@ -1,10 +1,9 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import { internalMutation, internalQuery } from "./lib/functionBuilders";
-import { upgradePlan } from "./lib/planCore";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { PLAN_LIMITS } from "./lib/planConstants";
+import { applyPlanTransition } from "./lib/planTransitionCore";
 
 const paidTesterTierValidator = v.union(
   v.literal("hobby"),
@@ -30,33 +29,6 @@ async function getUserByEmailOrThrow(
   }
 
   return user;
-}
-
-async function reconcileTesterPlanChange(
-  ctx: MutationCtx,
-  userId: Parameters<typeof upgradePlan>[1]
-) {
-  await ctx.runMutation(
-    internal.workspaces.reconcileWorkspaceEntitlementsForUserInternal,
-    {
-      userId,
-    }
-  );
-
-  const workspaces = await ctx.db
-    .query("workspaces")
-    .withIndex("by_user_id", (q) => q.eq("userId", userId))
-    .collect();
-
-  for (const workspace of workspaces) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-      {
-        workspaceId: workspace._id,
-      }
-    );
-  }
 }
 
 export const getTesterPlanByEmail = internalQuery({
@@ -120,15 +92,14 @@ export const grantTesterPlanByEmail = internalMutation({
         ? now + args.durationDays * 24 * 60 * 60 * 1000
         : undefined);
 
-    await upgradePlan(
-      ctx,
-      user._id,
-      args.tier,
-      args.externalSubscriptionId ?? "tester_free_access",
-      resolvedExpiresAt
-    );
-
-    await reconcileTesterPlanChange(ctx, user._id);
+    await applyPlanTransition(ctx, {
+      userId: user._id,
+      tier: args.tier,
+      subscription: null,
+      externalSubscriptionId:
+        args.externalSubscriptionId ?? "tester_free_access",
+      expiresAt: resolvedExpiresAt,
+    });
 
     const plan = await ctx.db
       .query("userPlans")
@@ -157,25 +128,11 @@ export const revokeTesterPlanByEmail = internalMutation({
     const normalizedEmail = normalizeEmail(args.email);
     const user = await getUserByEmailOrThrow(ctx, normalizedEmail);
 
-    const existingPlan = await ctx.db
-      .query("userPlans")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (!existingPlan) {
-      await upgradePlan(ctx, user._id, "free");
-    } else {
-      await ctx.db.patch(existingPlan._id, {
-        tier: "free",
-        prospectsLimit: PLAN_LIMITS.free.prospectsLimit,
-        workspacesLimit: PLAN_LIMITS.free.workspacesLimit,
-        externalSubscriptionId: undefined,
-        expiresAt: undefined,
-        updatedAt: now,
-      });
-    }
-
-    await reconcileTesterPlanChange(ctx, user._id);
+    await applyPlanTransition(ctx, {
+      userId: user._id,
+      tier: "free",
+      subscription: null,
+    });
 
     const plan = await ctx.db
       .query("userPlans")

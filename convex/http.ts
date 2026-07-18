@@ -113,6 +113,7 @@ polar.registerRoutes(http, {
       productId: event.data.product?.id,
       subscriptionId: event.data.id,
       status: event.data.status,
+      currentPeriodStart: event.data.currentPeriodStart?.toISOString(),
       currentPeriodEnd: event.data.currentPeriodEnd?.toISOString(),
       polarCustomerId: event.data.customer?.id,
     });
@@ -178,6 +179,7 @@ polar.registerRoutes(http, {
       productId: isCancelled ? undefined : event.data.product?.id,
       subscriptionId: event.data.id,
       status: event.data.status,
+      currentPeriodStart: event.data.currentPeriodStart?.toISOString(),
       currentPeriodEnd: event.data.currentPeriodEnd?.toISOString(),
       polarCustomerId: event.data.customer?.id,
     });

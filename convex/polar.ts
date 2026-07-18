@@ -3,14 +3,14 @@
 // @see https://www.convex.dev/components/polar
 
 import { Polar } from "@convex-dev/polar";
-import { api, components, internal } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import { internalMutation, query } from "./lib/functionBuilders";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { parseIsoToTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { getUserFromIdentity } from "./lib/userUtils";
-import { upgradePlan } from "./lib/planCore";
 import type { PlanTier } from "./lib/planConstants";
+import { applyPlanTransition } from "./lib/planTransitionCore";
 import { getWideEventLogger } from "./lib/wideEventLogger";
 
 // ============================================================================
@@ -132,6 +132,7 @@ export const syncSubscriptionToUserPlan = internalMutation({
     productId: v.optional(v.string()), // Polar product UUID
     subscriptionId: v.optional(v.string()),
     status: v.optional(v.string()),
+    currentPeriodStart: v.optional(v.string()), // ISO date string
     currentPeriodEnd: v.optional(v.string()), // ISO date string
     polarCustomerId: v.optional(v.string()),
   },
@@ -196,35 +197,17 @@ export const syncSubscriptionToUserPlan = internalMutation({
       },
     });
 
-    await upgradePlan(
-      ctx,
-      args.userId,
+    await applyPlanTransition(ctx, {
+      userId: args.userId,
       tier,
-      args.subscriptionId,
+      subscription: {
+        currentPeriodStart: args.currentPeriodStart,
+        currentPeriodEnd: args.currentPeriodEnd,
+        status: args.status,
+      },
+      externalSubscriptionId: args.subscriptionId,
       expiresAt,
-      args.polarCustomerId
-    );
-
-    await ctx.runMutation(
-      internal.workspaces.reconcileWorkspaceEntitlementsForUserInternal,
-      {
-        userId: args.userId,
-      }
-    );
-
-    const workspaces = await ctx.db
-      .query("workspaces")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .collect();
-
-    for (const workspace of workspaces) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.workspaces.reconcileWorkspaceCapacityStateInternal,
-        {
-          workspaceId: workspace._id,
-        }
-      );
-    }
+      polarCustomerId: args.polarCustomerId,
+    });
   },
 });

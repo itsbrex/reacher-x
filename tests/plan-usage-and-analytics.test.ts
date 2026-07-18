@@ -12,6 +12,7 @@ import {
   type TargetedWorkspaceAnalyticsContribution,
 } from "../convex/lib/readModelHelpers";
 import { computeUsageCycleWindow } from "../convex/lib/planCycleUtils";
+import { resolveUsagePlanSnapshot } from "../convex/lib/usageDashboardCore";
 import {
   computeQualifiedProspectUsageForWindow,
   readQualifiedProspectUsageForWorkspaceWindow,
@@ -536,6 +537,36 @@ test("cycle rollover uses active subscription bounds and falls back to UTC month
       cycleStart: utc("2026-06-01T00:00:00.000Z"),
       cycleEnd: utc("2026-06-30T23:59:59.999Z"),
     }
+  );
+});
+
+test("current usage uses live plan limits while historical usage keeps its snapshot", () => {
+  const livePlan = {
+    tier: "pro" as const,
+    prospectsLimit: -1,
+    workspacesLimit: 5,
+  };
+  const storedCycle = {
+    tier: "base" as const,
+    prospectsLimit: 1000,
+    workspacesLimit: 2,
+  };
+
+  assert.deepEqual(
+    resolveUsagePlanSnapshot({
+      isCurrent: true,
+      livePlan,
+      storedCycle,
+    }),
+    livePlan
+  );
+  assert.deepEqual(
+    resolveUsagePlanSnapshot({
+      isCurrent: false,
+      livePlan,
+      storedCycle,
+    }),
+    storedCycle
   );
 });
 
