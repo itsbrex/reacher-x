@@ -25,6 +25,7 @@ import { useHydratedTwitterPosts } from "@/shared/hooks/useHydratedTwitterPosts"
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
 import { UnavailableInteractionCard } from "./UnavailableInteractionCard";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
+import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
 
 const INITIAL_PAGE_SIZE = 10;
 
@@ -185,9 +186,9 @@ export function YourInteractionsTab({
         <div className="divide-y">
           {interactions.map((interaction) => {
             if (platform === "linkedin") {
-              const linkedinPost = normalizeLinkedInInteractionPost(
+              const linkedinPost = normalizeLinkedInPost(
                 interaction.sourcePostData,
-                interaction.sourceUrl
+                { fallbackUrl: interaction.sourceUrl }
               );
 
               return (
@@ -330,115 +331,6 @@ export function YourInteractionsTab({
       ) : null}
     </section>
   );
-}
-
-function normalizeLinkedInInteractionPost(
-  value: unknown,
-  fallbackUrl?: string
-): UnifiedPost | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  if (
-    record.platform === "linkedin" &&
-    typeof record.id === "string" &&
-    typeof record.text === "string"
-  ) {
-    return {
-      ...(record as unknown as UnifiedPost),
-      url:
-        typeof (record as unknown as UnifiedPost).url === "string"
-          ? (record as unknown as UnifiedPost).url
-          : fallbackUrl,
-    };
-  }
-
-  const author =
-    typeof record.author === "object" && record.author !== null
-      ? (record.author as Record<string, unknown>)
-      : undefined;
-  const postedAt =
-    typeof record.postedAt === "object" && record.postedAt !== null
-      ? (record.postedAt as Record<string, unknown>)
-      : undefined;
-  const engagements =
-    typeof record.engagements === "object" && record.engagements !== null
-      ? (record.engagements as Record<string, unknown>)
-      : undefined;
-  const mediaContent = Array.isArray(record.mediaContent)
-    ? record.mediaContent
-    : [];
-
-  const id =
-    typeof record.postID === "string"
-      ? record.postID
-      : typeof record.urn === "string"
-        ? record.urn
-        : undefined;
-  if (!id) {
-    return null;
-  }
-
-  return {
-    id,
-    platform: "linkedin",
-    url: typeof record.postURL === "string" ? record.postURL : fallbackUrl,
-    author: {
-      id:
-        typeof author?.id === "string"
-          ? author.id
-          : typeof author?.urn === "string"
-            ? author.urn
-            : undefined,
-      name: typeof author?.name === "string" ? author.name : undefined,
-      avatarUrl:
-        typeof author?.profilePictureURL === "string"
-          ? author.profilePictureURL
-          : undefined,
-      profileUrl: typeof author?.url === "string" ? author.url : undefined,
-      headline:
-        typeof author?.headline === "string" ? author.headline : undefined,
-    },
-    text: typeof record.text === "string" ? record.text : "",
-    createdAt: typeof postedAt?.timestamp === "number" ? postedAt.timestamp : 0,
-    metrics: {
-      reactions:
-        typeof engagements?.totalReactions === "number"
-          ? engagements.totalReactions
-          : 0,
-      comments:
-        typeof engagements?.commentsCount === "number"
-          ? engagements.commentsCount
-          : 0,
-      reposts:
-        typeof engagements?.repostsCount === "number"
-          ? engagements.repostsCount
-          : 0,
-    },
-    media: mediaContent
-      .map((item) => {
-        const media =
-          typeof item === "object" && item !== null
-            ? (item as Record<string, unknown>)
-            : null;
-        if (!media || typeof media.url !== "string") {
-          return null;
-        }
-        const type =
-          media.type === "image" || media.type === "video"
-            ? media.type
-            : "link";
-        return {
-          type,
-          url: media.url,
-        };
-      })
-      .filter(Boolean) as NonNullable<UnifiedPost["media"]>,
-    raw: value,
-  };
 }
 
 function buildLinkedInInteractionPreviewScenario(

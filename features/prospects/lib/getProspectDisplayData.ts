@@ -20,6 +20,22 @@ export interface ProspectDisplayData {
 
 export type ProspectCardRecord = Doc<"prospects"> | Doc<"prospectSummaries">;
 
+function resolveProspectPlatform(
+  platform: ProspectDisplayData["platform"],
+  profileUrl?: string,
+  twitterUsername?: string,
+  linkedinUsername?: string
+): ProspectDisplayData["platform"] {
+  if (platform) return platform;
+  if (twitterUsername || extractTwitterUsername(profileUrl || "")) {
+    return "twitter";
+  }
+  if (linkedinUsername || extractLinkedInUsername(profileUrl || "")) {
+    return "linkedin";
+  }
+  return platform;
+}
+
 function isProspectSummaryRecord(
   prospect: ProspectCardRecord
 ): prospect is Doc<"prospectSummaries"> {
@@ -34,6 +50,12 @@ export function getProspectDisplayData(
   prospect: ProspectCardRecord
 ): ProspectDisplayData {
   if (isProspectSummaryRecord(prospect)) {
+    const platform = resolveProspectPlatform(
+      prospect.platform,
+      prospect.profileUrl,
+      prospect.twitterUsername,
+      prospect.linkedInUsername
+    );
     return {
       avatarUrl: prospect.avatarUrl,
       displayName: prospect.displayName,
@@ -43,7 +65,7 @@ export function getProspectDisplayData(
       verified: prospect.verified,
       title: prospect.title,
       prospectType: prospect.prospectType,
-      platform: prospect.platform,
+      platform,
       conversationPlaceholderLabel: prospect.conversationPlaceholderLabel,
     };
   }
@@ -91,8 +113,15 @@ export function getProspectDisplayData(
   linkedinUsername =
     linkedinUsername || extractLinkedInUsername(profileUrl || "");
 
+  const platform = resolveProspectPlatform(
+    prospect.platform,
+    profileUrl,
+    twitterUsername,
+    linkedinUsername
+  );
+
   const conversationPlaceholderLabel =
-    prospect.platform === "twitter"
+    platform === "twitter"
       ? twitterUsername
         ? `@${twitterUsername}`
         : displayName || "this person/org"
@@ -107,7 +136,7 @@ export function getProspectDisplayData(
     verified,
     title: prospect.title,
     prospectType: prospect.prospectType,
-    platform: prospect.platform,
+    platform,
     conversationPlaceholderLabel,
   };
 }

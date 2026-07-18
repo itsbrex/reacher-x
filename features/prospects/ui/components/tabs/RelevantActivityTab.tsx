@@ -25,6 +25,7 @@ import {
 } from "@/shared/lib/twitter/contracts";
 import { toFallbackTweetFromSummary } from "@/shared/lib/twitter/ui";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
+import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
 
 // ============================================================================
 // Types
@@ -64,8 +65,13 @@ export function RelevantActivityTab({
 
   // Use evidence posts from props
   const allPosts = React.useMemo(() => {
-    return dedupePosts((evidencePosts as unknown[]) || []);
-  }, [evidencePosts]);
+    const posts = (evidencePosts as unknown[]) || [];
+    return dedupePosts(
+      platform === "linkedin"
+        ? posts.map((post) => normalizeLinkedInPost(post) ?? post)
+        : posts
+    );
+  }, [evidencePosts, platform]);
 
   // Sort by newest first (based on tweet_created_at or postedAt)
   const sortedPosts = React.useMemo(() => {
@@ -363,6 +369,14 @@ function getPostId(post: unknown): string | undefined {
   // LinkedIn format
   if (typeof p.postID === "string") {
     return p.postID;
+  }
+
+  if (typeof p.id === "string") {
+    return p.id;
+  }
+
+  if (typeof p.urn === "string") {
+    return p.urn;
   }
 
   return undefined;

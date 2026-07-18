@@ -53,8 +53,14 @@ export function ProspectCard({
     ProspectCardRecord["status"] | null
   >(null);
 
-  const { avatarUrl, displayName, profileUrl, twitterUsername, verified } =
-    getProspectDisplayData(prospect);
+  const {
+    avatarUrl,
+    displayName,
+    profileUrl,
+    twitterUsername,
+    verified,
+    platform,
+  } = getProspectDisplayData(prospect);
   const prospectId =
     "prospectId" in prospect ? prospect.prospectId : prospect._id;
   const financeDisplayValue =
@@ -105,12 +111,12 @@ export function ProspectCard({
         status={prospect.status}
         interactive={interactive}
         mode={mode}
-        platform={prospect.platform}
+        platform={platform}
       >
         {showMenu ? (
           <ProspectCardMenu
             prospectId={prospectId}
-            platform={prospect.platform}
+            platform={platform}
             profileUrl={profileUrl}
             twitterUsername={twitterUsername}
             status={prospect.status}

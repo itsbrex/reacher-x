@@ -18,6 +18,7 @@ import {
 import { toFallbackTweetFromSummary } from "@/shared/lib/twitter/ui";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
 import { cn } from "@/shared/lib/utils";
+import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
 
 const EMPTY_POSTS: unknown[] = [];
 
@@ -45,7 +46,17 @@ export function EvidencePostsList({
   const [openLinkedInPostId, setOpenLinkedInPostId] = React.useState<
     string | null
   >(null);
-  const dedupedPosts = React.useMemo(() => dedupePosts(posts), [posts]);
+  const normalizedPosts = React.useMemo(
+    () =>
+      platform === "linkedin"
+        ? posts.map((post) => normalizeLinkedInPost(post) ?? post)
+        : posts,
+    [platform, posts]
+  );
+  const dedupedPosts = React.useMemo(
+    () => dedupePosts(normalizedPosts),
+    [normalizedPosts]
+  );
   const visiblePosts = React.useMemo(
     () =>
       typeof maxItems === "number"

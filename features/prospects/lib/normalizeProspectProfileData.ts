@@ -7,6 +7,10 @@ import {
   selectProfileWebsiteHref,
 } from "@/shared/lib/twitter/profileLinks";
 import type { ProspectContactSource } from "@/shared/lib/utils/contact/contactUtils";
+import {
+  isLinkedInPostLike,
+  normalizeLinkedInPost,
+} from "@/shared/lib/linkedin/post";
 
 function getEvidencePostId(post: unknown): string | null {
   if (!post || typeof post !== "object") return null;
@@ -43,6 +47,10 @@ function normalizeEvidencePost(
   if (!post || typeof post !== "object") return post;
 
   const postRecord = post as Record<string, unknown>;
+  if (isLinkedInPostLike(post)) {
+    return normalizeLinkedInPost(post) ?? post;
+  }
+
   if (postRecord.raw && typeof postRecord.raw === "object") {
     return postRecord.raw;
   }
