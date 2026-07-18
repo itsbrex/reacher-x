@@ -20,11 +20,47 @@ function getNumber(value: unknown): number | undefined {
     : undefined;
 }
 
-function getTimestamp(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
+function getTimestamp(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return value;
   }
-  return typeof value === "string" ? (parseIsoToTimestamp(value) ?? 0) : 0;
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const parsed = parseIsoToTimestamp(value);
+  return parsed && parsed > 0 ? parsed : undefined;
+}
+
+const LINKEDIN_ACTIVITY_TIMESTAMP_SHIFT = BigInt(22);
+const LINKEDIN_LAUNCH_TIMESTAMP_MS = Date.UTC(2003, 0, 1);
+
+export function getLinkedInActivityTimestamp(
+  value: string | null | undefined
+): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const match = value
+    .trim()
+    .match(/(?:(?:activity|ugcPost|share):)?(\d{16,20})(?:\D|$)/i);
+  const activityId = match?.[1];
+  if (!activityId) {
+    return undefined;
+  }
+
+  try {
+    const timestamp = Number(
+      BigInt(activityId) >> LINKEDIN_ACTIVITY_TIMESTAMP_SHIFT
+    );
+    return Number.isFinite(timestamp) &&
+      timestamp >= LINKEDIN_LAUNCH_TIMESTAMP_MS
+      ? timestamp
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeMedia(value: unknown): UnifiedMedia[] | undefined {
@@ -140,10 +176,13 @@ export function normalizeLinkedInPost(
       getString(raw.comment) ??
       "",
     createdAt:
-      getTimestamp(value.createdAt) ||
-      getTimestamp(postedAt?.timestamp) ||
-      getTimestamp(raw.date) ||
-      getTimestamp(raw.parsed_datetime),
+      getTimestamp(value.createdAt) ??
+      getTimestamp(postedAt?.timestamp) ??
+      getTimestamp(raw.date) ??
+      getTimestamp(raw.parsed_datetime) ??
+      getLinkedInActivityTimestamp(reference.readUrn) ??
+      getLinkedInActivityTimestamp(reference.resolvedPostId) ??
+      0,
     metrics: {
       reactions:
         getNumber(metrics?.reactions) ??

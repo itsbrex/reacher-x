@@ -117,7 +117,9 @@ export const LinkedInHeader: React.FC<LinkedInHeaderProps> = ({
     isOrganizationProfile(profileUrl);
 
   const createdAtIso =
-    typeof post?.createdAt === "number"
+    typeof post?.createdAt === "number" &&
+    Number.isFinite(post.createdAt) &&
+    post.createdAt > 0
       ? new Date(post.createdAt).toISOString()
       : "";
 

@@ -88,6 +88,7 @@ import {
   type TwitterPostRef,
   type TwitterPostSummary,
 } from "../shared/lib/twitter/contracts";
+import { matchesLinkedInPostReference } from "../shared/lib/linkedin/comments";
 import { toFallbackTweetFromSummary } from "../shared/lib/twitter/ui";
 import {
   getDmTextLimitError,
@@ -507,7 +508,9 @@ function findSourcePostInProspect(
   }
 
   const matched = candidatePosts.find((post) => {
-    return getTweetIdFromPostData(post) === targetTweetId;
+    return platform === "linkedin"
+      ? matchesLinkedInPostReference(post, targetTweetId)
+      : getTweetIdFromPostData(post) === targetTweetId;
   });
 
   if (!matched) {

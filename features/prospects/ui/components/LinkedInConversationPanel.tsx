@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import type { SerializedEditorState } from "lexical";
 import { toast } from "sonner";
 import { PageContent } from "@/features/webapp/ui/components/page/PageContent";
@@ -59,6 +60,7 @@ import type {
   LinkedInConversationPanelContext,
   LinkedInConversationMessage,
 } from "@/shared/lib/linkedin/conversation";
+import { resolveLinkedInRecoveryAction } from "@/shared/lib/linkedin/recovery";
 
 const LINKEDIN_DM_TEXT_MAX = 8000;
 
@@ -120,6 +122,7 @@ export function LinkedInConversationPanel({
   className,
   previewData,
 }: LinkedInConversationPanelProps) {
+  const router = useRouter();
   const { currentUser } = useViewerXComposerIdentity();
   const isTaskBacked = Boolean(taskId);
   const isPreview = Boolean(previewData);
@@ -134,6 +137,7 @@ export function LinkedInConversationPanel({
     isPendingApproval,
     isSendingMessage,
     isSendingActionRequest,
+    refetch,
   } = useProspectLinkedInPanel({
     prospectId,
     actionRequestId,
@@ -158,6 +162,12 @@ export function LinkedInConversationPanel({
   const resolvedLoading = isPreview ? false : loading;
   const resolvedError = isPreview ? null : error;
   const profileUrl = resolvedData?.prospect.profileUrl;
+  const messagingRecoveryAction = resolveLinkedInRecoveryAction(
+    resolvedData?.eligibility.reasonCode
+  );
+  const warningRecoveryAction = resolveLinkedInRecoveryAction(
+    resolvedData?.warning?.code
+  );
 
   React.useEffect(() => {
     const serverDraft =
@@ -485,19 +495,36 @@ export function LinkedInConversationPanel({
                   </div>
                 </div>
               ) : resolvedError ? (
-                <div className="rounded-[20px] border px-4 py-3 text-sm">
-                  <p className="font-medium">
-                    Could not load LinkedIn messages
-                  </p>
-                  <p className="text-muted-foreground mt-1">{resolvedError}</p>
-                </div>
+                <Alert>
+                  <AlertTitle>Could not load LinkedIn messages</AlertTitle>
+                  <AlertDescription className="space-y-3">
+                    <p>{resolvedError}</p>
+                    <div>
+                      <Button size="xs" onClick={() => void refetch()}>
+                        Retry
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
               ) : resolvedData ? (
                 <>
                   {resolvedData.warning ? (
                     <Alert>
                       <AlertTitle>Limited live sync</AlertTitle>
-                      <AlertDescription>
-                        {resolvedData.warning.message}
+                      <AlertDescription className="space-y-3">
+                        <p>{resolvedData.warning.message}</p>
+                        {warningRecoveryAction ? (
+                          <div>
+                            <Button
+                              size="xs"
+                              onClick={() =>
+                                router.push(warningRecoveryAction.href)
+                              }
+                            >
+                              {warningRecoveryAction.label}
+                            </Button>
+                          </div>
+                        ) : null}
                       </AlertDescription>
                     </Alert>
                   ) : null}
@@ -622,12 +649,24 @@ export function LinkedInConversationPanel({
                     </div>
                   )}
                   {!resolvedData.eligibility.enabled ? (
-                    <div className="rounded-[20px] border px-4 py-3 text-sm">
-                      <p className="font-medium">Messaging unavailable</p>
-                      <p className="text-muted-foreground mt-1">
-                        {resolvedData.eligibility.reasonLabel}
-                      </p>
-                    </div>
+                    <Alert>
+                      <AlertTitle>Messaging unavailable</AlertTitle>
+                      <AlertDescription className="space-y-3">
+                        <p>{resolvedData.eligibility.reasonLabel}</p>
+                        {messagingRecoveryAction ? (
+                          <div>
+                            <Button
+                              size="xs"
+                              onClick={() =>
+                                router.push(messagingRecoveryAction.href)
+                              }
+                            >
+                              {messagingRecoveryAction.label}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </AlertDescription>
+                    </Alert>
                   ) : null}
                 </>
               ) : null}

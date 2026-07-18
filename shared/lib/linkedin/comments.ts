@@ -34,6 +34,27 @@ export interface LinkedInPostComment {
   permalink?: string;
 }
 
+export function buildLinkedInCommentPreview(args: {
+  id: string;
+  postId: string;
+  text: string;
+  author: LinkedInCommentAuthor;
+  createdAt?: string;
+}): LinkedInPostComment {
+  return {
+    id: args.id,
+    postId: args.postId,
+    text: args.text,
+    createdAt: args.createdAt,
+    reactionCount: 0,
+    replyCount: 0,
+    author: args.author,
+    canReply: false,
+    canReact: false,
+    source: "preview",
+  };
+}
+
 export interface LinkedInCommentPage {
   items: LinkedInPostComment[];
   cursor: string | null;
@@ -244,4 +265,31 @@ export function resolveLinkedInPostReference(args: {
     readUrn,
     permalink,
   };
+}
+
+export function matchesLinkedInPostReference(
+  postData: unknown,
+  targetPostId: string
+): boolean {
+  const target = targetPostId.trim();
+  if (!target) {
+    return false;
+  }
+
+  const reference = resolveLinkedInPostReference({ postData });
+  const canonicalPostId = extractLinkedInCanonicalPostIdFromUrl(
+    reference.permalink
+  );
+  const normalizedTarget = normalizeLinkedInReadUrn(target) ?? target;
+
+  return [
+    reference.resolvedPostId,
+    reference.socialId,
+    reference.readUrn,
+    canonicalPostId,
+  ].some(
+    (candidate) =>
+      candidate === target ||
+      normalizeLinkedInReadUrn(candidate) === normalizedTarget
+  );
 }

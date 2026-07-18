@@ -14,6 +14,11 @@ import {
 } from "@/features/webapp/ui/components";
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/shared/ui/components/Alert";
 import { Button } from "@/shared/ui/components/Button";
 import { BaseComposer } from "@/features/composer/ui/components/BaseComposer";
 import { ComposerSurfaceSkeleton } from "@/features/composer/ui/components/ComposerSurfaceSkeleton";
@@ -25,14 +30,17 @@ import type {
 import { XReplyFallbackAlert } from "@/features/composer/ui/components/XReplyFallbackAlert";
 import { Tweet, TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 import {
+  LinkedInCommentItem,
   LinkedInPostCard,
   LinkedInPostCardSkeleton,
+  LinkedInReplyComposer,
 } from "@/features/webapp/ui/components/linkedin";
 import { XConversationPanel } from "@/features/prospects/ui/components/XConversationPanel";
 import { LinkedInConversationPanel } from "@/features/prospects/ui/components/LinkedInConversationPanel";
 import { ThreadAwareTwitterReplyBody } from "@/features/prospects/ui/components/ThreadAwareTwitterReplyBody";
 import type { Tweet as TweetType } from "@/features/threads/types";
-import type { UnifiedPost } from "@/shared/lib/platforms/types";
+import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
+import { buildLinkedInCommentPreview } from "@/shared/lib/linkedin/comments";
 import { buildPostMentionEntity } from "@/shared/lib/mentions/postMentions";
 import type { AgentPanelMode } from "../../lib";
 import {
@@ -397,6 +405,35 @@ export function AgentDynamicPanel({
   const taskPanelPlatform = !isActionRequestPanel
     ? taskPanelData?.platform
     : undefined;
+  const fallbackLinkedInPost = useMemo(
+    () =>
+      fallbackPost?.platform === "linkedin"
+        ? normalizeLinkedInPost(fallbackPost.postData, {
+            fallbackId: targetTweetId ?? undefined,
+          })
+        : null,
+    [fallbackPost, targetTweetId]
+  );
+  const actionLinkedInPost = useMemo(
+    () =>
+      actionPanelData?.platform === "linkedin"
+        ? normalizeLinkedInPost(actionPanelData.sourcePostData)
+        : null,
+    [actionPanelData?.platform, actionPanelData?.sourcePostData]
+  );
+  const taskLinkedInPost = useMemo(
+    () =>
+      taskPanelPlatform === "linkedin"
+        ? normalizeLinkedInPost(taskPanelData?.originalPost?.postData, {
+            fallbackId: taskPanelData?.targetTweetId,
+          })
+        : null,
+    [
+      taskPanelData?.originalPost?.postData,
+      taskPanelData?.targetTweetId,
+      taskPanelPlatform,
+    ]
+  );
   const taskPanelApprovalReady = !isActionRequestPanel
     ? Boolean(taskPanelData?.approvalReady)
     : false;
@@ -408,6 +445,7 @@ export function AgentDynamicPanel({
     !isActionRequestPanel && taskPanelKind === "post"
       ? resolveOutreachTaskApprovalUiState({
           kind: "post",
+          platform: taskPanelPlatform,
           mode,
           approvalReady: taskPanelApprovalReady,
           planId: taskPanelData?.planId,
@@ -777,7 +815,9 @@ export function AgentDynamicPanel({
     isActionRequestPanel && actionPanelData?.title
       ? actionPanelData.title
       : mode === "posted"
-        ? "Posted reply"
+        ? taskPanelPlatform === "linkedin"
+          ? "Posted comment"
+          : "Posted reply"
         : "Post";
   const loadingPlatform: "twitter" | "linkedin" =
     fallbackPost?.platform ??
@@ -823,11 +863,21 @@ export function AgentDynamicPanel({
 
     return (
       <div className="space-y-4 px-4">
-        <LinkedInPostCard
-          post={fallbackPost.postData as UnifiedPost}
-          showFullContent
-          commentBehavior="none"
-        />
+        {fallbackLinkedInPost ? (
+          <LinkedInPostCard
+            post={fallbackLinkedInPost}
+            prospectId={prospectId}
+            showFullContent
+            readOnly
+          />
+        ) : (
+          <Alert>
+            <AlertTitle>Original LinkedIn post unavailable</AlertTitle>
+            <AlertDescription>
+              The comment draft is still loading and will remain editable.
+            </AlertDescription>
+          </Alert>
+        )}
         <ComposerSurfaceSkeleton submitLabel="Approve" />
       </div>
     );
@@ -930,21 +980,70 @@ export function AgentDynamicPanel({
       const isInviteAction =
         actionPanelData.actionKey === "linkedin_invite_user";
       const isEditable = isCommentAction || isInviteAction;
-      const sourceLinkedInPost = actionPanelData.sourcePostData as
-        | UnifiedPost
-        | undefined;
+      const sourceLinkedInPost = actionLinkedInPost;
+      const linkedInPostMentionEntities = sourceLinkedInPost
+        ? ([
+            buildPostMentionEntity({
+              post: sourceLinkedInPost,
+              platformHint: "linkedin",
+              prospectId,
+            }),
+          ].filter(Boolean) as NonNullable<
+            ReturnType<typeof buildPostMentionEntity>
+          >[])
+        : undefined;
+      const postedComment =
+        mode === "posted" && isCommentAction && actionPanelData.content
+          ? buildLinkedInCommentPreview({
+              id:
+                actionPanelData.createdTweetId ||
+                `posted-${actionPanelData.actionRequestId}`,
+              postId: sourceLinkedInPost?.id || "linkedin-post",
+              text: actionPanelData.content,
+              author: {
+                name: composerCurrentUser.name,
+                avatarUrl: composerCurrentUser.profileImageUrl,
+                isViewer: true,
+              },
+            })
+          : null;
 
       return (
         <div className="space-y-4 px-4">
           {sourceLinkedInPost ? (
             <LinkedInPostCard
               post={sourceLinkedInPost}
+              prospectId={prospectId}
               showFullContent
               readOnly
             />
           ) : null}
 
-          {mode === "approval" && isEditable ? (
+          {mode === "approval" && isCommentAction ? (
+            <LinkedInReplyComposer
+              key={`action-request-comment:${actionPanelData.actionRequestId}`}
+              prospectId={prospectId}
+              placeholder="Add a comment..."
+              submitLabel="Approve"
+              initialValue={currentDraftText}
+              initialMediaUploads={initialMediaUploads}
+              disabled={isSubmitting}
+              localMentionEntities={linkedInPostMentionEntities}
+              surfaceLabel="linkedin_comment_approval"
+              onContentChange={(content) => {
+                setCurrentDraftText(extractTextFromEditorState(content).trim());
+              }}
+              onEditorFocus={() => {
+                isDraftEditorFocusedRef.current = true;
+              }}
+              onEditorBlur={() => {
+                isDraftEditorFocusedRef.current = false;
+                void draftSync.flushNow();
+              }}
+              onSubmit={handleSubmit}
+              beforeCounterSlot={draftStatusSlot}
+            />
+          ) : mode === "approval" && isInviteAction ? (
             <div className="rounded-[24px] border p-3">
               <BaseComposer
                 key={`action-request-composer:${actionPanelData.actionRequestId}`}
@@ -954,16 +1053,10 @@ export function AgentDynamicPanel({
                 maxLength={8000}
                 characterCountMode="raw"
                 submitButtonText="Approve"
-                placeholder={
-                  isCommentAction
-                    ? "Edit LinkedIn comment before sending"
-                    : "Add an invitation note"
-                }
+                placeholder="Add an invitation note"
                 disabled={isSubmitting}
                 inlineAutocompleteContext={{
-                  surfaceLabel: isCommentAction
-                    ? "linkedin_comment_approval"
-                    : "linkedin_invite_approval",
+                  surfaceLabel: "linkedin_invite_approval",
                   platform: "linkedin",
                   prospectId,
                   maxLength: 8000,
@@ -971,20 +1064,8 @@ export function AgentDynamicPanel({
                 }}
                 entityMentions={{
                   prospectId,
-                  remoteAllowedKinds: isCommentAction
-                    ? ["prospect", "post", "attachment"]
-                    : ["prospect", "attachment"],
-                  localEntities: sourceLinkedInPost
-                    ? ([
-                        buildPostMentionEntity({
-                          post: sourceLinkedInPost,
-                          platformHint: "linkedin",
-                          prospectId,
-                        }),
-                      ].filter(Boolean) as NonNullable<
-                        ReturnType<typeof buildPostMentionEntity>
-                      >[])
-                    : undefined,
+                  remoteAllowedKinds: ["prospect", "attachment"],
+                  localEntities: linkedInPostMentionEntities,
                   personTextMode: "label",
                 }}
                 onContentChange={(content: SerializedEditorState) => {
@@ -1005,53 +1086,66 @@ export function AgentDynamicPanel({
             </div>
           ) : null}
 
-          <div className="rounded-[20px] border px-4 py-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{actionPanelData.title}</p>
-              {actionPanelData.description ? (
-                <p className="text-muted-foreground text-sm">
-                  {actionPanelData.description}
-                </p>
-              ) : null}
-              {mode === "posted" && actionPanelData.content ? (
-                <p className="bg-muted/40 rounded-xl border px-3 py-2 text-sm whitespace-pre-wrap">
-                  {actionPanelData.content}
-                </p>
+          {postedComment ? (
+            <div className="border-border/70 border-l pl-4">
+              <LinkedInCommentItem
+                comment={postedComment}
+                sourcePost={sourceLinkedInPost ?? undefined}
+                prospectId={prospectId}
+                disabled
+              />
+            </div>
+          ) : null}
+
+          {!isCommentAction ? (
+            <div className="rounded-[20px] border px-4 py-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{actionPanelData.title}</p>
+                {actionPanelData.description ? (
+                  <p className="text-muted-foreground text-sm">
+                    {actionPanelData.description}
+                  </p>
+                ) : null}
+                {mode === "posted" && actionPanelData.content ? (
+                  <p className="bg-muted/40 rounded-xl border px-3 py-2 text-sm whitespace-pre-wrap">
+                    {actionPanelData.content}
+                  </p>
+                ) : null}
+              </div>
+
+              {mode === "approval" && !isEditable ? (
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={isSubmitting}
+                    onClick={async () => {
+                      try {
+                        setIsSubmitting(true);
+                        await approveActionRequest({
+                          actionRequestId:
+                            actionPanelData.actionRequestId as Id<"agentActionRequests">,
+                        });
+                        toast.success("Action approved.", {
+                          description: "Executing in background...",
+                        });
+                      } catch (error) {
+                        toast.error("Failed to approve action", {
+                          description:
+                            error instanceof Error
+                              ? error.message
+                              : "Please try again.",
+                        });
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                  >
+                    Approve action
+                  </Button>
+                </div>
               ) : null}
             </div>
-
-            {mode === "approval" && !isEditable ? (
-              <div className="mt-4 flex justify-end">
-                <Button
-                  size="sm"
-                  disabled={isSubmitting}
-                  onClick={async () => {
-                    try {
-                      setIsSubmitting(true);
-                      await approveActionRequest({
-                        actionRequestId:
-                          actionPanelData.actionRequestId as Id<"agentActionRequests">,
-                      });
-                      toast.success("Action approved.", {
-                        description: "Executing in background...",
-                      });
-                    } catch (error) {
-                      toast.error("Failed to approve action", {
-                        description:
-                          error instanceof Error
-                            ? error.message
-                            : "Please try again.",
-                      });
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                >
-                  Approve action
-                </Button>
-              </div>
-            ) : null}
-          </div>
+          ) : null}
         </div>
       );
     }
@@ -1246,18 +1340,38 @@ export function AgentDynamicPanel({
                   )}
                 />
               ) : (
-                <div className="px-4">
-                  <LinkedInPostCard
-                    post={fallbackPost.postData as UnifiedPost}
-                    showFullContent
-                    commentBehavior="none"
-                  />
+                <div className="space-y-4 px-4">
+                  {fallbackLinkedInPost ? (
+                    <LinkedInPostCard
+                      post={fallbackLinkedInPost}
+                      prospectId={prospectId}
+                      showFullContent
+                      readOnly
+                    />
+                  ) : (
+                    <Alert>
+                      <AlertTitle>
+                        Original LinkedIn post unavailable
+                      </AlertTitle>
+                      <AlertDescription>
+                        The saved post could not be reconstructed.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <Alert>
+                    <AlertTitle>No editable comment draft found</AlertTitle>
+                    <AlertDescription>
+                      Return to the plan and regenerate this task before
+                      approving it.
+                    </AlertDescription>
+                  </Alert>
                 </div>
               )
             ) : (
               (() => {
                 const data = taskPanelData!;
-                const platform = data.originalPost?.platform || "twitter";
+                const platform = data.platform;
+                const sourceLinkedInPost = taskLinkedInPost;
                 const originalTweetSummary = data.originalPost?.postSummary as
                   | TwitterPostSummary
                   | undefined;
@@ -1266,9 +1380,113 @@ export function AgentDynamicPanel({
                   originalTweetSummary?.ref.postId ??
                   data.targetTweetId;
 
-                return mode === "approval" &&
-                  platform === "twitter" &&
-                  originalTweetId ? (
+                if (platform === "linkedin") {
+                  const linkedInPostMentionEntities = sourceLinkedInPost
+                    ? ([
+                        buildPostMentionEntity({
+                          post: sourceLinkedInPost,
+                          platformHint: "linkedin",
+                          prospectId,
+                        }),
+                      ].filter(Boolean) as NonNullable<
+                        ReturnType<typeof buildPostMentionEntity>
+                      >[])
+                    : undefined;
+
+                  return (
+                    <div className="space-y-4 px-4">
+                      {sourceLinkedInPost ? (
+                        <LinkedInPostCard
+                          post={sourceLinkedInPost}
+                          prospectId={prospectId}
+                          showFullContent
+                          readOnly
+                        />
+                      ) : (
+                        <Alert>
+                          <AlertTitle>
+                            Original LinkedIn post unavailable
+                          </AlertTitle>
+                          <AlertDescription>
+                            You can still review and edit the saved comment
+                            draft below.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {mode === "approval" ? (
+                        <LinkedInReplyComposer
+                          key={`task-linkedin-comment:${data.resolvedTaskId}`}
+                          prospectId={prospectId}
+                          placeholder="Add a comment..."
+                          submitLabel={taskReplySubmitButtonText}
+                          initialValue={currentDraftText}
+                          initialMediaUploads={initialMediaUploads}
+                          submitDisabled={
+                            taskSubmitBlockedByPlan && !taskPlanCanBeApproved
+                          }
+                          disabled={isSubmitting}
+                          localMentionEntities={linkedInPostMentionEntities}
+                          surfaceLabel="linkedin_comment_task_approval"
+                          onContentChange={(content) => {
+                            setCurrentDraftText(
+                              extractTextFromEditorState(content).trim()
+                            );
+                          }}
+                          onEditorFocus={() => {
+                            isDraftEditorFocusedRef.current = true;
+                          }}
+                          onEditorBlur={() => {
+                            isDraftEditorFocusedRef.current = false;
+                            void draftSync.flushNow();
+                          }}
+                          onSubmit={handleSubmit}
+                          beforeCounterSlot={draftStatusSlot}
+                        />
+                      ) : data.posted?.text ? (
+                        <div className="border-border/70 border-l pl-4">
+                          <LinkedInCommentItem
+                            comment={buildLinkedInCommentPreview({
+                              id:
+                                data.posted.messageId ||
+                                data.posted.tweetId ||
+                                `posted-${data.resolvedTaskId}`,
+                              postId:
+                                data.targetTweetId ||
+                                sourceLinkedInPost?.id ||
+                                "linkedin-post",
+                              text: data.posted.text,
+                              createdAt:
+                                postedReplyTweet?.tweet_created_at ?? undefined,
+                              author: {
+                                name:
+                                  data.posted.author?.name ||
+                                  composerCurrentUser.name,
+                                avatarUrl:
+                                  data.posted.author?.profileImageUrl ||
+                                  composerCurrentUser.profileImageUrl,
+                                isViewer: true,
+                              },
+                            })}
+                            sourcePost={sourceLinkedInPost ?? undefined}
+                            prospectId={prospectId}
+                            disabled
+                          />
+                        </div>
+                      ) : (
+                        <Alert>
+                          <AlertTitle>Posted comment unavailable</AlertTitle>
+                          <AlertDescription>
+                            The comment was posted, but its preview text is
+                            unavailable.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  );
+                }
+
+                return mode === "approval" && originalTweetId ? (
                   <ThreadAwareTwitterReplyBody
                     tweetId={originalTweetId}
                     initialTweet={

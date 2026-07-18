@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/shared/ui/components/Badge";
 import { Button } from "@/shared/ui/components/Button";
 import { Checkbox } from "@/shared/ui/components/Checkbox";
@@ -96,7 +96,6 @@ export function TaskItem({
   className,
 }: TaskItemProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const openReplyPanel = useReplyPanel();
   const [showFullContent, setShowFullContent] = React.useState(false);
 
@@ -152,6 +151,18 @@ export function TaskItem({
     event.stopPropagation();
     if (!prospectId) return;
 
+    onViewTask?.({
+      taskId,
+      targetTweetId,
+      kind: type === "dm" ? "dm" : "post",
+      panelMode: "approval",
+      fallbackPost: originalPost ?? undefined,
+    });
+
+    if (onViewTask) {
+      return;
+    }
+
     const params = new URLSearchParams();
     params.set("prospectId", prospectId);
     if (threadId) params.set("threadId", threadId);
@@ -190,7 +201,7 @@ export function TaskItem({
     const href = buildAgentPanelHref();
     if (!href) return;
 
-    if (pathname?.startsWith("/agent")) {
+    if (window.location.pathname.startsWith("/agent")) {
       router.replace(href);
       return;
     }

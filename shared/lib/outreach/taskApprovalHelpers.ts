@@ -2,6 +2,7 @@ export type OutreachTaskPanelKind = "post" | "dm";
 
 export interface ResolveOutreachTaskApprovalUiStateArgs {
   kind: OutreachTaskPanelKind;
+  platform?: "twitter" | "linkedin" | null;
   mode?: "approval" | "posted" | null;
   approvalReady: boolean;
   planId?: string | null;
@@ -17,8 +18,7 @@ export interface OutreachTaskApprovalUiState {
 export function resolveOutreachTaskApprovalUiState(
   args: ResolveOutreachTaskApprovalUiStateArgs
 ): OutreachTaskApprovalUiState {
-  const submitBlockedByPlan =
-    args.mode === "approval" && !args.approvalReady;
+  const submitBlockedByPlan = args.mode === "approval" && !args.approvalReady;
   const planCanBeApproved =
     submitBlockedByPlan && args.planStatus === "draft" && Boolean(args.planId);
 
@@ -31,6 +31,8 @@ export function resolveOutreachTaskApprovalUiState(
         : "Preparing approval"
       : args.kind === "dm"
         ? "Approve DM"
-        : "Approve reply",
+        : args.platform === "linkedin"
+          ? "Approve comment"
+          : "Approve reply",
   };
 }

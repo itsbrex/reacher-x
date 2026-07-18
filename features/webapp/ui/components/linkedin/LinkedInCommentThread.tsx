@@ -32,6 +32,7 @@ import { LinkedInCommentItem } from "./LinkedInCommentItem";
 import { extractTextFromEditorState } from "@/shared/lib/utils";
 import { toast } from "sonner";
 import { buildLinkedInPostMentionEntities } from "./linkedinComposerMentions";
+import { resolveLinkedInRecoveryAction } from "@/shared/lib/linkedin/recovery";
 
 const INITIAL_COMMENT_LIMIT = 10;
 
@@ -737,6 +738,17 @@ export function LinkedInCommentThread({
     [post, thread?.resolvedPost, visibleThreadComments]
   );
   const showComposer = thread?.eligibility.enabled === true;
+  const recoveryAction = resolveLinkedInRecoveryAction(
+    thread?.eligibility.reasonCode
+  );
+  const unavailableTitle =
+    thread?.eligibility.reasonCode === "missing_connection"
+      ? "LinkedIn account not connected"
+      : "Commenting unavailable";
+  const unavailableDescription =
+    thread?.warning?.code === "read_only_fallback"
+      ? "Comments are available read-only. Connect LinkedIn to comment or reply."
+      : thread?.eligibility.reasonLabel;
 
   return (
     <section className={className}>
@@ -786,27 +798,21 @@ export function LinkedInCommentThread({
               localMentionEntities={topLevelMentionEntities}
               onSubmit={handleTopLevelSubmit}
             />
-          ) : thread?.eligibility.reasonCode === "missing_connection" ? (
-            <Alert>
-              <AlertTitle>LinkedIn account not connected</AlertTitle>
-              <AlertDescription>
-                Connect LinkedIn in Settings → Connected accounts to comment or
-                reply.
-                <div className="mt-3 flex gap-1">
-                  <Button
-                    size="xs"
-                    onClick={() => router.push("/settings/connected-accounts")}
-                  >
-                    Connect account
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
           ) : thread?.eligibility.reasonLabel ? (
             <Alert>
-              <AlertTitle>Commenting unavailable</AlertTitle>
-              <AlertDescription>
-                {thread.eligibility.reasonLabel}
+              <AlertTitle>{unavailableTitle}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{unavailableDescription}</p>
+                {recoveryAction ? (
+                  <div>
+                    <Button
+                      size="xs"
+                      onClick={() => router.push(recoveryAction.href)}
+                    >
+                      {recoveryAction.label}
+                    </Button>
+                  </div>
+                ) : null}
               </AlertDescription>
             </Alert>
           ) : null}
@@ -817,19 +823,32 @@ export function LinkedInCommentThread({
               <Skeleton className="h-20 w-full rounded-[20px]" />
             </div>
           ) : error ? (
-            <div className="rounded-[20px] border px-4 py-3 text-sm">
-              <p className="font-medium">Could not load comments</p>
-              <p className="text-muted-foreground mt-1">{error}</p>
-            </div>
+            <Alert>
+              <AlertTitle>Could not load comments</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{error}</p>
+                <div>
+                  <Button
+                    size="xs"
+                    onClick={() =>
+                      void loadThread({
+                        replace: true,
+                        nextSort: sort,
+                      })
+                    }
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           ) : (
             <>
-              {thread?.warning ? (
-                <div className="rounded-[20px] border px-4 py-3 text-sm">
-                  <p className="font-medium">Limited thread sync</p>
-                  <p className="text-muted-foreground mt-1">
-                    {thread.warning.message}
-                  </p>
-                </div>
+              {showComposer && thread?.warning ? (
+                <Alert>
+                  <AlertTitle>Comments are temporarily read-only</AlertTitle>
+                  <AlertDescription>{thread.warning.message}</AlertDescription>
+                </Alert>
               ) : null}
 
               {topLevelComments.length > 0 ? (

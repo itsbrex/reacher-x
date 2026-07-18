@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../../lib/functionBuilders";
 import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
+import { getLinkedInActivityTimestamp } from "../../../shared/lib/linkedin/post";
 import { requestLinkdApiData } from "./linkdapiClient";
 import { requireLinkedInProfileQueryUrn } from "./profileIdentity";
 
@@ -57,7 +58,7 @@ function normalizePost(
     return null;
   }
 
-  const postedAt =
+  const providerPostedAt =
     typeof record.postedAt === "object" &&
     record.postedAt &&
     typeof (record.postedAt as Record<string, unknown>).timestamp === "number"
@@ -66,7 +67,11 @@ function normalizePost(
         ? record.postedAt
         : typeof record.createdAt === "number"
           ? record.createdAt
-          : getCurrentUTCTimestamp();
+          : undefined;
+  const postedAt =
+    providerPostedAt && providerPostedAt > 0
+      ? providerPostedAt
+      : (getLinkedInActivityTimestamp(urn) ?? getCurrentUTCTimestamp());
 
   const authorRecord =
     record.author && typeof record.author === "object"

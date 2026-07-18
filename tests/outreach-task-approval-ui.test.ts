@@ -52,3 +52,21 @@ test("reply tasks without a plan CTA stay disabled until approval is prepared", 
     }
   );
 });
+
+test("ready LinkedIn tasks use comment language", () => {
+  assert.deepEqual(
+    resolveOutreachTaskApprovalUiState({
+      kind: "post",
+      platform: "linkedin",
+      mode: "approval",
+      approvalReady: true,
+      planId: "plan_123",
+      planStatus: "executing",
+    }),
+    {
+      submitBlockedByPlan: false,
+      planCanBeApproved: false,
+      submitButtonText: "Approve comment",
+    }
+  );
+});

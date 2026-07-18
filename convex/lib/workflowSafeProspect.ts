@@ -5,6 +5,7 @@ import {
 } from "../../shared/lib/twitter/profileLinks";
 import { extractLinkedInUsername } from "../../shared/lib/utils/url/socialProfiles";
 import { normalizeLinkedInMediaType } from "../../shared/lib/linkedin/media";
+import { getLinkedInActivityTimestamp } from "../../shared/lib/linkedin/post";
 
 type ProspectPlatform = "twitter" | "linkedin";
 
@@ -40,11 +41,14 @@ function asBoolean(value: unknown): boolean | undefined {
 
 function asTimestampMs(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
+    if (value <= 0) {
+      return undefined;
+    }
     return value > 10_000_000_000 ? value : value * 1000;
   }
   if (typeof value === "string" && value.trim().length > 0) {
     const timestamp = Date.parse(value);
-    return Number.isFinite(timestamp) ? timestamp : undefined;
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined;
   }
   return undefined;
 }
@@ -251,7 +255,10 @@ function sanitizeLinkedInPostForWorkflow(
   }
 
   const createdAt =
-    asTimestampMs(record.createdAt) ?? asTimestampMs(postedAt?.timestamp) ?? 0;
+    asTimestampMs(record.createdAt) ??
+    asTimestampMs(postedAt?.timestamp) ??
+    getLinkedInActivityTimestamp(postId) ??
+    0;
 
   const media = compactArray(
     (Array.isArray(record.media)
@@ -539,7 +546,10 @@ export function getWorkflowEvidencePostCreatedAt(
     asTimestampMs(post.tweet_created_at) ??
     asTimestampMs(post.created_at) ??
     asTimestampMs(post.createdAt) ??
-    asTimestampMs(postedAt?.timestamp);
+    asTimestampMs(postedAt?.timestamp) ??
+    getLinkedInActivityTimestamp(
+      asString(post.id) ?? asString(post.postID) ?? asString(post.urn)
+    );
 
   return timestamp ? new Date(timestamp).toISOString() : undefined;
 }

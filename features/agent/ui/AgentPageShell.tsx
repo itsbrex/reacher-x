@@ -762,15 +762,17 @@ export function AgentPageShell() {
   const showStandalonePanel =
     currentPanel !== null &&
     activeProspectPanelId === null &&
-    !showHistoryPanel;
+    !showHistoryPanel &&
+    !hasPanelContext &&
+    !isPlanPanelActive;
   const showProspectPanel =
     showStandalonePanel ||
     (!isMobile &&
       !!prospectPanelSessionProspectId &&
       activeProspectPanelId === prospectPanelSessionProspectId &&
       !showHistoryPanel &&
-      ((!hasPanelContext && !isPlanPanelActive) ||
-        (agentRightSurfaceActive && (hasPanelContext || isPlanPanelActive))));
+      !hasPanelContext &&
+      !isPlanPanelActive);
 
   const showAgentTwitterPanel =
     !isMobile &&

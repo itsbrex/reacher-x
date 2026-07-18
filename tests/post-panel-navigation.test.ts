@@ -80,6 +80,24 @@ test("prospect surfaces render root platform panels without a selected prospect"
   assert.match(agentSource, /currentPanel !== null/);
 });
 
+test("task editing replaces active agent panels instead of hiding behind them", () => {
+  const taskSource = readSource(
+    "features/prospects/ui/components/outreach-plan/TaskItem.tsx"
+  );
+  const agentSource = readSource("features/agent/ui/AgentPageShell.tsx");
+
+  assert.match(taskSource, /const handleEdit[\s\S]*onViewTask\?\.\(\{/);
+  assert.match(taskSource, /if \(onViewTask\) \{\s*return;/);
+  assert.match(
+    agentSource,
+    /const showStandalonePanel =[\s\S]*!hasPanelContext[\s\S]*!isPlanPanelActive/
+  );
+  assert.doesNotMatch(
+    agentSource,
+    /agentRightSurfaceActive && \(hasPanelContext \|\| isPlanPanelActive\)/
+  );
+});
+
 test("both Post panels use the desktop left divider without a right divider", () => {
   for (const file of [
     "features/prospects/ui/components/TwitterPostPanel.tsx",
