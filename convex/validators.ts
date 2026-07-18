@@ -1160,13 +1160,6 @@ export const updateProspectStatusArgsValidator = v.object({
   tags: v.optional(v.array(v.string())),
 });
 
-// v4: Plan validators
-export const upgradePlanArgsValidator = v.object({
-  tier: planTierValidator,
-  externalSubscriptionId: v.optional(v.string()),
-  expiresAt: v.optional(v.number()),
-});
-
 // v4: Keyword validators
 export const discoveredKeywordValidator = v.object({
   keyword: v.string(),

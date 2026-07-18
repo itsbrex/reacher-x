@@ -13,10 +13,7 @@ import {
   canUsePaidFeatures,
   getPlanUsageSummary,
   PLAN_LIMITS,
-  type PlanTier,
 } from "./lib/planHelpers";
-import { upgradePlan } from "./lib/planCore";
-import { upgradePlanArgsValidator } from "./validators";
 
 async function getWorkspaceCreationEligibilityForCurrentUser(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -164,25 +161,5 @@ export const initializeUserPlan = mutation({
       prospectsLimit: plan.prospectsLimit,
       workspacesLimit: plan.workspacesLimit,
     };
-  },
-});
-
-/**
- * Upgrade user's plan (for future billing integration)
- */
-export const upgradeUserPlan = mutation({
-  args: upgradePlanArgsValidator,
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
-
-    await upgradePlan(
-      ctx,
-      user._id,
-      args.tier as PlanTier,
-      args.externalSubscriptionId,
-      args.expiresAt
-    );
-
-    return { success: true, tier: args.tier };
   },
 });
