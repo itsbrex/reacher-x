@@ -3,6 +3,7 @@ import { getDocumentSize } from "convex/values";
 import { components } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import schema from "./schema";
 import { upsertAgentThreadTargetSelection } from "./lib/agentThreadTargetSelectionHelpers";
 import { createPlanBatchReferenceKey } from "./lib/planBatchCore";
 import { buildAutoPlanFailureNotificationTitle } from "./lib/autoPlanCore";
@@ -11,13 +12,20 @@ import {
   getProspectIdentitySnapshot,
 } from "./lib/prospectIdentityCore";
 
-export const migrations = new Migrations<DataModel>(components.migrations);
+export const migrations = new Migrations<DataModel, typeof schema>(
+  components.migrations,
+  { schema }
+);
 
 const IDENTITY_REPAIR_OWNER_EMAIL = "creativecoder.crco@gmail.com";
 const MAX_SAFE_PROSPECT_DOCUMENT_BYTES = 1_000_000;
+const AGENTMAIL_WORKSPACE_ID =
+  "ks76np202xg61bj94838cpszyn8arxc6" as Id<"workspaces">;
+const REACHERX_WORKSPACE_ID =
+  "ks76wdkah15gxj05hatyk5hxjx88y6dj" as Id<"workspaces">;
 const IDENTITY_REPAIR_ACTIVE_WORKSPACES: Readonly<Record<string, string>> = {
-  ks76np202xg61bj94838cpszyn8arxc6: "AgentMail (lead gen)",
-  ks76wdkah15gxj05hatyk5hxjx88y6dj: "ReacherX (lead gen)",
+  [AGENTMAIL_WORKSPACE_ID]: "AgentMail (lead gen)",
+  [REACHERX_WORKSPACE_ID]: "ReacherX (lead gen)",
 };
 
 /**
@@ -78,33 +86,51 @@ export const backfillPlanBatchReferenceKeys = migrations.define({
   },
 });
 
-export const backfillProspectDisplayNames = migrations.define({
-  table: "prospects",
-  batchSize: 25,
-  migrateOne: async (ctx, prospect) => {
-    if (
-      !(await isScopedActiveIdentityRepairWorkspace(ctx, prospect.workspaceId))
-    ) {
-      return;
-    }
-    if (prospect.displayName?.trim()) {
-      return;
-    }
-    const displayName = getProspectIdentitySnapshot(prospect).displayName;
-    if (!displayName) {
-      return;
-    }
-    if (
-      getDocumentSize({ ...prospect, displayName }) >
-      MAX_SAFE_PROSPECT_DOCUMENT_BYTES
-    ) {
-      // The canonical resolver already reads the name from raw provider data.
-      // Avoid making near-limit legacy documents invalid for an optional cache.
-      return;
-    }
-    await ctx.db.patch("prospects", prospect._id, { displayName });
-  },
-});
+function defineQualifiedProspectDisplayNameBackfill(
+  workspaceId: Id<"workspaces">
+) {
+  return migrations.define({
+    table: "prospects",
+    batchSize: 25,
+    customRange: (query) =>
+      query.withIndex("by_workspace_qualification", (q) =>
+        q.eq("workspaceId", workspaceId).eq("qualificationStatus", "qualified")
+      ),
+    migrateOne: async (ctx, prospect) => {
+      if (
+        prospect.qualificationStatus !== "qualified" ||
+        !(await isScopedActiveIdentityRepairWorkspace(
+          ctx,
+          prospect.workspaceId
+        ))
+      ) {
+        return;
+      }
+      if (prospect.displayName?.trim()) {
+        return;
+      }
+      const displayName = getProspectIdentitySnapshot(prospect).displayName;
+      if (!displayName) {
+        return;
+      }
+      if (
+        getDocumentSize({ ...prospect, displayName }) >
+        MAX_SAFE_PROSPECT_DOCUMENT_BYTES
+      ) {
+        // The canonical resolver already reads the name from raw provider data.
+        // Avoid making near-limit legacy documents invalid for an optional cache.
+        return;
+      }
+      await ctx.db.patch("prospects", prospect._id, { displayName });
+    },
+  });
+}
+
+export const backfillAgentMailQualifiedProspectDisplayNames =
+  defineQualifiedProspectDisplayNameBackfill(AGENTMAIL_WORKSPACE_ID);
+
+export const backfillReacherXQualifiedProspectDisplayNames =
+  defineQualifiedProspectDisplayNameBackfill(REACHERX_WORKSPACE_ID);
 
 export const repairOutreachNotificationProspectIdentity = migrations.define({
   table: "outreachNotifications",
@@ -123,7 +149,10 @@ export const repairOutreachNotificationProspectIdentity = migrations.define({
     if (!prospect) {
       return;
     }
-    if (prospect.workspaceId !== notification.workspaceId) {
+    if (
+      prospect.workspaceId !== notification.workspaceId ||
+      prospect.qualificationStatus !== "qualified"
+    ) {
       return;
     }
 
@@ -183,6 +212,7 @@ export const repairPlanBatchProspectNames = migrations.define({
     const prospect = await ctx.db.get("prospects", item.prospectId);
     if (
       !prospect ||
+      prospect.qualificationStatus !== "qualified" ||
       !(await isScopedActiveIdentityRepairWorkspace(ctx, prospect.workspaceId))
     ) {
       return;

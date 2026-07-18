@@ -107,10 +107,13 @@ test("user-facing prospect paths do not use external IDs as names", () => {
 
 test("online migrations repair all persisted identity snapshots", () => {
   const source = readFileSync("convex/migrations.ts", "utf8");
-  assert.match(source, /backfillProspectDisplayNames/);
+  assert.match(source, /backfillAgentMailQualifiedProspectDisplayNames/);
+  assert.match(source, /backfillReacherXQualifiedProspectDisplayNames/);
   assert.match(source, /repairOutreachNotificationProspectIdentity/);
   assert.match(source, /repairPlanBatchProspectNames/);
   assert.match(source, /batchSize: 25/g);
+  assert.match(source, /by_workspace_qualification/);
+  assert.match(source, /\.eq\("qualificationStatus", "qualified"\)/);
   assert.match(source, /creativecoder\.crco@gmail\.com/);
   assert.match(source, /ks76np202xg61bj94838cpszyn8arxc6/);
   assert.match(source, /ks76wdkah15gxj05hatyk5hxjx88y6dj/);
