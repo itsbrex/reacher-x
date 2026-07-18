@@ -94,6 +94,12 @@ const AUTO_PLAN_RECOVERY_CODE_SET = new Set<AutoPlanFailureCode>(
   AUTO_PLAN_RECOVERY_FAILURE_CODES
 );
 
+export function buildAutoPlanFailureNotificationTitle(
+  prospectLabel: string
+): string {
+  return `Couldn’t create a plan for ${prospectLabel.trim() || "this prospect"}`;
+}
+
 export function isAutoPlanFailureRecoveryEligible(
   code: AutoPlanFailureCode | undefined
 ): boolean {

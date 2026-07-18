@@ -1,4 +1,5 @@
 import type { Doc } from "@/convex/_generated/dataModel";
+import { getProspectIdentitySnapshot } from "@/convex/lib/prospectIdentityCore";
 import {
   extractLinkedInUsername,
   extractTwitterUsername,
@@ -70,70 +71,22 @@ export function getProspectDisplayData(
     };
   }
 
-  const data = prospect.data as Record<string, unknown> | undefined;
-  const socialProfiles = prospect.socialProfiles as
-    | {
-        twitter?: { username?: string; url?: string };
-        linkedin?: { username?: string; url?: string };
-      }
-    | undefined;
-
-  let avatarUrl: string | undefined;
-  let displayName = prospect.displayName;
-  let profileUrl =
-    socialProfiles?.twitter?.url || socialProfiles?.linkedin?.url || undefined;
-  let twitterUsername = socialProfiles?.twitter?.username;
-  let linkedinUsername = socialProfiles?.linkedin?.username;
-  let verified = false;
-
-  if (prospect.platform === "twitter" && data) {
-    const user = data.user as Record<string, unknown> | undefined;
-    avatarUrl = (user?.profile_image_url_https as string) || undefined;
-    displayName = displayName || (user?.name as string) || undefined;
-    twitterUsername =
-      twitterUsername || (user?.screen_name as string) || undefined;
-    const vt = user?.verified_type;
-    const verifiedByType =
-      typeof vt === "string" && vt.length > 0 && vt !== "none";
-    verified = Boolean(user?.verified) || verifiedByType;
-    profileUrl = twitterUsername
-      ? `https://x.com/${twitterUsername}`
-      : undefined;
-  } else if (prospect.platform === "linkedin" && data) {
-    const author = data.author as Record<string, unknown> | undefined;
-    avatarUrl = (author?.profilePictureURL as string) || undefined;
-    displayName = displayName || (author?.name as string) || undefined;
-    profileUrl = (author?.url as string) || profileUrl;
-    linkedinUsername =
-      linkedinUsername ||
-      (typeof author?.username === "string" ? author.username : undefined);
-  }
-
-  twitterUsername = twitterUsername || extractTwitterUsername(profileUrl || "");
-  linkedinUsername =
-    linkedinUsername || extractLinkedInUsername(profileUrl || "");
-
-  const platform = resolveProspectPlatform(
-    prospect.platform,
-    profileUrl,
-    twitterUsername,
-    linkedinUsername
-  );
+  const identity = getProspectIdentitySnapshot(prospect);
+  const displayName = identity.preferredLabel ?? "Unknown";
+  const platform = prospect.platform;
 
   const conversationPlaceholderLabel =
-    platform === "twitter"
-      ? twitterUsername
-        ? `@${twitterUsername}`
-        : displayName || "this person/org"
-      : linkedinUsername || displayName || "this person/org";
+    platform === "twitter" && identity.twitterUsername
+      ? `@${identity.twitterUsername}`
+      : identity.linkedInUsername || displayName;
 
   return {
-    avatarUrl,
-    displayName: displayName || "Unknown",
-    profileUrl,
-    twitterUsername,
-    linkedinUsername,
-    verified,
+    avatarUrl: identity.avatarUrl,
+    displayName,
+    profileUrl: identity.profileUrl,
+    twitterUsername: identity.twitterUsername,
+    linkedinUsername: identity.linkedInUsername,
+    verified: identity.verified,
     title: prospect.title,
     prospectType: prospect.prospectType,
     platform,

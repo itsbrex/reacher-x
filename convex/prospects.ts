@@ -90,6 +90,7 @@ import {
 import { logger } from "../shared/lib/logger";
 import { hydrateTwitterProfileLinkMetadata } from "./lib/twitterProfileLinkResolver";
 import { reconcileDisqualifiedProspectOutreach } from "./lib/disqualificationOutreachCore";
+import { extractDisplayName } from "./lib/prospectIdentityCore";
 import {
   normalizeTwitterUrlEntities,
   type TwitterUrlEntity,
@@ -1004,6 +1005,7 @@ export const createProspect = mutation({
       // Update existing prospect with new data
       await ctx.db.patch(existing._id, {
         data: args.data,
+        displayName: existing.displayName ?? extractDisplayName(args.data),
         matchReason: args.matchReason ?? existing.matchReason,
         matchedKeywords: args.matchedKeywords ?? existing.matchedKeywords,
         updatedAt: getCurrentUTCTimestamp(),
@@ -1018,6 +1020,7 @@ export const createProspect = mutation({
       origin: "manual",
       externalId: args.externalId,
       data: args.data,
+      displayName: extractDisplayName(args.data),
       matchReason: args.matchReason,
       matchedKeywords: args.matchedKeywords,
       status: "new",
@@ -1219,6 +1222,7 @@ export const createProspectsBatch = internalMutation({
           existing,
           {
             data: p.data,
+            displayName: existing.displayName ?? extractDisplayName(p.data),
             origin: nextOrigin,
             setupSessionId: nextSetupSessionId,
             setupRevision: nextSetupRevision,
@@ -1343,6 +1347,7 @@ export const createProspectsBatch = internalMutation({
           setupRevision: p.setupRevision,
           externalId: p.externalId,
           data: p.data,
+          displayName: extractDisplayName(p.data),
           matchReason: p.matchReason,
           matchedKeywords: p.matchedKeywords,
           twitterUserId: twitterActor.twitterUserId,
@@ -1712,6 +1717,7 @@ export const saveProspectFromWebhook = internalMutation({
         existing,
         {
           data: args.data,
+          displayName: existing.displayName ?? extractDisplayName(args.data),
           matchedKeywords: mergeUniqueStrings(existing.matchedKeywords, [
             args.matchedQuery,
           ]),
@@ -1789,6 +1795,7 @@ export const saveProspectFromWebhook = internalMutation({
       origin: "workspace_discovery",
       externalId: args.externalId,
       data: args.data,
+      displayName: extractDisplayName(args.data),
       evidencePosts: evidencePosts.length > 0 ? evidencePosts : undefined,
       matchedKeywords: args.matchedQuery ? [args.matchedQuery] : undefined,
       twitterUserId: twitterActor?.twitterUserId,
@@ -1983,6 +1990,7 @@ export const saveReplyDerivedProspect = internalMutation({
         existing,
         {
           data: args.data,
+          displayName: existing.displayName ?? extractDisplayName(args.data),
           externalId: existing.externalId || args.replyTweetId,
           twitterUserId: args.twitterUserId,
           matchReason: args.matchReason,
@@ -2020,6 +2028,7 @@ export const saveReplyDerivedProspect = internalMutation({
       origin: "workspace_discovery",
       externalId: args.replyTweetId,
       data: args.data,
+      displayName: extractDisplayName(args.data),
       evidencePosts: [args.data],
       matchedKeywords: args.matchedKeywords,
       matchReason: args.matchReason,

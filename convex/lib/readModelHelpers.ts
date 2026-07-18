@@ -1,21 +1,16 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import {
-  extractLinkedInUsername,
-  extractTwitterUsername,
-} from "../../shared/lib/utils/url/socialProfiles";
-import {
   normalizeTwitterUrlEntities,
   selectProfileWebsiteHref,
   type TwitterUrlEntity,
 } from "../../shared/lib/twitter/profileLinks";
-import { extractAvatarUrl, extractDisplayName } from "./notificationHelpers";
 import {
   inferProspectReadyAtFromState,
   isProspectActionableReady,
   isProspectReadyQualifiedEnriched,
 } from "./prospectAnalyticsCore";
-import { getNestedRecord, getStringProperty } from "./typeGuards";
+import { getProspectIdentitySnapshot } from "./prospectIdentityCore";
 import { buildProspectSearchText } from "./prospectSearchText";
 
 export {
@@ -596,79 +591,21 @@ export function getQualificationScoreBucket(
   return "80-100";
 }
 
-function buildLinkedInProfileUrl(
-  username: string,
-  prospectType: Doc<"prospects">["prospectType"]
-): string {
-  if (prospectType === "organization") {
-    return `https://www.linkedin.com/company/${username}`;
-  }
-  return `https://www.linkedin.com/in/${username}`;
-}
-
 function getProspectDisplaySnapshot(prospect: ProspectSource) {
-  const socialProfiles = prospect.socialProfiles;
-  const data = prospect.data;
-  const user = getNestedRecord(data, "user");
-  const author = getNestedRecord(data, "author");
-
-  let avatarUrl = extractAvatarUrl(data);
-  let displayName =
-    prospect.displayName || extractDisplayName(data) || "Unknown";
-  let profileUrl =
-    socialProfiles?.twitter?.url || socialProfiles?.linkedin?.url || undefined;
-  let twitterUsername =
-    socialProfiles?.twitter?.username || getStringProperty(user, "screen_name");
-  let linkedInUsername =
-    socialProfiles?.linkedin?.username || getStringProperty(author, "username");
-  let verified = false;
-
-  if (prospect.platform === "twitter") {
-    const rawAvatarUrl = getStringProperty(user, "profile_image_url_https");
-    const rawDisplayName = getStringProperty(user, "name");
-    avatarUrl = rawAvatarUrl || avatarUrl;
-    displayName = prospect.displayName || rawDisplayName || displayName;
-    twitterUsername =
-      socialProfiles?.twitter?.username ||
-      getStringProperty(user, "screen_name") ||
-      undefined;
-    verified = user?.verified === true;
-    profileUrl =
-      socialProfiles?.twitter?.url ||
-      (twitterUsername ? `https://x.com/${twitterUsername}` : profileUrl);
-  } else if (prospect.platform === "linkedin") {
-    const rawDisplayName = getStringProperty(author, "name");
-    const rawLinkedInUrl = getStringProperty(author, "url");
-    avatarUrl = avatarUrl || getStringProperty(author, "profilePictureURL");
-    displayName = prospect.displayName || rawDisplayName || displayName;
-    profileUrl = socialProfiles?.linkedin?.url || rawLinkedInUrl || profileUrl;
-  }
-
-  twitterUsername = twitterUsername || extractTwitterUsername(profileUrl || "");
-  linkedInUsername =
-    linkedInUsername || extractLinkedInUsername(profileUrl || "");
-
-  if (!profileUrl && linkedInUsername) {
-    profileUrl = buildLinkedInProfileUrl(
-      linkedInUsername,
-      prospect.prospectType
-    );
-  }
-
+  const identity = getProspectIdentitySnapshot(prospect);
+  const displayName = identity.preferredLabel ?? "Unknown";
   const conversationPlaceholderLabel =
-    prospect.platform === "twitter"
-      ? twitterUsername
-        ? `@${twitterUsername}`
-        : displayName
-      : linkedInUsername || displayName;
+    prospect.platform === "twitter" && identity.twitterUsername
+      ? `@${identity.twitterUsername}`
+      : identity.linkedInUsername || displayName;
 
   return {
-    avatarUrl,
+    avatarUrl: identity.avatarUrl,
     displayName,
-    profileUrl,
-    twitterUsername,
-    linkedInUsername,
-    verified,
+    profileUrl: identity.profileUrl,
+    twitterUsername: identity.twitterUsername,
+    linkedInUsername: identity.linkedInUsername,
+    verified: identity.verified,
     conversationPlaceholderLabel,
   };
 }

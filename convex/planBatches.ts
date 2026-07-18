@@ -9,9 +9,9 @@ import { internalMutation, internalQuery, query } from "./lib/functionBuilders";
 import { outreachPlanPool } from "./lib/outreachPlanPool";
 import {
   dismissNotificationsByKey,
-  getProspectDisplayFields,
   upsertNotificationByKey,
 } from "./lib/notificationHelpers";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 import {
   createPlanBatchReferenceKey,
   normalizePlanBatchFitRange,
@@ -144,8 +144,7 @@ async function getSmallPlanBatchTargetNames(
       continue;
     }
     const prospect = await ctx.db.get("prospects", item.prospectId);
-    const { prospectDisplayName } = getProspectDisplayFields(prospect);
-    names.push(prospectDisplayName || prospect?.externalId || "Prospect");
+    names.push(getProspectDisplayLabel(prospect));
   }
 
   return names.slice(0, run.eligibleCount);
@@ -347,8 +346,7 @@ async function insertPlanBatchItem(
     activePlan,
     requestedOperation: args.run.operation,
   });
-  const { prospectDisplayName } = getProspectDisplayFields(prospect);
-  const prospectName = prospectDisplayName || prospect.externalId || "Prospect";
+  const prospectName = getProspectDisplayLabel(prospect);
   const now = getCurrentUTCTimestamp();
   if (!eligibility.eligible) {
     await ctx.db.insert("planBatchItems", {
@@ -1570,11 +1568,7 @@ export const getPlanBatchRun = query({
         const prospect = await ctx.db.get("prospects", item.prospectId);
         return {
           id: String(item._id),
-          prospectName:
-            item.prospectName ||
-            prospect?.displayName ||
-            prospect?.externalId ||
-            "Prospect",
+          prospectName: item.prospectName || getProspectDisplayLabel(prospect),
           reason: item.errorMessage ?? "Could not finish this plan",
         };
       })

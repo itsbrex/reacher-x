@@ -67,6 +67,7 @@ import {
   getStringProperty,
   isRecord,
 } from "./lib/typeGuards";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 import {
   getDefaultWorkspaceForUser,
   getOwnedPlan,
@@ -2066,8 +2067,7 @@ export const listWorkspacePlansInternal = internalQuery({
         return {
           planId: plan._id,
           prospectId: plan.prospectId,
-          prospectName:
-            prospect?.displayName ?? prospect?.externalId ?? "Unknown",
+          prospectName: getProspectDisplayLabel(prospect),
           prospectPlatform: prospect?.platform ?? "twitter",
           prospectStatus: prospect?.status ?? "unknown",
           planStatus: plan.status,

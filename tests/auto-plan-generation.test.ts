@@ -397,7 +397,8 @@ test("automatic plan reliability prevents repeated paid work and dead notificati
     `${ROOT}/convex/workflows/autoPlan.ts`,
     "utf8"
   );
-  assert.match(workflowSource, /Couldn’t create a plan for/);
+  assert.match(workflowSource, /buildAutoPlanFailureNotificationTitle/);
+  assert.doesNotMatch(workflowSource, /externalId/);
   assert.doesNotMatch(workflowSource, /View details/);
 
   const monitorSource = readFileSync(
@@ -416,6 +417,8 @@ test("automatic plan reliability prevents repeated paid work and dead notificati
   const runSource = readFileSync(`${ROOT}/convex/autoPlanRuns.ts`, "utf8");
   assert.match(runSource, /recoveryExhaustedAt/);
   assert.match(runSource, /Automatic retries stopped after repeated failures/);
+  assert.match(runSource, /buildAutoPlanFailureNotificationTitle/);
+  assert.doesNotMatch(runSource, /externalId/);
 });
 
 test("keyed failure notifications resurface as new events", () => {

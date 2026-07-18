@@ -29,6 +29,7 @@ import {
   normalizeConversationMessage,
   normalizePublicInteraction,
 } from "./lib/prospectInteractionHistoryCore";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 
 const MAX_AGENT_INTERACTION_HISTORY_LIMIT = 50;
 const MAX_AGENT_INTERACTION_CANDIDATES = 200;
@@ -122,7 +123,7 @@ export const getProspectInteractionHistoryInternal = internalQuery({
 
     return {
       prospect: {
-        name: prospect.displayName ?? prospect.externalId,
+        name: getProspectDisplayLabel(prospect),
         platform: prospect.platform,
       },
       ...filtered,

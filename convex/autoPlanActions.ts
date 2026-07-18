@@ -31,6 +31,7 @@ import {
 import { getStyleMemoryCategory } from "./lib/styleSourceCore";
 import { isAutoPlanGroundingStageFresh } from "./lib/autoPlanGroundingCacheCore";
 import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 import { persistRawModelResponse } from "./lib/modelTelemetry";
 import {
   readWebPages,
@@ -182,7 +183,7 @@ export const probeAutoPlanProviderHealth = internalAction({
 
     if (args.providers.includes("exa")) {
       const outcomes = await runDeepResearch(
-        [prospect.displayName || prospect.externalId],
+        [getProspectDisplayLabel(prospect)],
         {
           ctx,
           consumer: "autoPlan.recoveryHealthCheck",
@@ -242,8 +243,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
       const threadId = await ensureVisibleAutoPlanThread(ctx, {
         prospectId: args.prospectId,
         userId: args.userId,
-        prospectName:
-          prospect?.displayName || prospect?.externalId || "this prospect",
+        prospectName: getProspectDisplayLabel(prospect),
         existingThreadId,
       });
       await ctx.runMutation(internal.outreach.attachPlanThreadInternal, {
@@ -324,7 +324,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
       prospect.websiteUrl
     );
     const researchQueries = buildAutoPlanResearchQueries({
-      displayName: prospect.displayName || prospect.externalId,
+      displayName: getProspectDisplayLabel(prospect),
       title: prospect.title,
       company: prospect.company,
       workspaceDescription: workspaceInspection.description,
@@ -516,7 +516,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
             schema: autoPlanTransportSchema,
             system: buildOutreachAgentPrompt(useCase),
             prompt: buildGroundedAutoPlanPrompt({
-              prospectName: prospect.displayName || prospect.externalId,
+              prospectName: getProspectDisplayLabel(prospect),
               prospectTitle: prospect.title || "prospect",
               qualificationScore,
               entitySingularLower: useCase.entitySingular.toLowerCase(),
@@ -607,7 +607,7 @@ export const generateGroundedAutoPlanDraft = internalAction({
     const threadId = await ensureVisibleAutoPlanThread(ctx, {
       prospectId: args.prospectId,
       userId: args.userId,
-      prospectName: prospect.displayName || prospect.externalId,
+      prospectName: getProspectDisplayLabel(prospect),
       existingThreadId: persistedThreadId,
     });
     await ctx.runMutation(internal.outreach.attachPlanThreadInternal, {

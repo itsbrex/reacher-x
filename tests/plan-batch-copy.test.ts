@@ -241,6 +241,9 @@ test("main agent uses semantic model intent without keyword routing", () => {
   const chatSource = readFileSync("convex/chat.ts", "utf8");
   const workflowSource = readFileSync("convex/workflows/planBatch.ts", "utf8");
 
+  assert.doesNotMatch(batchSource, /externalId/);
+  assert.doesNotMatch(actionSource, /externalId/);
+
   assert.match(
     promptSource,
     /When the user says create, use operation=\\`create\\`/

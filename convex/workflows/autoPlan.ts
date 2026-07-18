@@ -6,7 +6,11 @@ import {
   getProspectDisplayFields,
   upsertNotificationByKey,
 } from "../lib/notificationHelpers";
-import { classifyAutoPlanFailure } from "../lib/autoPlanCore";
+import {
+  buildAutoPlanFailureNotificationTitle,
+  classifyAutoPlanFailure,
+} from "../lib/autoPlanCore";
+import { getProspectDisplayLabel } from "../lib/prospectIdentityCore";
 import { autoPlanWorkCompletionContextValidator } from "../validators";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 
@@ -66,8 +70,7 @@ export const handleAutoPlanWorkComplete = internalMutation({
           : "Automatic planning completed without a persisted plan and tasks";
     const failure = classifyAutoPlanFailure(errorMessage);
     const displayFields = getProspectDisplayFields(prospect);
-    const prospectName =
-      displayFields.prospectDisplayName || prospect.externalId;
+    const prospectName = getProspectDisplayLabel(prospect);
 
     await Promise.all([
       ctx.db.patch(run._id, {
@@ -87,7 +90,7 @@ export const handleAutoPlanWorkComplete = internalMutation({
         userId: prospect.userId,
         workspaceId: prospect.workspaceId,
         type: "error",
-        title: `Couldn’t create a plan for ${prospectName}`,
+        title: buildAutoPlanFailureNotificationTitle(prospectName),
         message: failure.userMessage,
         notificationKey,
         targetHref: failure.targetHref,

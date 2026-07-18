@@ -68,6 +68,7 @@ import {
 } from "./lib/planBatchAgentContinuation";
 import { getDeferredAgentExecution } from "./lib/deferredAgentTurn";
 import { loadAgentProspectProfileContext } from "./lib/prospectProfileContextHelpers";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 import { getWideEventLogger } from "./lib/wideEventLogger";
 import { recordWorkspaceActivityWithDb } from "./lib/workspaceActivity";
 import {
@@ -596,12 +597,10 @@ async function buildResolvedTaggedEntityLine(
         return null;
       }
 
-      const { prospectDisplayName } = getProspectDisplayFields(prospect);
-      const label =
-        prospectDisplayName ??
-        prospect.displayName ??
-        prospect.title ??
-        prospect.externalId;
+      const label = getProspectDisplayLabel(
+        prospect,
+        prospect.title ?? "this prospect"
+      );
 
       if (scope.prospectId === prospect._id) {
         return `Prospect selected in the UI: ${label}. The canonical thread context supplies the complete profile snapshot.`;

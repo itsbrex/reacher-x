@@ -1,9 +1,12 @@
 import type { Doc } from "../_generated/dataModel";
-import { getNestedRecord, getStringProperty } from "./typeGuards";
 import {
   normalizeTwitterUrlEntities,
   selectProfileWebsiteHref,
 } from "../../shared/lib/twitter/profileLinks";
+import {
+  getProspectDisplayLabel,
+  getProspectIdentitySnapshot,
+} from "./prospectIdentityCore";
 
 export type AgentProspectProfileSnapshot = {
   identity: {
@@ -94,27 +97,6 @@ const EMPTY_RELATED_CONTEXT: AgentProspectProfileRelatedContext = {
   recentActivityLog: [],
 };
 
-function getTwitterProfileFields(data: unknown) {
-  const user = getNestedRecord(data, "user");
-  const username = getStringProperty(user, "screen_name");
-
-  return {
-    avatarUrl: getStringProperty(user, "profile_image_url_https"),
-    profileUrl: username ? `https://x.com/${username}` : undefined,
-    verified: user?.verified === true,
-  };
-}
-
-function getLinkedInProfileFields(data: unknown) {
-  const author = getNestedRecord(data, "author");
-
-  return {
-    avatarUrl: getStringProperty(author, "profilePictureURL"),
-    profileUrl: getStringProperty(author, "url"),
-    verified: false,
-  };
-}
-
 /**
  * Builds the canonical, bounded profile snapshot supplied to agents.
  * It mirrors the prospect profile panel's stored fields without exposing
@@ -124,26 +106,19 @@ export function buildAgentProspectProfileSnapshot(
   prospect: Doc<"prospects">,
   relatedContext: AgentProspectProfileRelatedContext = EMPTY_RELATED_CONTEXT
 ): AgentProspectProfileSnapshot {
-  const platformFields =
-    prospect.platform === "twitter"
-      ? getTwitterProfileFields(prospect.data)
-      : getLinkedInProfileFields(prospect.data);
-  const platformProfileUrl =
-    prospect.socialProfiles?.twitter?.url ??
-    prospect.socialProfiles?.linkedin?.url ??
-    platformFields.profileUrl;
+  const identity = getProspectIdentitySnapshot(prospect);
 
   return {
     identity: {
-      displayName: prospect.displayName ?? prospect.externalId,
+      displayName: getProspectDisplayLabel(prospect),
       title: prospect.title,
       company: prospect.company,
       location: prospect.location,
       platform: prospect.platform,
       prospectType: prospect.prospectType,
-      verified: platformFields.verified,
-      avatarUrl: platformFields.avatarUrl,
-      platformProfileUrl,
+      verified: identity.verified,
+      avatarUrl: identity.avatarUrl,
+      platformProfileUrl: identity.profileUrl,
     },
     profile: {
       briefIntro: prospect.briefIntro,

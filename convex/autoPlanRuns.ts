@@ -4,6 +4,7 @@ import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   AUTO_PLAN_MAX_RUNS_PER_RECOVERY_WINDOW,
   AUTO_PLAN_RECOVERY_FAILURE_CODES,
+  buildAutoPlanFailureNotificationTitle,
   classifyAutoPlanFailure,
   hasAutoPlanRecoveryCapacity,
   isAutoPlanFailureRecoveryEligible,
@@ -15,6 +16,7 @@ import {
   getProspectDisplayFields,
   upsertNotificationByKey,
 } from "./lib/notificationHelpers";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 
 type AutoPlanRecoveryCandidate = {
   sourceRunId: Id<"autoPlanRuns">;
@@ -70,11 +72,12 @@ async function claimAutoPlanRecoveryRun(
       updatedAt: now,
     });
     const displayFields = getProspectDisplayFields(prospect);
+    const prospectLabel = getProspectDisplayLabel(prospect);
     await upsertNotificationByKey(ctx, {
       userId: prospect.userId,
       workspaceId: prospect.workspaceId,
       type: "error",
-      title: `Couldn’t create a plan for ${displayFields.prospectDisplayName || prospect.externalId}`,
+      title: buildAutoPlanFailureNotificationTitle(prospectLabel),
       message:
         "Automatic retries stopped after repeated failures. Try again from this prospect after the issue is resolved.",
       notificationKey: `auto-plan-failed:${prospect._id}`,
@@ -164,11 +167,12 @@ export const failAutoPlanRunToStart = internalMutation({
         updatedAt: now,
       });
       const displayFields = getProspectDisplayFields(prospect);
+      const prospectLabel = getProspectDisplayLabel(prospect);
       await upsertNotificationByKey(ctx, {
         userId: prospect.userId,
         workspaceId: prospect.workspaceId,
         type: "error",
-        title: `Couldn’t create a plan for ${displayFields.prospectDisplayName || prospect.externalId}`,
+        title: buildAutoPlanFailureNotificationTitle(prospectLabel),
         message: failure.userMessage,
         notificationKey: `auto-plan-failed:${prospect._id}`,
         targetHref: failure.targetHref,

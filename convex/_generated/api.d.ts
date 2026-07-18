@@ -145,6 +145,7 @@ import type * as lib_previewBatchLimits from "../lib/previewBatchLimits.js";
 import type * as lib_previewEnrichmentPool from "../lib/previewEnrichmentPool.js";
 import type * as lib_previewQualificationPool from "../lib/previewQualificationPool.js";
 import type * as lib_prospectAnalyticsCore from "../lib/prospectAnalyticsCore.js";
+import type * as lib_prospectIdentityCore from "../lib/prospectIdentityCore.js";
 import type * as lib_prospectInteractionHistoryCore from "../lib/prospectInteractionHistoryCore.js";
 import type * as lib_prospectListFeedUtils from "../lib/prospectListFeedUtils.js";
 import type * as lib_prospectProfileContextCore from "../lib/prospectProfileContextCore.js";
@@ -437,6 +438,7 @@ declare const fullApi: ApiFromModules<{
   "lib/previewEnrichmentPool": typeof lib_previewEnrichmentPool;
   "lib/previewQualificationPool": typeof lib_previewQualificationPool;
   "lib/prospectAnalyticsCore": typeof lib_prospectAnalyticsCore;
+  "lib/prospectIdentityCore": typeof lib_prospectIdentityCore;
   "lib/prospectInteractionHistoryCore": typeof lib_prospectInteractionHistoryCore;
   "lib/prospectListFeedUtils": typeof lib_prospectListFeedUtils;
   "lib/prospectProfileContextCore": typeof lib_prospectProfileContextCore;

@@ -11,6 +11,7 @@ import {
 } from "./lib/planBatchCore";
 import { outreachAgent, outreachAgentBaseTools } from "./agents/outreach";
 import { buildOutreachAgentPrompt } from "./agents/prompts";
+import { getProspectDisplayLabel } from "./lib/prospectIdentityCore";
 
 type PlanBatchExecutionContext = {
   run: Doc<"planBatchRuns">;
@@ -141,7 +142,7 @@ export const processPlanBatchItem = internalAction({
       workspaceId: context.run.workspaceId,
     });
     const prompt = buildScopedPlanBatchPrompt({
-      prospectName: context.prospect.displayName || context.prospect.externalId,
+      prospectName: getProspectDisplayLabel(context.prospect),
       operation: context.item.operation as PlanBatchItemOperation,
       sharedInstruction: context.run.instruction,
       sourcePrompt: context.run.sourcePrompt,

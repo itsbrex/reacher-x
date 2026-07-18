@@ -9,7 +9,7 @@ import {
   getUserByIdentity,
 } from "./lib/accessHelpers";
 import { isProspectReadyQualifiedEnriched } from "./lib/prospectAnalyticsCore";
-import { getNestedRecord, getStringProperty } from "./lib/typeGuards";
+import { getProspectIdentitySnapshot } from "./lib/prospectIdentityCore";
 import {
   buildLinkedInCommentMentionEntity,
   buildPostMentionEntity,
@@ -44,52 +44,6 @@ type MentionableProspectSnapshot = {
   handle: string | null;
   readyQualifiedEnriched: boolean;
 };
-
-function getProspectAvatarUrl(prospect: { data?: unknown }) {
-  const user = getNestedRecord(prospect.data, "user");
-  const author = getNestedRecord(prospect.data, "author");
-
-  return (
-    getStringProperty(user, "profile_image_url_https") ??
-    getStringProperty(author, "profilePictureURL") ??
-    getStringProperty(prospect.data, "profileImage") ??
-    null
-  );
-}
-
-function getProspectHandle(prospect: {
-  data?: unknown;
-  socialProfiles?: {
-    twitter?: { username?: string | null } | null;
-    linkedin?: { username?: string | null } | null;
-  } | null;
-  displayName?: string | null;
-  externalId: string;
-}) {
-  const user = getNestedRecord(prospect.data, "user");
-  const author = getNestedRecord(prospect.data, "author");
-
-  return (
-    prospect.socialProfiles?.twitter?.username ??
-    prospect.socialProfiles?.linkedin?.username ??
-    getStringProperty(user, "screen_name") ??
-    getStringProperty(author, "username") ??
-    prospect.displayName ??
-    prospect.externalId
-  );
-}
-
-function getProspectLabel(prospect: {
-  displayName?: string | null;
-  title?: string | null;
-  externalId: string;
-  socialProfiles?: {
-    twitter?: { username?: string | null } | null;
-    linkedin?: { username?: string | null } | null;
-  } | null;
-}) {
-  return prospect.displayName ?? prospect.title ?? getProspectHandle(prospect);
-}
 
 function getStatusLabel(status: string) {
   return status.replaceAll("_", " ");
@@ -148,25 +102,30 @@ function buildProspectSnapshotFromProspect(
     | "displayName"
     | "title"
     | "data"
-    | "externalId"
+    | "platform"
+    | "prospectType"
     | "socialProfiles"
     | "qualificationStatus"
     | "enrichmentStatus"
   >
 ): MentionableProspectSnapshot {
-  const label = getProspectLabel(prospect);
-  const handle = getProspectHandle(prospect);
-  const user = getNestedRecord(prospect.data, "user");
+  const identity = getProspectIdentitySnapshot(prospect);
+  const label =
+    identity.displayName ??
+    prospect.title?.trim() ??
+    identity.preferredLabel ??
+    "Prospect";
+  const handle = identity.screenName ?? null;
 
   return {
     prospectId: prospect._id,
     workspaceId: prospect.workspaceId,
     origin: prospect.origin,
     label,
-    secondaryLabel: formatProspectSecondaryLabel(handle),
+    secondaryLabel: handle ? formatProspectSecondaryLabel(handle) : "Prospect",
     mentionText: label,
-    avatarUrl: getProspectAvatarUrl(prospect),
-    verified: user?.verified === true,
+    avatarUrl: identity.avatarUrl ?? null,
+    verified: identity.verified,
     handle,
     readyQualifiedEnriched: isProspectReadyQualifiedEnriched(prospect),
   };
