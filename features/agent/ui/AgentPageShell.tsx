@@ -26,14 +26,15 @@ import { AgentOnboardingPanel } from "./components/AgentOnboardingPanel";
 import { AgentPlanPanel } from "./components/AgentPlanPanel";
 import { AgentOnboardingPanelSpinner } from "./components/AgentOnboardingPanelSpinner";
 import { HistoryPanel } from "./components/HistoryPanel";
-import { PageLayout, PageContent } from "@/features/webapp/ui/components";
+import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
+  PageLayout,
+  PageContent,
+} from "@/features/webapp/ui/components";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { TwitterProfilePanel } from "@/features/profile/ui/components/TwitterProfilePanel";
 import { useSetupThreadDraft } from "@/shared/hooks/useSetupThreadDraft";
 import { shouldSyncAgentThreadToRoute } from "../lib/agentThreadInitialization";
-
-const AGENT_PANEL_LAYOUT_CLASS_NAME =
-  "md:[&>div]:border-l md:[&>div]:border-r-0";
 
 export function AgentPageShell() {
   const router = useRouter();
@@ -864,15 +865,15 @@ export function AgentPageShell() {
           onSelectThread={handleSelectThread}
           onNewThread={handleNewThread}
           onDeleteCurrentThread={handleDeleteCurrentThread}
-          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
+          className={DESKTOP_PANEL_BORDER_CLASS_NAME}
         />
       )}
 
       {showAgentTwitterPanel && (
         <aside
           className={cn(
-            "flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0 md:border-l",
-            AGENT_PANEL_LAYOUT_CLASS_NAME
+            "flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
+            DESKTOP_PANEL_BORDER_CLASS_NAME
           )}
         >
           <TwitterProfilePanel
@@ -886,7 +887,7 @@ export function AgentPageShell() {
       )}
 
       {showProspectPanel && (
-        <ProspectPanelRenderer className={AGENT_PANEL_LAYOUT_CLASS_NAME} />
+        <ProspectPanelRenderer className={DESKTOP_PANEL_BORDER_CLASS_NAME} />
       )}
 
       {showDynamicPanel && activeDynamicPanelProspectId && (
@@ -938,7 +939,7 @@ export function AgentPageShell() {
           onMismatchedTaskTarget={
             prospectId ? handleMismatchedTaskTarget : undefined
           }
-          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
+          className={DESKTOP_PANEL_BORDER_CLASS_NAME}
         />
       )}
 
@@ -948,7 +949,7 @@ export function AgentPageShell() {
           currentThreadId={planPanelThreadId}
           onClose={handleClosePanel}
           onViewTask={handleViewTask}
-          className={AGENT_PANEL_LAYOUT_CLASS_NAME}
+          className={DESKTOP_PANEL_BORDER_CLASS_NAME}
         />
       )}
 
@@ -956,7 +957,7 @@ export function AgentPageShell() {
         (showSetupPanelSpinner ? (
           <AgentOnboardingPanelSpinner
             className={cn(
-              AGENT_PANEL_LAYOUT_CLASS_NAME,
+              DESKTOP_PANEL_BORDER_CLASS_NAME,
               showSetupChatOnly && "border-l-0"
             )}
           />
@@ -964,7 +965,7 @@ export function AgentPageShell() {
           <AgentOnboardingPanel
             threadId={setupPanelThreadId}
             className={cn(
-              AGENT_PANEL_LAYOUT_CLASS_NAME,
+              DESKTOP_PANEL_BORDER_CLASS_NAME,
               showSetupChatOnly && "border-l-0"
             )}
           />

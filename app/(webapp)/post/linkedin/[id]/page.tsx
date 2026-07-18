@@ -2,8 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { base64UrlDecodeUtf8 } from "@/shared/lib/utils";
-import { LinkedInPostThreadPanel } from "@/features/webapp/ui/components";
+import { base64UrlDecodeUtf8, cn } from "@/shared/lib/utils";
+import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
+  LinkedInPostThreadPanel,
+} from "@/features/webapp/ui/components";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
 import { Skeleton } from "@/shared/ui/components/Skeleton";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
@@ -53,7 +56,9 @@ function Inner() {
         onBack={() => router.back()}
         previewScenario={previewScenario}
       />
-      <ProspectPanelRenderer className="w-full max-w-lg border-l" />
+      <ProspectPanelRenderer
+        className={cn("w-full max-w-lg", DESKTOP_PANEL_BORDER_CLASS_NAME)}
+      />
     </div>
   );
 }

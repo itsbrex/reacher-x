@@ -24,7 +24,13 @@ export {
 // ============================================================================
 // Page layout components
 // ============================================================================
-export { PageLayout, PageHeader, PageContent, PageScrollArea } from "./page";
+export {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
+  PageLayout,
+  PageHeader,
+  PageContent,
+  PageScrollArea,
+} from "./page";
 export type {
   PageLayoutProps,
   PageHeaderProps,

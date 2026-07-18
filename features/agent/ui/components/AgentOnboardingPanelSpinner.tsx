@@ -2,6 +2,7 @@
 
 import { cn } from "@/shared/lib/utils";
 import { Spinner } from "@/shared/ui/components/Spinner";
+import { DESKTOP_PANEL_BORDER_CLASS_NAME } from "@/features/webapp/ui/components/page/PageLayout";
 
 interface AgentOnboardingPanelSpinnerProps {
   className?: string;
@@ -14,7 +15,8 @@ export function AgentOnboardingPanelSpinner({
     <aside
       id="rx-onboarding-panel"
       className={cn(
-        "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0 md:border-r",
+        "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
+        DESKTOP_PANEL_BORDER_CLASS_NAME,
         className
       )}
     >

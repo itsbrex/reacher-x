@@ -11,6 +11,7 @@ import {
 } from "@/features/prospects/contexts";
 import { useActiveUseCaseLabels, useWorkspace } from "@/shared/hooks";
 import { cn } from "@/shared/lib/utils";
+import { DESKTOP_PANEL_BORDER_CLASS_NAME } from "@/features/webapp/ui/components/page/PageLayout";
 
 interface UseCaseProspectPageProps {
   entitySlug: string;
@@ -90,7 +91,9 @@ export function UseCaseProspectPage({
 
       {hasSubPanel && (
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ProspectPanelRenderer className="w-full" />
+          <ProspectPanelRenderer
+            className={cn("w-full", DESKTOP_PANEL_BORDER_CLASS_NAME)}
+          />
         </div>
       )}
     </div>

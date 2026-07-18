@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/shared/lib/utils";
+import { DESKTOP_PANEL_BORDER_CLASS_NAME } from "@/features/webapp/ui/components/page/PageLayout";
 
 const AgentOnboardingPanel = dynamic(
   () =>
@@ -62,7 +63,7 @@ export function WorkspaceRefinePanel({
       <AgentOnboardingPanel
         threadId={threadId}
         embedRefine
-        className="md:border-border max-w-none md:border-r-0 md:border-l"
+        className={cn("max-w-none", DESKTOP_PANEL_BORDER_CLASS_NAME)}
         onRefineCancel={handleCancel}
         onRefineComplete={onRefineComplete}
       />

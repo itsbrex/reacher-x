@@ -24,6 +24,7 @@ import {
   useQueryWithStatus,
 } from "@/shared/hooks";
 import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
   PageLayout,
   PageHeader,
   PageContent,
@@ -141,8 +142,6 @@ const TAB_DEFINITIONS: {
   { id: "in_progress", status: "in_progress" },
 ];
 const DESKTOP_SKELETON_COUNT = 3;
-const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
-  "md:[&>div]:border-l md:[&>div]:border-r-0";
 const DESKTOP_FEED_BAR_CLASS_NAME =
   "md:inline-flex md:w-auto md:max-w-full md:self-start md:border-0 md:bg-transparent md:p-0 md:[&>div:first-child]:flex-none md:[&>div:first-child]:min-w-0";
 
@@ -1098,7 +1097,7 @@ export default function ProspectsPage() {
       </PageLayout>
 
       {showProspectPanel && (
-        <ProspectPanelRenderer className={DESKTOP_PANEL_LAYOUT_CLASS_NAME} />
+        <ProspectPanelRenderer className={DESKTOP_PANEL_BORDER_CLASS_NAME} />
       )}
 
       <ProspectListFilterPanel
@@ -1113,7 +1112,7 @@ export default function ProspectsPage() {
         defaultFilters={defaultFilters}
         draftFilters={draftFilters}
         onDraftFiltersChange={setDraftFilters}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
       <ProspectListSortPanel
         open={isSortPanelOpen}
@@ -1124,7 +1123,7 @@ export default function ProspectsPage() {
         canReset={canResetSort}
         draftSort={draftSort}
         onDraftSortChange={setDraftSort}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
     </div>
   );

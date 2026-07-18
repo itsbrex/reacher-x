@@ -6,6 +6,7 @@ import { useAction, useConvexAuth } from "convex/react";
 import { useAuth as useWorkosAuth } from "@workos-inc/authkit-nextjs/components";
 import { api } from "@/convex/_generated/api";
 import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
   PageHeader,
   PageLayout,
   PageContent,
@@ -248,7 +249,7 @@ function PostDetailInner() {
           ) : null}
         </PageContent>
       </PageLayout>
-      <ProfilePanel />
+      <ProfilePanel className={DESKTOP_PANEL_BORDER_CLASS_NAME} />
     </div>
   );
 }

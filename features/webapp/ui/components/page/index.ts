@@ -1,7 +1,7 @@
 /**
  * Page layout components
  */
-export { PageLayout } from "./PageLayout";
+export { DESKTOP_PANEL_BORDER_CLASS_NAME, PageLayout } from "./PageLayout";
 export { PageHeader } from "./PageHeader";
 export { PageContent } from "./PageContent";
 export { PageScrollArea } from "./PageScrollArea";

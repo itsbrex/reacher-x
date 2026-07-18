@@ -31,6 +31,7 @@ import { Progress } from "@/shared/ui/components/Progress";
 import { Card, CardContent } from "@/shared/ui/components/Card";
 import { AsciiSpinnerText } from "@/shared/ui/components/AsciiSpinnerText";
 import { cn } from "@/shared/lib/utils";
+import { DESKTOP_PANEL_BORDER_CLASS_NAME } from "@/features/webapp/ui/components/page/PageLayout";
 import { getUrlFromWholeValue } from "@/shared/lib/urls/urlParsing";
 import { ConnectionsStep } from "./onboarding/ConnectionsStep";
 import { PlanStep } from "./onboarding/PlanStep";
@@ -587,7 +588,8 @@ export function AgentOnboardingPanel({
       <div
         id="rx-onboarding-panel"
         className={cn(
-          "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0 md:border-r",
+          "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
+          DESKTOP_PANEL_BORDER_CLASS_NAME,
           className
         )}
       >
@@ -692,7 +694,8 @@ export function AgentOnboardingPanel({
     <aside
       id="rx-onboarding-panel"
       className={cn(
-        "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0 md:border-r",
+        "bg-background flex h-full min-h-0 w-full max-w-lg flex-1 overflow-hidden md:min-w-0",
+        DESKTOP_PANEL_BORDER_CLASS_NAME,
         step === "use_case" && "rounded-none",
         className
       )}

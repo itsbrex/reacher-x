@@ -13,6 +13,7 @@ import {
   useQueryWithStatus,
 } from "@/shared/hooks";
 import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
   PageLayout,
   PageHeader,
   PageContent,
@@ -59,9 +60,6 @@ type PaginationStatus =
   | "CanLoadMore"
   | "LoadingMore"
   | "Exhausted";
-
-const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
-  "md:[&>div]:border-l md:[&>div]:border-r-0";
 
 export default function ArchivesPage() {
   const router = useRouter();
@@ -397,7 +395,7 @@ export default function ArchivesPage() {
       </PageLayout>
 
       {showProspectPanel && (
-        <ProspectPanelRenderer className={DESKTOP_PANEL_LAYOUT_CLASS_NAME} />
+        <ProspectPanelRenderer className={DESKTOP_PANEL_BORDER_CLASS_NAME} />
       )}
 
       <ProspectListFilterPanel
@@ -412,7 +410,7 @@ export default function ArchivesPage() {
         defaultFilters={defaultFilters}
         draftFilters={draftFilters}
         onDraftFiltersChange={setDraftFilters}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
       <ProspectListSortPanel
         open={isSortPanelOpen}
@@ -423,7 +421,7 @@ export default function ArchivesPage() {
         canReset={canResetSort}
         draftSort={draftSort}
         onDraftSortChange={setDraftSort}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
     </div>
   );

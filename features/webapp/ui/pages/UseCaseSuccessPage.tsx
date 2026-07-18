@@ -13,6 +13,7 @@ import {
   useWorkspace,
 } from "@/shared/hooks";
 import {
+  DESKTOP_PANEL_BORDER_CLASS_NAME,
   PageLayout,
   PageHeader,
   PageContent,
@@ -60,9 +61,6 @@ type PaginationStatus =
   | "CanLoadMore"
   | "LoadingMore"
   | "Exhausted";
-
-const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
-  "md:[&>div]:border-l md:[&>div]:border-r-0";
 
 interface UseCaseSuccessPageProps {
   slug: string;
@@ -427,7 +425,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
       </PageLayout>
 
       {showProspectPanel && (
-        <ProspectPanelRenderer className={DESKTOP_PANEL_LAYOUT_CLASS_NAME} />
+        <ProspectPanelRenderer className={DESKTOP_PANEL_BORDER_CLASS_NAME} />
       )}
 
       <ProspectListFilterPanel
@@ -442,7 +440,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
         defaultFilters={defaultFilters}
         draftFilters={draftFilters}
         onDraftFiltersChange={setDraftFilters}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
       <ProspectListSortPanel
         open={isSortPanelOpen}
@@ -453,7 +451,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
         canReset={canResetSort}
         draftSort={draftSort}
         onDraftSortChange={setDraftSort}
-        className={DESKTOP_PANEL_LAYOUT_CLASS_NAME}
+        className={DESKTOP_PANEL_BORDER_CLASS_NAME}
       />
     </div>
   );
