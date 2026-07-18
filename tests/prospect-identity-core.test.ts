@@ -115,6 +115,8 @@ test("online migrations repair all persisted identity snapshots", () => {
   assert.match(source, /ks76np202xg61bj94838cpszyn8arxc6/);
   assert.match(source, /ks76wdkah15gxj05hatyk5hxjx88y6dj/);
   assert.match(source, /prospectingWorkflowStatus !== "running"/);
+  assert.match(source, /getDocumentSize\(\{ \.\.\.prospect, displayName \}\)/);
+  assert.match(source, /MAX_SAFE_PROSPECT_DOCUMENT_BYTES/);
   assert.equal(
     source.match(/isScopedActiveIdentityRepairWorkspace\(/g)?.length,
     4,

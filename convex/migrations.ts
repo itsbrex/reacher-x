@@ -1,4 +1,5 @@
 import { Migrations } from "@convex-dev/migrations";
+import { getDocumentSize } from "convex/values";
 import { components } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -13,6 +14,7 @@ import {
 export const migrations = new Migrations<DataModel>(components.migrations);
 
 const IDENTITY_REPAIR_OWNER_EMAIL = "creativecoder.crco@gmail.com";
+const MAX_SAFE_PROSPECT_DOCUMENT_BYTES = 1_000_000;
 const IDENTITY_REPAIR_ACTIVE_WORKSPACES: Readonly<Record<string, string>> = {
   ks76np202xg61bj94838cpszyn8arxc6: "AgentMail (lead gen)",
   ks76wdkah15gxj05hatyk5hxjx88y6dj: "ReacherX (lead gen)",
@@ -90,6 +92,14 @@ export const backfillProspectDisplayNames = migrations.define({
     }
     const displayName = getProspectIdentitySnapshot(prospect).displayName;
     if (!displayName) {
+      return;
+    }
+    if (
+      getDocumentSize({ ...prospect, displayName }) >
+      MAX_SAFE_PROSPECT_DOCUMENT_BYTES
+    ) {
+      // The canonical resolver already reads the name from raw provider data.
+      // Avoid making near-limit legacy documents invalid for an optional cache.
       return;
     }
     await ctx.db.patch("prospects", prospect._id, { displayName });
