@@ -24,14 +24,14 @@ import {
   normalizeUrl,
 } from "@/shared/lib/utils";
 import { parseTweetSource } from "@/shared/lib/utils";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   buildXPostHref,
   shouldIgnorePostCardClick,
   shouldIgnorePostCardKeyDown,
 } from "@/features/webapp/lib/postNavigation";
 import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
-import { useOptionalPanelStack } from "@/features/prospects/contexts/PanelStackContext";
+import { usePostNavigation } from "@/features/webapp/hooks/usePostNavigation";
 
 export interface TweetProps {
   tweet: TweetType;
@@ -79,9 +79,8 @@ export const Tweet: React.FC<TweetProps> = ({
   const profileUrl = `https://x.com/${tweet?.user?.screen_name}`;
   const screenName = tweet?.user?.screen_name || "";
   const { openProfile } = useTwitterProfileNavigation();
-  const router = useRouter();
   const pathname = usePathname();
-  const panelStack = useOptionalPanelStack();
+  const { hasPanelStack, openTwitterPost } = usePostNavigation();
   const [isHovered, setIsHovered] = React.useState(false);
   const shouldShowMenu = showMenu ?? !readOnly;
   const postHref = React.useMemo(() => buildXPostHref(tweet), [tweet]);
@@ -89,7 +88,7 @@ export const Tweet: React.FC<TweetProps> = ({
     openBehavior === "auto"
       ? pathname?.startsWith("/post/x/")
         ? "none"
-        : panelStack
+        : hasPanelStack
           ? "panel"
           : "route"
       : openBehavior;
@@ -102,21 +101,8 @@ export const Tweet: React.FC<TweetProps> = ({
       return;
     }
 
-    if (resolvedOpenBehavior === "panel" && panelStack) {
-      const postId = tweet.id_str || tweet.id?.toString();
-      if (!postId) return;
-      panelStack.pushPanel("conversation", {
-        threadId: tweet.conversation_id_str || postId,
-        sourceTweetId: postId,
-        sourceTweet: tweet,
-      });
-      return;
-    }
-
-    if (resolvedOpenBehavior === "route") {
-      router.push(postHref, { scroll: false });
-    }
-  }, [panelStack, postHref, resolvedOpenBehavior, router, tweet]);
+    openTwitterPost(tweet, resolvedOpenBehavior);
+  }, [openTwitterPost, postHref, resolvedOpenBehavior, tweet]);
 
   const handleCardClick = React.useCallback(
     (event: React.MouseEvent<HTMLElement>) => {

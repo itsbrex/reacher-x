@@ -50,6 +50,7 @@ import {
 import { Tweet, TweetSkeleton } from "@/features/webapp/ui/components/tweet";
 import type { Tweet as TweetType } from "@/features/threads/types";
 import { TwitterProfileActionButtons } from "./TwitterProfileActionButtons";
+import { useTwitterProfileNavigation } from "@/features/webapp/ui/components/tweet/useTwitterProfileNavigation";
 
 function dedupeTweets<T extends { id_str?: string; id?: number }>(
   arr: T[] | undefined
@@ -207,6 +208,7 @@ export function TwitterProfilePanel({
     retryProfile,
     refreshProfileDisplay,
   } = useProfile();
+  const { openProfile: openNestedProfile } = useTwitterProfileNavigation();
   const isMobile = useIsMobile();
   const dmState = useProspectDmState(prospectId, {
     enabled: Boolean(prospectId && onOpenConversationAction),
@@ -483,9 +485,16 @@ export function TwitterProfilePanel({
 
                   {profile.description ? (
                     <p className="[&_a]:text-muted-foreground text-sm whitespace-pre-line [&_a]:hover:underline">
-                      {parseText(profile.description, {
-                        urls: profile.entities?.description?.urls || [],
-                      })}
+                      {parseText(
+                        profile.description,
+                        { urls: profile.entities?.description?.urls || [] },
+                        {
+                          onMentionClick: (mentionedUsername) =>
+                            void openNestedProfile({
+                              username: mentionedUsername,
+                            }),
+                        }
+                      )}
                     </p>
                   ) : null}
 

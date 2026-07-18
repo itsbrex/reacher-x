@@ -13,7 +13,6 @@ import {
   AvatarImage,
 } from "@/shared/ui/components/Avatar";
 import { TweetMenu } from "./TweetMenu";
-import { useRouter } from "next/navigation";
 import { OpenGraphPreview } from "@/features/composer/ui/components/OpenGraphPreview";
 import {
   getFirstValidUrl,
@@ -26,7 +25,7 @@ import {
   shouldIgnorePostCardKeyDown,
 } from "@/features/webapp/lib/postNavigation";
 import { useTwitterProfileNavigation } from "./useTwitterProfileNavigation";
-import { useOptionalPanelStack } from "@/features/prospects/contexts/PanelStackContext";
+import { usePostNavigation } from "@/features/webapp/hooks/usePostNavigation";
 
 export interface QuoteTweetCardProps {
   tweet: TweetType;
@@ -54,27 +53,14 @@ export const QuoteTweetCard: React.FC<QuoteTweetCardProps> = ({
   const externalProfileUrl = `https://x.com/${tweet?.user?.screen_name}`;
   const screenName = tweet?.user?.screen_name || "";
   const { openProfile, prefetchProfile } = useTwitterProfileNavigation();
-  const router = useRouter();
-  const panelStack = useOptionalPanelStack();
+  const { hasPanelStack, openTwitterPost } = usePostNavigation();
   const hasQuoted = tweet?.is_quote_status && tweet?.quoted_status;
 
   const postHref = React.useMemo(() => buildXPostHref(tweet), [tweet]);
 
   const openPost = React.useCallback(() => {
-    const postId = tweet.id_str || tweet.id?.toString();
-    if (!postId) return;
-
-    if (panelStack) {
-      panelStack.pushPanel("conversation", {
-        threadId: tweet.conversation_id_str || postId,
-        sourceTweetId: postId,
-        sourceTweet: tweet,
-      });
-      return;
-    }
-
-    if (postHref) router.push(postHref, { scroll: false });
-  }, [panelStack, postHref, router, tweet]);
+    openTwitterPost(tweet, hasPanelStack ? "panel" : "route");
+  }, [hasPanelStack, openTwitterPost, tweet]);
 
   const handleCardNavigate = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly) return;

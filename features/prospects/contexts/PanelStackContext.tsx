@@ -13,6 +13,7 @@ export type PanelType =
   | "prospect-agent"
   | "linkedin-profile"
   | "linkedin-post-thread"
+  | "twitter-post"
   | "twitter-profile"
   | "evidence-posts"
   | "finance-source"
@@ -34,6 +35,8 @@ interface PanelStackContextValue {
   currentPanel: PanelEntry | null;
   /** Push a new panel onto the stack */
   pushPanel: (type: PanelType, props?: Record<string, unknown>) => void;
+  /** Open a panel from page content, replacing any stale panel history */
+  openRootPanel: (type: PanelType, props?: Record<string, unknown>) => void;
   /** Pop the current panel, return to previous */
   popPanel: () => void;
   /** Replace the current panel (doesn't add to stack) */
@@ -95,6 +98,13 @@ export function PanelStackProvider({
     [createPanelEntry]
   );
 
+  const openRootPanel = React.useCallback(
+    (type: PanelType, props: Record<string, unknown> = {}) => {
+      setStack([createPanelEntry(type, props)]);
+    },
+    [createPanelEntry]
+  );
+
   const popPanel = React.useCallback(() => {
     setStack((prev) => {
       if (prev.length <= 1) {
@@ -131,6 +141,7 @@ export function PanelStackProvider({
       stack,
       currentPanel,
       pushPanel,
+      openRootPanel,
       popPanel,
       replacePanel,
       clearStack,
@@ -141,6 +152,7 @@ export function PanelStackProvider({
       stack,
       currentPanel,
       pushPanel,
+      openRootPanel,
       popPanel,
       replacePanel,
       clearStack,

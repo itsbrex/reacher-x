@@ -47,7 +47,7 @@ export function AgentPageShell() {
     closeProspect,
     prospectId: activeProspectPanelId,
   } = useProspectProfile();
-  const { pushPanel } = usePanelStack();
+  const { currentPanel, pushPanel } = usePanelStack();
   const {
     openProfile,
     closeProfile,
@@ -759,13 +759,18 @@ export function AgentPageShell() {
 
   // Prospect context selects the chat. Only an explicit profile action starts
   // a profile-panel session, so client-side navigation cannot reopen it.
+  const showStandalonePanel =
+    currentPanel !== null &&
+    activeProspectPanelId === null &&
+    !showHistoryPanel;
   const showProspectPanel =
-    !isMobile &&
-    !!prospectPanelSessionProspectId &&
-    activeProspectPanelId === prospectPanelSessionProspectId &&
-    !showHistoryPanel &&
-    ((!hasPanelContext && !isPlanPanelActive) ||
-      (agentRightSurfaceActive && (hasPanelContext || isPlanPanelActive)));
+    showStandalonePanel ||
+    (!isMobile &&
+      !!prospectPanelSessionProspectId &&
+      activeProspectPanelId === prospectPanelSessionProspectId &&
+      !showHistoryPanel &&
+      ((!hasPanelContext && !isPlanPanelActive) ||
+        (agentRightSurfaceActive && (hasPanelContext || isPlanPanelActive))));
 
   const showAgentTwitterPanel =
     !isMobile &&

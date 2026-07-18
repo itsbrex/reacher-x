@@ -48,7 +48,7 @@ export function LinkedInPostThreadPanel({
   );
 
   return (
-    <PageLayout className="flex flex-col">
+    <PageLayout className="flex flex-col md:border-r-0 md:border-l">
       <PageHeader title="Post" onBack={onBack} />
       <ScrollArea className="min-h-0 flex-1">
         <PageContent className="mx-4 mt-4 space-y-2 pb-4">

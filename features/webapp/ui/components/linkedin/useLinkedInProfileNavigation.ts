@@ -13,10 +13,15 @@ export function useLinkedInProfileNavigation() {
         return;
       }
 
-      panelStack.pushPanel("linkedin-profile", {
+      const props = {
         identity,
         ...(prospectId ? { prospectId } : {}),
-      });
+      };
+      if (panelStack.currentPanel) {
+        panelStack.pushPanel("linkedin-profile", props);
+      } else {
+        panelStack.openRootPanel("linkedin-profile", props);
+      }
     },
     [panelStack]
   );

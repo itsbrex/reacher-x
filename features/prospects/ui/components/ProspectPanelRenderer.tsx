@@ -18,6 +18,7 @@ import { LinkedInProfilePanel } from "./LinkedInProfilePanel";
 import { EvidencePostsPanel } from "./EvidencePostsPanel";
 import { ConversationPanel } from "./ConversationPanel";
 import { ReplyPanel } from "./ReplyPanel";
+import { TwitterPostPanel } from "./TwitterPostPanel";
 import { XConversationPanel } from "./XConversationPanel";
 import { LinkedInConversationPanel } from "./LinkedInConversationPanel";
 import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
@@ -53,9 +54,14 @@ export function ProspectPanelRenderer({
   const isMobile = useIsMobile();
   const { currentPanel, stack, popPanel, pushPanel, depth } = usePanelStack();
   const { prospect, loading, error } = useProspectProfile();
-  const { isOpen: twitterProfileOpen, openProfile } = useProfile();
+  const {
+    isOpen: twitterProfileOpen,
+    username: activeTwitterUsername,
+    openProfile,
+  } = useProfile();
   const isClosingSubPanelRef = React.useRef(false);
   const wasTwitterProfileOpenRef = React.useRef(twitterProfileOpen);
+  const loadedTwitterProfilePanelRef = React.useRef<string | null>(null);
 
   const closeCurrentSubPanel = React.useCallback(() => {
     if (isClosingSubPanelRef.current) {
@@ -83,6 +89,28 @@ export function ProspectPanelRenderer({
       closeCurrentSubPanel();
     }
   }, [twitterProfileOpen, currentPanel, closeCurrentSubPanel]);
+
+  React.useEffect(() => {
+    if (currentPanel?.type !== "twitter-profile") {
+      return;
+    }
+
+    const username = currentPanel.props.username as string | undefined;
+    const initialTab = currentPanel.props.initialTab as
+      | import("@/features/profile/contexts/TwitterProfileContext").ProfileMode
+      | undefined;
+    if (
+      !username ||
+      loadedTwitterProfilePanelRef.current === currentPanel.stackKey
+    ) {
+      return;
+    }
+
+    loadedTwitterProfilePanelRef.current = currentPanel.stackKey;
+    if (!twitterProfileOpen || activeTwitterUsername !== username) {
+      void openProfile({ username, initialTab });
+    }
+  }, [activeTwitterUsername, currentPanel, openProfile, twitterProfileOpen]);
 
   // Handle Chat with Agent navigation
   const handleChatWithAgent = React.useCallback(() => {
@@ -147,6 +175,18 @@ export function ProspectPanelRenderer({
           />
         );
       }
+
+      case "twitter-post":
+        return (
+          <TwitterPostPanel
+            tweetId={currentPanel.props.tweetId as string}
+            initialTweet={
+              currentPanel.props.initialTweet as Tweet | null | undefined
+            }
+            className={className}
+            onBack={closeCurrentSubPanel}
+          />
+        );
 
       case "twitter-profile": {
         const twitterProfileUsername = currentPanel.props.username as

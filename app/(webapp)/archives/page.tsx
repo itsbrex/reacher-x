@@ -30,6 +30,7 @@ import {
   ProspectListFilterPanel,
   ProspectListSortPanel,
   ProspectPanelRenderer,
+  usePanelStack,
   useProspectProfile,
 } from "@/features/prospects";
 import {
@@ -65,7 +66,8 @@ const DESKTOP_PANEL_LAYOUT_CLASS_NAME =
 export default function ArchivesPage() {
   const router = useRouter();
   const { entityPlural, pageLabels, routes } = useActiveUseCaseLabels();
-  const { openProspect, prospectId } = useProspectProfile();
+  const { openProspect } = useProspectProfile();
+  const { currentPanel } = usePanelStack();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const browseMode = searchQuery.trim() === "";
@@ -215,7 +217,7 @@ export default function ArchivesPage() {
   const isLoadingMore = browseMode
     ? browseStatus === "LoadingMore"
     : searchLoadingMore;
-  const hasOpenPanel = prospectId !== null;
+  const hasOpenPanel = currentPanel !== null;
   const showFilterAsPrimaryPanel = isFilterPanelOpen;
   const showSortAsPrimaryPanel = isSortPanelOpen;
   const showProspectPanel =

@@ -38,7 +38,7 @@ import { ActivityLogTab } from "./tabs/ActivityLogTab";
 import { OutreachPlanSection } from "./OutreachPlanSection";
 import { useIsMobile } from "@/shared/ui/hooks/useMobile";
 import { Drawer, DrawerContent } from "@/shared/ui/components/Drawer";
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
+import { useTwitterProfileNavigation } from "@/features/webapp/ui/components/tweet/useTwitterProfileNavigation";
 import { WorkspacePlanLimitAlert } from "@/features/billing/ui/components/WorkspacePlanLimitAlert";
 import { extractTwitterUsername } from "@/shared/lib/utils/url/socialProfiles";
 import { getTwitterPostId } from "@/shared/lib/twitter/contracts";
@@ -141,7 +141,7 @@ export function ProspectProfilePanel({
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
   const { popPanel, pushPanel } = usePanelStack();
-  const { openProfile } = useProfile();
+  const { openProfile } = useTwitterProfileNavigation();
   const refreshProspectInteractions = useAction(
     api.interactionsActions.refreshProspectInteractions
   );
@@ -234,9 +234,8 @@ export function ProspectProfilePanel({
       }
 
       void openProfile({ username });
-      pushPanel("twitter-profile", { username });
     },
-    [onOpenTwitterProfile, openProfile, pushPanel]
+    [onOpenTwitterProfile, openProfile]
   );
 
   const handleLinkedInProfileClick = React.useCallback(() => {
@@ -428,9 +427,14 @@ export function ProspectProfilePanel({
                             !showFullIntro && "line-clamp-3"
                           )}
                         >
-                          {parseText(prospect.briefIntro, {
-                            urls: prospect.bioUrlEntities,
-                          })}
+                          {parseText(
+                            prospect.briefIntro,
+                            { urls: prospect.bioUrlEntities },
+                            {
+                              onMentionClick: (username) =>
+                                void openProfile({ username }),
+                            }
+                          )}
                         </p>
                         {prospect.briefIntro.length > 150 && (
                           <Button

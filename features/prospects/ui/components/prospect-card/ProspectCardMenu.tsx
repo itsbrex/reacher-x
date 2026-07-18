@@ -28,7 +28,6 @@ import {
   PersonIcon,
   UnarchiveIcon,
 } from "@/shared/ui/components/icons";
-import { useProfile } from "@/features/profile/contexts/TwitterProfileContext";
 import { usePanelStack } from "@/features/prospects/contexts/PanelStackContext";
 import { useProspectProfile } from "@/features/prospects/contexts/ProspectProfileContext";
 import { useProspectDmState } from "@/features/prospects/hooks/useProspectDmState";
@@ -37,6 +36,8 @@ import { extractTwitterUsername } from "@/shared/lib/utils/url/socialProfiles";
 import { toast } from "sonner";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
 import { useActiveUseCaseLabels } from "@/shared/hooks";
+import { useTwitterProfileNavigation } from "@/features/webapp/ui/components/tweet/useTwitterProfileNavigation";
+import { useLinkedInProfileNavigation } from "@/features/webapp/ui/components/linkedin/useLinkedInProfileNavigation";
 
 type ProspectStatus = Doc<"prospects">["status"];
 
@@ -64,7 +65,8 @@ export function ProspectCardMenu({
 }: ProspectCardMenuProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const { openProfile } = useProfile();
+  const { openProfile } = useTwitterProfileNavigation();
+  const openLinkedInProfile = useLinkedInProfileNavigation();
   const { pushPanel } = usePanelStack();
   const { openProspect } = useProspectProfile();
   const updateStatus = useMutation(api.prospects.updateProspectStatus);
@@ -190,9 +192,16 @@ export function ProspectCardMenu({
 
     if (platform === "twitter" && resolvedTwitterUsername) {
       void openProfile({ username: resolvedTwitterUsername });
-      pushPanel("twitter-profile", { username: resolvedTwitterUsername });
     } else if (platform === "linkedin" && profileUrl) {
-      window.open(profileUrl, "_blank", "noopener,noreferrer");
+      openLinkedInProfile(
+        {
+          entityType: /\/(company|school)\//i.test(profileUrl)
+            ? "company"
+            : "person",
+          profileUrl,
+        },
+        String(prospectId)
+      );
     }
   };
 

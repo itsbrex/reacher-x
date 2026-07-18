@@ -19,9 +19,16 @@ export function useTwitterProfileNavigation() {
       seedProfile?: ProfileUser;
     }) => {
       if (panelStack) {
-        panelStack.pushPanel("twitter-profile", {
+        const props = {
           username: params.username,
-        });
+          initialTab: params.initialTab,
+        };
+        if (panelStack.currentPanel) {
+          panelStack.pushPanel("twitter-profile", props);
+        } else {
+          panelStack.openRootPanel("twitter-profile", props);
+        }
+        return;
       }
       await loadProfile(params);
     },

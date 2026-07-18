@@ -2,9 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import type { UnifiedPost } from "@/shared/lib/platforms/types";
-import { useOptionalPanelStack } from "@/features/prospects/contexts/PanelStackContext";
 import { cn } from "@/shared/lib/utils";
 import { LinkedInMediaGrid } from "./LinkedInMediaGrid";
 import { LinkedInMenu } from "./LinkedInMenu";
@@ -19,12 +17,12 @@ import {
   normalizeUrl,
 } from "@/shared/lib/utils";
 import {
-  buildLinkedInPostHref,
   shouldIgnorePostCardClick,
   shouldIgnorePostCardKeyDown,
 } from "@/features/webapp/lib/postNavigation";
 import { buildLinkedInAuthorIdentity } from "@/shared/lib/linkedin/identity";
 import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
+import { usePostNavigation } from "@/features/webapp/hooks/usePostNavigation";
 
 export interface LinkedInPostCardProps {
   post: UnifiedPost;
@@ -74,8 +72,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
   commentsState,
   commentThread,
 }) => {
-  const { push } = useRouter();
-  const panelStack = useOptionalPanelStack();
+  const { hasPanelStack, openLinkedInPost } = usePostNavigation();
   const openLinkedInProfile = useLinkedInProfileNavigation();
   const [isHovered, setIsHovered] = React.useState(false);
   type RawLinkedIn = {
@@ -144,7 +141,7 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
   const canOpenInternally = Boolean(post?.id);
   const resolvedOpenBehavior =
     openBehavior === "auto"
-      ? panelStack && canOpenInternally
+      ? hasPanelStack && canOpenInternally
         ? "panel"
         : canOpenInternally
           ? "route"
@@ -171,32 +168,15 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
       return;
     }
 
-    if (resolvedOpenBehavior === "panel" && panelStack && post) {
-      panelStack.pushPanel("linkedin-post-thread", {
-        post,
-        prospectId,
-      });
-      return;
-    }
-
-    if (resolvedOpenBehavior === "route" && canOpenInternally) {
-      const postHref = buildLinkedInPostHref(post);
-      if (postHref) push(postHref, { scroll: false });
+    if (resolvedOpenBehavior === "panel" || resolvedOpenBehavior === "route") {
+      openLinkedInPost(post, resolvedOpenBehavior, prospectId);
       return;
     }
 
     if (resolvedOpenBehavior === "external" && post?.url) {
       window.open(post.url, "_blank", "noopener,noreferrer");
     }
-  }, [
-    canOpenInternally,
-    onClick,
-    panelStack,
-    post,
-    prospectId,
-    push,
-    resolvedOpenBehavior,
-  ]);
+  }, [onClick, openLinkedInPost, post, prospectId, resolvedOpenBehavior]);
 
   const handleCardActivate = React.useCallback(
     (e: React.MouseEvent<HTMLElement>) => {

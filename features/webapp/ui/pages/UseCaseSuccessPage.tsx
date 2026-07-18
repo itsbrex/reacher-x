@@ -30,6 +30,7 @@ import {
   ProspectListFilterPanel,
   ProspectListSortPanel,
   ProspectPanelRenderer,
+  usePanelStack,
   useProspectProfile,
 } from "@/features/prospects";
 import {
@@ -72,7 +73,8 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   const { entityPlural, pageLabels, routes, stageLabels } =
     useActiveUseCaseLabels();
   const { isLoading: isWorkspaceLoading } = useWorkspace();
-  const { openProspect, prospectId } = useProspectProfile();
+  const { openProspect } = useProspectProfile();
+  const { currentPanel } = usePanelStack();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const browseMode = searchQuery.trim() === "";
@@ -238,7 +240,7 @@ export function UseCaseSuccessPage({ slug }: UseCaseSuccessPageProps) {
   const isLoadingMore = browseMode
     ? browseStatus === "LoadingMore"
     : searchLoadingMore;
-  const hasOpenPanel = prospectId !== null;
+  const hasOpenPanel = currentPanel !== null;
   const showFilterAsPrimaryPanel = isFilterPanelOpen;
   const showSortAsPrimaryPanel = isSortPanelOpen;
   const showProspectPanel =

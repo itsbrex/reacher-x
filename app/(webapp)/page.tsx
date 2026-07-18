@@ -159,8 +159,8 @@ export default function ProspectsPage() {
   const convex = useConvex();
   const { entityPlural, pageLabels, routes, stageLabels } =
     useActiveUseCaseLabels();
-  const { openProspect, prospectId } = useProspectProfile();
-  const { clearStack } = usePanelStack();
+  const { openProspect } = useProspectProfile();
+  const { clearStack, currentPanel } = usePanelStack();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<TabType>("new");
   const [prefetchedBrowseScopeKey, setPrefetchedBrowseScopeKey] = useState<
@@ -878,7 +878,7 @@ export default function ProspectsPage() {
     ? currentTabStatus === "LoadingMore"
     : searchLoadingMore;
   const showLoadMore = hasMore;
-  const hasOpenPanel = prospectId !== null;
+  const hasOpenPanel = currentPanel !== null;
   const showFilterAsPrimaryPanel = isFilterPanelOpen;
   const showSortAsPrimaryPanel = isSortPanelOpen;
   const showProspectPanel =

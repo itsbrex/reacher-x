@@ -42,7 +42,8 @@ export function parseText(
       display_url: string;
       indices: [number, number];
     }>;
-  }
+  },
+  options?: { onMentionClick?: (username: string) => void }
 ): React.ReactNode {
   if (!body) return null;
   const urlEntities = entities?.urls ?? [];
@@ -130,6 +131,13 @@ export function parseText(
       anchorText = decodeEntities(textOnly).trim() || href || "";
     }
 
+    const mentionUsername =
+      options?.onMentionClick &&
+      anchorText.startsWith("@") &&
+      /(?:x\.com|twitter\.com)\//i.test(href ?? "")
+        ? anchorText.slice(1).trim()
+        : undefined;
+
     nodes.push(
       <a
         key={`a-${match.index}`}
@@ -137,6 +145,15 @@ export function parseText(
         target={target}
         rel={rel}
         className={className}
+        onClick={
+          mentionUsername
+            ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                options?.onMentionClick?.(mentionUsername);
+              }
+            : undefined
+        }
       >
         {anchorText}
       </a>

@@ -8,6 +8,7 @@
 import { cn } from "@/shared/lib/utils";
 import { parseText, highlightInReactTreeMultiple } from "@/shared/lib/utils";
 import type { TwitterUrlEntity } from "@/shared/lib/twitter/profileLinks";
+import { useTwitterProfileNavigation } from "@/features/webapp/ui/components/tweet/useTwitterProfileNavigation";
 
 interface ProspectCardBodyProps {
   text?: string;
@@ -22,8 +23,15 @@ export function ProspectCardBody({
   highlightKeywords,
   className,
 }: ProspectCardBodyProps) {
+  const { openProfile } = useTwitterProfileNavigation();
   if (!text) return null;
-  const parsedContent = parseText(text, { urls: urlEntities });
+  const parsedContent = parseText(
+    text,
+    { urls: urlEntities },
+    {
+      onMentionClick: (username) => void openProfile({ username }),
+    }
+  );
 
   const highlightedContent =
     Array.isArray(highlightKeywords) && highlightKeywords.length > 0

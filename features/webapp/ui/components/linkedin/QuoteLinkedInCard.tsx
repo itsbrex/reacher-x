@@ -9,19 +9,18 @@ import { LinkedInMenu } from "./LinkedInMenu";
 import { LinkedInBody } from "./LinkedInBody";
 import { LinkedInMediaGrid } from "./LinkedInMediaGrid";
 import { OpenGraphPreview } from "@/features/composer/ui/components/OpenGraphPreview";
-import { useRouter } from "next/navigation";
 import {
   getFirstValidUrl,
   isLikelyToHaveOpenGraph,
   normalizeUrl,
 } from "@/shared/lib/utils";
 import {
-  buildLinkedInPostHref,
   shouldIgnorePostCardClick,
   shouldIgnorePostCardKeyDown,
 } from "@/features/webapp/lib/postNavigation";
 import { buildLinkedInAuthorIdentity } from "@/shared/lib/linkedin/identity";
 import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
+import { usePostNavigation } from "@/features/webapp/hooks/usePostNavigation";
 
 export interface QuoteLinkedInCardProps {
   post: UnifiedPost;
@@ -40,7 +39,7 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
   className,
   prospectId,
 }) => {
-  const { push } = useRouter();
+  const { hasPanelStack, openLinkedInPost } = usePostNavigation();
   const openLinkedInProfile = useLinkedInProfileNavigation();
   const authorIdentity = React.useMemo(
     () => buildLinkedInAuthorIdentity(post.author),
@@ -57,8 +56,7 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
   const handleNavigate = (e: React.MouseEvent<HTMLDivElement>) => {
     if (shouldIgnorePostCardClick(e)) return;
     e.stopPropagation();
-    const postHref = buildLinkedInPostHref(post);
-    if (postHref) push(postHref, { scroll: false });
+    openLinkedInPost(post, hasPanelStack ? "panel" : "route", prospectId);
   };
   return (
     <div
@@ -71,11 +69,9 @@ export const QuoteLinkedInCard: React.FC<QuoteLinkedInCardProps> = ({
       onClick={handleNavigate}
       onKeyDown={(e) => {
         if (shouldIgnorePostCardKeyDown(e)) return;
-        const postHref = buildLinkedInPostHref(post);
-        if (!postHref) return;
         e.preventDefault();
         e.stopPropagation();
-        push(postHref, { scroll: false });
+        openLinkedInPost(post, hasPanelStack ? "panel" : "route", prospectId);
       }}
       aria-label={`View LinkedIn post by ${post?.author?.name || "LinkedIn user"}`}
     >

@@ -16,6 +16,7 @@ import {
   selectProfileWebsiteHref,
 } from "@/shared/lib/twitter/profileLinks";
 import { ChangeHistoryIcon, OpenInNewIcon } from "@/shared/ui/components/icons";
+import { useTwitterProfileNavigation } from "@/features/webapp/ui/components/tweet/useTwitterProfileNavigation";
 
 export interface InlineProspectProfileCardProps {
   prospectId?: string | null;
@@ -156,6 +157,7 @@ export function InlineProspectProfileCard({
   onOpenDmPanel,
 }: InlineProspectProfileCardProps) {
   const router = useRouter();
+  const { openProfile } = useTwitterProfileNavigation();
   const { routes } = useActiveUseCaseLabels();
   const prospect = React.useMemo(
     () => toProspectProfileData(profileData, prospectId),
@@ -209,9 +211,16 @@ export function InlineProspectProfileCard({
                 "text-foreground [&_a]:text-muted-foreground text-sm whitespace-pre-line [&_a]:hover:underline"
               )}
             >
-              {parseText(prospect.briefIntro ?? "", {
-                urls: prospect.bioUrlEntities,
-              })}
+              {parseText(
+                prospect.briefIntro ?? "",
+                { urls: prospect.bioUrlEntities },
+                prospect.platform === "twitter"
+                  ? {
+                      onMentionClick: (username) =>
+                        void openProfile({ username }),
+                    }
+                  : undefined
+              )}
             </div>
           </section>
         ) : null}

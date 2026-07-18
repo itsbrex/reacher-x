@@ -63,7 +63,7 @@ function ProspectProfileProviderInner({
 }) {
   const { entitySingular } = useActiveUseCaseLabels();
   const entitySingularLower = entitySingular.toLowerCase();
-  const { pushPanel, clearStack, depth } = usePanelStack();
+  const { openRootPanel, clearStack, depth } = usePanelStack();
   const markProspectOpenedMutation = useMutation(
     api.prospectListFeed.markProspectOpened
   );
@@ -99,10 +99,10 @@ function ProspectProfileProviderInner({
       }
 
       setSelection({ kind: "live", prospectId: id });
-      pushPanel("prospect-profile", { prospectId: id });
+      openRootPanel("prospect-profile", { prospectId: id });
       void markProspectOpenedMutation({ prospectId: id });
     },
-    [markProspectOpenedMutation, pushPanel]
+    [markProspectOpenedMutation, openRootPanel]
   );
 
   const closeProspect = React.useCallback(() => {
@@ -146,15 +146,15 @@ function ReplyPanelProviderWrapper({
   prospectId: Id<"prospects"> | null;
   children: React.ReactNode;
 }) {
-  const { replacePanel } = usePanelStack();
+  const { pushPanel } = usePanelStack();
   const openReplyPanel = React.useCallback(
     (params: OpenReplyPanelParams) => {
-      replacePanel("post-compose", {
+      pushPanel("post-compose", {
         ...params,
         prospectId: params.prospectId ?? prospectId ?? undefined,
       } as unknown as Record<string, unknown>);
     },
-    [prospectId, replacePanel]
+    [prospectId, pushPanel]
   );
   return (
     <ReplyPanelProvider value={openReplyPanel}>{children}</ReplyPanelProvider>
