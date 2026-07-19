@@ -4,6 +4,8 @@
 export { LinkedInPostCard } from "./LinkedInPostCard";
 export { LinkedInPostCardSkeleton } from "./LinkedInPostCardSkeleton";
 export type { LinkedInPostCardProps } from "./LinkedInPostCard";
+export { LinkedInActivityAttribution } from "./LinkedInActivityAttribution";
+export type { LinkedInActivityAttributionProps } from "./LinkedInActivityAttribution";
 export { LinkedInHeader } from "./LinkedInHeader";
 export type { LinkedInHeaderProps } from "./LinkedInHeader";
 export { LinkedInBody } from "./LinkedInBody";

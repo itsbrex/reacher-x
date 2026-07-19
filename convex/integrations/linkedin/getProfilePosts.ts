@@ -10,6 +10,7 @@ import { requireLinkedInProfileQueryUrn } from "./profileIdentity";
 export interface LinkedInProfilePost {
   urn: string;
   url?: string;
+  header?: string;
   text: string;
   postedAt: number;
   author?: {
@@ -36,6 +37,7 @@ export interface LinkedInProfilePost {
     type?: string;
     url?: string;
   }>;
+  resharedPostContent?: LinkedInProfilePost;
 }
 
 function normalizePost(
@@ -112,10 +114,17 @@ function normalizePost(
         ];
       })
     : undefined;
+  const resharedPostContent =
+    record.resharedPostContent &&
+    typeof record.resharedPostContent === "object" &&
+    !Array.isArray(record.resharedPostContent)
+      ? normalizePost(record.resharedPostContent as Record<string, unknown>)
+      : null;
 
   return {
     urn,
     url: typeof record.url === "string" ? record.url : undefined,
+    header: typeof record.header === "string" ? record.header : undefined,
     text,
     postedAt,
     author: authorRecord
@@ -160,6 +169,7 @@ function normalizePost(
         }
       : undefined,
     mediaContent: media,
+    resharedPostContent: resharedPostContent ?? undefined,
   };
 }
 

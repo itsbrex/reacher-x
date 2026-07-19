@@ -23,6 +23,8 @@ import {
 import { buildLinkedInAuthorIdentity } from "@/shared/lib/linkedin/identity";
 import { useLinkedInProfileNavigation } from "./useLinkedInProfileNavigation";
 import { usePostNavigation } from "@/features/webapp/hooks/usePostNavigation";
+import { getLinkedInResharedPost } from "@/shared/lib/linkedin/post";
+import { LinkedInActivityAttribution } from "./LinkedInActivityAttribution";
 
 export interface LinkedInPostCardProps {
   post: UnifiedPost;
@@ -75,63 +77,11 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
   const { hasPanelStack, openLinkedInPost } = usePostNavigation();
   const openLinkedInProfile = useLinkedInProfileNavigation();
   const [isHovered, setIsHovered] = React.useState(false);
-  type RawLinkedIn = {
-    resharedPostContent?: {
-      urn?: string;
-      postID?: string;
-      postURL?: string;
-      text?: string;
-      author?: {
-        name?: string;
-        headline?: string;
-        url?: string;
-        profilePictureURL?: string;
-      };
-      postedAt?: { timestamp?: number };
-      engagements?: {
-        totalReactions?: number;
-        commentsCount?: number;
-        repostsCount?: number;
-      };
-      mediaContent?: Array<{
-        type: "image" | "video" | "article";
-        url: string;
-      }>;
-    };
-  };
 
-  const autoQuotedPost: UnifiedPost | null = React.useMemo(() => {
-    const raw = post?.raw as RawLinkedIn | undefined;
-    const q = raw?.resharedPostContent;
-    if (!q) return null;
-    const media =
-      Array.isArray(q.mediaContent) && q.mediaContent.length > 0
-        ? q.mediaContent.map((m) =>
-            m.type === "article"
-              ? ({ type: "link", url: m.url } as const)
-              : ({ type: m.type, url: m.url } as const)
-          )
-        : undefined;
-    return {
-      id: q.postID || q.urn || "",
-      platform: "linkedin",
-      url: q.postURL,
-      author: {
-        name: q.author?.name,
-        headline: q.author?.headline,
-        avatarUrl: q.author?.profilePictureURL,
-        profileUrl: q.author?.url,
-      },
-      text: q.text || "",
-      createdAt: q.postedAt?.timestamp || 0,
-      metrics: {
-        reactions: q.engagements?.totalReactions ?? 0,
-        comments: q.engagements?.commentsCount ?? 0,
-        reposts: q.engagements?.repostsCount ?? 0,
-      },
-      media,
-    } as UnifiedPost;
-  }, [post?.raw]);
+  const autoQuotedPost = React.useMemo(
+    () => getLinkedInResharedPost(post),
+    [post]
+  );
 
   const effectiveQuotedPost = quotedPost || autoQuotedPost;
   const authorIdentity = React.useMemo(
@@ -213,6 +163,10 @@ export const LinkedInPostCard: React.FC<LinkedInPostCardProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {post.activity ? (
+        <LinkedInActivityAttribution activity={post.activity} />
+      ) : null}
+
       {/* Left column handled inside header for consistent avatar spacing */}
       <LinkedInHeader
         post={post}

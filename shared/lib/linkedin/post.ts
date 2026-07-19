@@ -1,4 +1,10 @@
-import type { UnifiedMedia, UnifiedPost } from "@/shared/lib/platforms/types";
+import type {
+  UnifiedAuthor,
+  UnifiedMedia,
+  UnifiedPost,
+  UnifiedPostActivity,
+  UnifiedPostActivityType,
+} from "@/shared/lib/platforms/types";
 import { parseIsoToTimestamp } from "@/shared/lib/utils/time/timeUtils";
 import { resolveLinkedInPostReference } from "./comments";
 
@@ -30,6 +36,94 @@ function getTimestamp(value: unknown): number | undefined {
 
   const parsed = parseIsoToTimestamp(value);
   return parsed && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeAuthor(value: unknown): UnifiedAuthor | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const author: UnifiedAuthor = {
+    id:
+      getString(value.id) ??
+      getString(value.urn) ??
+      getString(value.providerId),
+    handle: getString(value.handle) ?? getString(value.public_identifier),
+    name: getString(value.name),
+    avatarUrl:
+      getString(value.avatarUrl) ??
+      getString(value.profilePictureURL) ??
+      getString(value.profile_picture_url),
+    profileUrl:
+      getString(value.profileUrl) ??
+      getString(value.url) ??
+      getString(value.profile_url),
+    headline: getString(value.headline),
+    type:
+      getString(value.type) ??
+      (value.is_company === true ? "COMPANY" : undefined),
+  };
+
+  return Object.values(author).some((entry) => entry !== undefined)
+    ? author
+    : undefined;
+}
+
+function normalizeActivityType(
+  value: unknown
+): UnifiedPostActivityType | undefined {
+  const normalized = getString(value)?.toLowerCase();
+  if (
+    normalized === "like" ||
+    normalized === "likes" ||
+    normalized === "liked"
+  ) {
+    return "like";
+  }
+  if (
+    normalized === "repost" ||
+    normalized === "reposts" ||
+    normalized === "reposted"
+  ) {
+    return "repost";
+  }
+  return undefined;
+}
+
+function parseActivityHeader(
+  value: unknown
+): { type: UnifiedPostActivityType; actorName: string } | undefined {
+  const header = getString(value);
+  const match = header?.match(
+    /^(.+?)\s+(likes|liked|reposts|reposted)\s+this$/i
+  );
+  const type = normalizeActivityType(match?.[2]);
+  const actorName = getString(match?.[1]);
+  return type && actorName ? { type, actorName } : undefined;
+}
+
+export function normalizeLinkedInActivity(
+  value: unknown
+): UnifiedPostActivity | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const raw = isRecord(value.raw) ? value.raw : value;
+  const activity = isRecord(value.activity)
+    ? value.activity
+    : isRecord(raw.activity)
+      ? raw.activity
+      : undefined;
+  const parsedHeader = parseActivityHeader(
+    value.header ?? value.activityHeader ?? raw.header ?? raw.activityHeader
+  );
+  const type = normalizeActivityType(activity?.type) ?? parsedHeader?.type;
+  const actor =
+    normalizeAuthor(activity?.actor) ??
+    (parsedHeader ? { name: parsedHeader.actorName } : undefined);
+
+  return type && actor?.name ? { type, actor } : undefined;
 }
 
 const LINKEDIN_ACTIVITY_TIMESTAMP_SHIFT = BigInt(22);
@@ -123,11 +217,7 @@ export function normalizeLinkedInPost(
   }
 
   const raw = isRecord(value.raw) ? value.raw : value;
-  const author = isRecord(value.author)
-    ? value.author
-    : isRecord(raw.author)
-      ? raw.author
-      : undefined;
+  const author = normalizeAuthor(value.author) ?? normalizeAuthor(raw.author);
   const postedAt = isRecord(raw.postedAt) ? raw.postedAt : undefined;
   const engagements = isRecord(raw.engagements) ? raw.engagements : undefined;
   const metrics = isRecord(value.metrics)
@@ -151,24 +241,8 @@ export function normalizeLinkedInPost(
       reference.permalink ??
       options?.fallbackUrl,
     author: {
-      id:
-        getString(author?.id) ??
-        getString(author?.urn) ??
-        getString(author?.providerId),
-      handle: getString(author?.handle) ?? getString(author?.public_identifier),
-      name: getString(author?.name) ?? "LinkedIn user",
-      avatarUrl:
-        getString(author?.avatarUrl) ??
-        getString(author?.profilePictureURL) ??
-        getString(author?.profile_picture_url),
-      profileUrl:
-        getString(author?.profileUrl) ??
-        getString(author?.url) ??
-        getString(author?.profile_url),
-      headline: getString(author?.headline),
-      type:
-        getString(author?.type) ??
-        (author?.is_company === true ? "COMPANY" : undefined),
+      ...author,
+      name: author?.name ?? "LinkedIn user",
     },
     text:
       getString(value.text) ??
@@ -178,6 +252,7 @@ export function normalizeLinkedInPost(
     createdAt:
       getTimestamp(value.createdAt) ??
       getTimestamp(postedAt?.timestamp) ??
+      getTimestamp(raw.postedAt) ??
       getTimestamp(raw.date) ??
       getTimestamp(raw.parsed_datetime) ??
       getLinkedInActivityTimestamp(reference.readUrn) ??
@@ -198,6 +273,24 @@ export function normalizeLinkedInPost(
         getNumber(raw.repost_counter),
     },
     media: canonicalMedia ?? providerMedia,
+    activity: normalizeLinkedInActivity(value),
     raw,
   };
+}
+
+export function getLinkedInResharedPost(value: unknown): UnifiedPost | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const raw = isRecord(value.raw) ? value.raw : value;
+  const resharedPostContent = isRecord(value.resharedPostContent)
+    ? value.resharedPostContent
+    : isRecord(raw.resharedPostContent)
+      ? raw.resharedPostContent
+      : null;
+
+  return resharedPostContent
+    ? normalizeLinkedInPost(resharedPostContent)
+    : null;
 }

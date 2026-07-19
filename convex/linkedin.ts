@@ -48,10 +48,17 @@ import {
   normalizeLinkedInReadUrn,
   resolveLinkedInPostReference,
 } from "../shared/lib/linkedin/comments";
-import { normalizeLinkedInMediaType } from "../shared/lib/linkedin/media";
+import {
+  getLinkedInResharedPost,
+  normalizeLinkedInPost,
+} from "../shared/lib/linkedin/post";
 import { extractLinkedInUsername } from "../shared/lib/utils/url/socialProfiles";
 import { logger } from "../shared/lib/logger";
-import type { UnifiedPost } from "../shared/lib/platforms/types";
+import type {
+  UnifiedAuthor,
+  UnifiedPost,
+  UnifiedPostActivity,
+} from "../shared/lib/platforms/types";
 import type { LinkedInProfile as LinkdApiLinkedInProfile } from "./integrations/linkedin/getProfile";
 import type { LinkedInContactInfo } from "./integrations/linkedin/getProfile";
 import type { LinkedInCompany } from "./integrations/linkedin/getCompany";
@@ -1183,40 +1190,66 @@ function normalizeEducationEntry(
   };
 }
 
-function toUnifiedLinkedInProfilePost(post: LinkedInProfilePost): UnifiedPost {
+function mergeLinkedInActivityActor(
+  activity: UnifiedPostActivity,
+  fallbackActor?: UnifiedAuthor
+): UnifiedPostActivity {
   return {
-    id: post.urn,
-    platform: "linkedin",
-    url: post.url,
-    author: {
-      id: post.author?.urn,
-      name: post.author?.name,
-      avatarUrl: post.author?.profilePictureURL,
-      profileUrl: post.author?.url,
-      headline: post.author?.headline,
-      type: post.author?.type ?? "person",
+    ...activity,
+    actor: {
+      ...fallbackActor,
+      ...activity.actor,
     },
-    text: post.text,
-    createdAt: post.postedAt,
-    metrics: {
-      reactions: post.engagements?.totalReactions,
-      comments: post.engagements?.commentsCount,
-      reposts: post.engagements?.repostsCount,
-    },
-    media: post.mediaContent
-      ?.map((item) => {
-        const url = toOptionalString(item.url);
-        const type = normalizeLinkedInMediaType(item.type, url);
-        if (!url || !type) {
-          return null;
-        }
-        return {
-          type,
-          url,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null),
-    raw: post,
+  };
+}
+
+function toUnifiedLinkedInProfilePost(
+  post: LinkedInProfilePost,
+  fallbackActivityActor?: UnifiedAuthor
+): UnifiedPost {
+  const normalized = normalizeLinkedInPost(post);
+  if (!normalized) {
+    throw new Error(`Unable to normalize LinkedIn profile post ${post.urn}`);
+  }
+
+  const resharedPost = getLinkedInResharedPost(post);
+  if (resharedPost && normalized.text.trim().length === 0) {
+    const activity = normalized.activity ?? {
+      type: "repost" as const,
+      actor: normalized.author,
+    };
+    return {
+      ...resharedPost,
+      activity: mergeLinkedInActivityActor(activity, fallbackActivityActor),
+    };
+  }
+
+  return {
+    ...normalized,
+    activity: normalized.activity
+      ? mergeLinkedInActivityActor(normalized.activity, fallbackActivityActor)
+      : undefined,
+  };
+}
+
+function toLinkedInActivityActor(identity: {
+  displayName?: string;
+  title?: string;
+  headline?: string;
+  avatarUrl?: string;
+  profileUrl?: string;
+  providerId?: string;
+  username?: string;
+  entityType?: "person" | "company";
+}): UnifiedAuthor {
+  return {
+    id: identity.providerId,
+    handle: identity.username,
+    name: identity.displayName,
+    avatarUrl: identity.avatarUrl,
+    profileUrl: identity.profileUrl,
+    headline: identity.headline ?? identity.title,
+    type: identity.entityType === "company" ? "COMPANY" : "PERSON",
   };
 }
 
@@ -3243,6 +3276,9 @@ export const getLinkedInProfilePostsPage = action({
     if (!prospect) {
       return { posts: [], nextCursor: null };
     }
+    const activityActor = toLinkedInActivityActor(
+      getProspectLinkedInIdentity(prospect)
+    );
 
     const page = await ctx.runAction(
       internal.integrations.linkedin.getProfilePosts.getProfilePostsInternal,
@@ -3256,7 +3292,7 @@ export const getLinkedInProfilePostsPage = action({
     return {
       posts: Array.isArray(page?.posts)
         ? page.posts.map((post: LinkedInProfilePost) =>
-            toUnifiedLinkedInProfilePost(post)
+            toUnifiedLinkedInProfilePost(post, activityActor)
           )
         : [],
       nextCursor: typeof page?.nextCursor === "string" ? page.nextCursor : null,
@@ -3296,8 +3332,11 @@ export const getLinkedInIdentityProfilePostsPage = action({
         },
         consumer: `linkedin.getCompanyPosts:${companyId}:${start}`,
       });
+      const activityActor = toLinkedInActivityActor(args.identity);
       const posts = Array.isArray(result.posts)
-        ? result.posts.map((post) => toUnifiedLinkedInProfilePost(post))
+        ? result.posts.map((post) =>
+            toUnifiedLinkedInProfilePost(post, activityActor)
+          )
         : [];
 
       return {
@@ -3318,7 +3357,10 @@ export const getLinkedInIdentityProfilePostsPage = action({
     return {
       posts: Array.isArray(page?.posts)
         ? page.posts.map((post: LinkedInProfilePost) =>
-            toUnifiedLinkedInProfilePost(post)
+            toUnifiedLinkedInProfilePost(
+              post,
+              toLinkedInActivityActor(args.identity)
+            )
           )
         : [],
       nextCursor: typeof page?.nextCursor === "string" ? page.nextCursor : null,

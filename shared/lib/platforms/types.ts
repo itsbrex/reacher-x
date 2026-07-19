@@ -50,6 +50,13 @@ export interface UnifiedMedia {
   faviconUrl?: string; // for link cards
 }
 
+export type UnifiedPostActivityType = "like" | "repost";
+
+export interface UnifiedPostActivity {
+  type: UnifiedPostActivityType;
+  actor: UnifiedAuthor;
+}
+
 export interface UnifiedPost {
   id: string;
   platform: PlatformId;
@@ -65,6 +72,7 @@ export interface UnifiedPost {
     views?: number;
   };
   media?: UnifiedMedia[];
+  activity?: UnifiedPostActivity;
   raw?: unknown; // full provider payload for platform-specific use
 }
 

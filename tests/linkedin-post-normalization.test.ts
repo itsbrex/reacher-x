@@ -4,7 +4,10 @@ import {
   buildLinkedInCommentPreview,
   matchesLinkedInPostReference,
 } from "../shared/lib/linkedin/comments";
-import { normalizeLinkedInPost } from "../shared/lib/linkedin/post";
+import {
+  getLinkedInResharedPost,
+  normalizeLinkedInPost,
+} from "../shared/lib/linkedin/post";
 import {
   getWorkflowEvidencePostCreatedAt,
   sanitizeProspectEvidencePostsForWorkflow,
@@ -70,6 +73,71 @@ test("raw qualification-source posts receive a stable internal LinkedIn model", 
   assert.equal(post?.author.name, "Jomel Layco");
   assert.equal(post?.metrics?.comments, 2);
   assert.equal(post?.raw, rawPost);
+});
+
+test("LinkdAPI activity headers preserve the prospect's relationship to a post", () => {
+  const rawPost = {
+    urn: "urn:li:activity:789",
+    header: "Lazar Jovanovic reposted this",
+    text: "An original post from another account",
+    author: {
+      name: "O3",
+      url: "https://www.linkedin.com/company/o3/",
+    },
+  };
+
+  const post = normalizeLinkedInPost(rawPost);
+  const [workflowPost] = sanitizeProspectEvidencePostsForWorkflow(
+    [rawPost],
+    "linkedin"
+  );
+  const rehydratedPost = normalizeLinkedInPost(workflowPost);
+
+  assert.equal(post?.author.name, "O3");
+  assert.equal(post?.activity?.type, "repost");
+  assert.equal(post?.activity?.actor.name, "Lazar Jovanovic");
+  assert.equal(rehydratedPost?.activity?.type, "repost");
+  assert.equal(
+    rehydratedPost?.activity?.actor.name,
+    post?.activity?.actor.name
+  );
+});
+
+test("LinkdAPI reaction headers normalize liked-post attribution", () => {
+  const post = normalizeLinkedInPost({
+    urn: "urn:li:activity:790",
+    header: "Lazar Jovanovic likes this",
+    text: "A liked post from another account",
+    author: { name: "Another author" },
+  });
+
+  assert.equal(post?.activity?.type, "like");
+  assert.equal(post?.activity?.actor.name, "Lazar Jovanovic");
+});
+
+test("reshared LinkedIn content survives workflow sanitization", () => {
+  const rawPost = {
+    urn: "urn:li:activity:791",
+    text: "My take on this announcement",
+    author: { name: "Lazar Jovanovic" },
+    resharedPostContent: {
+      urn: "urn:li:activity:792",
+      url: "https://www.linkedin.com/feed/update/urn:li:activity:792",
+      text: "The original announcement",
+      author: { name: "O3" },
+      postedAt: { timestamp: 792 },
+    },
+  };
+
+  const [workflowPost] = sanitizeProspectEvidencePostsForWorkflow(
+    [rawPost],
+    "linkedin"
+  );
+  const resharedPost = getLinkedInResharedPost(workflowPost);
+
+  assert.equal(resharedPost?.id, "urn:li:activity:792");
+  assert.equal(resharedPost?.author.name, "O3");
+  assert.equal(resharedPost?.text, "The original announcement");
 });
 
 test("LinkedIn activity ids recover missing provider timestamps", () => {

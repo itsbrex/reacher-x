@@ -5,7 +5,10 @@ import {
 } from "../../shared/lib/twitter/profileLinks";
 import { extractLinkedInUsername } from "../../shared/lib/utils/url/socialProfiles";
 import { normalizeLinkedInMediaType } from "../../shared/lib/linkedin/media";
-import { getLinkedInActivityTimestamp } from "../../shared/lib/linkedin/post";
+import {
+  getLinkedInActivityTimestamp,
+  normalizeLinkedInActivity,
+} from "../../shared/lib/linkedin/post";
 
 type ProspectPlatform = "twitter" | "linkedin";
 
@@ -233,13 +236,15 @@ function sanitizeTwitterPostForWorkflow(
 }
 
 function sanitizeLinkedInPostForWorkflow(
-  value: unknown
+  value: unknown,
+  includeResharedPost = true
 ): Record<string, unknown> | null {
   const record = isRecord(value) ? value : null;
   if (!record) {
     return null;
   }
 
+  const raw = isRecord(record.raw) ? record.raw : null;
   const author = isRecord(record.author) ? record.author : null;
   const postedAt = isRecord(record.postedAt) ? record.postedAt : null;
   const engagements = isRecord(record.engagements) ? record.engagements : null;
@@ -249,9 +254,38 @@ function sanitizeLinkedInPostForWorkflow(
   const text = asString(record.text);
   const postUrl = asString(record.url) ?? asString(record.postURL);
   const authorUrl = asString(author?.url);
+  const resharedSource = includeResharedPost
+    ? isRecord(record.resharedPostContent)
+      ? record.resharedPostContent
+      : isRecord(raw?.resharedPostContent)
+        ? raw.resharedPostContent
+        : null
+    : null;
+  const resharedPostContent = resharedSource
+    ? sanitizeLinkedInPostForWorkflow(resharedSource, false)
+    : null;
+  const normalizedActivity = normalizeLinkedInActivity(record);
+  const activity = normalizedActivity
+    ? compactObject({
+        type: normalizedActivity.type,
+        actor: sanitizeLinkedInAuthorForWorkflow(normalizedActivity.actor),
+      })
+    : undefined;
 
-  if (!postId || !text) {
+  if (!postId || (!text && !resharedPostContent)) {
     return null;
+  }
+
+  if (!text && resharedPostContent) {
+    return compactObject({
+      ...resharedPostContent,
+      activity:
+        activity ??
+        compactObject({
+          type: "repost",
+          actor: sanitizeLinkedInAuthorForWorkflow(author),
+        }),
+    });
   }
 
   const createdAt =
@@ -325,6 +359,8 @@ function sanitizeLinkedInPostForWorkflow(
       views: asNumber(metrics?.views),
     }),
     media: media.length > 0 ? media : undefined,
+    activity,
+    resharedPostContent: resharedPostContent ?? undefined,
     externalUrls: getExternalArticleUrls(record, "linkedin"),
   });
 }
