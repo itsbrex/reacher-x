@@ -38,6 +38,7 @@ import {
   qualificationStatusValidator,
   prospectTypeValidator,
   enrichmentStatusValidator,
+  prospectingBootstrapCompletionReasonValidator,
   prospectingWorkflowPauseReasonValidator,
   workspaceWorkflowStatusValidator,
   workspaceAgentAutonomyModeValidator,
@@ -362,6 +363,18 @@ export default defineSchema({
       prospectingWorkflowPauseReasonValidator
     ),
     prospectingWorkflowPausedAt: v.optional(v.number()),
+    prospectingBootstrapStartedAt: v.optional(v.number()),
+    prospectingBootstrapCycleCount: v.optional(v.number()),
+    prospectingBootstrapLastProgressAt: v.optional(v.number()),
+    prospectingBootstrapLastReadyCount: v.optional(v.number()),
+    prospectingBootstrapLastQualifiedCount: v.optional(v.number()),
+    prospectingBootstrapLastEnrichedCount: v.optional(v.number()),
+    prospectingBootstrapLastPendingQualificationCount: v.optional(v.number()),
+    prospectingBootstrapLastPendingEnrichmentCount: v.optional(v.number()),
+    prospectingBootstrapCompletedAt: v.optional(v.number()),
+    prospectingBootstrapCompletionReason: v.optional(
+      prospectingBootstrapCompletionReasonValidator
+    ),
     prospectingFailureStreak: v.optional(v.number()),
     prospectingRecoveryAttemptId: v.optional(v.number()),
     prospectingLastFailureAt: v.optional(v.number()),

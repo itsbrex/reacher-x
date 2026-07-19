@@ -30,6 +30,7 @@ import {
   formatQualifiedProspectLimitReachedMessage,
   getProspectingRecoveryDelayMs,
 } from "../lib/prospectingHelpers";
+import { decideProspectingSchedule } from "../lib/prospectingSchedulingCore";
 import { LINKEDIN_PEOPLE_DEFAULT_COUNT } from "../lib/linkedinSearchHelpers";
 import { PREVIEW_BATCH_LIMITS } from "../lib/previewBatchLimits";
 import { hasRequiredWorkspaceAgentData } from "../lib/workspaceSetup";
@@ -40,6 +41,7 @@ import type {
 import type { LinkedInPost } from "../integrations/linkedin/searchPosts";
 import type { LinkedInPerson } from "../integrations/linkedin/searchPeople";
 import {
+  prospectingBootstrapCompletionReasonValidator,
   prospectingCycleStatusValidator,
   prospectingWorkflowPauseReasonValidator,
   workspaceWorkflowStatusValidator,
@@ -48,6 +50,7 @@ import { logger } from "../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
 import { isWorkspaceInactive } from "../lib/workspaceSystem";
 import { getTwitterPostId } from "../../shared/lib/twitter/contracts";
+import { getSystemRuntimeConfig } from "../lib/runtimeConfigHelpers";
 
 type QueryMetadataRecord = {
   query: string;
@@ -146,33 +149,6 @@ function mergeTwitterSearchResults(
   };
 }
 
-function isTruthyEnv(value: string | undefined) {
-  return (
-    typeof value === "string" &&
-    ["1", "true", "yes", "on"].includes(value.trim().toLowerCase())
-  );
-}
-
-function shouldAutoRescheduleProspecting() {
-  if (process.env.PROSPECTING_AUTO_RESCHEDULE !== undefined) {
-    return isTruthyEnv(process.env.PROSPECTING_AUTO_RESCHEDULE);
-  }
-
-  return process.env.NODE_ENV === "production";
-}
-
-function getProspectingRescheduleDelayMs() {
-  const configuredMinutes = Number(
-    process.env.PROSPECTING_RESCHEDULE_INTERVAL_MINUTES ?? "60"
-  );
-  const minutes =
-    Number.isFinite(configuredMinutes) && configuredMinutes > 0
-      ? configuredMinutes
-      : 60;
-
-  return minutes * 60 * 1000;
-}
-
 // ============================================================================
 // Workflow Definition
 // ============================================================================
@@ -209,6 +185,7 @@ export const prospectingWorkflow = workflow.define({
     shouldContinue: boolean;
   }> => {
     const workflowSourceId = String(step.workflowId);
+    const runtimeConfig = getSystemRuntimeConfig().prospecting;
     let onboardingIssueRaised = false;
     let searchIssueRaised = false;
 
@@ -360,24 +337,29 @@ export const prospectingWorkflow = workflow.define({
         businessContext: workspace.improvedDescription,
         useCaseKey: workspace.useCaseKey,
       },
-      { retry: { maxAttempts: 3, initialBackoffMs: 1000, base: 2 } }
+      { retry: runtimeConfig.retries.ai }
     );
 
     if (!keywordsResult.success || !keywordsResult.prospectingKeywords) {
       throw new Error(keywordsResult.error || "Failed to generate keywords");
     }
 
+    const prospectingKeywords = keywordsResult.prospectingKeywords.slice(
+      0,
+      runtimeConfig.batch.seedKeywordsPerCycle
+    );
+
     // Step 5: Convert to social queries
     const socialQueriesResult = await step.runAction(
       internal.agents.internal.convertToSocialQueriesAction,
       {
         workspaceId: args.workspaceId,
-        keywords: keywordsResult.prospectingKeywords,
+        keywords: prospectingKeywords,
         platforms: ["twitter", "linkedin"],
         businessContext: workspace.improvedDescription,
         useCaseKey: workspace.useCaseKey,
       },
-      { retry: { maxAttempts: 3, initialBackoffMs: 1000, base: 2 } }
+      { retry: runtimeConfig.retries.ai }
     );
 
     if (!socialQueriesResult.success || !socialQueriesResult.socialQueries) {
@@ -390,7 +372,7 @@ export const prospectingWorkflow = workflow.define({
     // without platform metadata have been backfilled or aged out.
     const socialQueries = socialQueriesResult.socialQueries.slice(
       0,
-      PREVIEW_BATCH_LIMITS.socialQueriesPerCycle
+      runtimeConfig.batch.socialQueriesPerCycle
     );
     const queryMetadata: QueryMetadataRecord[] =
       socialQueriesResult.queryMetadata?.filter((item: QueryMetadataRecord) =>
@@ -398,7 +380,7 @@ export const prospectingWorkflow = workflow.define({
       ) ?? [];
     const candidateInputs: Array<{ rawValue: string; sourceTheme?: string }> =
       queryMetadata
-        .slice(0, BATCH_LIMITS.socialQueriesPerCycle)
+        .slice(0, runtimeConfig.batch.socialQueriesPerCycle)
         .map((item: QueryMetadataRecord) => ({
           rawValue: item.query,
           sourceTheme: item.sourceKeyword,
@@ -420,7 +402,7 @@ export const prospectingWorkflow = workflow.define({
       internal.workflows.prospecting.saveKeywordsInternal,
       {
         workspaceId: args.workspaceId,
-        seedKeywords: keywordsResult.prospectingKeywords,
+        seedKeywords: prospectingKeywords,
         discoveredKeywords: [], // Bishopi disabled
         socialQueries: acceptedSocialQueries,
         queryMetadata: queryMetadata.filter((item: QueryMetadataRecord) =>
@@ -445,7 +427,7 @@ export const prospectingWorkflow = workflow.define({
             {
               workspaceId: args.workspaceId,
               platform: "twitter",
-              limit: BATCH_LIMITS.twitterSearchBatch,
+              limit: runtimeConfig.batch.twitterSearchBatch,
             }
           );
 
@@ -456,7 +438,7 @@ export const prospectingWorkflow = workflow.define({
                 workspaceId: args.workspaceId,
                 queries: unsearchedTwitter.map((q: any) => q.value),
               },
-              { retry: { maxAttempts: 2, initialBackoffMs: 2000, base: 2 } }
+              { retry: runtimeConfig.retries.provider }
             );
 
             // Mark queries as searched
@@ -520,12 +502,12 @@ export const prospectingWorkflow = workflow.define({
             step.runQuery(internal.keywords.getPrioritizedLinkedInQueries, {
               workspaceId: args.workspaceId,
               surface: "posts",
-              limit: BATCH_LIMITS.linkedinPostSearchBatch,
+              limit: runtimeConfig.batch.linkedinPostSearchBatch,
             }),
             step.runQuery(internal.keywords.getPrioritizedLinkedInQueries, {
               workspaceId: args.workspaceId,
               surface: "people",
-              limit: BATCH_LIMITS.linkedinPeopleSearchBatch,
+              limit: runtimeConfig.batch.linkedinPeopleSearchBatch,
             }),
           ]);
 
@@ -541,7 +523,7 @@ export const prospectingWorkflow = workflow.define({
                   (q: LinkedInQueueItem) => q.value
                 ),
               },
-              { retry: { maxAttempts: 2, initialBackoffMs: 2000, base: 2 } }
+              { retry: runtimeConfig.retries.provider }
             );
 
             if (linkedInPostQueue.length > 0) {
@@ -659,7 +641,7 @@ export const prospectingWorkflow = workflow.define({
             matchedQueriesByPostId: twitterMatchedQueriesByPostId,
             maxSeeds: 3,
           },
-          { retry: { maxAttempts: 2, initialBackoffMs: 1000, base: 2 } }
+          { retry: runtimeConfig.retries.auxiliary }
         );
         promotedSeedCount = promotionResult.createdOrUpdated;
 
@@ -670,7 +652,7 @@ export const prospectingWorkflow = workflow.define({
             {
               seedIds: promotionResult.seedIds,
             },
-            { retry: { maxAttempts: 2, initialBackoffMs: 1000, base: 2 } }
+            { retry: runtimeConfig.retries.auxiliary }
           );
 
           await step.runAction(
@@ -680,7 +662,7 @@ export const prospectingWorkflow = workflow.define({
               workspaceId: args.workspaceId,
               seedIds: promotionResult.seedIds,
             },
-            { retry: { maxAttempts: 2, initialBackoffMs: 1000, base: 2 } }
+            { retry: runtimeConfig.retries.auxiliary }
           );
         }
       } catch (err) {
@@ -700,7 +682,7 @@ export const prospectingWorkflow = workflow.define({
       await step.runAction(
         internal.socialapiMonitors.createMonitorsFromSocialQueriesInternal,
         { workspaceId: args.workspaceId },
-        { retry: { maxAttempts: 2, initialBackoffMs: 1000, base: 2 } }
+        { retry: runtimeConfig.retries.auxiliary }
       );
       await step.runMutation(
         internal.workspaces.clearOnboardingIssueStateForSourceInternal,
@@ -1843,6 +1825,242 @@ export const runPreviewDiscoveryBurstInternal = internalAction({
 // Workflow Scheduling (for continuous 24/7 operation)
 // ============================================================================
 
+function isRealProspectingCandidate(
+  summary: Pick<Doc<"prospectSummaries">, "origin" | "status">
+) {
+  return summary.origin !== "setup_preview" && summary.status !== "archived";
+}
+
+export const initializeProspectingBootstrapInternal = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (
+      !workspace ||
+      workspace.prospectingWorkflowStartedAt !== undefined ||
+      workspace.prospectingBootstrapStartedAt !== undefined ||
+      workspace.prospectingBootstrapCompletedAt !== undefined
+    ) {
+      return false;
+    }
+
+    const now = getCurrentUTCTimestamp();
+    await ctx.db.patch(args.workspaceId, {
+      prospectingBootstrapStartedAt: now,
+      prospectingBootstrapCycleCount: 0,
+      prospectingBootstrapLastProgressAt: now,
+      prospectingBootstrapLastReadyCount: 0,
+      prospectingBootstrapLastQualifiedCount: 0,
+      prospectingBootstrapLastEnrichedCount: 0,
+      prospectingBootstrapLastPendingQualificationCount: 0,
+      prospectingBootstrapLastPendingEnrichmentCount: 0,
+      prospectingBootstrapCompletedAt: undefined,
+      prospectingBootstrapCompletionReason: undefined,
+    });
+    return true;
+  },
+});
+
+export const getProspectingSchedulingStateInternal = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      bootstrapStartedAt: v.optional(v.number()),
+      bootstrapCycleCount: v.number(),
+      bootstrapLastProgressAt: v.optional(v.number()),
+      bootstrapLastReadyCount: v.optional(v.number()),
+      bootstrapLastQualifiedCount: v.optional(v.number()),
+      bootstrapLastEnrichedCount: v.optional(v.number()),
+      bootstrapLastPendingQualificationCount: v.optional(v.number()),
+      bootstrapLastPendingEnrichmentCount: v.optional(v.number()),
+      bootstrapCompletedAt: v.optional(v.number()),
+      readyCount: v.number(),
+      qualifiedCount: v.number(),
+      enrichedCount: v.number(),
+      pendingQualificationCount: v.number(),
+      qualifiedPendingEnrichmentCount: v.number(),
+      providerRetryAfterAt: v.optional(v.number()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) {
+      return null;
+    }
+
+    const readyTarget =
+      getSystemRuntimeConfig().prospecting.bootstrap.readyTarget;
+    const scanLimit = Math.max(readyTarget * 5, readyTarget);
+    const [
+      readyRows,
+      pendingQualificationRows,
+      pendingEnrichmentRows,
+      workspaceStats,
+      socialApiCircuit,
+      linkdApiCircuit,
+    ] = await Promise.all([
+      ctx.db
+        .query("prospectSummaries")
+        .withIndex("by_workspace_actionable_score", (q) =>
+          q.eq("workspaceId", args.workspaceId).eq("actionableReady", true)
+        )
+        .filter((q) =>
+          q.and(
+            q.neq(q.field("origin"), "setup_preview"),
+            q.neq(q.field("status"), "archived")
+          )
+        )
+        .take(readyTarget),
+      ctx.db
+        .query("prospectSummaries")
+        .withIndex("by_workspace_qualification", (q) =>
+          q
+            .eq("workspaceId", args.workspaceId)
+            .eq("qualificationStatus", "pending")
+        )
+        .take(scanLimit),
+      ctx.db
+        .query("prospectSummaries")
+        .withIndex("by_workspace_qualification_and_enrichment", (q) =>
+          q
+            .eq("workspaceId", args.workspaceId)
+            .eq("qualificationStatus", "qualified")
+            .eq("enrichmentStatus", "pending")
+        )
+        .take(scanLimit),
+      ctx.db
+        .query("workspaceStats")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+        .first(),
+      ctx.db
+        .query("providerCircuitStates")
+        .withIndex("by_provider", (q) => q.eq("provider", "socialapi"))
+        .first(),
+      ctx.db
+        .query("providerCircuitStates")
+        .withIndex("by_provider", (q) => q.eq("provider", "linkdapi"))
+        .first(),
+    ]);
+
+    const pendingQualificationCount = pendingQualificationRows.filter(
+      isRealProspectingCandidate
+    ).length;
+    const qualifiedPendingEnrichmentCount = pendingEnrichmentRows.filter(
+      (summary) =>
+        isRealProspectingCandidate(summary) &&
+        !(summary.actionableReady ?? summary.readyQualifiedEnriched)
+    ).length;
+    const blockedProviderCircuits = [socialApiCircuit, linkdApiCircuit].filter(
+      (state) => state?.status === "open" || state?.status === "half_open"
+    );
+    const providerRetryAfterAt =
+      blockedProviderCircuits.length === 2
+        ? blockedProviderCircuits
+            .flatMap((state) => [state?.retryAfterAt, state?.probeLeaseUntil])
+            .filter((value): value is number => typeof value === "number")
+            .reduce<number | undefined>(
+              (latest, value) =>
+                latest === undefined ? value : Math.max(latest, value),
+              undefined
+            )
+        : undefined;
+
+    return {
+      bootstrapStartedAt: workspace.prospectingBootstrapStartedAt,
+      bootstrapCycleCount: workspace.prospectingBootstrapCycleCount ?? 0,
+      bootstrapLastProgressAt: workspace.prospectingBootstrapLastProgressAt,
+      bootstrapLastReadyCount: workspace.prospectingBootstrapLastReadyCount,
+      bootstrapLastQualifiedCount:
+        workspace.prospectingBootstrapLastQualifiedCount,
+      bootstrapLastEnrichedCount:
+        workspace.prospectingBootstrapLastEnrichedCount,
+      bootstrapLastPendingQualificationCount:
+        workspace.prospectingBootstrapLastPendingQualificationCount,
+      bootstrapLastPendingEnrichmentCount:
+        workspace.prospectingBootstrapLastPendingEnrichmentCount,
+      bootstrapCompletedAt: workspace.prospectingBootstrapCompletedAt,
+      readyCount: readyRows.length,
+      qualifiedCount: workspaceStats?.qualifiedProspectsCount ?? 0,
+      enrichedCount: workspaceStats?.enrichedProspectsCount ?? 0,
+      pendingQualificationCount,
+      qualifiedPendingEnrichmentCount,
+      providerRetryAfterAt,
+    };
+  },
+});
+
+export const scheduleNextProspectingCycleInternal = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    delayMs: v.number(),
+    bootstrapCycleCount: v.optional(v.number()),
+    bootstrapLastProgressAt: v.optional(v.number()),
+    bootstrapLastReadyCount: v.optional(v.number()),
+    bootstrapLastQualifiedCount: v.optional(v.number()),
+    bootstrapLastEnrichedCount: v.optional(v.number()),
+    bootstrapLastPendingQualificationCount: v.optional(v.number()),
+    bootstrapLastPendingEnrichmentCount: v.optional(v.number()),
+    bootstrapCompletionReason: v.optional(
+      prospectingBootstrapCompletionReasonValidator
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace || workspace.prospectingWorkflowStatus !== "running") {
+      return null;
+    }
+
+    const now = getCurrentUTCTimestamp();
+    const delayMs = Math.max(0, args.delayMs);
+    await ctx.db.patch(args.workspaceId, {
+      prospectingNextRunAt: now + delayMs,
+      prospectingNextRecoveryAt: undefined,
+      ...(args.bootstrapCycleCount !== undefined && {
+        prospectingBootstrapCycleCount: args.bootstrapCycleCount,
+      }),
+      ...(args.bootstrapLastProgressAt !== undefined && {
+        prospectingBootstrapLastProgressAt: args.bootstrapLastProgressAt,
+      }),
+      ...(args.bootstrapLastReadyCount !== undefined && {
+        prospectingBootstrapLastReadyCount: args.bootstrapLastReadyCount,
+      }),
+      ...(args.bootstrapLastQualifiedCount !== undefined && {
+        prospectingBootstrapLastQualifiedCount:
+          args.bootstrapLastQualifiedCount,
+      }),
+      ...(args.bootstrapLastEnrichedCount !== undefined && {
+        prospectingBootstrapLastEnrichedCount: args.bootstrapLastEnrichedCount,
+      }),
+      ...(args.bootstrapLastPendingQualificationCount !== undefined && {
+        prospectingBootstrapLastPendingQualificationCount:
+          args.bootstrapLastPendingQualificationCount,
+      }),
+      ...(args.bootstrapLastPendingEnrichmentCount !== undefined && {
+        prospectingBootstrapLastPendingEnrichmentCount:
+          args.bootstrapLastPendingEnrichmentCount,
+      }),
+      ...(args.bootstrapCompletionReason !== undefined &&
+        workspace.prospectingBootstrapCompletedAt === undefined && {
+          prospectingBootstrapCompletedAt: now,
+          prospectingBootstrapCompletionReason: args.bootstrapCompletionReason,
+        }),
+    });
+    await ctx.scheduler.runAfter(
+      delayMs,
+      internal.workflows.prospecting.startNextCycle,
+      { workspaceId: args.workspaceId }
+    );
+    return null;
+  },
+});
+
 /**
  * Schedule the next prospecting workflow run.
  * Called by onComplete handler or manually.
@@ -1876,6 +2094,35 @@ export const startNextCycle = internalAction({
         }
       );
       return;
+    }
+
+    const runtimeConfig = getSystemRuntimeConfig().prospecting;
+    const schedulingState = await ctx.runQuery(
+      internal.workflows.prospecting.getProspectingSchedulingStateInternal,
+      { workspaceId: args.workspaceId }
+    );
+    if (
+      schedulingState?.bootstrapStartedAt !== undefined &&
+      schedulingState.bootstrapCompletedAt === undefined
+    ) {
+      const scheduleDecision = decideProspectingSchedule({
+        now: getCurrentUTCTimestamp(),
+        ...schedulingState,
+        config: runtimeConfig,
+      });
+      if (scheduleDecision.mode !== "accelerated_discovery") {
+        await ctx.runMutation(
+          internal.workflows.prospecting.scheduleNextProspectingCycleInternal,
+          {
+            workspaceId: args.workspaceId,
+            delayMs: scheduleDecision.delayMs,
+            ...scheduleDecision.bootstrapProgress,
+            bootstrapCompletionReason:
+              scheduleDecision.bootstrapCompletionReason,
+          }
+        );
+        return;
+      }
     }
 
     // Start the workflow
@@ -1939,8 +2186,12 @@ export const handleWorkflowComplete = internalMutation({
       }
 
       if (returnValue.shouldContinue) {
-        if (!shouldAutoRescheduleProspecting()) {
-        } else if (workspace && isWorkspaceInactive(workspace)) {
+        const runtimeConfig = getSystemRuntimeConfig().prospecting;
+        if (
+          runtimeConfig.autoReschedule &&
+          workspace &&
+          isWorkspaceInactive(workspace)
+        ) {
           await ctx.runMutation(
             internal.workflows.prospecting.updateWorkflowStatus,
             {
@@ -1949,18 +2200,53 @@ export const handleWorkflowComplete = internalMutation({
               pauseReason: "inactive",
             }
           );
-        } else if (workspace) {
-          const delayMs = getProspectingRescheduleDelayMs();
-          const nextRunAt = getCurrentUTCTimestamp() + delayMs;
-          await ctx.db.patch(workspace._id, {
-            prospectingNextRunAt: nextRunAt,
-            prospectingNextRecoveryAt: undefined,
+        } else if (runtimeConfig.autoReschedule && workspace) {
+          const schedulingState = await ctx.runQuery(
+            internal.workflows.prospecting
+              .getProspectingSchedulingStateInternal,
+            { workspaceId: workspace._id }
+          );
+          const bootstrapCycleCount =
+            schedulingState?.bootstrapStartedAt !== undefined &&
+            schedulingState.bootstrapCompletedAt === undefined
+              ? schedulingState.bootstrapCycleCount + 1
+              : undefined;
+          const scheduleDecision = decideProspectingSchedule({
+            now: getCurrentUTCTimestamp(),
+            bootstrapStartedAt: schedulingState?.bootstrapStartedAt,
+            bootstrapCompletedAt: schedulingState?.bootstrapCompletedAt,
+            bootstrapCycleCount: bootstrapCycleCount ?? 0,
+            bootstrapLastProgressAt: schedulingState?.bootstrapLastProgressAt,
+            bootstrapLastReadyCount: schedulingState?.bootstrapLastReadyCount,
+            bootstrapLastQualifiedCount:
+              schedulingState?.bootstrapLastQualifiedCount,
+            bootstrapLastEnrichedCount:
+              schedulingState?.bootstrapLastEnrichedCount,
+            bootstrapLastPendingQualificationCount:
+              schedulingState?.bootstrapLastPendingQualificationCount,
+            bootstrapLastPendingEnrichmentCount:
+              schedulingState?.bootstrapLastPendingEnrichmentCount,
+            readyCount: schedulingState?.readyCount ?? 0,
+            qualifiedCount: schedulingState?.qualifiedCount ?? 0,
+            enrichedCount: schedulingState?.enrichedCount ?? 0,
+            pendingQualificationCount:
+              schedulingState?.pendingQualificationCount ?? 0,
+            qualifiedPendingEnrichmentCount:
+              schedulingState?.qualifiedPendingEnrichmentCount ?? 0,
+            providerRetryAfterAt: schedulingState?.providerRetryAfterAt,
+            cycleCompleted: bootstrapCycleCount !== undefined,
+            config: runtimeConfig,
           });
-          // Schedule next run
-          await ctx.scheduler.runAfter(
-            delayMs,
-            internal.workflows.prospecting.startNextCycle,
-            { workspaceId: workspaceId as any }
+          await ctx.runMutation(
+            internal.workflows.prospecting.scheduleNextProspectingCycleInternal,
+            {
+              workspaceId: workspace._id,
+              delayMs: scheduleDecision.delayMs,
+              bootstrapCycleCount,
+              ...scheduleDecision.bootstrapProgress,
+              bootstrapCompletionReason:
+                scheduleDecision.bootstrapCompletionReason,
+            }
           );
         }
       }

@@ -24,6 +24,7 @@ import {
   extractUsage,
   extractJsonPayload,
   getOpenRouterExtraBody,
+  supportsExplicitPromptCaching,
 } from "../../lib/ai";
 import {
   openRouterMetadataMiddleware,
@@ -174,12 +175,14 @@ const outreachTextModelConfigs: Record<
   terra: {
     model: OUTREACH_TERRA_MODEL,
     providerOptions: OUTREACH_TERRA_PROVIDER_OPTIONS,
-    enableExplicitPromptCaching: true,
+    enableExplicitPromptCaching:
+      supportsExplicitPromptCaching(OUTREACH_TERRA_MODEL),
   },
   sol: {
     model: OUTREACH_SOL_MODEL,
     providerOptions: OUTREACH_SOL_PROVIDER_OPTIONS,
-    enableExplicitPromptCaching: true,
+    enableExplicitPromptCaching:
+      supportsExplicitPromptCaching(OUTREACH_SOL_MODEL),
   },
 };
 
@@ -197,7 +200,10 @@ export function createOutreachTextLanguageModel(
 export const outreachLanguageModel = createOutreachLanguageModel(
   OUTREACH_AGENT_MODEL,
   OUTREACH_AGENT_PROVIDER_OPTIONS,
-  { enableExplicitPromptCaching: true }
+  {
+    enableExplicitPromptCaching:
+      supportsExplicitPromptCaching(OUTREACH_AGENT_MODEL),
+  }
 );
 
 export const outreachVisionLanguageModel = createOutreachLanguageModel(

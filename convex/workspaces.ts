@@ -2116,6 +2116,11 @@ export const startProspectingWorkflow = action({
       };
     }
 
+    await ctx.runMutation(
+      internal.workflows.prospecting.initializeProspectingBootstrapInternal,
+      { workspaceId: args.workspaceId }
+    );
+
     // Start the workflow with onComplete handler for continuous operation
     const workflowId = await workflow.start(
       ctx,
@@ -2282,6 +2287,11 @@ export const startProspectingWorkflowInternal = internalAction({
       };
     }
 
+    await ctx.runMutation(
+      internal.workflows.prospecting.initializeProspectingBootstrapInternal,
+      { workspaceId: args.workspaceId }
+    );
+
     // Start the workflow with onComplete handler for continuous operation
     const workflowId = await workflow.start(
       ctx,
@@ -2386,6 +2396,11 @@ export const restartProspectingWorkflowForSetupInternal = internalAction({
       workspaceId: args.workspaceId,
       status: "stopped",
     });
+
+    await ctx.runMutation(
+      internal.workflows.prospecting.initializeProspectingBootstrapInternal,
+      { workspaceId: args.workspaceId }
+    );
 
     const workflowId = await workflow.start(
       ctx,

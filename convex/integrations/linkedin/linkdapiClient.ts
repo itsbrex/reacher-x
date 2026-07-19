@@ -2,6 +2,11 @@
 
 import type { ActionCtx } from "../../_generated/server";
 import { acquireLinkdApiBudget } from "../../lib/linkdapiBudget";
+import {
+  recordProviderRequestOutcome,
+  type ProviderUsageEstimate,
+} from "../../lib/providerReliability";
+import { getCurrentUTCTimestamp } from "../../../shared/lib/utils/time/timeUtils";
 
 type LinkdApiQueryValue = string | number | boolean | undefined | null;
 
@@ -86,52 +91,88 @@ export async function requestLinkdApiData<T>(
 ): Promise<T> {
   await acquireLinkdApiBudget(ctx, args.consumer);
 
-  const queryString = toQueryString(args.query);
-  const url = queryString
-    ? `https://linkdapi.com${args.path}?${queryString}`
-    : `https://linkdapi.com${args.path}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "X-linkdapi-apikey": getApiKey(),
-      Accept: "application/json",
-    },
-  });
+  const request = {
+    consumer: args.consumer,
+    endpoint: args.path,
+  };
+  const startedAt = getCurrentUTCTimestamp();
+  let httpStatus: number | undefined;
 
-  const payloadText = await response.text();
-  const payload = parseJsonEnvelope<T>(payloadText);
+  try {
+    const queryString = toQueryString(args.query);
+    const url = queryString
+      ? `https://linkdapi.com${args.path}?${queryString}`
+      : `https://linkdapi.com${args.path}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "X-linkdapi-apikey": getApiKey(),
+        Accept: "application/json",
+      },
+    });
+    httpStatus = response.status;
 
-  if (!response.ok) {
+    const payloadText = await response.text();
+    const payload = parseJsonEnvelope<T>(payloadText);
+
+    if (!response.ok) {
+      throw new LinkdApiRequestError({
+        message:
+          payload?.message ||
+          `LinkdAPI request failed with ${response.status} for ${args.path}`,
+        status: response.status,
+        retryable: isRetryableStatus(response.status),
+        detail: payloadText.slice(0, 500),
+      });
+    }
+
+    if (payload?.success === false) {
+      const status = payload.statusCode;
+      throw new LinkdApiRequestError({
+        message: payload.message || `LinkdAPI request failed for ${args.path}`,
+        status,
+        retryable: isRetryableStatus(status),
+        detail:
+          typeof payload.errors === "string"
+            ? payload.errors
+            : payloadText.slice(0, 500),
+      });
+    }
+
+    if (payload && "data" in payload) {
+      const usage: ProviderUsageEstimate = {
+        billableUnits: 1,
+        estimatedCostUsd: 0,
+      };
+      await recordProviderRequestOutcome({
+        ctx,
+        provider: "linkdapi",
+        request,
+        startedAt,
+        outcome: "success",
+        httpStatus,
+        usage,
+        healthEvidence: true,
+      });
+      return payload.data as T;
+    }
+
     throw new LinkdApiRequestError({
-      message:
-        payload?.message ||
-        `LinkdAPI request failed with ${response.status} for ${args.path}`,
-      status: response.status,
-      retryable: isRetryableStatus(response.status),
+      message: `LinkdAPI returned no data for ${args.path}`,
+      retryable: false,
       detail: payloadText.slice(0, 500),
     });
-  }
-
-  if (payload?.success === false) {
-    const status = payload.statusCode;
-    throw new LinkdApiRequestError({
-      message: payload.message || `LinkdAPI request failed for ${args.path}`,
-      status,
-      retryable: isRetryableStatus(status),
-      detail:
-        typeof payload.errors === "string"
-          ? payload.errors
-          : payloadText.slice(0, 500),
+  } catch (error) {
+    await recordProviderRequestOutcome({
+      ctx,
+      provider: "linkdapi",
+      request,
+      startedAt,
+      outcome: "error",
+      httpStatus:
+        error instanceof LinkdApiRequestError ? error.status : httpStatus,
+      error,
     });
+    throw error;
   }
-
-  if (payload && "data" in payload) {
-    return payload.data as T;
-  }
-
-  throw new LinkdApiRequestError({
-    message: `LinkdAPI returned no data for ${args.path}`,
-    retryable: false,
-    detail: payloadText.slice(0, 500),
-  });
 }

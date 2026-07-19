@@ -4,7 +4,7 @@ import { vResultValidator } from "@convex-dev/workpool";
 import { workflow } from "../lib/workflow";
 import { internal } from "../_generated/api";
 import { internalAction, internalMutation } from "../lib/functionBuilders";
-import { qualificationPool } from "../lib/qualificationPool";
+import { getQualificationPool } from "../lib/qualificationPool";
 import { previewQualificationPool } from "../lib/previewQualificationPool";
 import { QUALIFICATION_THRESHOLD } from "../lib/qualificationCore";
 import { evaluateQualificationWithExternalArticles } from "../lib/qualificationEvaluationCore";
@@ -689,7 +689,7 @@ export const startQualification = internalAction({
       return { workId: "" };
     }
 
-    const workId = await qualificationPool.enqueueAction(
+    const workId = await getQualificationPool().enqueueAction(
       ctx,
       internal.workflows.qualification.runQualificationWorkflow,
       {

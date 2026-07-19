@@ -7,9 +7,7 @@ import {
 } from "./validators";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { hasProviderHealthEvidence } from "./lib/providerReliability";
-
-const PROVIDER_PROBE_LEASE_MS = 30 * 1_000;
-const TRANSIENT_FAILURES_BEFORE_OPEN = 3;
+import { getSystemRuntimeConfig } from "./lib/runtimeConfigHelpers";
 
 export const acquireProviderCircuitPermission = internalMutation({
   args: {
@@ -21,6 +19,7 @@ export const acquireProviderCircuitPermission = internalMutation({
     autoPlanRunId: v.optional(v.id("autoPlanRuns")),
   },
   handler: async (ctx, args) => {
+    const circuitConfig = getSystemRuntimeConfig().providers.circuit;
     const now = getCurrentUTCTimestamp();
     const state = await ctx.db
       .query("providerCircuitStates")
@@ -47,7 +46,7 @@ export const acquireProviderCircuitPermission = internalMutation({
     if (probeAvailable || probeLeaseExpired) {
       await ctx.db.patch(state._id, {
         status: "half_open",
-        probeLeaseUntil: now + PROVIDER_PROBE_LEASE_MS,
+        probeLeaseUntil: now + circuitConfig.probeLeaseMs,
         updatedAt: now,
       });
       return {
@@ -103,6 +102,7 @@ export const recordProviderRequestResult = internalMutation({
     healthEvidence: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const circuitConfig = getSystemRuntimeConfig().providers.circuit;
     const now = getCurrentUTCTimestamp();
     await ctx.db.insert("providerRequestEvents", {
       provider: args.provider,
@@ -166,7 +166,8 @@ export const recordProviderRequestResult = internalMutation({
       reason === "rate_limit" ||
       state?.status === "half_open";
     const shouldOpen =
-      opensImmediately || consecutiveFailures >= TRANSIENT_FAILURES_BEFORE_OPEN;
+      opensImmediately ||
+      consecutiveFailures >= circuitConfig.transientFailuresBeforeOpen;
     const retryAfterAt = shouldOpen
       ? now + (args.circuitRetryAfterMs ?? 60 * 1_000)
       : undefined;

@@ -4,6 +4,7 @@
 
 import { Workpool } from "@convex-dev/workpool";
 import { components } from "../_generated/api";
+import { getSystemRuntimeConfig } from "./runtimeConfigHelpers";
 
 /**
  * Enrichment Workpool
@@ -13,15 +14,18 @@ import { components } from "../_generated/api";
  * 2. Downstream API spikes while the shared SocialAPI budget gate smooths egress
  *
  * Configuration:
- * - maxParallelism: 10 - Process up to 10 enrichments simultaneously
+ * - maxParallelism: ENRICHMENT_MAX_PARALLELISM (default 10)
  * - retryActionsByDefault: true - Auto-retry failed enrichments
  */
-export const enrichmentPool = new Workpool(components.enrichmentPool, {
-  maxParallelism: 10,
-  retryActionsByDefault: true,
-  defaultRetryBehavior: {
-    maxAttempts: 3,
-    initialBackoffMs: 1000,
-    base: 2,
-  },
-});
+export function getEnrichmentPool() {
+  const config = getSystemRuntimeConfig().workpools.enrichment;
+  return new Workpool(components.enrichmentPool, {
+    maxParallelism: config.maxParallelism,
+    retryActionsByDefault: true,
+    defaultRetryBehavior: {
+      maxAttempts: config.maxAttempts,
+      initialBackoffMs: config.initialBackoffMs,
+      base: config.base,
+    },
+  });
+}

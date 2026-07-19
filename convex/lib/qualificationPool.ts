@@ -4,6 +4,7 @@
 
 import { Workpool } from "@convex-dev/workpool";
 import { components } from "../_generated/api";
+import { getSystemRuntimeConfig } from "./runtimeConfigHelpers";
 
 /**
  * Qualification Workpool
@@ -13,15 +14,18 @@ import { components } from "../_generated/api";
  * 2. Downstream API spikes while the shared SocialAPI budget gate smooths egress
  *
  * Configuration:
- * - maxParallelism: 10 - Process up to 10 qualifications simultaneously
+ * - maxParallelism: QUALIFICATION_MAX_PARALLELISM (default 10)
  * - retryActionsByDefault: true - Auto-retry failed qualifications
  */
-export const qualificationPool = new Workpool(components.qualificationPool, {
-  maxParallelism: 10,
-  retryActionsByDefault: true,
-  defaultRetryBehavior: {
-    maxAttempts: 3,
-    initialBackoffMs: 1000,
-    base: 2,
-  },
-});
+export function getQualificationPool() {
+  const config = getSystemRuntimeConfig().workpools.qualification;
+  return new Workpool(components.qualificationPool, {
+    maxParallelism: config.maxParallelism,
+    retryActionsByDefault: true,
+    defaultRetryBehavior: {
+      maxAttempts: config.maxAttempts,
+      initialBackoffMs: config.initialBackoffMs,
+      base: config.base,
+    },
+  });
+}

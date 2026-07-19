@@ -4,6 +4,7 @@
 
 import { Workpool } from "@convex-dev/workpool";
 import { components } from "../_generated/api";
+import { getSystemRuntimeConfig } from "./runtimeConfigHelpers";
 
 /**
  * Outreach Plan Generation Workpool
@@ -13,15 +14,18 @@ import { components } from "../_generated/api";
  * 2. OCC errors from concurrent prospect mutations
  *
  * Configuration:
- * - maxParallelism: 5 - Lower than qualification/enrichment due to LLM cost
+ * - maxParallelism: OUTREACH_PLAN_MAX_PARALLELISM (default 5)
  * - retryActionsByDefault: true - Auto-retry failed generations
  */
-export const outreachPlanPool = new Workpool(components.outreachPlanPool, {
-  maxParallelism: 5,
-  retryActionsByDefault: true,
-  defaultRetryBehavior: {
-    maxAttempts: 3,
-    initialBackoffMs: 2000,
-    base: 2,
-  },
-});
+export function getOutreachPlanPool() {
+  const config = getSystemRuntimeConfig().workpools.outreachPlan;
+  return new Workpool(components.outreachPlanPool, {
+    maxParallelism: config.maxParallelism,
+    retryActionsByDefault: true,
+    defaultRetryBehavior: {
+      maxAttempts: config.maxAttempts,
+      initialBackoffMs: config.initialBackoffMs,
+      base: config.base,
+    },
+  });
+}

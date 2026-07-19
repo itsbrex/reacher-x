@@ -9,7 +9,7 @@ import type { WorkflowCtx } from "@convex-dev/workflow";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../lib/functionBuilders";
-import { enrichmentPool } from "../lib/enrichmentPool";
+import { getEnrichmentPool } from "../lib/enrichmentPool";
 import {
   PREVIEW_BATCH_LIMITS,
   isSetupPreviewFastPathEnabled,
@@ -1128,7 +1128,7 @@ export const startEnrichment = internalAction({
     }
 
     try {
-      const workId = await enrichmentPool.enqueueAction(
+      const workId = await getEnrichmentPool().enqueueAction(
         ctx,
         internal.workflows.enrichment.runEnrichmentWorkflow,
         {

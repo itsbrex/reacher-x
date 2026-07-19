@@ -10,7 +10,7 @@ import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction } from "./lib/functionBuilders";
 import { internal, api } from "./_generated/api";
-import { outreachPlanPool } from "./lib/outreachPlanPool";
+import { getOutreachPlanPool } from "./lib/outreachPlanPool";
 import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import {
   getXConnectionStatusForUser,
@@ -900,7 +900,7 @@ async function enqueueAutoPlanGeneration(
   }
 
   try {
-    const workId = await outreachPlanPool.enqueueAction(
+    const workId = await getOutreachPlanPool().enqueueAction(
       ctx,
       internal.autoPlanActions.generateGroundedAutoPlanDraft,
       { ...args, runId: claim.runId },

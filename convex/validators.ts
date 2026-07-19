@@ -1720,6 +1720,15 @@ export const prospectingWorkflowPauseReasonValidator = v.union(
   v.literal("inactive")
 );
 
+export const prospectingBootstrapCompletionReasonValidator = v.union(
+  v.literal("target_reached"),
+  v.literal("cycle_limit_reached"),
+  v.literal("no_progress_timeout_reached"),
+  // Kept for compatibility with bootstrap records written before the
+  // no-progress timeout replaced the absolute duration limit.
+  v.literal("duration_limit_reached")
+);
+
 // Persisted internal onboarding issue source (never shown directly to users)
 export const workspaceOnboardingIssueSourceValidator = v.union(
   v.literal("workflow"),
@@ -1854,6 +1863,7 @@ export const autoPlanFailureCodeValidator = v.union(
 
 export const providerNameValidator = v.union(
   v.literal("socialapi"),
+  v.literal("linkdapi"),
   v.literal("exa")
 );
 

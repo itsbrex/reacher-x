@@ -1,10 +1,13 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import type { Infer } from "convex/values";
 import { stringifyUnknownError } from "./errorHelpers";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
+import { providerNameValidator } from "../validators";
+import { getSystemRuntimeConfig } from "./runtimeConfigHelpers";
 
-export type ProviderName = "socialapi" | "exa";
+export type ProviderName = Infer<typeof providerNameValidator>;
 export type ProviderCircuitReason =
   | "credits"
   | "authentication"
@@ -30,8 +33,6 @@ export type ProviderRequestOutcome = "success" | "error" | "blocked";
 export const SOCIAL_API_COST_PER_ENTITY_USD = 0.2 / 1_000;
 export const EXA_SEARCH_COST_PER_REQUEST_USD = 7 / 1_000;
 export const EXA_CONTENT_COST_PER_PAGE_USD = 1 / 1_000;
-
-const PROVIDER_CIRCUIT_PROBE_INTERVAL_MS = 2 * 60 * 1_000;
 
 const CIRCUIT_BREAKING_CLIENT_HTTP_STATUSES = new Set([
   401, 402, 403, 408, 429,
@@ -110,6 +111,7 @@ export function classifyProviderFailure(
   reason: ProviderCircuitReason;
   retryAfterMs: number;
 } {
+  const circuitConfig = getSystemRuntimeConfig().providers.circuit;
   const message = stringifyUnknownError(error).toLowerCase();
   if (
     httpStatus === 402 ||
@@ -124,20 +126,21 @@ export function classifyProviderFailure(
   ) {
     return {
       reason: "credits",
-      retryAfterMs: PROVIDER_CIRCUIT_PROBE_INTERVAL_MS,
+      retryAfterMs: circuitConfig.probeIntervalMs,
     };
   }
   if (
     httpStatus === 401 ||
     httpStatus === 403 ||
     message.includes("invalid api key") ||
+    message.includes("api_key environment variable not set") ||
     message.includes("api key is not") ||
     message.includes("unauthorized") ||
     /\b(401|403)\b/.test(message)
   ) {
     return {
       reason: "authentication",
-      retryAfterMs: PROVIDER_CIRCUIT_PROBE_INTERVAL_MS,
+      retryAfterMs: circuitConfig.probeIntervalMs,
     };
   }
   if (
@@ -145,7 +148,10 @@ export function classifyProviderFailure(
     message.includes("rate limit") ||
     /\b429\b/.test(message)
   ) {
-    return { reason: "rate_limit", retryAfterMs: 60 * 1_000 };
+    return {
+      reason: "rate_limit",
+      retryAfterMs: circuitConfig.rateLimitRetryMs,
+    };
   }
   if (
     httpStatus === 408 ||
@@ -157,9 +163,12 @@ export function classifyProviderFailure(
     message.includes("temporarily unavailable") ||
     /\b5\d\d\b/.test(message)
   ) {
-    return { reason: "transient", retryAfterMs: 60 * 1_000 };
+    return {
+      reason: "transient",
+      retryAfterMs: circuitConfig.transientRetryMs,
+    };
   }
-  return { reason: "unknown", retryAfterMs: 60 * 1_000 };
+  return { reason: "unknown", retryAfterMs: circuitConfig.transientRetryMs };
 }
 
 export async function assertProviderRequestAllowed(

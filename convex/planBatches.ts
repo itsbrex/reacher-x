@@ -6,7 +6,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, query } from "./lib/functionBuilders";
-import { outreachPlanPool } from "./lib/outreachPlanPool";
+import { getOutreachPlanPool } from "./lib/outreachPlanPool";
 import {
   dismissNotificationsByKey,
   upsertNotificationByKey,
@@ -1135,7 +1135,7 @@ export const cancelQueuedPlanBatchItemsPage = internalMutation({
 
     for (const item of queuedItems) {
       if (item.workId) {
-        await outreachPlanPool.cancel(ctx, item.workId as WorkId);
+        await getOutreachPlanPool().cancel(ctx, item.workId as WorkId);
       }
     }
     const now = getCurrentUTCTimestamp();
@@ -1192,7 +1192,7 @@ export const dispatchPlanBatchPage = internalMutation({
     }
 
     for (const item of items) {
-      const workId = await outreachPlanPool.enqueueAction(
+      const workId = await getOutreachPlanPool().enqueueAction(
         ctx,
         internal.planBatchActions.processPlanBatchItem,
         { itemId: item._id },

@@ -3,11 +3,8 @@ import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./lib/functionBuilders";
 import {
-  LINKDAPI_OCC_RETRY_BASE_MS,
-  LINKDAPI_OCC_RETRY_JITTER_MS,
+  getLinkdApiBudgetConfig,
   LINKDAPI_PROVIDER,
-  LINKDAPI_REQUEST_SPACING_MS,
-  LINKDAPI_TARGET_REQUESTS_PER_MINUTE,
 } from "./lib/linkdapiBudget";
 
 const internalLinkdApiBudget = (internal as any).linkdapiBudget;
@@ -17,6 +14,7 @@ export const reserveLinkdApiBudgetSlotInternal = internalMutation({
     consumer: v.string(),
   },
   handler: async (ctx, { consumer }) => {
+    const config = getLinkdApiBudgetConfig();
     const now = getCurrentUTCTimestamp();
     const existing = await ctx.db
       .query("linkdapiBudgetState")
@@ -24,7 +22,7 @@ export const reserveLinkdApiBudgetSlotInternal = internalMutation({
       .first();
 
     const reservedAt = Math.max(now, existing?.nextAvailableAt ?? now);
-    const nextAvailableAt = reservedAt + LINKDAPI_REQUEST_SPACING_MS;
+    const nextAvailableAt = reservedAt + config.requestSpacingMs;
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -43,8 +41,8 @@ export const reserveLinkdApiBudgetSlotInternal = internalMutation({
 
     return {
       waitMs: Math.max(0, reservedAt - now),
-      spacingMs: LINKDAPI_REQUEST_SPACING_MS,
-      targetRequestsPerMinute: LINKDAPI_TARGET_REQUESTS_PER_MINUTE,
+      spacingMs: config.requestSpacingMs,
+      targetRequestsPerMinute: config.targetRequestsPerMinute,
     };
   },
 });
@@ -61,7 +59,12 @@ export const acquireLinkdApiBudgetInternal = internalAction({
     spacingMs: number;
     targetRequestsPerMinute: number;
   }> => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    const config = getLinkdApiBudgetConfig();
+    for (
+      let attempt = 0;
+      attempt < config.reservationMaxAttempts;
+      attempt += 1
+    ) {
       try {
         const reservation = await ctx.runMutation(
           internalLinkdApiBudget.reserveLinkdApiBudgetSlotInternal,
@@ -76,13 +79,13 @@ export const acquireLinkdApiBudgetInternal = internalAction({
 
         return reservation;
       } catch (error) {
-        if (attempt === 11) {
+        if (attempt === config.reservationMaxAttempts - 1) {
           throw error;
         }
 
-        const jitter = Math.floor(Math.random() * LINKDAPI_OCC_RETRY_JITTER_MS);
+        const jitter = Math.floor(Math.random() * config.occRetryJitterMs);
         await new Promise((resolve) =>
-          setTimeout(resolve, LINKDAPI_OCC_RETRY_BASE_MS + jitter)
+          setTimeout(resolve, config.occRetryBaseMs + jitter)
         );
       }
     }

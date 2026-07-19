@@ -14,6 +14,10 @@ import {
   resolveWorkspaceUseCaseKey,
   type WorkspaceUseCaseKey,
 } from "../../shared/lib/workspaceUseCases";
+import {
+  getSystemRuntimeConfig,
+  type SystemRuntimeConfig,
+} from "./runtimeConfigHelpers";
 
 /**
  * Tier limit configurations
@@ -57,11 +61,6 @@ export const BATCH_LIMITS = {
   /** Number of LinkedIn people queries to search per cycle */
   linkedinPeopleSearchBatch: 4,
 } as const;
-
-const MINUTE_MS = 60 * 1000;
-const PROSPECTING_RECOVERY_BASE_DELAY_MS = 60 * MINUTE_MS;
-const PROSPECTING_RECOVERY_MAX_DELAY_MS = 4 * 60 * MINUTE_MS;
-const PROSPECTING_RECOVERY_JITTER_WINDOW_MS = 10 * MINUTE_MS;
 
 export type Platform = "twitter" | "linkedin";
 
@@ -208,8 +207,13 @@ const PREVIEW_TWITTER_RAW_GRAPH_SEED_QUERIES: Partial<
 
 function getDeterministicProspectingRecoveryJitterMs(
   workspaceId: string,
-  failureStreak: number
+  failureStreak: number,
+  jitterWindowMs: number
 ): number {
+  if (jitterWindowMs <= 0) {
+    return 0;
+  }
+
   const hash = createStableHash(
     `${workspaceId}:prospecting-recovery:${failureStreak}`
   );
@@ -219,25 +223,28 @@ function getDeterministicProspectingRecoveryJitterMs(
     return 0;
   }
 
-  return numericHash % PROSPECTING_RECOVERY_JITTER_WINDOW_MS;
+  return numericHash % jitterWindowMs;
 }
 
 export function getProspectingRecoveryDelayMs(args: {
   workspaceId: string;
   failureStreak: number;
+  recoveryConfig?: SystemRuntimeConfig["prospecting"]["recovery"];
 }): number {
+  const recoveryConfig =
+    args.recoveryConfig ?? getSystemRuntimeConfig().prospecting.recovery;
   const normalizedFailureStreak = Math.max(1, Math.floor(args.failureStreak));
   const baseDelayMs = Math.min(
-    PROSPECTING_RECOVERY_MAX_DELAY_MS,
-    PROSPECTING_RECOVERY_BASE_DELAY_MS *
-      2 ** Math.max(0, normalizedFailureStreak - 1)
+    recoveryConfig.maxDelayMs,
+    recoveryConfig.baseDelayMs * 2 ** Math.max(0, normalizedFailureStreak - 1)
   );
 
   return (
     baseDelayMs +
     getDeterministicProspectingRecoveryJitterMs(
       args.workspaceId,
-      normalizedFailureStreak
+      normalizedFailureStreak,
+      recoveryConfig.jitterWindowMs
     )
   );
 }

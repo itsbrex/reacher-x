@@ -3,11 +3,8 @@ import { getCurrentUTCTimestamp } from "../shared/lib/utils/time/timeUtils";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./lib/functionBuilders";
 import {
-  SOCIAL_API_OCC_RETRY_BASE_MS,
-  SOCIAL_API_OCC_RETRY_JITTER_MS,
+  getSocialApiBudgetConfig,
   SOCIAL_API_PROVIDER,
-  SOCIAL_API_REQUEST_SPACING_MS,
-  SOCIAL_API_TARGET_REQUESTS_PER_MINUTE,
 } from "./lib/socialApiBudget";
 
 export const reserveSocialApiBudgetSlotInternal = internalMutation({
@@ -15,6 +12,7 @@ export const reserveSocialApiBudgetSlotInternal = internalMutation({
     consumer: v.string(),
   },
   handler: async (ctx, { consumer }) => {
+    const config = getSocialApiBudgetConfig();
     const now = getCurrentUTCTimestamp();
     const existing = await ctx.db
       .query("socialApiBudgetState")
@@ -22,7 +20,7 @@ export const reserveSocialApiBudgetSlotInternal = internalMutation({
       .first();
 
     const reservedAt = Math.max(now, existing?.nextAvailableAt ?? now);
-    const nextAvailableAt = reservedAt + SOCIAL_API_REQUEST_SPACING_MS;
+    const nextAvailableAt = reservedAt + config.requestSpacingMs;
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -41,8 +39,8 @@ export const reserveSocialApiBudgetSlotInternal = internalMutation({
 
     return {
       waitMs: Math.max(0, reservedAt - now),
-      spacingMs: SOCIAL_API_REQUEST_SPACING_MS,
-      targetRequestsPerMinute: SOCIAL_API_TARGET_REQUESTS_PER_MINUTE,
+      spacingMs: config.requestSpacingMs,
+      targetRequestsPerMinute: config.targetRequestsPerMinute,
     };
   },
 });
@@ -59,7 +57,12 @@ export const acquireSocialApiBudgetInternal = internalAction({
     spacingMs: number;
     targetRequestsPerMinute: number;
   }> => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    const config = getSocialApiBudgetConfig();
+    for (
+      let attempt = 0;
+      attempt < config.reservationMaxAttempts;
+      attempt += 1
+    ) {
       try {
         const reservation: {
           waitMs: number;
@@ -80,16 +83,14 @@ export const acquireSocialApiBudgetInternal = internalAction({
 
         return reservation;
       } catch (error) {
-        const isLastAttempt = attempt === 11;
+        const isLastAttempt = attempt === config.reservationMaxAttempts - 1;
         if (isLastAttempt) {
           throw error;
         }
 
-        const jitter = Math.floor(
-          Math.random() * SOCIAL_API_OCC_RETRY_JITTER_MS
-        );
+        const jitter = Math.floor(Math.random() * config.occRetryJitterMs);
         await new Promise((resolve) =>
-          setTimeout(resolve, SOCIAL_API_OCC_RETRY_BASE_MS + jitter)
+          setTimeout(resolve, config.occRetryBaseMs + jitter)
         );
       }
     }
