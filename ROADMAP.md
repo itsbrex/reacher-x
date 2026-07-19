@@ -6,6 +6,13 @@ If you want to work on any roadmap item, please contact Salman first so ideas, U
 
 [Email Salman](mailto:creativecoder.crco@gmail.com) · [Discord](https://discord.gg/76dF9NPH) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [LinkedIn](https://www.linkedin.com/in/noobships)
 
+## Available Today
+
+- X/Twitter and LinkedIn prospect discovery, enrichment, and approval-first outreach workflows.
+- Image, GIF, and video uploads stored in a reusable media library.
+- Agent access to selected media attachments for drafting X and LinkedIn replies and messages.
+- Platform-aware validation for attachment types, counts, combinations, and file sizes.
+
 ## Now
 
 ### Reliability And Quality
@@ -62,10 +69,11 @@ Desired product shape:
 - Support workflow-driven notifications and lifecycle emails.
 - Improve delivery and reliability for important product communication.
 
-### File And Image Uploads
+### Documents And Richer Artifact Reasoning
 
-- Let users upload files and images for the agent.
-- Support richer context and better agent reasoning from uploaded artifacts.
+- Add PDF, document, spreadsheet, and presentation uploads.
+- Extract useful content and metadata from uploaded artifacts.
+- Let the agent safely reason over and act on those additional file types.
 
 ## Later
 

@@ -4,7 +4,7 @@ Thanks for wanting to contribute.
 
 ReacherX is an open-source agent product focused on finding the right people, building context around them, and helping users take action through the UI or through the agent itself. If you want to improve the product, fix something broken, or help shape the roadmap, you are in the right place.
 
-[README](./README.md) · [Roadmap](./ROADMAP.md) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [Discord](https://discord.gg/76dF9NPH) · [Email Salman](mailto:creativecoder.crco@gmail.com)
+[README](./README.md) · [Configuration](./docs/configuration.md) · [Roadmap](./ROADMAP.md) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [Discord](https://discord.gg/76dF9NPH) · [Email Salman](mailto:creativecoder.crco@gmail.com)
 
 Supporting repo policies:
 
@@ -52,7 +52,18 @@ cd reacher-x
 corepack enable pnpm
 pnpm install
 cp .env.example .env.local
-pnpm exec convex dev
+npx convex dev --once
+```
+
+After the one-time Convex validation succeeds, run the development processes in separate terminals:
+
+```bash
+# Terminal 1: Convex backend watcher
+npx convex dev
+```
+
+```bash
+# Terminal 2: Next.js frontend
 pnpm dev
 ```
 
@@ -60,9 +71,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Expectations
 
-The environment story is still being tightened up.
+Use `.env.example` as the local template and follow [docs/configuration.md](./docs/configuration.md) for the complete setup. Next.js reads `.env.local`, while Convex backend variables are configured per deployment with `npx convex env set`.
 
-Use `.env.example` as the base. Depending on what you work on, you may also need:
+Depending on what you work on, you may need:
 
 - Convex configuration
 - WorkOS configuration
@@ -72,7 +83,7 @@ Use `.env.example` as the base. Depending on what you work on, you may also need
 - Email provider configuration
 - Billing configuration
 
-If you want to work on a feature area and are not sure what env vars are needed, ask first and we can point you to the minimum setup.
+You only need the provider credentials for the feature area you are developing. Do not upload the whole `.env.local` file to Convex: it contains frontend and local-only values as well as secrets intended for other runtimes.
 
 ## How The Codebase Is Organized
 
@@ -85,7 +96,7 @@ If you want to work on a feature area and are not sure what env vars are needed,
 
 ## Core Repo Rules
 
-Read `AGENTS.md` before making architectural assumptions.
+Read [`agents.md`](./agents.md) before making architectural assumptions.
 
 Important rules:
 
@@ -144,7 +155,7 @@ Especially valuable areas:
 - Additional platforms such as Reddit, Bluesky, and Threads.
 - Evaluations, benchmarks, and performance measurement for agent quality.
 - Sub-agents and agent swarms for parallel task execution.
-- File and image uploads for richer agent workflows.
+- PDF, document, spreadsheet, and presentation extraction for richer agent workflows. Image, GIF, and video attachments are already supported.
 - Reliability and optimization work using tools such as React Doctor, Convex tooling, linting, audits, and stronger automated testing.
 
 If you want to work on any of the items above, please contact Salman first so you can align on approach and product intent.
@@ -178,10 +189,14 @@ Before opening a PR:
 Useful commands:
 
 ```bash
-pnpm lint
+pnpm exec tsc --noEmit
+pnpm lint:strict
+pnpm exec prettier --check path/to/changed-file
+pnpm test:convex
 pnpm build
-pnpm test:targeted
 ```
+
+Run the focused test commands that cover your change as well. Keep editor/LSP diagnostics clean for every touched code file.
 
 ## Where To Ask Questions
 

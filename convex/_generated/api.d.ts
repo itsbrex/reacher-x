@@ -121,6 +121,7 @@ import type * as lib_memoryCore from "../lib/memoryCore.js";
 import type * as lib_memoryEvaluationPool from "../lib/memoryEvaluationPool.js";
 import type * as lib_memoryEvaluatorCore from "../lib/memoryEvaluatorCore.js";
 import type * as lib_memoryHelpers from "../lib/memoryHelpers.js";
+import type * as lib_modelConfigHelpers from "../lib/modelConfigHelpers.js";
 import type * as lib_modelTelemetry from "../lib/modelTelemetry.js";
 import type * as lib_notificationHelpers from "../lib/notificationHelpers.js";
 import type * as lib_onboardingNavigation from "../lib/onboardingNavigation.js";
@@ -153,6 +154,7 @@ import type * as lib_prospectProfileContextHelpers from "../lib/prospectProfileC
 import type * as lib_prospectSearchMerge from "../lib/prospectSearchMerge.js";
 import type * as lib_prospectSearchText from "../lib/prospectSearchText.js";
 import type * as lib_prospectingHelpers from "../lib/prospectingHelpers.js";
+import type * as lib_prospectingSchedulingCore from "../lib/prospectingSchedulingCore.js";
 import type * as lib_providerReliability from "../lib/providerReliability.js";
 import type * as lib_publicSocialCore from "../lib/publicSocialCore.js";
 import type * as lib_publicThreadXCore from "../lib/publicThreadXCore.js";
@@ -171,6 +173,7 @@ import type * as lib_relationshipHelpers from "../lib/relationshipHelpers.js";
 import type * as lib_researchCore from "../lib/researchCore.js";
 import type * as lib_resumeOutreachAfterUnarchive from "../lib/resumeOutreachAfterUnarchive.js";
 import type * as lib_retrier from "../lib/retrier.js";
+import type * as lib_runtimeConfigHelpers from "../lib/runtimeConfigHelpers.js";
 import type * as lib_setupFlowCore from "../lib/setupFlowCore.js";
 import type * as lib_setupGenerationCore from "../lib/setupGenerationCore.js";
 import type * as lib_setupPreviewCore from "../lib/setupPreviewCore.js";
@@ -414,6 +417,7 @@ declare const fullApi: ApiFromModules<{
   "lib/memoryEvaluationPool": typeof lib_memoryEvaluationPool;
   "lib/memoryEvaluatorCore": typeof lib_memoryEvaluatorCore;
   "lib/memoryHelpers": typeof lib_memoryHelpers;
+  "lib/modelConfigHelpers": typeof lib_modelConfigHelpers;
   "lib/modelTelemetry": typeof lib_modelTelemetry;
   "lib/notificationHelpers": typeof lib_notificationHelpers;
   "lib/onboardingNavigation": typeof lib_onboardingNavigation;
@@ -446,6 +450,7 @@ declare const fullApi: ApiFromModules<{
   "lib/prospectSearchMerge": typeof lib_prospectSearchMerge;
   "lib/prospectSearchText": typeof lib_prospectSearchText;
   "lib/prospectingHelpers": typeof lib_prospectingHelpers;
+  "lib/prospectingSchedulingCore": typeof lib_prospectingSchedulingCore;
   "lib/providerReliability": typeof lib_providerReliability;
   "lib/publicSocialCore": typeof lib_publicSocialCore;
   "lib/publicThreadXCore": typeof lib_publicThreadXCore;
@@ -464,6 +469,7 @@ declare const fullApi: ApiFromModules<{
   "lib/researchCore": typeof lib_researchCore;
   "lib/resumeOutreachAfterUnarchive": typeof lib_resumeOutreachAfterUnarchive;
   "lib/retrier": typeof lib_retrier;
+  "lib/runtimeConfigHelpers": typeof lib_runtimeConfigHelpers;
   "lib/setupFlowCore": typeof lib_setupFlowCore;
   "lib/setupGenerationCore": typeof lib_setupGenerationCore;
   "lib/setupPreviewCore": typeof lib_setupPreviewCore;

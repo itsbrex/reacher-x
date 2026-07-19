@@ -22,6 +22,75 @@ import {
 import type { DataModel } from "./dataModel.js";
 
 /**
+ * Typesafe environment variables declared in `convex.config.ts`.
+ */
+type Env = {
+  readonly AI_AUTOCOMPLETE_MODEL: string | undefined;
+  readonly AI_FAST_MODEL: string | undefined;
+  readonly AI_MAIN_AGENT_MODEL: string | undefined;
+  readonly AI_OUTREACH_FAST_MODEL: string | undefined;
+  readonly AI_OUTREACH_RECOVERY_MODEL: string | undefined;
+  readonly AI_OUTREACH_ROUTER_MODEL: string | undefined;
+  readonly AI_OUTREACH_STANDARD_MODEL: string | undefined;
+  readonly AI_REASONING_MODEL: string | undefined;
+  readonly AI_SETUP_AGENT_MODEL: string | undefined;
+  readonly AI_TEXT_EMBEDDING_MODEL: string | undefined;
+  readonly AI_VISION_MODEL: string | undefined;
+  readonly ENRICHMENT_MAX_PARALLELISM: string | undefined;
+  readonly ENRICHMENT_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly ENRICHMENT_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly LINKDAPI_BUDGET_RESERVATION_MAX_ATTEMPTS: string | undefined;
+  readonly LINKDAPI_OCC_RETRY_BASE_MS: string | undefined;
+  readonly LINKDAPI_OCC_RETRY_JITTER_MS: string | undefined;
+  readonly LINKDAPI_REQUESTS_PER_MINUTE: string | undefined;
+  readonly LINKDAPI_TARGET_REQUESTS_PER_MINUTE: string | undefined;
+  readonly OPENROUTER_ROUTING_PRESET: "current" | "cost_optimized" | undefined;
+  readonly OUTREACH_PLAN_MAX_PARALLELISM: string | undefined;
+  readonly OUTREACH_PLAN_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly OUTREACH_PLAN_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly PROSPECTING_AI_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly PROSPECTING_AI_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly PROSPECTING_AUTO_RESCHEDULE: string | undefined;
+  readonly PROSPECTING_AUXILIARY_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly PROSPECTING_AUXILIARY_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly PROSPECTING_BOOTSTRAP_INTERVAL_MINUTES: string | undefined;
+  readonly PROSPECTING_BOOTSTRAP_MAX_CYCLES: string | undefined;
+  readonly PROSPECTING_BOOTSTRAP_NO_PROGRESS_TIMEOUT_MINUTES:
+    | string
+    | undefined;
+  readonly PROSPECTING_BOOTSTRAP_PENDING_QUALIFICATION_YIELD_PERCENT:
+    | string
+    | undefined;
+  readonly PROSPECTING_BOOTSTRAP_READY_TARGET: string | undefined;
+  readonly PROSPECTING_LINKEDIN_PEOPLE_SEARCH_BATCH: string | undefined;
+  readonly PROSPECTING_LINKEDIN_POST_SEARCH_BATCH: string | undefined;
+  readonly PROSPECTING_PROVIDER_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly PROSPECTING_PROVIDER_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly PROSPECTING_RECOVERY_BASE_DELAY_MINUTES: string | undefined;
+  readonly PROSPECTING_RECOVERY_JITTER_MINUTES: string | undefined;
+  readonly PROSPECTING_RECOVERY_MAX_DELAY_MINUTES: string | undefined;
+  readonly PROSPECTING_RESCHEDULE_INTERVAL_MINUTES: string | undefined;
+  readonly PROSPECTING_RETRY_BACKOFF_BASE: string | undefined;
+  readonly PROSPECTING_SEED_KEYWORDS_PER_CYCLE: string | undefined;
+  readonly PROSPECTING_SOCIAL_QUERIES_PER_CYCLE: string | undefined;
+  readonly PROSPECTING_TWITTER_SEARCH_BATCH: string | undefined;
+  readonly PROVIDER_CIRCUIT_PROBE_INTERVAL_SECONDS: string | undefined;
+  readonly PROVIDER_CIRCUIT_PROBE_LEASE_SECONDS: string | undefined;
+  readonly PROVIDER_RATE_LIMIT_RETRY_SECONDS: string | undefined;
+  readonly PROVIDER_TRANSIENT_FAILURES_BEFORE_OPEN: string | undefined;
+  readonly PROVIDER_TRANSIENT_RETRY_SECONDS: string | undefined;
+  readonly QUALIFICATION_MAX_PARALLELISM: string | undefined;
+  readonly QUALIFICATION_RETRY_INITIAL_BACKOFF_MS: string | undefined;
+  readonly QUALIFICATION_RETRY_MAX_ATTEMPTS: string | undefined;
+  readonly SOCIALAPI_BUDGET_RESERVATION_MAX_ATTEMPTS: string | undefined;
+  readonly SOCIALAPI_OCC_RETRY_BASE_MS: string | undefined;
+  readonly SOCIALAPI_OCC_RETRY_JITTER_MS: string | undefined;
+  readonly SOCIALAPI_REQUESTS_PER_MINUTE: string | undefined;
+  readonly SOCIALAPI_TARGET_REQUESTS_PER_MINUTE: string | undefined;
+  readonly WORKPOOL_RETRY_BACKOFF_BASE: string | undefined;
+};
+
+/**
  * Define a query in this Convex app's public API.
  *
  * This function will be allowed to read your Convex database and will be accessible from the client.
@@ -94,6 +163,11 @@ export declare const internalAction: ActionBuilder<DataModel, "internal">;
  * @returns The wrapped function. Import this function from `convex/http.js` and route it to hook it up.
  */
 export declare const httpAction: HttpActionBuilder;
+
+/**
+ * Typesafe environment variables declared in `convex.config.ts`.
+ */
+export declare const env: Env;
 
 /**
  * A set of services for use within Convex query functions.

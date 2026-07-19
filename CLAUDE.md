@@ -1,6 +1,6 @@
 # ReacherX Agent Instructions
 
-Read and follow `AGENTS.md` before editing this repository. Its mandatory
+Read and follow `agents.md` before editing this repository. Its mandatory
 authentication and routing contract applies to every change touching AuthKit,
 the proxy, `/`, `/agent`, `/agent/setup`, workspace setup, or thread URLs.
 

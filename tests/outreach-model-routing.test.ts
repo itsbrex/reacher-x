@@ -110,6 +110,10 @@ test("OpenRouter routing pins GPT-5.6 to standard OpenAI with Azure fallback", (
     /OUTREACH_ROUTER_PROVIDER_OPTIONS[\s\S]*?requireParameters: false/
   );
   assert.match(
+    aiSource,
+    /"AI_OUTREACH_ROUTER_MODEL",[\s\S]*?MODELS\.GPT_5_6_LUNA/
+  );
+  assert.match(
     outreachAgentSource,
     /JSON\.parse\(extractJsonPayload\(result\.text\)\)/
   );
@@ -123,11 +127,11 @@ test("prospect chat uses one agent with semantic per-turn model overrides", () =
   assert.match(outreachAgentSource, /createOutreachTextLanguageModel/);
   assert.match(
     outreachAgentSource,
-    /terra:[\s\S]*?enableExplicitPromptCaching: true/
+    /terra:[\s\S]*?supportsExplicitPromptCaching\([\s\S]*?OUTREACH_TERRA_MODEL/
   );
   assert.match(
     outreachAgentSource,
-    /sol:[\s\S]*?enableExplicitPromptCaching: true/
+    /sol:[\s\S]*?supportsExplicitPromptCaching\(OUTREACH_SOL_MODEL\)/
   );
   assert.match(
     outreachAgentSource,

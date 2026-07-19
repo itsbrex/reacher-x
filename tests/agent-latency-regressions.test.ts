@@ -67,7 +67,10 @@ test("agent provider routing avoids a degraded single-provider lane", () => {
 
 test("prospect agent keeps Terra as its safe default behind semantic routing", () => {
   assert.match(aiSource, /GPT_5_6_TERRA: "openai\/gpt-5\.6-terra"/);
-  assert.match(aiSource, /OUTREACH_AGENT_MODEL = MODELS\.GPT_5_6_TERRA/);
+  assert.match(
+    aiSource,
+    /OUTREACH_AGENT_MODEL = getConfiguredModel\([\s\S]*?"AI_MAIN_AGENT_MODEL",[\s\S]*?MODELS\.GPT_5_6_TERRA/
+  );
   assert.match(contextSource, /OUTREACH_AGENT_MODEL/);
   assert.match(contextSource, /OUTREACH_AGENT_PROVIDER_OPTIONS/);
   assert.match(chatSource, /classifyOutreachTurn/);

@@ -7,6 +7,8 @@ import { generateText, type JSONValue } from "ai";
 import { z } from "zod";
 import { logger } from "../../shared/lib/logger";
 import { getCurrentUTCTimestamp } from "../../shared/lib/utils/time/timeUtils";
+import { env } from "../_generated/server";
+import { getConfiguredModel } from "./modelConfigHelpers";
 
 type OpenRouterProviderRouting = Record<string, JSONValue> & {
   only?: string[];
@@ -84,7 +86,7 @@ export const MODELS = {
   GPT_OSS: "openai/gpt-oss-120b",
 } as const;
 
-export type ModelId = (typeof MODELS)[keyof typeof MODELS];
+export type ModelId = string;
 
 export const OPENROUTER_PROVIDERS = {
   OPENAI: "openai",
@@ -187,6 +189,40 @@ function createGpt56ProviderOptions(args?: {
   };
 }
 
+function createGenericProviderOptions(args?: {
+  requireParameters?: boolean;
+}): OpenRouterProviderOptions {
+  return {
+    openrouter: {
+      provider: {
+        allow_fallbacks: true,
+        require_parameters: args?.requireParameters ?? true,
+      },
+    },
+  };
+}
+
+function getConfiguredProviderOptions(args: {
+  model: string;
+  defaultModel: string;
+  defaultOptions: OpenRouterProviderOptions;
+  requireParameters?: boolean;
+}): OpenRouterProviderOptions {
+  if (args.model === args.defaultModel) {
+    return args.defaultOptions;
+  }
+
+  if (args.model.startsWith("openai/gpt-5.6-")) {
+    return createGpt56ProviderOptions({
+      requireParameters: args.requireParameters,
+    });
+  }
+
+  return createGenericProviderOptions({
+    requireParameters: args.requireParameters,
+  });
+}
+
 type RoutingModelConfig = {
   model: ModelId;
   providerOptions: OpenRouterProviderOptions;
@@ -236,7 +272,7 @@ const COST_OPTIMIZED_ROUTING_CONFIG: RoutingPresetConfig = {
 };
 
 function getConfiguredRoutingPreset(): OpenRouterRoutingPreset {
-  const configuredPreset = process.env.OPENROUTER_ROUTING_PRESET;
+  const configuredPreset = env.OPENROUTER_ROUTING_PRESET;
   if (configuredPreset === OPENROUTER_ROUTING_PRESETS.CURRENT) {
     return OPENROUTER_ROUTING_PRESETS.CURRENT;
   }
@@ -255,23 +291,46 @@ function getRoutingPresetConfig(): RoutingPresetConfig {
   return COST_OPTIMIZED_ROUTING_CONFIG;
 }
 
-export const FAST_MODEL = getRoutingPresetConfig().fast.model;
-export const REASONING_MODEL = getRoutingPresetConfig().reasoning.model;
-export const HELPER_MODEL = MODELS.GPT_OSS;
-export const AUTOCOMPLETE_MODEL = HELPER_MODEL;
+const activeRoutingConfig = getRoutingPresetConfig();
+
+export const FAST_MODEL = getConfiguredModel(
+  "AI_FAST_MODEL",
+  activeRoutingConfig.fast.model
+);
+export const REASONING_MODEL = getConfiguredModel(
+  "AI_REASONING_MODEL",
+  activeRoutingConfig.reasoning.model
+);
+export const AUTOCOMPLETE_MODEL = getConfiguredModel(
+  "AI_AUTOCOMPLETE_MODEL",
+  MODELS.GPT_OSS
+);
+export const HELPER_MODEL = AUTOCOMPLETE_MODEL;
 
 export const AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  getRoutingPresetConfig().reasoning.providerOptions;
+  getConfiguredProviderOptions({
+    model: REASONING_MODEL,
+    defaultModel: activeRoutingConfig.reasoning.model,
+    defaultOptions: activeRoutingConfig.reasoning.providerOptions,
+  });
 
 export const FAST_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  getRoutingPresetConfig().fast.providerOptions;
+  getConfiguredProviderOptions({
+    model: FAST_MODEL,
+    defaultModel: activeRoutingConfig.fast.model,
+    defaultOptions: activeRoutingConfig.fast.providerOptions,
+  });
 
 /**
  * Background helper AI runs on a separate Groq lane so autocomplete and other
  * non-critical helpers cannot consume the pinned main-agent provider capacity.
  */
 export const HELPER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createOnlyProviderOptions([OPENROUTER_PROVIDERS.GROQ]);
+  getConfiguredProviderOptions({
+    model: AUTOCOMPLETE_MODEL,
+    defaultModel: MODELS.GPT_OSS,
+    defaultOptions: createOnlyProviderOptions([OPENROUTER_PROVIDERS.GROQ]),
+  });
 export const AUTOCOMPLETE_PROVIDER_OPTIONS = HELPER_PROVIDER_OPTIONS;
 
 /**
@@ -283,39 +342,86 @@ export const AUTOCOMPLETE_PROVIDER_OPTIONS = HELPER_PROVIDER_OPTIONS;
  * Keep this route separate from broader fast/reasoning routing so background
  * generation can still evolve independently.
  */
-export const PINNED_AGENT_MODEL = MODELS.GPT_OSS;
+export const PINNED_AGENT_MODEL = getConfiguredModel(
+  "AI_SETUP_AGENT_MODEL",
+  MODELS.GPT_OSS
+);
 
 export const PINNED_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createLatencySortedProviderOptions([
-    OPENROUTER_PROVIDERS.CEREBRAS,
-    OPENROUTER_PROVIDERS.GROQ,
-    OPENROUTER_PROVIDERS.BASETEN,
-  ]);
+  getConfiguredProviderOptions({
+    model: PINNED_AGENT_MODEL,
+    defaultModel: MODELS.GPT_OSS,
+    defaultOptions: createLatencySortedProviderOptions([
+      OPENROUTER_PROVIDERS.CEREBRAS,
+      OPENROUTER_PROVIDERS.GROQ,
+      OPENROUTER_PROVIDERS.BASETEN,
+    ]),
+  });
 
 /**
  * Prospect conversations and plan generation require stronger instruction
  * following and judgment than setup helpers and simple workspace operations.
  * Keep this route separate so those lower-judgment paths remain cost-efficient.
  */
-export const OUTREACH_AGENT_MODEL = MODELS.GPT_5_6_TERRA;
+export const OUTREACH_AGENT_MODEL = getConfiguredModel(
+  "AI_MAIN_AGENT_MODEL",
+  MODELS.GPT_5_6_TERRA
+);
 
 export const OUTREACH_AGENT_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createGpt56ProviderOptions();
+  getConfiguredProviderOptions({
+    model: OUTREACH_AGENT_MODEL,
+    defaultModel: MODELS.GPT_5_6_TERRA,
+    defaultOptions: createGpt56ProviderOptions(),
+  });
 
-export const OUTREACH_ROUTER_MODEL = MODELS.GPT_5_6_LUNA;
+export const OUTREACH_ROUTER_MODEL = getConfiguredModel(
+  "AI_OUTREACH_ROUTER_MODEL",
+  MODELS.GPT_5_6_LUNA
+);
 export const OUTREACH_ROUTER_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createGpt56ProviderOptions({ requireParameters: false });
+  getConfiguredProviderOptions({
+    model: OUTREACH_ROUTER_MODEL,
+    defaultModel: MODELS.GPT_5_6_LUNA,
+    defaultOptions: createGpt56ProviderOptions({ requireParameters: false }),
+    requireParameters: false,
+  });
 
-export const OUTREACH_FAST_MODEL = PINNED_AGENT_MODEL;
-export const OUTREACH_FAST_PROVIDER_OPTIONS = PINNED_AGENT_PROVIDER_OPTIONS;
+export const OUTREACH_FAST_MODEL = getConfiguredModel(
+  "AI_OUTREACH_FAST_MODEL",
+  MODELS.GPT_OSS
+);
+export const OUTREACH_FAST_PROVIDER_OPTIONS = getConfiguredProviderOptions({
+  model: OUTREACH_FAST_MODEL,
+  defaultModel: MODELS.GPT_OSS,
+  defaultOptions: createLatencySortedProviderOptions([
+    OPENROUTER_PROVIDERS.CEREBRAS,
+    OPENROUTER_PROVIDERS.GROQ,
+    OPENROUTER_PROVIDERS.BASETEN,
+  ]),
+});
 
-export const OUTREACH_TERRA_MODEL = MODELS.GPT_5_6_TERRA;
+export const OUTREACH_TERRA_MODEL = getConfiguredModel(
+  "AI_OUTREACH_STANDARD_MODEL",
+  MODELS.GPT_5_6_TERRA
+);
 export const OUTREACH_TERRA_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createGpt56ProviderOptions();
+  getConfiguredProviderOptions({
+    model: OUTREACH_TERRA_MODEL,
+    defaultModel: MODELS.GPT_5_6_TERRA,
+    defaultOptions: createGpt56ProviderOptions(),
+  });
 
-export const OUTREACH_SOL_MODEL = MODELS.GPT_5_6_SOL;
+export const OUTREACH_SOL_MODEL = getConfiguredModel(
+  "AI_OUTREACH_RECOVERY_MODEL",
+  MODELS.GPT_5_6_SOL
+);
 export const OUTREACH_SOL_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createGpt56ProviderOptions();
+  getConfiguredProviderOptions({
+    model: OUTREACH_SOL_MODEL,
+    defaultModel: MODELS.GPT_5_6_SOL,
+    defaultOptions: createGpt56ProviderOptions(),
+  });
 
 /**
  * GPT-5.6 supports OpenRouter's explicit prompt-cache mode. The corresponding
@@ -334,13 +440,24 @@ export const OUTREACH_AGENT_PROMPT_CACHE_OPTIONS = {
  * route. We allow a provider fallback within Kimi's lane, but never a silent
  * downgrade to the default text-only agent model.
  */
-export const PINNED_VISION_MODEL = MODELS.KIMI_K2_6;
+export const PINNED_VISION_MODEL = getConfiguredModel(
+  "AI_VISION_MODEL",
+  MODELS.KIMI_K2_6
+);
 
 export const PINNED_VISION_PROVIDER_OPTIONS: OpenRouterProviderOptions =
-  createOrderedProviderOptions({
-    order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
-    allowFallbacks: false,
+  getConfiguredProviderOptions({
+    model: PINNED_VISION_MODEL,
+    defaultModel: MODELS.KIMI_K2_6,
+    defaultOptions: createOrderedProviderOptions({
+      order: [OPENROUTER_PROVIDERS.BASETEN, OPENROUTER_PROVIDERS.WANDB_FP4],
+      allowFallbacks: false,
+    }),
   });
+
+export function supportsExplicitPromptCaching(model: string): boolean {
+  return model.startsWith("openai/gpt-5.6-");
+}
 
 export type ModelRouting = "fast" | "reasoning";
 type JsonFailureLogLevel = "error" | "warn" | "info";

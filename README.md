@@ -9,7 +9,7 @@ Open-source △ Agent that helps anyone find the right people and reach them acr
   <a href="https://nextjs.org/"><img alt="next.js" src="https://img.shields.io/badge/next.js-16-white?style=flat-square&logo=next.js&logoColor=black"></a>
 </p>
 
-[Live site](https://reacherx.com) · [Contributing](./CONTRIBUTING.md) · [Roadmap](./ROADMAP.md) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [Discord](https://discord.gg/76dF9NPH) · [Email Salman](mailto:creativecoder.crco@gmail.com)
+[Live site](https://reacherx.com) · [Configuration](./docs/configuration.md) · [Contributing](./CONTRIBUTING.md) · [Roadmap](./ROADMAP.md) · [GitHub Issues](https://github.com/VecterAI/reacher-x/issues) · [Discord](https://discord.gg/76dF9NPH) · [Email Salman](mailto:creativecoder.crco@gmail.com)
 
 ## Video Demo
 
@@ -34,7 +34,7 @@ The product story here follows the same flow as the `/home` landing experience:
 1. Describe who you need in plain English.
 2. ReacherX turns that into search and discovery strategies.
 3. The agent gathers context, signals, and proof behind each match.
-4. ReacherX proposes next actions and drafts content.
+4. ReacherX proposes next actions and drafts content, including image, GIF, and video attachments.
 5. You stay in control and approve important actions.
 6. The system improves over time through feedback, memory, and evaluations.
 
@@ -42,7 +42,7 @@ The product story here follows the same flow as the `/home` landing experience:
 
 - Real people, found from real activity instead of static lists.
 - Human-in-the-loop by default for high-trust actions.
-- Open-source and self-hostable.
+- Open-source and deployable as your own instance using your own provider accounts.
 - Built around an agent-first product experience, not just dashboards and forms.
 - Designed so users can work manually in the UI or ask the agent to do the same work for them.
 
@@ -59,7 +59,7 @@ The product story here follows the same flow as the `/home` landing experience:
 
 - The application code is public.
 - Contributors can inspect how the product, core logic, and agent behaviors are built.
-- Self-hosting is part of the intended value of the project.
+- Running your own ReacherX deployment is part of the intended value of the project; full functionality requires your own external provider accounts.
 - If you want to shape product direction, feature ideas, or implementation approach, contact Salman directly.
 - Email: [creativecoder.crco@gmail.com](mailto:creativecoder.crco@gmail.com)
 - Discord: [discord.gg/76dF9NPH](https://discord.gg/76dF9NPH)
@@ -84,7 +84,7 @@ The fuller roadmap lives in [ROADMAP.md](./ROADMAP.md). High-level priorities:
 - Calendar integration: Google Calendar and Outlook Calendar support so users can book calls and meetings from the UI or by asking the agent.
 - Cross-platform identity resolution: show the same person across multiple channels in the prospect profile panel.
 - App-originated email delivery: send product emails, notifications, and workflow-driven messages to users.
-- File and image uploads: give the agent richer inputs to reason over and act on.
+- General document support: add PDF, document, spreadsheet, and presentation extraction so the agent can reason over more than the image, GIF, and video attachments supported today.
 
 ### Later
 
@@ -120,8 +120,23 @@ If you do not use Corepack, install a pnpm 11 release before continuing.
 
 ### Run
 
+Push and validate the Convex backend once:
+
 ```bash
-pnpm exec convex dev
+npx convex dev --once
+```
+
+Then keep the backend and frontend running in separate terminals.
+
+Terminal 1:
+
+```bash
+npx convex dev
+```
+
+Terminal 2:
+
+```bash
 pnpm dev
 ```
 
@@ -129,16 +144,21 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Environment Notes
 
-The environment setup needs cleanup and is still evolving. Use `.env.example` as the current base, then check runtime usage in `app/` and `convex/` if you are working on a specific integration.
+Use `.env.example` as the template for local values, but do not assume that copying it configures the Convex backend. Next.js reads local values from `.env.local`; Convex function secrets and runtime controls are stored separately per deployment.
 
-At a minimum for serious local development, expect to configure:
+See [docs/configuration.md](./docs/configuration.md) for the exact variable groups, development and production guidance, model-routing roles, provider limits, and `npx convex env set` commands.
+
+Full product functionality uses external provider accounts for:
 
 - Convex
 - WorkOS
 - AI provider keys
 - X/Twitter keys for X workflows
 - LinkdAPI and Unipile for LinkedIn workflows
-- Resend and related email configuration for email flows
+- Polar for billing
+- Resend for the waitlist welcome email
+
+You only need the provider credentials for the feature area you are developing.
 
 ## Architecture At A Glance
 

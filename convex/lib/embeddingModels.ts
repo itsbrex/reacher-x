@@ -1,9 +1,9 @@
 import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { EmbeddingModel } from "ai";
+import { getConfiguredModel } from "./modelConfigHelpers";
 
-const OPENAI_TEXT_EMBEDDING_MODEL = "text-embedding-3-small";
-const OPENROUTER_TEXT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
+const DEFAULT_TEXT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 
 /**
  * Shared embedding provider selection for agent/RAG vector search.
@@ -13,8 +13,13 @@ const OPENROUTER_TEXT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
  * this model, so OpenRouter remains a fallback rather than the default.
  */
 export function getTextEmbeddingModel(): EmbeddingModel {
-  if (process.env.OPENAI_API_KEY) {
-    return openai.embedding(OPENAI_TEXT_EMBEDDING_MODEL);
+  const configuredModel = getConfiguredModel(
+    "AI_TEXT_EMBEDDING_MODEL",
+    DEFAULT_TEXT_EMBEDDING_MODEL
+  );
+
+  if (process.env.OPENAI_API_KEY && configuredModel.startsWith("openai/")) {
+    return openai.embedding(configuredModel.slice("openai/".length));
   }
 
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
@@ -25,7 +30,7 @@ export function getTextEmbeddingModel(): EmbeddingModel {
         "HTTP-Referer": "https://reacherx.com",
         "X-Title": "ReacherX",
       },
-    }).embeddingModel(OPENROUTER_TEXT_EMBEDDING_MODEL);
+    }).embeddingModel(configuredModel);
   }
 
   throw new Error(
