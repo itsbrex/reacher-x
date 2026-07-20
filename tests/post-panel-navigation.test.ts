@@ -38,6 +38,25 @@ test("generic and quoted LinkedIn posts use the LinkedIn Post panel contract", (
   assert.match(navigationSource, /openPanel\("linkedin-post-thread"/);
 });
 
+test("prospect evidence posts open the dedicated full-post panel", () => {
+  const panelSource = readSource(
+    "features/prospects/ui/components/EvidencePostsPanel.tsx"
+  );
+  const listSource = readSource(
+    "features/prospects/ui/components/EvidencePostsList.tsx"
+  );
+
+  assert.match(panelSource, /pushPanel\("twitter-post"/);
+  assert.match(panelSource, /pushPanel\("linkedin-post-thread"/);
+  assert.match(panelSource, /onPostSelect=\{handlePostSelect\}/);
+  assert.match(
+    listSource,
+    /<LinkedInPostCard[\s\S]*onClick=\{\s*onPostSelect[\s\S]*linkedInPostsById/
+  );
+  assert.match(listSource, /shouldIgnorePostCardClick\(event\)/);
+  assert.match(listSource, /onPostSelect\([\s\S]*tweetsById/);
+});
+
 test("explicit interaction conversations and reply composition remain separate", () => {
   const interactionsSource = readSource(
     "features/prospects/ui/components/tabs/YourInteractionsTab.tsx"

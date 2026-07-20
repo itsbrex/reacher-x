@@ -15,6 +15,10 @@ import {
 import { ScrollArea } from "@/shared/ui/components/ScrollArea";
 import { usePanelStack } from "../../contexts/PanelStackContext";
 import { EvidencePostsList } from "./EvidencePostsList";
+import { getTwitterPostId } from "@/shared/lib/twitter/contracts";
+import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
+
+const EMPTY_POSTS: unknown[] = [];
 
 export interface EvidencePostsPanelProps {
   prospectId?: string;
@@ -33,13 +37,41 @@ export interface EvidencePostsPanelProps {
 export function EvidencePostsPanel({
   prospectId,
   title = "Evidence",
-  posts = [],
+  posts = EMPTY_POSTS,
   platform = "twitter",
   className,
   onBack,
   readOnly = false,
 }: EvidencePostsPanelProps) {
-  const { popPanel } = usePanelStack();
+  const { popPanel, pushPanel } = usePanelStack();
+
+  const handlePostSelect = React.useCallback(
+    (post: unknown) => {
+      if (platform === "twitter") {
+        const tweetId = getTwitterPostId(post);
+        if (!tweetId) {
+          return;
+        }
+
+        pushPanel("twitter-post", {
+          tweetId,
+          initialTweet: post,
+        });
+        return;
+      }
+
+      const linkedInPost = normalizeLinkedInPost(post);
+      if (!linkedInPost?.id) {
+        return;
+      }
+
+      pushPanel("linkedin-post-thread", {
+        post: linkedInPost,
+        prospectId,
+      });
+    },
+    [platform, prospectId, pushPanel]
+  );
 
   return (
     <aside
@@ -60,6 +92,7 @@ export function EvidencePostsPanel({
               posts={posts}
               platform={platform}
               readOnly={readOnly}
+              onPostSelect={handlePostSelect}
             />
           </PageContent>
         </ScrollArea>

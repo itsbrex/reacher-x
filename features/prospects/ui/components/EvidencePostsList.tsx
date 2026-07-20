@@ -19,6 +19,7 @@ import { toFallbackTweetFromSummary } from "@/shared/lib/twitter/ui";
 import { UI_PREVIEW_LINKEDIN_THREAD_SCENARIOS } from "@/features/prospects/lib/uiPreviewData";
 import { cn } from "@/shared/lib/utils";
 import { normalizeLinkedInPost } from "@/shared/lib/linkedin/post";
+import { shouldIgnorePostCardClick } from "@/features/webapp/lib/postNavigation";
 
 const EMPTY_POSTS: unknown[] = [];
 
@@ -144,40 +145,6 @@ export function EvidencePostsList({
     );
   }
 
-  const handlePostActivate = (
-    post: unknown,
-    event: React.MouseEvent<HTMLDivElement>
-  ) => {
-    if (!onPostSelect) {
-      return;
-    }
-
-    const target = event.target as HTMLElement | null;
-    const interactive = target?.closest(
-      "a,button,[role=button],video,media-chrome"
-    );
-    if (interactive && interactive !== event.currentTarget) {
-      return;
-    }
-
-    const hasSelection =
-      typeof window !== "undefined" && !!window.getSelection()?.toString();
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey ||
-      hasSelection ||
-      event.detail > 1
-    ) {
-      return;
-    }
-
-    onPostSelect(post);
-  };
-
   return (
     <div className={cn("divide-y", className)}>
       {visiblePosts.map((post, index) => (
@@ -188,15 +155,34 @@ export function EvidencePostsList({
             index === 0 ? "pt-4" : "pt-2",
             onPostSelect && "hover:bg-muted/30 cursor-pointer transition-colors"
           )}
-          role={onPostSelect ? "button" : undefined}
-          tabIndex={onPostSelect ? 0 : undefined}
-          onClick={(event) => handlePostActivate(post, event)}
+          role={platform === "twitter" && onPostSelect ? "button" : undefined}
+          tabIndex={platform === "twitter" && onPostSelect ? 0 : undefined}
+          onClick={
+            platform === "twitter" && onPostSelect
+              ? (event) => {
+                  if (shouldIgnorePostCardClick(event)) {
+                    return;
+                  }
+                  const postId = getPostId(post);
+                  onPostSelect(
+                    (postId &&
+                      (tweetsById[postId] ?? fallbackTweetsById[postId])) ||
+                      post
+                  );
+                }
+              : undefined
+          }
           onKeyDown={
-            onPostSelect
+            platform === "twitter" && onPostSelect
               ? (event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onPostSelect(post);
+                    const postId = getPostId(post);
+                    onPostSelect(
+                      (postId &&
+                        (tweetsById[postId] ?? fallbackTweetsById[postId])) ||
+                        post
+                    );
                   }
                 }
               : undefined
@@ -268,6 +254,15 @@ export function EvidencePostsList({
               readOnly={readOnly}
               showMenu={showPostActions ? undefined : false}
               showFooter={showPostActions}
+              onClick={
+                onPostSelect
+                  ? () =>
+                      onPostSelect(
+                        linkedInPostsById[(post as UnifiedPost).id] ??
+                          (post as UnifiedPost)
+                      )
+                  : undefined
+              }
               interactiveCursor={Boolean(onPostSelect)}
               openBehavior={onPostSelect ? "none" : "auto"}
               disableExternalNavigation={
