@@ -34,6 +34,11 @@ import { rememberWorkspaceMemory } from "./tools/rememberWorkspaceMemory";
 import { searchProspects } from "./tools/searchProspects";
 import { searchWorkspaceMemories } from "./tools/searchWorkspaceMemories";
 import { updateWorkspace } from "./tools/updateWorkspace";
+import {
+  approveWorkspaceProfiles,
+  proposeWorkspaceProfiles,
+  rejectWorkspaceProfiles,
+} from "./tools/workspaceProfileChanges";
 import { approveSocialActionRequest } from "./outreach/tools/approveSocialActionRequest";
 import { approveTask } from "./outreach/tools/approveTask";
 import { askHuman } from "./outreach/tools/askHuman";
@@ -119,6 +124,9 @@ const mainAgentBaseTools = {
   queryWorkspace,
   listProspectPlans,
   managePlanBatch,
+  proposeWorkspaceProfiles,
+  approveWorkspaceProfiles,
+  rejectWorkspaceProfiles,
   // Selected prospect context
   getProspectInteractionHistory,
   getSocialContext,

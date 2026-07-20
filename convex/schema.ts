@@ -44,6 +44,7 @@ import {
   workspaceAgentAutonomyModeValidator,
   workspaceOnboardingIssueSourceValidator,
   workspaceOnboardingIssueStatusCodeValidator,
+  workspaceProfileChangeStatusValidator,
   monitorStatusValidator,
   monitorHealthStatusValidator,
   pipelineStageValidator,
@@ -400,6 +401,30 @@ export default defineSchema({
       "prospectingWorkflowStatus",
       "lastMeaningfulActivityAt",
     ]),
+
+  /**
+   * One durable, approval-gated ideal-profile proposal per workspace.
+   * Internal naming remains ICP-based for compatibility; user-facing copy is
+   * resolved from the workspace use case.
+   */
+  workspaceProfileChangeRequests: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    createdInThreadId: v.string(),
+    lastUpdatedInThreadId: v.string(),
+    status: workspaceProfileChangeStatusValidator,
+    baseWorkspaceUpdatedAt: v.number(),
+    proposedIcps: v.array(icpValidator),
+    addedTitles: v.array(v.string()),
+    updatedTitles: v.array(v.string()),
+    removedTitles: v.array(v.string()),
+    revision: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_id_and_status", ["workspaceId", "status"])
+    .index("by_user_id_and_status", ["userId", "status"]),
 
   workspaceStyleProfiles: defineTable({
     workspaceId: v.id("workspaces"),

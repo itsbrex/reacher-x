@@ -54,6 +54,7 @@ import type * as agents_tools_searchProspects from "../agents/tools/searchProspe
 import type * as agents_tools_searchWorkspaceMemories from "../agents/tools/searchWorkspaceMemories.js";
 import type * as agents_tools_updateWorkspace from "../agents/tools/updateWorkspace.js";
 import type * as agents_tools_workspaceMemoryHelpers from "../agents/tools/workspaceMemoryHelpers.js";
+import type * as agents_tools_workspaceProfileChanges from "../agents/tools/workspaceProfileChanges.js";
 import type * as agents_tools_workspaceSetupContext from "../agents/tools/workspaceSetupContext.js";
 import type * as analytics from "../analytics.js";
 import type * as archivedProspectPause from "../archivedProspectPause.js";
@@ -206,6 +207,8 @@ import type * as lib_workspaceCapacityCore from "../lib/workspaceCapacityCore.js
 import type * as lib_workspaceEntitlements from "../lib/workspaceEntitlements.js";
 import type * as lib_workspaceIcpSignalsCore from "../lib/workspaceIcpSignalsCore.js";
 import type * as lib_workspaceNameHelpers from "../lib/workspaceNameHelpers.js";
+import type * as lib_workspaceProfileChangeCore from "../lib/workspaceProfileChangeCore.js";
+import type * as lib_workspaceSettingsCore from "../lib/workspaceSettingsCore.js";
 import type * as lib_workspaceSetup from "../lib/workspaceSetup.js";
 import type * as lib_workspaceStyleProfileCore from "../lib/workspaceStyleProfileCore.js";
 import type * as lib_workspaceSystem from "../lib/workspaceSystem.js";
@@ -284,6 +287,7 @@ import type * as workflows_setup from "../workflows/setup.js";
 import type * as workspaceAgentOpsDaily from "../workspaceAgentOpsDaily.js";
 import type * as workspaceAnalyticsDaily from "../workspaceAnalyticsDaily.js";
 import type * as workspaceIcpSignals from "../workspaceIcpSignals.js";
+import type * as workspaceProfileChanges from "../workspaceProfileChanges.js";
 import type * as workspaceQueryPerformanceDaily from "../workspaceQueryPerformanceDaily.js";
 import type * as workspaceStats from "../workspaceStats.js";
 import type * as workspaceStyleProfiles from "../workspaceStyleProfiles.js";
@@ -350,6 +354,7 @@ declare const fullApi: ApiFromModules<{
   "agents/tools/searchWorkspaceMemories": typeof agents_tools_searchWorkspaceMemories;
   "agents/tools/updateWorkspace": typeof agents_tools_updateWorkspace;
   "agents/tools/workspaceMemoryHelpers": typeof agents_tools_workspaceMemoryHelpers;
+  "agents/tools/workspaceProfileChanges": typeof agents_tools_workspaceProfileChanges;
   "agents/tools/workspaceSetupContext": typeof agents_tools_workspaceSetupContext;
   analytics: typeof analytics;
   archivedProspectPause: typeof archivedProspectPause;
@@ -502,6 +507,8 @@ declare const fullApi: ApiFromModules<{
   "lib/workspaceEntitlements": typeof lib_workspaceEntitlements;
   "lib/workspaceIcpSignalsCore": typeof lib_workspaceIcpSignalsCore;
   "lib/workspaceNameHelpers": typeof lib_workspaceNameHelpers;
+  "lib/workspaceProfileChangeCore": typeof lib_workspaceProfileChangeCore;
+  "lib/workspaceSettingsCore": typeof lib_workspaceSettingsCore;
   "lib/workspaceSetup": typeof lib_workspaceSetup;
   "lib/workspaceStyleProfileCore": typeof lib_workspaceStyleProfileCore;
   "lib/workspaceSystem": typeof lib_workspaceSystem;
@@ -580,6 +587,7 @@ declare const fullApi: ApiFromModules<{
   workspaceAgentOpsDaily: typeof workspaceAgentOpsDaily;
   workspaceAnalyticsDaily: typeof workspaceAnalyticsDaily;
   workspaceIcpSignals: typeof workspaceIcpSignals;
+  workspaceProfileChanges: typeof workspaceProfileChanges;
   workspaceQueryPerformanceDaily: typeof workspaceQueryPerformanceDaily;
   workspaceStats: typeof workspaceStats;
   workspaceStyleProfiles: typeof workspaceStyleProfiles;

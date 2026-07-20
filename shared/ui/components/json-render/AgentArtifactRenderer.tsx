@@ -13,6 +13,7 @@ import { InlineProspectProfileCard } from "@/features/agent/ui/components/Inline
 import { InlineReplyApprovalCard } from "@/features/agent/ui/components/InlineReplyApprovalCard";
 import { OnboardingProgressCard } from "@/features/agent/ui/components/OnboardingProgressCard";
 import { PlanBatchProgressCard } from "@/features/agent/ui/components/PlanBatchProgressCard";
+import { WorkspaceProfileChangeCard } from "@/features/agent/ui/components/WorkspaceProfileChangeCard";
 import { PostCard } from "@/features/agent/ui/components/PostCard";
 import { InlineFeatureStrip } from "@/shared/ui/components/InlineFeatureStrip";
 import { api } from "@/convex/_generated/api";
@@ -44,6 +45,7 @@ interface AgentArtifactActionContextValue {
   onOpenPanel?: (payload: InlinePanelOpenPayload) => void;
   onApprovePlan?: (planId: string) => void | Promise<void>;
   onDeletePlan?: (planId: string) => void | Promise<void>;
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
 }
 
 const AgentArtifactActionContext =
@@ -51,6 +53,20 @@ const AgentArtifactActionContext =
 
 function useAgentArtifactActions() {
   return React.useContext(AgentArtifactActionContext);
+}
+
+function WorkspaceProfileChangeArtifactCard({
+  props,
+}: {
+  props: { requestId: string };
+}) {
+  const { onOpenWorkspaceProfilePanel } = useAgentArtifactActions();
+  return (
+    <WorkspaceProfileChangeCard
+      requestId={props.requestId}
+      onReview={onOpenWorkspaceProfilePanel}
+    />
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -827,6 +843,9 @@ const { registry } = defineRegistry(agentArtifactCatalog, {
       <PlanBatchProgressCard runId={props.runId} />
     ),
     MemoryCard: ({ props }) => <MemoryArtifactCard props={props} />,
+    WorkspaceProfileChangeCard: ({ props }) => (
+      <WorkspaceProfileChangeArtifactCard props={props} />
+    ),
     TwitterActionCard: ({ props }) => (
       <TwitterActionArtifactCard props={props} />
     ),
@@ -841,6 +860,7 @@ export interface AgentArtifactRendererProps {
   onOpenPanel?: (payload: InlinePanelOpenPayload) => void;
   onApprovePlan?: (planId: string) => void | Promise<void>;
   onDeletePlan?: (planId: string) => void | Promise<void>;
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
 }
 
 export function AgentArtifactRenderer({
@@ -850,6 +870,7 @@ export function AgentArtifactRenderer({
   onOpenPanel,
   onApprovePlan,
   onDeletePlan,
+  onOpenWorkspaceProfilePanel,
 }: AgentArtifactRendererProps) {
   const resolvedOpenPanel = onOpenPostPanel ?? onOpenPanel;
   const validatedArtifact = React.useMemo(
@@ -863,8 +884,15 @@ export function AgentArtifactRenderer({
       onOpenPanel: resolvedOpenPanel,
       onApprovePlan,
       onDeletePlan,
+      onOpenWorkspaceProfilePanel,
     }),
-    [onApprovePlan, onDeletePlan, onOpenPlanPanel, resolvedOpenPanel]
+    [
+      onApprovePlan,
+      onDeletePlan,
+      onOpenPlanPanel,
+      onOpenWorkspaceProfilePanel,
+      resolvedOpenPanel,
+    ]
   );
 
   if (!validatedArtifact) {

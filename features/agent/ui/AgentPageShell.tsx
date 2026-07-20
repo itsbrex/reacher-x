@@ -26,6 +26,7 @@ import { AgentOnboardingPanel } from "./components/AgentOnboardingPanel";
 import { AgentPlanPanel } from "./components/AgentPlanPanel";
 import { AgentOnboardingPanelSpinner } from "./components/AgentOnboardingPanelSpinner";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { WorkspaceProfileReviewPanel } from "./components/WorkspaceProfileReviewPanel";
 import {
   DESKTOP_PANEL_BORDER_CLASS_NAME,
   PageLayout,
@@ -81,6 +82,7 @@ export function AgentPageShell() {
       actionRequestId,
       panelState,
       targetTweetId,
+      workspaceProfileRequestId,
     },
     setParams,
   ] = useQueryStates({
@@ -93,6 +95,7 @@ export function AgentPageShell() {
     actionRequestId: parseAsString,
     panelState: parseAsString,
     targetTweetId: parseAsString,
+    workspaceProfileRequestId: parseAsString,
   });
   const previousRouteThreadIdRef = useRef<string | null>(threadId);
   const staleEffectiveThreadIdRef = useRef<string | null>(null);
@@ -167,6 +170,7 @@ export function AgentPageShell() {
         taskId: null,
         actionRequestId: null,
         targetTweetId: null,
+        workspaceProfileRequestId: null,
       });
     }
   }, [prospectId, setParams, threadId, threadRouteContext]);
@@ -210,6 +214,7 @@ export function AgentPageShell() {
         panelState: null,
         actionRequestId: null,
         targetTweetId: null,
+        workspaceProfileRequestId: null,
       });
       setRightPanelSessionActive(false);
       setHistoryOpen(true);
@@ -235,6 +240,7 @@ export function AgentPageShell() {
       actionRequestId: null,
       panelState: null,
       targetTweetId: null,
+      workspaceProfileRequestId: null,
     });
     setHistoryOpen(false);
     setRightPanelSessionActive(false);
@@ -250,6 +256,7 @@ export function AgentPageShell() {
       actionRequestId: null,
       panelState: null,
       targetTweetId: null,
+      workspaceProfileRequestId: null,
     });
     setRightPanelSessionActive(false);
   }, [setParams, setRightPanelSessionActive]);
@@ -264,6 +271,7 @@ export function AgentPageShell() {
         actionRequestId: null,
         panelState: null,
         targetTweetId: null,
+        workspaceProfileRequestId: null,
       });
       setHistoryOpen(false);
       setCardPayload(null);
@@ -358,6 +366,7 @@ export function AgentPageShell() {
   }, [isSetupRoute]);
 
   const isPlanPanelRequested = panel === "plan";
+  const isWorkspaceProfilePanelRequested = panel === "workspace_profiles";
   const isDmPanelRequested = panel === "dm";
   const requestedPanelMode: AgentPanelMode | null =
     panel === "approval" || panel === "posted"
@@ -558,6 +567,7 @@ export function AgentPageShell() {
         taskId: null,
         actionRequestId: null,
         targetTweetId: null,
+        workspaceProfileRequestId: null,
       });
     },
     [
@@ -567,6 +577,26 @@ export function AgentPageShell() {
       setParams,
       setRightPanelSessionActive,
     ]
+  );
+
+  const handleOpenWorkspaceProfilePanel = useCallback(
+    (requestId: string) => {
+      setProspectPanelSessionProspectId(null);
+      setPlanPanelProspectId(null);
+      closeProspect();
+      setHistoryOpen(false);
+      setCardPayload(null);
+      setRightPanelSessionActive(true);
+      setParams({
+        panel: "workspace_profiles",
+        panelState: null,
+        taskId: null,
+        actionRequestId: null,
+        targetTweetId: null,
+        workspaceProfileRequestId: requestId,
+      });
+    },
+    [closeProspect, setParams, setRightPanelSessionActive]
   );
 
   const handleOpenDmPanel = useCallback(
@@ -616,6 +646,7 @@ export function AgentPageShell() {
       taskId: null,
       actionRequestId: null,
       targetTweetId: null,
+      workspaceProfileRequestId: null,
     });
   }, [setParams, setRightPanelSessionActive]);
 
@@ -808,12 +839,21 @@ export function AgentPageShell() {
     (setupPanelDraft.isLoading || setupPanelDraft.setupDraft === null);
   const showSetupChatOnly =
     isSetupRoute && isMobile && setupOnboardingPanelOpen;
+  const showWorkspaceProfilePanel =
+    isWorkspaceProfilePanelRequested &&
+    Boolean(workspaceProfileRequestId) &&
+    rightPanelSessionOpen &&
+    !showHistoryPanel &&
+    !showProspectPanel &&
+    !showAgentTwitterPanel;
   return (
     <div className="flex h-full min-h-0 w-full">
       <PageLayout
         className={cn(
           "h-full w-full max-w-none flex-1 basis-0 border-none",
-          ((showDynamicPanel || showPlanPanel) && isMobile) || showSetupChatOnly
+          ((showDynamicPanel || showPlanPanel || showWorkspaceProfilePanel) &&
+            isMobile) ||
+            showSetupChatOnly
             ? "hidden"
             : null
         )}
@@ -831,6 +871,7 @@ export function AgentPageShell() {
             onEffectiveThreadIdChange={handleEffectiveThreadIdChange}
             onOpenPanelFromCard={handleOpenPanelFromCard}
             onOpenPlanPanel={handleOpenPlanPanel}
+            onOpenWorkspaceProfilePanel={handleOpenWorkspaceProfilePanel}
             onViewProfile={hasProspectContext ? handleViewProfile : undefined}
             onOpenDmPanel={hasProspectContext ? handleOpenDmPanel : undefined}
             onOpenSetupOnboardingPanel={handleOpenSetupOnboardingPanel}
@@ -949,6 +990,14 @@ export function AgentPageShell() {
           currentThreadId={planPanelThreadId}
           onClose={handleClosePanel}
           onViewTask={handleViewTask}
+          className={DESKTOP_PANEL_BORDER_CLASS_NAME}
+        />
+      )}
+
+      {showWorkspaceProfilePanel && workspaceProfileRequestId && (
+        <WorkspaceProfileReviewPanel
+          requestId={workspaceProfileRequestId}
+          onClose={handleClosePanel}
           className={DESKTOP_PANEL_BORDER_CLASS_NAME}
         />
       )}

@@ -78,6 +78,11 @@ import {
 } from "../../lib/outreachModelRoutingCore";
 import { filterLegacySharedBatchTurns } from "../../lib/planBatchCore";
 import type { OutreachAgentCustomContext } from "./context";
+import {
+  approveWorkspaceProfiles,
+  proposeWorkspaceProfiles,
+  rejectWorkspaceProfiles,
+} from "../tools/workspaceProfileChanges";
 
 const outreachAgentLogger = logger.withScope("OutreachAgent");
 
@@ -89,6 +94,9 @@ export const outreachAgentBaseTools = {
   getProspectInteractionHistory,
   getProspectPlan,
   inspectWorkspace,
+  proposeWorkspaceProfiles,
+  approveWorkspaceProfiles,
+  rejectWorkspaceProfiles,
   researchProspect,
   // Plan management
   generatePlan,

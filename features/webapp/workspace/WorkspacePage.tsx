@@ -84,7 +84,10 @@ import {
 } from "@/shared/lib/schemas/validation";
 import { useNewWorkspaceDraftFlow } from "@/features/webapp/hooks/useNewWorkspaceDraftFlow";
 import { setPreferredShellContext } from "@/shared/stores/preferredShellContext";
-import { IdealCustomerProfileCard } from "@/features/prospects";
+import {
+  IdealCustomerProfileCard,
+  IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME,
+} from "@/features/prospects";
 import {
   AddIcon,
   ChangeHistoryIcon,
@@ -941,7 +944,9 @@ export default function WorkspacePage() {
                                 <IdealCustomerProfileCard
                                   key={`${icp.title}-${i}`}
                                   profile={icp}
-                                  disabled
+                                  className={
+                                    IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME
+                                  }
                                 />
                               )
                             )}
@@ -1106,10 +1111,8 @@ export default function WorkspacePage() {
                             description={
                               <>
                                 Review each reply and DM before{" "}
-                                <InlineCode variant="mark">
-                                  △
-                                </InlineCode>{" "}
-                                Agent sends it.
+                                <InlineCode variant="mark">△</InlineCode> Agent
+                                sends it.
                               </>
                             }
                             control={

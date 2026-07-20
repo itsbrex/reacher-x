@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { useAgentProspectQuery } from "@/features/agent/hooks/useAgentProspectQuery";
 import { AgentChat } from "@/features/agent/ui/AgentChat";
 import { HistoryPanel } from "@/features/agent/ui/components/HistoryPanel";
+import { WorkspaceProfileReviewPanel } from "@/features/agent/ui/components/WorkspaceProfileReviewPanel";
 import {
   getTweetIdFromPostPayload,
   type InlinePanelOpenPayload,
@@ -36,6 +37,8 @@ export function ProspectAgentPanel({
     string | null
   >(null);
   const [newThreadSignal, setNewThreadSignal] = React.useState(0);
+  const [workspaceProfileRequestId, setWorkspaceProfileRequestId] =
+    React.useState<string | null>(null);
   const prospectQuery = useAgentProspectQuery(prospectId);
   const prospectArchived = prospectQuery.data?.status === "archived";
 
@@ -176,6 +179,16 @@ export function ProspectAgentPanel({
     className
   );
 
+  if (workspaceProfileRequestId) {
+    return (
+      <WorkspaceProfileReviewPanel
+        requestId={workspaceProfileRequestId}
+        onClose={() => setWorkspaceProfileRequestId(null)}
+        className={panelClassName}
+      />
+    );
+  }
+
   if (historyOpen) {
     return (
       <HistoryPanel
@@ -206,6 +219,7 @@ export function ProspectAgentPanel({
         onEffectiveThreadIdChange={setEffectiveThreadId}
         onOpenPanelFromCard={handleOpenPanelFromCard}
         onOpenPlanPanel={handleOpenPlanPanel}
+        onOpenWorkspaceProfilePanel={setWorkspaceProfileRequestId}
         onViewProfile={popPanel}
         onOpenDmPanel={handleOpenDmPanel}
         shellProspectQuery={{

@@ -21,6 +21,19 @@ export interface InspectWorkspaceResult {
       painPoints: string[];
       channels: string[];
     }>;
+    pendingIdealProfileProposal: {
+      requestId: string;
+      revision: number;
+      profiles: Array<{
+        title: string;
+        description: string;
+        painPoints: string[];
+        channels: string[];
+      }>;
+      addedTitles: string[];
+      updatedTitles: string[];
+      removedTitles: string[];
+    } | null;
     connectedAccounts: {
       x: {
         username: string;
@@ -47,7 +60,7 @@ export interface InspectWorkspaceResult {
  */
 export const inspectWorkspace = createTool({
   description:
-    "Inspect the current workspace: the user's offering/description, their ideal customer profiles (ICPs), connected social accounts (X/LinkedIn), and the agent autonomy settings. Use this to ground outreach strategy in the user's real goals and capabilities. No arguments needed - workspace is resolved from thread context.",
+    "Inspect the current workspace: the user's offering/description, saved ideal profiles, any pending workspace-wide ideal-profile proposal, connected social accounts (X/LinkedIn), and agent autonomy settings. When refining profiles, preserve the complete pending proposal when present instead of rebuilding from only the saved profiles. No arguments needed - workspace is resolved from thread context.",
   inputSchema: z.object({}),
   execute: async (ctx): Promise<InspectWorkspaceResult> => {
     try {

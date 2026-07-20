@@ -22,6 +22,13 @@ export const icpValidator = v.object({
   qualificationKeywords: v.optional(v.array(v.string())),
 });
 
+export const workspaceProfileChangeStatusValidator = v.union(
+  v.literal("pending_approval"),
+  v.literal("applied"),
+  v.literal("rejected"),
+  v.literal("stale")
+);
+
 export const entitlementSlotValidator = v.number();
 
 // ============================================================================

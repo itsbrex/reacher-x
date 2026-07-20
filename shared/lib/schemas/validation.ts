@@ -9,6 +9,7 @@ import {
   WORKSPACE_NAME_CONSTRAINTS,
 } from "../utils/validation";
 import { WORKSPACE_USE_CASE_KEYS } from "../workspaceUseCases";
+import { WORKSPACE_PROFILE_CHANNELS } from "../workspaceProfileChannels";
 
 /** ICP short description / textarea (Figma 512 cap on profile edit). */
 export const ICP_SHORT_DESCRIPTION_MAX = 512;
@@ -100,6 +101,42 @@ export const icpFormEntrySchema = z.object({
   painPoints: z.array(z.string()),
   channels: z.array(z.string()),
 });
+
+const editableWorkspaceProfileSchema = icpFormEntrySchema.extend({
+  title: z
+    .string()
+    .trim()
+    .min(1, { error: "Profile name is required." })
+    .max(200),
+  channels: z
+    .array(z.enum(WORKSPACE_PROFILE_CHANNELS))
+    .min(1, { error: "Select at least one channel." }),
+});
+
+export const workspaceProfileReviewFormSchema = z
+  .object({
+    icps: z.array(editableWorkspaceProfileSchema).min(3, {
+      error: "At least three ideal profiles are required.",
+    }),
+  })
+  .superRefine((data, ctx) => {
+    const titles = new Set<string>();
+    data.icps.forEach((icp, index) => {
+      const key = icp.title.trim().toLowerCase();
+      if (titles.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Profile names must be unique.",
+          path: ["icps", index, "title"],
+        });
+      }
+      titles.add(key);
+    });
+  });
+
+export type WorkspaceProfileReviewFormValues = z.infer<
+  typeof workspaceProfileReviewFormSchema
+>;
 
 function icpHasMeaningfulContent(
   icp: Pick<

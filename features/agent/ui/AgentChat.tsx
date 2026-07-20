@@ -367,6 +367,8 @@ export interface AgentChatProps {
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   /** Open the current prospect's plan panel */
   onOpenPlanPanel?: (prospectId?: string | null) => void;
+  /** Review a pending workspace profile proposal in the Workspace panel. */
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
   /** Open the current prospect profile */
   onViewProfile?: () => void;
   /** Open the current prospect's platform conversation panel */
@@ -442,12 +444,14 @@ function ArtifactToolResult({
   artifact,
   onOpenPanelFromCard,
   onOpenPlanPanel,
+  onOpenWorkspaceProfilePanel,
   onApprovePlan,
   onDeletePlan,
 }: {
   artifact: NonNullable<ReturnType<typeof getAgentArtifactFromResult>>;
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   onOpenPlanPanel?: (prospectId?: string | null) => void;
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
   onApprovePlan: (planId: string) => void;
   onDeletePlan: (planId: string) => void | Promise<void>;
 }) {
@@ -456,6 +460,7 @@ function ArtifactToolResult({
       artifact={artifact}
       onOpenPanel={onOpenPanelFromCard}
       onOpenPlanPanel={onOpenPlanPanel}
+      onOpenWorkspaceProfilePanel={onOpenWorkspaceProfilePanel}
       onApprovePlan={onApprovePlan}
       onDeletePlan={onDeletePlan}
     />
@@ -620,11 +625,13 @@ function ToolCallVisualization({
   toolCalls,
   onOpenPanelFromCard,
   onOpenPlanPanel,
+  onOpenWorkspaceProfilePanel,
   supersededArtifactKeysByToolCallId,
 }: {
   toolCalls: ToolCallInfo[];
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   onOpenPlanPanel?: (prospectId?: string | null) => void;
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
   supersededArtifactKeysByToolCallId?: ReadonlyMap<string, ReadonlySet<string>>;
 }) {
   const approvePlan = useMutation(api.outreach.approvePlan);
@@ -671,6 +678,7 @@ function ToolCallVisualization({
             artifact={resultArtifact}
             onOpenPanelFromCard={onOpenPanelFromCard}
             onOpenPlanPanel={onOpenPlanPanel}
+            onOpenWorkspaceProfilePanel={onOpenWorkspaceProfilePanel}
             onApprovePlan={(planId: string) => {
               void approvePlan({ planId: planId as Id<"outreachPlans"> });
             }}
@@ -1483,6 +1491,7 @@ function ChatMessage({
   threadModelName,
   onOpenPanelFromCard,
   onOpenPlanPanel,
+  onOpenWorkspaceProfilePanel,
 }: {
   message: UIMessage;
   userImage?: string;
@@ -1490,6 +1499,7 @@ function ChatMessage({
   threadModelName?: string | null;
   onOpenPanelFromCard?: (payload: InlinePanelOpenPayload) => void;
   onOpenPlanPanel?: (prospectId?: string | null) => void;
+  onOpenWorkspaceProfilePanel?: (requestId: string) => void;
 }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -1738,6 +1748,7 @@ function ChatMessage({
                       toolCalls={[tc]}
                       onOpenPanelFromCard={onOpenPanelFromCard}
                       onOpenPlanPanel={onOpenPlanPanel}
+                      onOpenWorkspaceProfilePanel={onOpenWorkspaceProfilePanel}
                       supersededArtifactKeysByToolCallId={
                         supersededArtifactKeysByToolCallId
                       }
@@ -1762,6 +1773,7 @@ function ChatMessage({
                   toolCalls={toolCalls}
                   onOpenPanelFromCard={onOpenPanelFromCard}
                   onOpenPlanPanel={onOpenPlanPanel}
+                  onOpenWorkspaceProfilePanel={onOpenWorkspaceProfilePanel}
                   supersededArtifactKeysByToolCallId={
                     supersededArtifactKeysByToolCallId
                   }
@@ -2149,6 +2161,7 @@ export function AgentChat({
   onEffectiveThreadIdChange,
   onOpenPanelFromCard,
   onOpenPlanPanel,
+  onOpenWorkspaceProfilePanel,
   onViewProfile,
   onOpenDmPanel,
   onOpenSetupOnboardingPanel,
@@ -3079,6 +3092,9 @@ export function AgentChat({
                           threadModelName={threadModelName}
                           onOpenPanelFromCard={onOpenPanelFromCard}
                           onOpenPlanPanel={onOpenPlanPanel}
+                          onOpenWorkspaceProfilePanel={
+                            onOpenWorkspaceProfilePanel
+                          }
                         />
                       </motion.div>
                     </MessageScrollerItem>

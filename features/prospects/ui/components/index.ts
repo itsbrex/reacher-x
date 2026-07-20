@@ -64,6 +64,7 @@ export { ProspectListSortPanel } from "./ProspectListSortPanel";
 export {
   IdealCustomerProfileCard,
   IdealCustomerProfileCardSkeleton,
+  IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME,
 } from "./ideal-customer-profile";
 export type {
   IdealCustomerProfileCardData,

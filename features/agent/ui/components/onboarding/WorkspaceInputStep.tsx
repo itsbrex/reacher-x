@@ -19,6 +19,7 @@ import {
 import {
   IdealCustomerProfileCard,
   IdealCustomerProfileCardSkeleton,
+  IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME,
 } from "@/features/prospects";
 import { InlineProfilePreviewCard } from "@/features/agent/ui/components/InlineProfilePreviewCard";
 import {
@@ -400,10 +401,7 @@ function WorkspaceInputContent({
             {Array.from({ length: 3 }).map((_, index) => (
               <IdealCustomerProfileCardSkeleton
                 key={`icp-skel-${index}`}
-                className={cn(
-                  setupCardClassName,
-                  "border-l-foreground rounded-none border-y-0 border-r-0 border-l-2 px-4"
-                )}
+                className={IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME}
               />
             ))}
           </section>
@@ -420,7 +418,7 @@ function WorkspaceInputContent({
                   key={`${icp.title}-${index}`}
                   profile={icp}
                   maxPainBadges={2}
-                  className="border-l-foreground hover:border-l-foreground rounded-none border-y-0 border-r-0 border-l-2 px-4 py-0 transition-colors"
+                  className={IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME}
                 />
               ))}
             </div>

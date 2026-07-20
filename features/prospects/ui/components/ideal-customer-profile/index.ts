@@ -1,4 +1,7 @@
-export { IdealCustomerProfileCard } from "./IdealCustomerProfileCard";
+export {
+  IdealCustomerProfileCard,
+  IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME,
+} from "./IdealCustomerProfileCard";
 export type {
   IdealCustomerProfileCardData,
   IdealCustomerProfileCardProps,

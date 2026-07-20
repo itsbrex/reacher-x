@@ -41,8 +41,8 @@ import { getActiveSetupSessionForUser } from "./lib/setupSessionCore";
 import {
   hasAnyWorkspaceIcpSyntheticPosts,
   listWorkspaceIcpSignalMissingIndices,
-  reconcileWorkspaceIcpUpdate,
 } from "./lib/workspaceIcpSignalsCore";
+import { applyWorkspaceSettingsUpdateCore } from "./lib/workspaceSettingsCore";
 import {
   DEFAULT_WORKSPACE_USE_CASE_KEY,
   resolveWorkspaceUseCaseKey,
@@ -398,17 +398,24 @@ export const getWorkspaceInspectionInternal = internalQuery({
       return null;
     }
 
-    const [settingsRow, xAccount, linkedinAccount] = await Promise.all([
-      getWorkspaceAgentSettingsRow(ctx, workspaceId),
-      ctx.db
-        .query("xAccounts")
-        .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
-        .first(),
-      ctx.db
-        .query("linkedinAccounts")
-        .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
-        .first(),
-    ]);
+    const [settingsRow, xAccount, linkedinAccount, pendingProfileProposal] =
+      await Promise.all([
+        getWorkspaceAgentSettingsRow(ctx, workspaceId),
+        ctx.db
+          .query("xAccounts")
+          .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
+          .first(),
+        ctx.db
+          .query("linkedinAccounts")
+          .withIndex("by_user", (q) => q.eq("userId", workspace.userId))
+          .first(),
+        ctx.db
+          .query("workspaceProfileChangeRequests")
+          .withIndex("by_workspace_id_and_status", (q) =>
+            q.eq("workspaceId", workspaceId).eq("status", "pending_approval")
+          )
+          .unique(),
+      ]);
     const settings = settingsRow ?? getDefaultWorkspaceAgentSettings(workspace);
 
     return {
@@ -421,6 +428,21 @@ export const getWorkspaceInspectionInternal = internalQuery({
         painPoints: icp.painPoints,
         channels: icp.channels,
       })),
+      pendingIdealProfileProposal: pendingProfileProposal
+        ? {
+            requestId: pendingProfileProposal._id,
+            revision: pendingProfileProposal.revision,
+            profiles: pendingProfileProposal.proposedIcps.map((profile) => ({
+              title: profile.title,
+              description: profile.description,
+              painPoints: profile.painPoints,
+              channels: profile.channels,
+            })),
+            addedTitles: pendingProfileProposal.addedTitles,
+            updatedTitles: pendingProfileProposal.updatedTitles,
+            removedTitles: pendingProfileProposal.removedTitles,
+          }
+        : null,
       connectedAccounts: {
         x: xAccount
           ? {
@@ -607,94 +629,22 @@ export const updateWorkspaceSettings = mutation({
       notAuthorizedMessage: "Not authorized to update this workspace",
     });
 
-    if (args.icps !== undefined && args.icps.length < 3) {
-      throw new Error("At least three ideal customer profiles are required.");
-    }
-
-    const now = getCurrentUTCTimestamp();
-    const updateData: Record<string, unknown> = { updatedAt: now };
-    let regenerationScheduledCount = 0;
-    let regenerationIndices: number[] = [];
-    let restartWorkflowAfterRefresh = false;
-    let stopWorkflowForRefresh = false;
-
-    if (args.name !== undefined) {
-      updateData.name = assertValidWorkspaceName(args.name);
-    }
-    if (args.description !== undefined)
-      updateData.description = args.description;
-    if (args.seedDescription !== undefined)
-      updateData.seedDescription = args.seedDescription;
-    if (args.improvedDescription !== undefined)
-      updateData.improvedDescription = args.improvedDescription;
-    if (args.icps !== undefined) {
-      const reconciliation = reconcileWorkspaceIcpUpdate({
-        existingIcps: workspace.icps ?? [],
-        incomingIcps: args.icps,
-      });
-
-      updateData.icps = reconciliation.nextIcps;
-      regenerationIndices = reconciliation.regenerationIndices;
-      regenerationScheduledCount = reconciliation.regenerationIndices.length;
-
-      if (regenerationScheduledCount > 0) {
-        updateData.onboardingIssueStatusCode = "icp_refresh_required";
-        updateData.onboardingIssueSource = "system";
-        updateData.onboardingIssueUpdatedAt = now;
-
-        stopWorkflowForRefresh =
-          reconciliation.allSyntheticPostsMissing &&
-          workspace.prospectingWorkflowStatus === "running";
-        restartWorkflowAfterRefresh = stopWorkflowForRefresh;
-      } else if (
-        workspace.onboardingIssueSource === "system" &&
-        workspace.onboardingIssueStatusCode === "icp_refresh_required"
-      ) {
-        updateData.onboardingIssueStatusCode = undefined;
-        updateData.onboardingIssueSource = undefined;
-        updateData.onboardingIssueUpdatedAt = undefined;
-      }
-    }
-    if (args.useCaseKey !== undefined) updateData.useCaseKey = args.useCaseKey;
-    if (args.sourceUrl !== undefined) updateData.sourceUrl = args.sourceUrl;
-    if (args.descriptionSource !== undefined)
-      updateData.descriptionSource = args.descriptionSource;
-    if (args.lastGeneratedAt !== undefined)
-      updateData.lastGeneratedAt = args.lastGeneratedAt;
-    if (args.reportingTimeZone !== undefined) {
-      updateData.reportingTimeZone = normalizeTimeZoneIdentifier(
-        args.reportingTimeZone
-      );
-    }
-
-    await ctx.db.patch(workspace._id, updateData);
-
-    if (stopWorkflowForRefresh) {
-      await ctx.runMutation(
-        internal.workflows.prospecting.updateWorkflowStatus,
-        {
-          workspaceId: args.workspaceId,
-          status: "stopped",
-        }
-      );
-    }
-
-    if (regenerationScheduledCount > 0) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.workspaceIcpSignals.refreshWorkspaceIcpSignalsInternal,
-        {
-          workspaceId: args.workspaceId,
-          targetIndices: regenerationIndices,
-          restartWorkflow: restartWorkflowAfterRefresh,
-        }
-      );
-    }
-
-    return {
-      workspaceId: workspace._id,
-      regenerationScheduledCount,
+    const updates = {
+      name: args.name,
+      description: args.description,
+      seedDescription: args.seedDescription,
+      improvedDescription: args.improvedDescription,
+      icps: args.icps,
+      useCaseKey:
+        args.useCaseKey === undefined
+          ? undefined
+          : resolveWorkspaceUseCaseKey(args.useCaseKey),
+      sourceUrl: args.sourceUrl,
+      descriptionSource: args.descriptionSource,
+      lastGeneratedAt: args.lastGeneratedAt,
+      reportingTimeZone: args.reportingTimeZone,
     };
+    return applyWorkspaceSettingsUpdateCore(ctx, { workspace, updates });
   },
 });
 

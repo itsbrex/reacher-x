@@ -184,6 +184,13 @@ export const agentArtifactCatalog = defineCatalog(schema, {
       description:
         "Slim confirmation card for a saved workspace memory, with category badge and optional deep link into Agent observability.",
     },
+    WorkspaceProfileChangeCard: {
+      props: z.object({
+        requestId: z.string(),
+      }),
+      description:
+        "Shows a durable workspace-wide ideal-profile proposal with explicit approval controls.",
+    },
     TwitterActionCard: {
       props: z.object({
         platform: z.enum(["twitter", "linkedin"]).nullable().optional(),
@@ -357,6 +364,11 @@ export function getAgentArtifactSemanticKey(
   if (type === "PlanPreviewCard") {
     const planId = getStringProperty(props, "planId");
     return planId ? `${type}:${planId}` : null;
+  }
+
+  if (type === "WorkspaceProfileChangeCard") {
+    const requestId = getStringProperty(props, "requestId");
+    return requestId ? `${type}:${requestId}` : null;
   }
 
   return null;
@@ -673,6 +685,14 @@ export function createMemoryArtifact(input: {
     source: input.source,
     confidence: input.confidence,
     impactScore: input.impactScore,
+  });
+}
+
+export function createWorkspaceProfileChangeArtifact(input: {
+  requestId: string;
+}) {
+  return createAgentArtifact("WorkspaceProfileChangeCard", {
+    requestId: input.requestId,
   });
 }
 

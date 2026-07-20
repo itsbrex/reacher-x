@@ -9,6 +9,13 @@ import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/components/Badge";
 import { FilledLinkedinIcon, TwitterIcon } from "@/shared/ui/components/icons";
 
+/**
+ * Left-accent list presentation used by setup/onboarding, workspace Profiles,
+ * and agent workspace-profile proposals.
+ */
+export const IDEAL_CUSTOMER_PROFILE_LIST_CLASS_NAME =
+  "border-l-foreground rounded-none border-y-0 border-r-0 border-l-2 px-4 py-0";
+
 export type IdealCustomerProfileCardData = {
   title: string;
   description: string;
