@@ -53,7 +53,11 @@ export function LandingMuxHoverPlayer({
 
       {canUseMux ? (
         <MuxPlayer
-          className="absolute inset-0 h-full w-full"
+          className="absolute inset-0 h-full w-full bg-transparent"
+          style={{
+            "--media-object-fit": "contain",
+            "--media-object-position": "center",
+          }}
           preload={loading === "page" ? "auto" : "metadata"}
           accentColor="hsl(var(--muted-foreground))"
           playbackId={playbackId}
@@ -65,8 +69,9 @@ export function LandingMuxHoverPlayer({
           thumbnailTime={posterTime}
           streamType="on-demand"
           maxResolution={maxResolution}
-          muted
-          autoPlay
+          defaultHiddenCaptions
+          volume={1}
+          autoPlay="any"
           loop
           playsInline
           disablePictureInPicture
@@ -83,7 +88,7 @@ export function LandingMuxHoverPlayer({
           playsInline
           preload="metadata"
           aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-contain"
         />
       ) : null}
     </div>

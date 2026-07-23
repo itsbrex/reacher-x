@@ -20,7 +20,7 @@ export const LANDING_USE_CASES_PLAYBACK_ID =
   "SkBT1UBcuNCnDbeE5lThj00901Ql02xuYTyh01hJaMXkFS8";
 
 export const LANDING_PRIMARY_PLAYBACK_ID =
-  "SkBT1UBcuNCnDbeE5lThj00901Ql02xuYTyh01hJaMXkFS8";
+  "iLb702w5VT02r00BjdkpzDJj7tkWvqBBkt5z6tzf45TMZQ";
 
 export const LANDING_PLACEHOLDER_VIDEO_URL =
   "https://nmx18xidmv.ufs.sh/f/uF4FhwZJse4Ne4o1rZgyRbrWdIGZK0sCkx5o6azDVPMBptAj";

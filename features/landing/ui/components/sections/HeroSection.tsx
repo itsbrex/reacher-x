@@ -33,12 +33,12 @@ export function HeroSection() {
         </div>
       </div>
 
-      {/* Demo video — no frame, just the video */}
+      {/* Demo video — match Mux asset aspect ratio (335:216) to avoid letterboxing */}
       <div className="mt-12 md:mt-16">
         <ThemedFigureVideo
           videoAssetKey="hero"
           ariaLabel="ReacherX Agent dashboard demo"
-          figureClassName="aspect-[4/3] w-full"
+          figureClassName="aspect-[335/216] w-full"
           className="h-full w-full"
           initialPreload="metadata"
           variant="player"
