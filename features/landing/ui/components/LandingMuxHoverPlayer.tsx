@@ -55,7 +55,7 @@ export function LandingMuxHoverPlayer({
         <MuxPlayer
           className="absolute inset-0 h-full w-full bg-transparent"
           style={{
-            "--media-object-fit": "contain",
+            "--media-object-fit": "cover",
             "--media-object-position": "center",
           }}
           preload={loading === "page" ? "auto" : "metadata"}
@@ -88,7 +88,7 @@ export function LandingMuxHoverPlayer({
           playsInline
           preload="metadata"
           aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
     </div>
