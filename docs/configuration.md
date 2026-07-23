@@ -248,12 +248,14 @@ Increasing workpool parallelism without increasing provider capacity can increas
 
 ## Feature Flags And Reserved Variables
 
-| Variable                         | Status                                                                   |
-| -------------------------------- | ------------------------------------------------------------------------ |
-| `SETUP_PREVIEW_FAST_PATH`        | Active setup-preview optimization; unrelated to real-workflow scheduling |
-| `XAI_API_KEY`                    | Reserved/currently unused; setting it has no effect                      |
-| `XAI_BASE_URL`                   | Reserved/currently unused; setting it has no effect                      |
-| `NEXT_PUBLIC_DISABLE_LLM_FILTER` | Reserved/currently unused; setting it has no effect                      |
+| Variable                                    | Status                                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_BACKEND_STATUS_BANNER`         | Show a fixed site-wide downtime banner on landing and app (`true` / `1` / `yes` / `on`)         |
+| `NEXT_PUBLIC_BACKEND_STATUS_BANNER_MESSAGE` | Optional banner copy override; defaults to a clear backend-unavailable notice                   |
+| `SETUP_PREVIEW_FAST_PATH`                   | Active setup-preview optimization; unrelated to real-workflow scheduling                        |
+| `XAI_API_KEY`                               | Reserved/currently unused; setting it has no effect                                             |
+| `XAI_BASE_URL`                              | Reserved/currently unused; setting it has no effect                                             |
+| `NEXT_PUBLIC_DISABLE_LLM_FILTER`            | Reserved/currently unused; setting it has no effect                                             |
 
 Reserved variables remain in `.env.example` so intended future integration points are explicit without implying that they currently change application behavior.
 

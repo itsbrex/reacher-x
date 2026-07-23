@@ -9,6 +9,8 @@ import { PostHogProvider } from "./PostHogProvider";
 import { ThemeProvider } from "@/shared/ui/components/ThemeProvider";
 import { Toaster } from "@/shared/ui/components/Sonner";
 import MediaChromeYTTemplate from "@/shared/ui/components/MediaChromeYTTemplate";
+import { BackendStatusBanner } from "@/shared/ui/components/BackendStatusBanner";
+import { isBackendStatusBannerEnabled } from "@/shared/lib/backendStatusBanner";
 import { geistSans, geistMono, geistPixelSquare } from "./fonts";
 import "./globals.css";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
@@ -77,8 +79,14 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const backendStatusBanner = isBackendStatusBannerEnabled();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-backend-status-banner={backendStatusBanner ? "" : undefined}
+    >
       <head>
         <link
           rel="preconnect"
@@ -111,6 +119,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <NuqsAdapter>
+              <BackendStatusBanner />
               <MediaChromeYTTemplate />
               <Suspense fallback={null}>
                 <ConvexClientProvider>{children}</ConvexClientProvider>

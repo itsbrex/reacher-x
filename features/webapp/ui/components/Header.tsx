@@ -423,7 +423,11 @@ export function Header({
   // Loading state
   if (isHeaderLoading) {
     return (
-      <Comp className={cn(headerVariants({ size }), className)} {...props}>
+      <Comp
+        className={cn(headerVariants({ size }), className)}
+        data-rx-chrome-below-banner=""
+        {...props}
+      >
         <div className="flex items-center">
           <Link
             href="/"
@@ -455,7 +459,11 @@ export function Header({
   }
 
   return (
-    <Comp className={cn(headerVariants({ size }), className)} {...props}>
+    <Comp
+      className={cn(headerVariants({ size }), className)}
+      data-rx-chrome-below-banner=""
+      {...props}
+    >
       <div className="flex items-center">
         <Link
           href="/"

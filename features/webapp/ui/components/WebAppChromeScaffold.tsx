@@ -34,7 +34,7 @@ export function WebAppChromeScaffold({ children }: WebAppChromeScaffoldProps) {
         </Suspense>
         <WorkspaceTransitionBar />
         <div className="w-full pt-12">
-          <div className="flex h-[calc(100dvh-3rem)] min-h-0 overflow-hidden">
+          <div className="flex h-[calc(100dvh-3rem-var(--rx-backend-status-banner-height))] min-h-0 overflow-hidden">
             <Sidebar collapsible="icon" style={desktopSidebarStyle}>
               <Suspense fallback={<SidebarHeaderSkeleton />}>
                 <SidebarHeader />

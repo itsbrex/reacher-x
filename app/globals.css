@@ -285,6 +285,16 @@ html.dark .rx-code-block .shiki span {
 html {
   /* Prevent layout shifts when vertical scrollbars appear/disappear */
   scrollbar-gutter: stable both-edges;
+  --rx-backend-status-banner-height: 0px;
+}
+
+html[data-backend-status-banner] {
+  --rx-backend-status-banner-height: 2.5rem; /* matches h-10 spacer */
+}
+
+/* Keep fixed/sticky chrome below the site-wide backend status banner */
+html[data-backend-status-banner] [data-rx-chrome-below-banner] {
+  top: var(--rx-backend-status-banner-height);
 }
 
 h1,

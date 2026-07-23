@@ -779,6 +779,7 @@ export function Header({ githubStarsCount }: { githubStarsCount: number }) {
 
   return (
     <header
+      data-rx-chrome-below-banner=""
       className={cn(
         "bg-background sticky top-0 z-50 flex items-center justify-between py-2 transition-[border-color] duration-200 md:py-3",
         scrolled ? "border-border border-b" : "border-b border-transparent"
